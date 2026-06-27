@@ -111,37 +111,68 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         .filter(|s| s.status == Status::NeedsHelp)
         .count();
 
-    let status_spans = vec![
-        Span::styled(" q", Style::default().fg(Color::Yellow)),
-        Span::raw(":quit  "),
-        Span::styled("j/k", Style::default().fg(Color::Yellow)),
-        Span::raw(":nav  "),
-        Span::styled("r", Style::default().fg(Color::Yellow)),
-        Span::raw(":reload  "),
-        Span::styled("x", Style::default().fg(Color::Yellow)),
-        Span::raw(":clear  "),
-        Span::raw("| "),
-        Span::styled(
-            format!("{} active", active_count),
-            Style::default().fg(Color::Green),
-        ),
-        Span::raw("  "),
-        if help_count > 0 {
-            Span::styled(
-                format!("{} needs help", help_count),
-                Style::default()
-                    .fg(Color::Red)
-                    .add_modifier(Modifier::BOLD),
-            )
-        } else {
-            Span::styled(
-                "0 needs help".to_string(),
-                Style::default().fg(Color::DarkGray),
-            )
-        },
-    ];
+    // A recent `l`-press (or other action) shows transient feedback in place of
+    // the normal hint bar for a few seconds.
+    let transient = app
+        .status_message
+        .as_ref()
+        .filter(|(_, t)| t.elapsed().as_secs() < 4)
+        .map(|(msg, _)| msg.clone());
 
-    let status_bar = Paragraph::new(Line::from(status_spans))
+    let line = if let Some(msg) = transient {
+        Line::from(Span::styled(
+            format!(" {msg}"),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ))
+    } else {
+        let (led_text, led_style) = match (app.led_enabled, app.led_detected) {
+            (true, true) => ("● LED on", Style::default().fg(Color::Green)),
+            (true, false) => (
+                "● LED on (no board)",
+                Style::default().fg(Color::Yellow),
+            ),
+            (false, true) => ("○ LED off (l)", Style::default().fg(Color::Cyan)),
+            (false, false) => ("○ LED off", Style::default().fg(Color::DarkGray)),
+        };
+
+        Line::from(vec![
+            Span::styled(" q", Style::default().fg(Color::Yellow)),
+            Span::raw(":quit  "),
+            Span::styled("j/k", Style::default().fg(Color::Yellow)),
+            Span::raw(":nav  "),
+            Span::styled("r", Style::default().fg(Color::Yellow)),
+            Span::raw(":reload  "),
+            Span::styled("x", Style::default().fg(Color::Yellow)),
+            Span::raw(":clear  "),
+            Span::styled("l", Style::default().fg(Color::Yellow)),
+            Span::raw(":led  "),
+            Span::raw("| "),
+            Span::styled(
+                format!("{} active", active_count),
+                Style::default().fg(Color::Green),
+            ),
+            Span::raw("  "),
+            if help_count > 0 {
+                Span::styled(
+                    format!("{} needs help", help_count),
+                    Style::default()
+                        .fg(Color::Red)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                Span::styled(
+                    "0 needs help".to_string(),
+                    Style::default().fg(Color::DarkGray),
+                )
+            },
+            Span::raw("  "),
+            Span::styled(led_text, led_style),
+        ])
+    };
+
+    let status_bar = Paragraph::new(line)
         .style(Style::default().bg(Color::DarkGray).fg(Color::White));
     frame.render_widget(status_bar, chunks[2]);
 }

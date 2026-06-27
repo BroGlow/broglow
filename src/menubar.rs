@@ -142,6 +142,11 @@ pub fn run() -> anyhow::Result<()> {
         let _ = proxy_for_menu.send_event(UserEvent::Menu(event));
     }));
 
+    // Drive the optional ESP32 status LEDs in the background. This is inert
+    // (touches no serial port) unless the user has enabled it via `l` in the
+    // TUI, so it's safe to always spawn.
+    thread::spawn(|| crate::led::run_daemon());
+
     let initial_state = read_hook_state();
     let (menu, mut ids) = build_menu(&initial_state)?;
     let tray = TrayIconBuilder::new()

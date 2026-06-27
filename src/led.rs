@@ -17,6 +17,7 @@ use std::time::{Duration, Instant};
 
 use serialport::{SerialPort, SerialPortType};
 
+use crate::config;
 use crate::state::{self, aggregate, read_hook_state, Aggregate};
 
 const BAUD: u32 = 115_200;
@@ -65,6 +66,32 @@ fn find_port() -> Option<String> {
     candidates.into_iter().next().map(|(_, name)| name)
 }
 
+/// Strict detection: only USB devices whose vendor ID is a known ESP32 /
+/// USB-UART chip. Unlike [`find_port`], this never falls back to an arbitrary
+/// serial device — so the always-on daemon can scan safely without risking
+/// writing status bytes to an unrelated board (an Arduino, GPS, printer, ...).
+pub fn detect_board() -> Option<String> {
+    let ports = serialport::available_ports().ok()?;
+
+    let mut candidates: Vec<(u8, String)> = ports
+        .into_iter()
+        .filter_map(|p| match &p.port_type {
+            SerialPortType::UsbPort(usb) if KNOWN_VIDS.contains(&usb.vid) => {
+                // Prefer the callout (cu.*) device over its dial-in (tty.*) twin.
+                let cu_penalty = if p.port_name.contains("/tty.") { 1 } else { 0 };
+                Some((cu_penalty, p.port_name))
+            }
+            _ => None,
+        })
+        .collect();
+
+    candidates.sort();
+    candidates.into_iter().next().map(|(_, name)| name)
+}
+
+/// Foreground command (`clawlight led`): mirror state to a board until killed,
+/// using the loose [`find_port`] detection. Kept for debugging and for users
+/// who'd rather run it standalone than via the menu bar daemon.
 pub fn run(port_override: Option<String>) -> anyhow::Result<()> {
     println!(
         "clawlight led — mirroring {} to ESP32 over serial",
@@ -86,7 +113,7 @@ pub fn run(port_override: Option<String>) -> anyhow::Result<()> {
         {
             Ok(port) => {
                 println!("Connected to {path}");
-                if let Err(e) = drive(port) {
+                if let Err(e) = drive(port, || true) {
                     eprintln!("Serial connection lost ({e}); rescanning...");
                 }
             }
@@ -99,9 +126,43 @@ pub fn run(port_override: Option<String>) -> anyhow::Result<()> {
     }
 }
 
-/// Stream state to a connected board until the serial write fails
-/// (typically because the board was unplugged).
-fn drive(mut port: Box<dyn SerialPort>) -> anyhow::Result<()> {
+/// Background driver for the menu bar daemon. Idles — touching no serial port —
+/// while the LED setting is off; when on, connects to a known board (or the
+/// configured `led_port`) and mirrors state, reconnecting on replug. Returns
+/// promptly when the user turns the setting off. Never exits.
+pub fn run_daemon() -> ! {
+    loop {
+        let cfg = config::read_config();
+        if !cfg.led_enabled {
+            std::thread::sleep(RESCAN_INTERVAL);
+            continue;
+        }
+
+        let Some(path) = cfg.led_port.clone().or_else(detect_board) else {
+            std::thread::sleep(RESCAN_INTERVAL);
+            continue;
+        };
+
+        if let Ok(port) = serialport::new(&path, BAUD)
+            .timeout(Duration::from_millis(500))
+            .open()
+        {
+            println!("LED: connected to {path}");
+            // Stay connected until the write fails (unplug) or LED is disabled.
+            let _ = drive(port, || config::read_config().led_enabled);
+        }
+
+        std::thread::sleep(RESCAN_INTERVAL);
+    }
+}
+
+/// Stream state to a connected board until the serial write fails (typically
+/// because the board was unplugged) or `keep_running` returns false (the user
+/// disabled the LED), whichever comes first.
+fn drive(
+    mut port: Box<dyn SerialPort>,
+    keep_running: impl Fn() -> bool,
+) -> anyhow::Result<()> {
     // Native USB CDC stacks use DTR to learn that a host is listening.
     let _ = port.write_data_terminal_ready(true);
 
@@ -109,6 +170,10 @@ fn drive(mut port: Box<dyn SerialPort>) -> anyhow::Result<()> {
     let mut last_write = Instant::now();
 
     loop {
+        if !keep_running() {
+            return Ok(());
+        }
+
         let byte = status_byte(aggregate(&read_hook_state()));
         let changed = last_sent != Some(byte);
 

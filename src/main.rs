@@ -1,4 +1,5 @@
 mod app;
+mod config;
 mod led;
 mod menubar;
 mod notification;
@@ -410,6 +411,7 @@ fn install_hooks() -> anyhow::Result<()> {
 
     println!("\nInstallation complete! Hooks are now active for new Claude Code sessions.");
     println!("Run `clawlight` to launch the TUI dashboard.");
+    println!("Optional: plug in an ESP32 status board and press `l` in the dashboard to enable status LEDs.");
     Ok(())
 }
 

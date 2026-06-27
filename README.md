@@ -88,14 +88,33 @@ clawlight              Launch the TUI dashboard
 clawlight install      Install hooks and start the menu bar daemon
 clawlight uninstall    Remove hooks, unload the menu bar daemon, clean up
 clawlight menubar      Run the menu bar daemon in the foreground (debugging)
-clawlight led          Mirror session state to an ESP32 over USB serial
+clawlight led          Mirror session state to an ESP32 in the foreground (debugging)
 ```
 
-## ESP32 status LEDs
+Inside the dashboard:
 
-`clawlight led` streams the aggregate session state to an ESP32 over USB
-serial, driving red/yellow/green status LEDs on a breadboard. The board
-firmware is maintained in a separate repository.
+```
+q:quit   j/k:nav   r:reload   x:clear   l:toggle ESP32 LEDs
+```
+
+## ESP32 status LEDs (optional)
+
+If you have an ESP32 status board, clawlight can mirror the aggregate
+session state to it over USB serial — red/yellow/green LEDs that match
+the menu bar icon. The board firmware is maintained in a separate
+repository.
+
+**Setup:** plug in the board, open `clawlight`, and press **`l`**. That's
+it — the menu bar daemon drives the LEDs from then on, automatically
+reconnecting when you replug the board and surviving reboots. Press `l`
+again to turn it off.
+
+LEDs are **off by default**; until you enable them, clawlight never opens
+a serial port, so there's nothing to configure if you don't have the
+board. The setting lives in `~/.claude/clawlight/config.json`.
+
+For debugging you can still run the driver in the foreground with
+`clawlight led` (use `--port /dev/cu.usbmodemXXXX` to pin a device).
 
 ## Uninstall
 

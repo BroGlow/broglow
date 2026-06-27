@@ -6,6 +6,8 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use notify::{EventKind, RecursiveMode, Watcher};
 use ratatui::{backend::CrosstermBackend, widgets::TableState, Terminal};
 
+use crate::config;
+use crate::led;
 use crate::notification::send_macos_notification;
 use crate::session::{load_all_sessions, DisplaySession};
 use crate::state::{self, read_hook_state, Status};
@@ -19,6 +21,12 @@ pub struct App {
     pub sessions: Vec<DisplaySession>,
     pub table_state: TableState,
     pub should_quit: bool,
+    /// Whether ESP32 status LEDs are enabled (mirrors `config.json`).
+    pub led_enabled: bool,
+    /// Whether a known ESP32 board is currently attached (refreshed on a timer).
+    pub led_detected: bool,
+    /// Transient one-line feedback shown in the status bar (message + when set).
+    pub status_message: Option<(String, Instant)>,
     previous_statuses: HashMap<String, Status>,
 }
 
@@ -40,8 +48,45 @@ impl App {
             sessions,
             table_state,
             should_quit: false,
+            led_enabled: config::read_config().led_enabled,
+            led_detected: led::detect_board().is_some(),
+            status_message: None,
             previous_statuses,
         }
+    }
+
+    /// Toggle the ESP32 status-LED setting. Enabling requires a board to be
+    /// detected so the user gets clear feedback instead of silently arming a
+    /// feature that does nothing.
+    fn toggle_led(&mut self) {
+        let mut cfg = config::read_config();
+        if cfg.led_enabled {
+            cfg.led_enabled = false;
+            self.led_enabled = false;
+            let _ = config::write_config(&cfg);
+            self.set_status("LED disabled.".to_string());
+            return;
+        }
+
+        match led::detect_board() {
+            Some(port) => {
+                cfg.led_enabled = true;
+                self.led_enabled = true;
+                self.led_detected = true;
+                let _ = config::write_config(&cfg);
+                self.set_status(format!("LED enabled — ESP32 detected at {port}"));
+            }
+            None => {
+                self.led_detected = false;
+                self.set_status(
+                    "No ESP32 detected — plug in the board and press l.".to_string(),
+                );
+            }
+        }
+    }
+
+    fn set_status(&mut self, msg: String) {
+        self.status_message = Some((msg, Instant::now()));
     }
 
     pub fn reload_data(&mut self) {
@@ -162,8 +207,18 @@ impl App {
         let mut last_refresh = Instant::now();
         let refresh_interval = Duration::from_secs(5);
 
+        let mut last_led_check = Instant::now();
+        let led_check_interval = Duration::from_secs(3);
+
         loop {
             terminal.draw(|f| ui::render(f, self))?;
+
+            // Refresh "is a board attached?" on a slow timer — enumerating USB
+            // ports every frame would be wasteful.
+            if last_led_check.elapsed() >= led_check_interval {
+                self.led_detected = led::detect_board().is_some();
+                last_led_check = Instant::now();
+            }
 
             // Poll for events with 250ms timeout
             if event::poll(Duration::from_millis(250))? {
@@ -177,6 +232,7 @@ impl App {
                             KeyCode::Up | KeyCode::Char('k') => self.previous(),
                             KeyCode::Char('r') => self.reload_data(),
                             KeyCode::Char('x') => self.clear_selected(),
+                            KeyCode::Char('l') => self.toggle_led(),
                             _ => {}
                         }
                     }
