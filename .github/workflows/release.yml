@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+          - target: x86_64-apple-darwin
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ../../../clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz clawlight
+          cd ../../..
+          shasum -a 256 clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz > clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz.sha256
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: clawlight-${{ matrix.target }}
+          path: |
+            clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+            clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz.sha256
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            clawlight-*.tar.gz
+            clawlight-*.sha256
+          generate_release_notes: true
+
+  update-homebrew:
+    needs: release
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.ref_name, '-') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Extract version and SHA256 values
+        id: meta
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha256_arm64=$(awk '{print $1}' clawlight-${GITHUB_REF_NAME}-aarch64-apple-darwin.tar.gz.sha256)" >> "$GITHUB_OUTPUT"
+          echo "sha256_x86_64=$(awk '{print $1}' clawlight-${GITHUB_REF_NAME}-x86_64-apple-darwin.tar.gz.sha256)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Homebrew formula
+        run: |
+          sed -e 's/VERSION/${{ steps.meta.outputs.version }}/g' \
+              -e 's/SHA256_ARM64/${{ steps.meta.outputs.sha256_arm64 }}/g' \
+              -e 's/SHA256_X86_64/${{ steps.meta.outputs.sha256_x86_64 }}/g' \
+              homebrew/clawlight.rb.template > clawlight.rb
+
+      - name: Update Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          FORMULA=$(base64 -w0 clawlight.rb)
+          # Look up the existing file SHA (empty on the first release).
+          SHA=$(gh api repos/clawlight/homebrew-tap/contents/Formula/clawlight.rb --jq '.sha' 2>/dev/null || true)
+          if [ -n "$SHA" ]; then
+            gh api -X PUT repos/clawlight/homebrew-tap/contents/Formula/clawlight.rb \
+              -f message="Update clawlight to ${{ steps.meta.outputs.version }}" \
+              -f content="$FORMULA" \
+              -f sha="$SHA"
+          else
+            gh api -X PUT repos/clawlight/homebrew-tap/contents/Formula/clawlight.rb \
+              -f message="Add clawlight ${{ steps.meta.outputs.version }}" \
+              -f content="$FORMULA"
+          fi

@@ -1,0 +1,8 @@
+/target
+.DS_Store
+*.swp
+*.swo
+.idea
+
+# Local-only release runbook (not published with the CLI)
+/docs/RELEASE.md
