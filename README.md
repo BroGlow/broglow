@@ -101,8 +101,8 @@ q:quit   j/k:nav   r:reload   x:clear   l:toggle ESP32 LEDs
 
 If you have an ESP32 status board, clawlight can mirror the aggregate
 session state to it over USB serial — red/yellow/green LEDs that match
-the menu bar icon. The board firmware is maintained in a separate
-repository.
+the menu bar icon. The board firmware lives in a separate repository,
+[clawlight-firmware](https://github.com/clawlight/clawlight-firmware).
 
 **Setup:** plug in the board, open `clawlight`, and press **`l`**. That's
 it — the menu bar daemon drives the LEDs from then on, automatically
