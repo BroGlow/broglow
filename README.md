@@ -10,7 +10,8 @@ Runs on macOS, Windows, and Linux.
   with live status updates (active, inactive, needs help)
 - **Menu bar / system tray icon** — native tray daemon showing a pixel art
   Clawd icon that changes color based on aggregate session health;
-  auto-starts at login (launchd on macOS, a registry Run key on Windows)
+  auto-starts at login (launchd on macOS, a registry Run key on Windows, an
+  XDG autostart entry on Linux)
 - **Auto-naming** — sessions are automatically named based on the first
   prompt using the Claude CLI
 - **File watching** — state updates in real time as sessions start, stop,
@@ -98,6 +99,11 @@ binary itself — there's no separate shell script and no `jq` dependency.
   `~/.claude/clawlight/menubar.{log,err}`.
 - **Windows** — an `HKCU\…\CurrentVersion\Run` registry entry named
   `clawlight`. The daemon runs without a console window in the system tray.
+- **Linux** — an XDG autostart entry at
+  `~/.config/autostart/clawlight.desktop`. Tray icon support depends on
+  your desktop environment's system-tray/appindicator support — it works
+  out of the box on most desktops (KDE, XFCE, Cinnamon, etc.), though GNOME
+  needs an extension such as AppIndicator.
 
 Either way it shows a color-coded Clawd icon:
 
@@ -148,15 +154,21 @@ For debugging you can still run the driver in the foreground with
 `clawlight led` (use `--port` to pin a device — e.g.
 `--port /dev/cu.usbmodemXXXX` on macOS or `--port COM5` on Windows).
 
+Auto-detection prefers ESP32 native-USB boards. If your board instead
+connects through a CH340/CP210x UART bridge and you have other serial
+devices attached (e.g. an Arduino), pin it explicitly via `led_port` in
+the config (e.g. `COM5` or `/dev/cu.usbserial-XXXX`).
+
 ## Uninstall
 
 ```bash
 clawlight uninstall
 ```
 
-This removes the login autostart (the launchd LaunchAgent on macOS or the
-`Run` registry entry on Windows), clears the hook entries from
-`~/.claude/settings.json`, and deletes `~/.claude/clawlight`.
+This removes the login autostart (the launchd LaunchAgent on macOS, the
+`Run` registry entry on Windows, or the XDG autostart entry on Linux),
+clears the hook entries from `~/.claude/settings.json`, and deletes
+`~/.claude/clawlight`.
 
 ## License
 

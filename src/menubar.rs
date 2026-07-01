@@ -135,6 +135,17 @@ enum UserEvent {
 }
 
 pub fn run() -> anyhow::Result<()> {
+    // Guard against running a second tray daemon (e.g. re-running
+    // `clawlight install`, or a user manually launching `clawlight menubar`
+    // while the autostart instance is already up). Two daemons means two
+    // tray icons and two LED/net background threads fighting over the same
+    // serial port.
+    #[cfg(target_os = "windows")]
+    if !acquire_single_instance_lock() {
+        println!("clawlight tray is already running — not starting a second instance.");
+        return Ok(());
+    }
+
     // On Windows this binary is a console app (it also hosts the TUI), so the
     // tray daemon would otherwise leave an empty console window open. Hide it.
     #[cfg(target_os = "windows")]
@@ -279,9 +290,48 @@ fn open_dashboard() {
     }
 }
 
-/// Detach the tray daemon from its console window on Windows so it runs purely
-/// in the background. The process keeps stdout/stderr (redirected to the log
-/// files by the launcher), it just has no visible window.
+/// Acquire a process-lifetime named mutex to ensure only one tray daemon runs
+/// at a time. Returns `true` if this process is the sole holder (safe to
+/// proceed), `false` if another instance already holds it.
+#[cfg(target_os = "windows")]
+fn acquire_single_instance_lock() -> bool {
+    use windows_sys::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS};
+    use windows_sys::Win32::System::Threading::CreateMutexW;
+
+    // UTF-16, NUL-terminated, "Local\" scope keeps it per-session.
+    let name: Vec<u16> = "Local\\clawlight-menubar"
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+
+    unsafe {
+        let handle = CreateMutexW(std::ptr::null(), 0, name.as_ptr());
+        let already_running = GetLastError() == ERROR_ALREADY_EXISTS;
+
+        if handle.is_null() {
+            // Couldn't create the mutex at all; fail open rather than refuse
+            // to start the tray.
+            return true;
+        }
+
+        // Intentionally leak the handle (never call CloseHandle): we want the
+        // mutex held for the entire lifetime of this process so later
+        // launches see ERROR_ALREADY_EXISTS. Windows releases it
+        // automatically when the process exits (normally or via
+        // TerminateProcess), so there is no real leak in practice.
+
+        !already_running
+    }
+}
+
+/// Hide the tray daemon's console window on Windows so it runs purely in the
+/// background. This is a backstop for classic conhost setups (e.g. Windows
+/// Terminal not set as the default host) — the primary fix is that
+/// `install_run_key` in `main.rs` launches via `conhost.exe --headless`,
+/// which sidesteps the pseudoconsole-hiding bug entirely
+/// (see https://github.com/microsoft/terminal/issues/12570). When this
+/// function does apply, it only ever hides a console window; it has no
+/// effect on where stdout/stderr go.
 #[cfg(target_os = "windows")]
 fn hide_console_window() {
     use windows_sys::Win32::System::Console::{GetConsoleProcessList, GetConsoleWindow};

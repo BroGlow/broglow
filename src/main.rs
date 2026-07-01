@@ -5,6 +5,7 @@ mod led;
 mod menubar;
 mod notification;
 mod session;
+mod spawn;
 mod state;
 mod ui;
 
@@ -117,6 +118,17 @@ fn settings_path() -> PathBuf {
 // Install / uninstall
 // ----------------------------------------------------------------------------
 
+/// Claude Code lifecycle events that clawlight's built-in hook backend
+/// registers for. Single source of truth shared by install and uninstall.
+const HOOK_EVENTS: [&str; 6] = [
+    "SessionStart",
+    "UserPromptSubmit",
+    "Stop",
+    "Notification",
+    "SessionEnd",
+    "PreToolUse",
+];
+
 fn install_hooks() -> anyhow::Result<()> {
     // 1. Ensure the clawlight state/log directory exists.
     std::fs::create_dir_all(hook_dir())?;
@@ -151,14 +163,7 @@ fn install_hooks() -> anyhow::Result<()> {
 
     let hooks_obj = hooks.as_object_mut().context("hooks must be an object")?;
 
-    for event in &[
-        "SessionStart",
-        "UserPromptSubmit",
-        "Stop",
-        "Notification",
-        "SessionEnd",
-        "PreToolUse",
-    ] {
+    for event in HOOK_EVENTS {
         hooks_obj.insert(event.to_string(), hook_entry.clone());
     }
 
@@ -187,15 +192,8 @@ fn uninstall_hooks() -> anyhow::Result<()> {
         let mut settings: serde_json::Value = serde_json::from_str(&content)?;
 
         if let Some(hooks) = settings.get_mut("hooks").and_then(|h| h.as_object_mut()) {
-            for event in &[
-                "SessionStart",
-                "UserPromptSubmit",
-                "Stop",
-                "Notification",
-                "SessionEnd",
-                "PreToolUse",
-            ] {
-                hooks.remove(*event);
+            for event in HOOK_EVENTS {
+                hooks.remove(event);
             }
             if hooks.is_empty() {
                 settings.as_object_mut().unwrap().remove("hooks");
@@ -233,9 +231,7 @@ fn install_autostart() -> anyhow::Result<()> {
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        println!("Note: automatic tray startup isn't wired up on this platform yet.");
-        println!("Start the tray icon manually with `clawlight menubar &`.");
-        Ok(())
+        install_xdg_autostart()
     }
 }
 
@@ -250,7 +246,7 @@ fn uninstall_autostart() -> anyhow::Result<()> {
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        Ok(())
+        uninstall_xdg_autostart()
     }
 }
 
@@ -265,12 +261,21 @@ const RUN_VALUE: &str = "clawlight";
 
 #[cfg(target_os = "windows")]
 fn install_run_key() -> anyhow::Result<()> {
-    use std::os::windows::process::CommandExt;
     use winreg::enums::HKEY_CURRENT_USER;
     use winreg::RegKey;
 
     let exe = std::env::current_exe().context("Resolving current executable path")?;
-    let command = format!("\"{}\" menubar", exe.display());
+
+    // Launch through conhost in headless mode instead of invoking the
+    // console-subsystem exe directly. On Windows 11 with Windows Terminal set
+    // as the default terminal host, a directly-launched console app gets a
+    // pseudoconsole HWND from GetConsoleWindow() that ShowWindow(SW_HIDE)
+    // cannot hide (see https://github.com/microsoft/terminal/issues/12570),
+    // so every login would otherwise leave a visible empty terminal window
+    // whose closure kills the tray. `conhost.exe --headless` forces a
+    // windowless pseudoconsole regardless of the user's default-terminal
+    // setting.
+    let command = format!("conhost.exe --headless \"{}\" menubar", exe.display());
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let (key, _) = hkcu
@@ -282,15 +287,13 @@ fn install_run_key() -> anyhow::Result<()> {
 
     // Start the tray now, detached and windowless, so the icon appears
     // immediately without waiting for the next login.
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    const DETACHED_PROCESS: u32 = 0x0000_0008;
-    let _ = std::process::Command::new(&exe)
-        .arg("menubar")
+    let mut cmd = std::process::Command::new(&exe);
+    cmd.arg("menubar")
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
-        .spawn();
+        .stderr(std::process::Stdio::null());
+    crate::spawn::configure_detached(&mut cmd);
+    let _ = cmd.spawn();
     println!("Tray icon launched — look for the Clawd icon in the system tray.");
     Ok(())
 }
@@ -439,5 +442,62 @@ fn uninstall_launch_agent() -> anyhow::Result<()> {
         std::fs::remove_file(&plist_path)?;
         println!("Removed {}", plist_path.display());
     }
+    Ok(())
+}
+
+// ----------------------------------------------------------------------------
+// Autostart — Linux (XDG autostart entry)
+// ----------------------------------------------------------------------------
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn xdg_autostart_path() -> PathBuf {
+    dirs::home_dir()
+        .expect("Home directory must exist")
+        .join(".config")
+        .join("autostart")
+        .join("clawlight.desktop")
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn install_xdg_autostart() -> anyhow::Result<()> {
+    let exe = std::env::current_exe().context("Resolving current executable path")?;
+
+    let desktop_entry = format!(
+        "[Desktop Entry]\nType=Application\nName=clawlight\nExec=\"{}\" menubar\nX-GNOME-Autostart-enabled=true\n",
+        exe.display()
+    );
+
+    let entry_path = xdg_autostart_path();
+    if let Some(parent) = entry_path.parent() {
+        std::fs::create_dir_all(parent).context("Creating ~/.config/autostart")?;
+    }
+    std::fs::write(&entry_path, desktop_entry).context("Writing XDG autostart entry")?;
+    println!("Wrote XDG autostart entry to {}", entry_path.display());
+
+    // Start the tray now, detached, so the icon appears immediately without
+    // waiting for the next login — mirrors the Windows/macOS behavior.
+    // Note: whether a tray icon actually shows up depends on the desktop
+    // environment's support for the AppIndicator/StatusNotifierItem
+    // protocol (GNOME needs an extension; most other DEs work out of the
+    // box), so this is best-effort on Linux.
+    let mut cmd = std::process::Command::new(&exe);
+    cmd.arg("menubar")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    crate::spawn::configure_detached(&mut cmd); // no-op on this platform
+    let _ = cmd.spawn();
+    println!("Tray icon launched (if your desktop environment supports system-tray icons).");
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn uninstall_xdg_autostart() -> anyhow::Result<()> {
+    let entry_path = xdg_autostart_path();
+    if entry_path.exists() {
+        std::fs::remove_file(&entry_path)?;
+        println!("Removed {}", entry_path.display());
+    }
+    println!("Note: a running tray icon stays until you quit it (tray menu \u{2192} Quit) or log out.");
     Ok(())
 }

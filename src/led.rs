@@ -43,9 +43,15 @@ fn status_byte(agg: Aggregate) -> u8 {
 /// Pick the most likely ESP32 serial device. Prefers USB devices with a
 /// known vendor ID, then falls back to anything that looks like a USB
 /// serial port. On macOS the callout (`cu.*`) device is preferred over the
-/// dial-in (`tty.*`) device — `cu.*` opens without waiting for carrier. On
-/// Windows ports are named `COM<n>`, which the USB-type checks below already
-/// cover (with a name-based fallback for drivers that don't report a VID).
+/// dial-in (`tty.*`) device — `cu.*` opens without waiting for carrier.
+///
+/// The name-based fallback (rank 2) only matches macOS `usbmodem`/`usbserial`
+/// device names, for drivers that don't report a VID via `SerialPortType`. It
+/// deliberately does NOT match on a `COM<n>` name prefix: on Windows every
+/// serial port — Bluetooth SPP virtual COMs, onboard mainboard UARTs, modems —
+/// is named `COM<n>`, so that fallback matched far too broadly. Real USB
+/// serial devices on Windows already surface as `SerialPortType::UsbPort` and
+/// are covered by ranks 0-1; anything else needs an explicit `--port COMn`.
 fn find_port() -> Option<String> {
     let ports = serialport::available_ports().ok()?;
 
@@ -55,12 +61,7 @@ fn find_port() -> Option<String> {
             let rank = match &p.port_type {
                 SerialPortType::UsbPort(usb) if KNOWN_VIDS.contains(&usb.vid) => 0,
                 SerialPortType::UsbPort(_) => 1,
-                _ if p.port_name.contains("usbmodem")
-                    || p.port_name.contains("usbserial")
-                    || p.port_name.starts_with("COM") =>
-                {
-                    2
-                }
+                _ if p.port_name.contains("usbmodem") || p.port_name.contains("usbserial") => 2,
                 _ => return None,
             };
             // Skip dial-in devices when a callout twin exists (macOS only;
@@ -74,32 +75,60 @@ fn find_port() -> Option<String> {
     candidates.into_iter().next().map(|(_, name)| name)
 }
 
-/// Strict detection: every currently-present USB device whose vendor ID is a
-/// known ESP32 / USB-UART chip, sorted (callout `cu.*` devices preferred over
-/// their dial-in `tty.*` twins on macOS). Unlike [`find_port`], this never
-/// falls back to an arbitrary serial device — so the always-on daemon can scan
+/// Strict detection: currently-present USB devices that are safe to assume
+/// are the ESP32 board, sorted (callout `cu.*` devices preferred over their
+/// dial-in `tty.*` twins on macOS). Unlike [`find_port`], this never falls
+/// back to an arbitrary serial device — so the always-on daemon can scan
 /// safely without writing status bytes to an unrelated board (an Arduino, GPS,
 /// printer, ...). Returns a list so callers can fall through to the next board
 /// when one can't be opened (e.g. it's held by another app).
+///
+/// Vendor IDs are not all equally trustworthy here. 0x303A (Espressif) is
+/// only used by native-USB ESP32 variants (C3/C6/S3), so any device with that
+/// VID is unambiguously an ESP32 board — it's always safe to include, and
+/// safe to iterate through if there are several. 0x1A86 (CH340) and 0x10C4
+/// (CP210x), by contrast, are generic USB-UART bridge chips used by countless
+/// non-ESP32 devices too — notably classic Arduinos (Uno/Mega). A machine
+/// with an Arduino permanently attached alongside the real board would, if we
+/// treated bridge VIDs the same as the Espressif VID, let the daemon happily
+/// open the Arduino and stream status bytes to it (toggling DTR, which
+/// hardware-resets it) whenever the ESP32's port is busy. So bridge-VID
+/// candidates are only included when there are no Espressif candidates *and*
+/// exactly one bridge device is present — i.e. only when there's no room for
+/// ambiguity. Anything less certain requires the user to pin `led_port`.
 pub fn detect_boards() -> Vec<String> {
     let ports = match serialport::available_ports() {
         Ok(p) => p,
         Err(_) => return Vec::new(),
     };
 
-    let mut candidates: Vec<(u8, String)> = ports
-        .into_iter()
-        .filter_map(|p| match &p.port_type {
-            SerialPortType::UsbPort(usb) if KNOWN_VIDS.contains(&usb.vid) => {
-                let cu_penalty = if p.port_name.contains("/tty.") { 1 } else { 0 };
-                Some((cu_penalty, p.port_name))
-            }
-            _ => None,
-        })
-        .collect();
+    let cu_penalty = |name: &str| if name.contains("/tty.") { 1u8 } else { 0u8 };
 
-    candidates.sort();
-    candidates.into_iter().map(|(_, name)| name).collect()
+    let mut espressif: Vec<(u8, String)> = Vec::new();
+    let mut bridges: Vec<(u8, String)> = Vec::new();
+
+    for p in ports {
+        if let SerialPortType::UsbPort(usb) = &p.port_type {
+            if usb.vid == 0x303A {
+                let penalty = cu_penalty(&p.port_name);
+                espressif.push((penalty, p.port_name));
+            } else if usb.vid == 0x1A86 || usb.vid == 0x10C4 {
+                let penalty = cu_penalty(&p.port_name);
+                bridges.push((penalty, p.port_name));
+            }
+        }
+    }
+
+    espressif.sort();
+    if !espressif.is_empty() {
+        return espressif.into_iter().map(|(_, name)| name).collect();
+    }
+
+    if bridges.len() == 1 {
+        return bridges.into_iter().map(|(_, name)| name).collect();
+    }
+
+    Vec::new()
 }
 
 /// The single most likely board — used by the TUI for its "board attached?"
