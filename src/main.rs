@@ -3,6 +3,7 @@ mod config;
 mod led;
 mod menubar;
 mod notification;
+mod ota;
 mod session;
 mod state;
 mod ui;
@@ -42,6 +43,14 @@ enum Commands {
         #[arg(long)]
         port: Option<String>,
     },
+    /// Push new firmware to the ESP32 over serial — no cable reflash
+    Update {
+        /// espflash image to install (output of `espflash save-image`)
+        firmware: String,
+        /// Serial device path (default: auto-detect / configured led_port)
+        #[arg(long)]
+        port: Option<String>,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -52,6 +61,7 @@ fn main() -> anyhow::Result<()> {
         Some(Commands::Uninstall) => uninstall_hooks(),
         Some(Commands::Menubar) => menubar::run(),
         Some(Commands::Led { port }) => led::run(port),
+        Some(Commands::Update { firmware, port }) => ota::run(firmware, port),
         None => run_tui(),
     }
 }

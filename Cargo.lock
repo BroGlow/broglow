@@ -304,6 +304,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "clap",
+ "crc32fast",
  "crossterm",
  "dirs 5.0.1",
  "image",

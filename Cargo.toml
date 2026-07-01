@@ -27,3 +27,4 @@ tray-icon = "0.19"
 tao = "0.30"
 image = { version = "0.25", default-features = false, features = ["png"] }
 serialport = "4"
+crc32fast = "1"
