@@ -2,7 +2,7 @@
 name = "clawlight"
 version = "0.7.0"
 edition = "2021"
-description = "TUI dashboard and macOS menu bar indicator for monitoring Claude Code sessions"
+description = "TUI dashboard and menu bar / system tray indicator for monitoring Claude Code sessions"
 license = "MIT"
 repository = "https://github.com/clawlight/clawlight-cli"
 homepage = "https://github.com/clawlight/clawlight-cli"
@@ -27,3 +27,16 @@ tray-icon = "0.19"
 tao = "0.30"
 image = { version = "0.25", default-features = false, features = ["png"] }
 serialport = "4"
+
+# Desktop notifications on non-macOS platforms (WinRT toast / freedesktop).
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+notify-rust = "4"
+
+# Console-window hiding + autostart registry access for Windows.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Console",
+    "Win32_UI_WindowsAndMessaging",
+] }
+winreg = "0.52"
