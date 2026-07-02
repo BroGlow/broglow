@@ -127,10 +127,18 @@ pub fn clear_session(session_id: &str) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // Atomic write: write to sibling temp file, then rename onto the target.
+    write_state_atomic(&state)
+}
+
+/// Atomic write: serialize to a sibling temp file, then rename onto the
+/// target. The temp name is PID-scoped so concurrent writers never collide
+/// on the same temp path.
+pub fn write_state_atomic(state: &HookState) -> anyhow::Result<()> {
+    let path = state_file_path();
     let dir = path.parent().expect("state path must have a parent");
+    std::fs::create_dir_all(dir)?;
     let tmp_path = dir.join(format!(".state.{}.tmp", std::process::id()));
-    let serialized = serde_json::to_string(&state)?;
+    let serialized = serde_json::to_string(state)?;
     std::fs::write(&tmp_path, serialized)?;
     std::fs::rename(&tmp_path, &path)?;
     Ok(())

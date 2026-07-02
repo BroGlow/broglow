@@ -14,8 +14,12 @@ jobs:
       matrix:
         include:
           - target: aarch64-apple-darwin
+            os: macos-latest
           - target: x86_64-apple-darwin
-    runs-on: macos-latest
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -28,9 +32,12 @@ jobs:
         run: cargo build --release --locked --target ${{ matrix.target }}
 
       - name: Package
+        shell: bash
         run: |
+          BIN=clawlight
+          if [ "${{ runner.os }}" = "Windows" ]; then BIN=clawlight.exe; fi
           cd target/${{ matrix.target }}/release
-          tar czf ../../../clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz clawlight
+          tar czf ../../../clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz "$BIN"
           cd ../../..
           shasum -a 256 clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz > clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz.sha256
 

@@ -8,7 +8,7 @@ use ratatui::{backend::CrosstermBackend, widgets::TableState, Terminal};
 
 use crate::config;
 use crate::led;
-use crate::notification::send_macos_notification;
+use crate::notification::send_notification;
 use crate::session::{load_all_sessions, DisplaySession};
 use crate::state::{self, read_hook_state, Status};
 use crate::ui;
@@ -98,7 +98,7 @@ impl App {
             if session.status == Status::NeedsHelp {
                 let prev = self.previous_statuses.get(&session.session_id);
                 if prev != Some(&Status::NeedsHelp) {
-                    send_macos_notification(
+                    send_notification(
                         "clawlight",
                         &format!("\"{}\" needs help!", session.name),
                     );

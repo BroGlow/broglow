@@ -1,19 +1,23 @@
 # clawlight
 
-A lightweight TUI dashboard and macOS menu bar indicator for monitoring
-[Claude Code](https://claude.ai/code) sessions in real time.
+A lightweight TUI dashboard and menu bar / system tray indicator for
+monitoring [Claude Code](https://claude.ai/code) sessions in real time.
+Runs on macOS, Windows, and Linux.
 
 ## Features
 
 - **TUI dashboard** — terminal UI showing all active Claude Code sessions
   with live status updates (active, inactive, needs help)
-- **macOS menu bar icon** — native menu bar daemon showing a pixel art
+- **Menu bar / system tray icon** — native tray daemon showing a pixel art
   Clawd icon that changes color based on aggregate session health;
-  auto-starts at login via launchd
+  auto-starts at login (launchd on macOS, a registry Run key on Windows, an
+  XDG autostart entry on Linux)
 - **Auto-naming** — sessions are automatically named based on the first
   prompt using the Claude CLI
 - **File watching** — state updates in real time as sessions start, stop,
   or request help
+- **Cross-platform** — a single native binary; the hook backend is built
+  in (no `bash`/`jq` dependency)
 
 ## Install
 
@@ -38,7 +42,29 @@ curl -L https://github.com/clawlight/clawlight-cli/releases/download/vVERSION/cl
 sudo mv clawlight /usr/local/bin/
 ```
 
+### Windows
+
+Download the `x86_64-pc-windows-msvc` archive from
+[Releases](https://github.com/clawlight/clawlight-cli/releases), extract
+`clawlight.exe`, and put it somewhere on your `PATH` (PowerShell):
+
+```powershell
+# From the folder containing the downloaded archive (replace VERSION):
+tar -xf clawlight-vVERSION-x86_64-pc-windows-msvc.tar.gz
+$dest = "$env:LOCALAPPDATA\Programs\clawlight"
+New-Item -ItemType Directory -Force $dest | Out-Null
+Move-Item clawlight.exe $dest -Force
+# Add $dest to your user PATH (one-time):
+[Environment]::SetEnvironmentVariable("Path", "$([Environment]::GetEnvironmentVariable('Path','User'));$dest", "User")
+```
+
+Open a new terminal afterward so the updated `PATH` takes effect.
+
 ### From Source
+
+Requires the [Rust toolchain](https://rustup.rs). On Windows this uses the
+MSVC toolchain (install the "Desktop development with C++" / Build Tools
+workload so the linker is available).
 
 ```bash
 git clone https://github.com/clawlight/clawlight-cli.git
@@ -56,17 +82,30 @@ clawlight install
 clawlight
 ```
 
-`clawlight install` writes a hook script to `~/.claude/clawlight/hook.sh`
-and registers it in `~/.claude/settings.json` for the `SessionStart`,
-`Stop`, `Notification`, and `SessionEnd` events. After that, every Claude
-Code session automatically reports its status to
-`~/.claude/clawlight/state.json`, which the TUI watches in real time.
+`clawlight install` registers the built-in hook backend (`clawlight hook`)
+in `~/.claude/settings.json` for the `SessionStart`, `UserPromptSubmit`,
+`Stop`, `Notification`, `SessionEnd`, and `PreToolUse` events. After that,
+every Claude Code session automatically reports its status to
+`~/.claude/clawlight/state.json` (`%USERPROFILE%\.claude\clawlight\state.json`
+on Windows), which the TUI watches in real time. The hook is the clawlight
+binary itself — there's no separate shell script and no `jq` dependency.
 
-## macOS Menu Bar
+## Menu bar / system tray
 
-`clawlight install` sets up a native macOS menu bar daemon as a launchd
-LaunchAgent. It starts automatically at login and stays in your menu
-bar with a color-coded Clawd icon.
+`clawlight install` also sets up the tray daemon to start at login:
+
+- **macOS** — a launchd LaunchAgent. The plist lives at
+  `~/Library/LaunchAgents/io.roush.clawlight.menubar.plist`; logs are at
+  `~/.claude/clawlight/menubar.{log,err}`.
+- **Windows** — an `HKCU\…\CurrentVersion\Run` registry entry named
+  `clawlight`. The daemon runs without a console window in the system tray.
+- **Linux** — an XDG autostart entry at
+  `~/.config/autostart/clawlight.desktop`. Tray icon support depends on
+  your desktop environment's system-tray/appindicator support — it works
+  out of the box on most desktops (KDE, XFCE, Cinnamon, etc.), though GNOME
+  needs an extension such as AppIndicator.
+
+Either way it shows a color-coded Clawd icon:
 
 | Icon   | Meaning                           |
 |--------|-----------------------------------|
@@ -75,11 +114,9 @@ bar with a color-coded Clawd icon.
 | Red    | At least one session needs help   |
 | Gray   | No live sessions                  |
 
-Clicking the icon shows session counts, a list of live sessions, and
-an "Open clawlight" entry that launches the TUI in a new Terminal window.
-
-Logs are at `~/.claude/clawlight/menubar.{log,err}`. The LaunchAgent
-plist lives at `~/Library/LaunchAgents/io.roush.clawlight.menubar.plist`.
+Clicking the icon shows session counts, a list of live sessions, and an
+"Open clawlight" entry that launches the TUI in a new terminal window
+(Terminal on macOS; Windows Terminal or a console on Windows).
 
 ## Usage
 
@@ -114,7 +151,13 @@ a serial port, so there's nothing to configure if you don't have the
 board. The setting lives in `~/.claude/clawlight/config.json`.
 
 For debugging you can still run the driver in the foreground with
-`clawlight led` (use `--port /dev/cu.usbmodemXXXX` to pin a device).
+`clawlight led` (use `--port` to pin a device — e.g.
+`--port /dev/cu.usbmodemXXXX` on macOS or `--port COM5` on Windows).
+
+Auto-detection prefers ESP32 native-USB boards. If your board instead
+connects through a CH340/CP210x UART bridge and you have other serial
+devices attached (e.g. an Arduino), pin it explicitly via `led_port` in
+the config (e.g. `COM5` or `/dev/cu.usbserial-XXXX`).
 
 ## Uninstall
 
@@ -122,8 +165,10 @@ For debugging you can still run the driver in the foreground with
 clawlight uninstall
 ```
 
-This unloads the LaunchAgent, removes its plist, removes the hook
-script, and clears entries from `~/.claude/settings.json`.
+This removes the login autostart (the launchd LaunchAgent on macOS, the
+`Run` registry entry on Windows, or the XDG autostart entry on Linux),
+clears the hook entries from `~/.claude/settings.json`, and deletes
+`~/.claude/clawlight`.
 
 ## License
 

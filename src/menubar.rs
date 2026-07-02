@@ -6,6 +6,7 @@ use anyhow::Context;
 use notify::{EventKind, RecursiveMode, Watcher};
 use tao::event::Event;
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
+#[cfg(target_os = "macos")]
 use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
 use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIconBuilder};
@@ -134,7 +135,26 @@ enum UserEvent {
 }
 
 pub fn run() -> anyhow::Result<()> {
+    // Guard against running a second tray daemon (e.g. re-running
+    // `clawlight install`, or a user manually launching `clawlight menubar`
+    // while the autostart instance is already up). Two daemons means two
+    // tray icons and two LED/net background threads fighting over the same
+    // serial port.
+    #[cfg(target_os = "windows")]
+    if !acquire_single_instance_lock() {
+        println!("clawlight tray is already running — not starting a second instance.");
+        return Ok(());
+    }
+
+    // On Windows this binary is a console app (it also hosts the TUI), so the
+    // tray daemon would otherwise leave an empty console window open. Hide it.
+    #[cfg(target_os = "windows")]
+    hide_console_window();
+
+    #[allow(unused_mut)]
     let mut event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
+    // macOS: keep the daemon out of the Dock / app switcher (menu-bar only).
+    #[cfg(target_os = "macos")]
     event_loop.set_activation_policy(ActivationPolicy::Accessory);
 
     let proxy_for_menu = event_loop.create_proxy();
@@ -205,14 +225,7 @@ pub fn run() -> anyhow::Result<()> {
             }
             Event::UserEvent(UserEvent::Menu(ev)) => {
                 if ev.id == ids.open_clawlight {
-                    let _ = std::process::Command::new("osascript")
-                        .args([
-                            "-e",
-                            "tell application \"Terminal\" to do script \"clawlight\"",
-                            "-e",
-                            "tell application \"Terminal\" to activate",
-                        ])
-                        .spawn();
+                    open_dashboard();
                 } else if ev.id == ids.quit {
                     tray_holder.take();
                     std::process::exit(0);
@@ -221,4 +234,120 @@ pub fn run() -> anyhow::Result<()> {
             _ => {}
         }
     })
+}
+
+/// Launch the TUI dashboard in a fresh terminal window from the tray menu.
+#[cfg(target_os = "macos")]
+fn open_dashboard() {
+    let _ = std::process::Command::new("osascript")
+        .args([
+            "-e",
+            "tell application \"Terminal\" to do script \"clawlight\"",
+            "-e",
+            "tell application \"Terminal\" to activate",
+        ])
+        .spawn();
+}
+
+/// Launch the TUI dashboard in a fresh console window. Prefers Windows Terminal
+/// (`wt`) when available, falling back to a plain console via `cmd /c start`.
+/// Uses the running executable's own path so it works before install puts
+/// `clawlight` on PATH.
+#[cfg(target_os = "windows")]
+fn open_dashboard() {
+    let exe = std::env::current_exe()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "clawlight".to_string());
+
+    if std::process::Command::new("wt")
+        .args(["-w", "0", "nt", &exe])
+        .spawn()
+        .is_ok()
+    {
+        return;
+    }
+
+    // `start` needs an (empty) title argument when the target path is quoted.
+    let _ = std::process::Command::new("cmd")
+        .args(["/C", "start", "", &exe])
+        .spawn();
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn open_dashboard() {
+    let exe = std::env::current_exe()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "clawlight".to_string());
+    // Best effort across common Linux terminal emulators.
+    for term in ["x-terminal-emulator", "gnome-terminal", "konsole", "xterm"] {
+        if std::process::Command::new(term)
+            .args(["-e", &exe])
+            .spawn()
+            .is_ok()
+        {
+            return;
+        }
+    }
+}
+
+/// Acquire a process-lifetime named mutex to ensure only one tray daemon runs
+/// at a time. Returns `true` if this process is the sole holder (safe to
+/// proceed), `false` if another instance already holds it.
+#[cfg(target_os = "windows")]
+fn acquire_single_instance_lock() -> bool {
+    use windows_sys::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS};
+    use windows_sys::Win32::System::Threading::CreateMutexW;
+
+    // UTF-16, NUL-terminated, "Local\" scope keeps it per-session.
+    let name: Vec<u16> = "Local\\clawlight-menubar"
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+
+    unsafe {
+        let handle = CreateMutexW(std::ptr::null(), 0, name.as_ptr());
+        let already_running = GetLastError() == ERROR_ALREADY_EXISTS;
+
+        if handle.is_null() {
+            // Couldn't create the mutex at all; fail open rather than refuse
+            // to start the tray.
+            return true;
+        }
+
+        // Intentionally leak the handle (never call CloseHandle): we want the
+        // mutex held for the entire lifetime of this process so later
+        // launches see ERROR_ALREADY_EXISTS. Windows releases it
+        // automatically when the process exits (normally or via
+        // TerminateProcess), so there is no real leak in practice.
+
+        !already_running
+    }
+}
+
+/// Hide the tray daemon's console window on Windows so it runs purely in the
+/// background. This is a backstop for classic conhost setups (e.g. Windows
+/// Terminal not set as the default host) — the primary fix is that
+/// `install_run_key` in `main.rs` launches via `conhost.exe --headless`,
+/// which sidesteps the pseudoconsole-hiding bug entirely
+/// (see https://github.com/microsoft/terminal/issues/12570). When this
+/// function does apply, it only ever hides a console window; it has no
+/// effect on where stdout/stderr go.
+#[cfg(target_os = "windows")]
+fn hide_console_window() {
+    use windows_sys::Win32::System::Console::{GetConsoleProcessList, GetConsoleWindow};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+    unsafe {
+        // Only hide a console we own. When launched at login (its own fresh
+        // console) we're the sole attached process and hiding is correct; when
+        // run in the foreground from a terminal, a parent shell shares the
+        // console, so hiding its window would hide the user's terminal — skip.
+        let mut buf = [0u32; 2];
+        if GetConsoleProcessList(buf.as_mut_ptr(), buf.len() as u32) != 1 {
+            return;
+        }
+        let hwnd = GetConsoleWindow();
+        if !hwnd.is_null() {
+            ShowWindow(hwnd, SW_HIDE);
+        }
+    }
 }
