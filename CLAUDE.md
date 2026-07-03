@@ -71,6 +71,11 @@ serial port. Redeploy the installed one instead.
 - **ota.rs** — host side of the stop-and-wait serial firmware update protocol.
 - **notification.rs** — desktop notifications (macOS `osascript`; else `notify-rust`).
 - **spawn.rs** — Windows-only detached/windowless child-process flags (no-op elsewhere).
+- **terminal.rs** — click-to-focus: `capture` records which terminal window/app hosts a
+  session (env vars + process-tree walk, stored per session in `state.json`); `focus`
+  raises that window later (AppleScript tab match by tty on macOS, ancestor-window
+  `SetForegroundWindow` on Windows, xdotool on Linux). Used by the popover session
+  rows, the Linux tray menu, and the TUI's `↵`.
 
 ## Data flow
 

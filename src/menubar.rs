@@ -72,6 +72,10 @@ pub(crate) fn project_label(s: &state::SessionStatus) -> String {
 struct MenuIds {
     open_clawlight: MenuId,
     quit: MenuId,
+    /// Menu id → session id for the per-session rows (Linux native menu
+    /// only); clicking one focuses that session's terminal window.
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    sessions: Vec<(MenuId, String)>,
 }
 
 /// Full native tray menu — Linux only. macOS and Windows render sessions in
@@ -123,6 +127,7 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
         Status::Done => 3,
     });
 
+    let mut session_ids = Vec::new();
     if live.is_empty() {
         menu.append(&MenuItem::new("No live sessions", false, None))?;
     } else {
@@ -142,7 +147,10 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
                 Status::Done => "⚪",
             };
             let text = format!("{prefix} {name} ({badge}) — {project}");
-            menu.append(&MenuItem::new(text, false, None))?;
+            // Clickable: focus the session's terminal window (best-effort).
+            let item = MenuItem::new(text, true, None);
+            menu.append(&item)?;
+            session_ids.push((item.id().clone(), (*id).clone()));
         }
     }
 
@@ -152,6 +160,7 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
     let ids = MenuIds {
         open_clawlight: open_clawlight.id().clone(),
         quit: quit.id().clone(),
+        sessions: session_ids,
     };
     menu.append(&open_clawlight)?;
     menu.append(&quit)?;
@@ -327,6 +336,19 @@ pub fn run() -> anyhow::Result<()> {
                 } else if ev.id == ids.quit {
                     tray_holder.take();
                     std::process::exit(0);
+                } else {
+                    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+                    if let Some((_, sid)) = ids.sessions.iter().find(|(mid, _)| *mid == ev.id) {
+                        let session = read_hook_state().sessions.get(sid).cloned();
+                        thread::spawn(move || {
+                            if let Some(s) = session {
+                                let _ = crate::terminal::focus(
+                                    s.terminal.as_ref(),
+                                    s.project_path.as_deref(),
+                                );
+                            }
+                        });
+                    }
                 }
             }
             #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -399,51 +421,23 @@ pub fn run() -> anyhow::Result<()> {
     })
 }
 
-/// Best-effort "Focus" for a needs-help session: bring the terminal window
-/// running it to the front. On macOS this scans Terminal.app window titles
-/// for the session's project directory name; everywhere it falls back to
-/// opening the dashboard.
+/// Bring the terminal window hosting a session to the front, using the
+/// identity the hook captured (tty / terminal session ids / host app /
+/// ancestor processes — see `terminal::focus`). Falls back to opening the
+/// dashboard when the window can't be found.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 fn focus_session(session: Option<&state::SessionStatus>) {
-    #[cfg(target_os = "macos")]
-    {
-        let project = session.map(project_label);
-        // osascript can take a few hundred ms; keep it off the event loop.
-        thread::spawn(move || {
-            if let Some(project) = project {
-                // Escape before shelling out: the project dir name lands
-                // inside an AppleScript string literal.
-                let escaped = project.replace('\\', "\\\\").replace('"', "\\\"");
-                let script = format!(
-                    "if application \"Terminal\" is running then\n\
-                     tell application \"Terminal\"\n\
-                     repeat with w in windows\n\
-                     if name of w contains \"{escaped}\" then\n\
-                     set index of w to 1\n\
-                     activate\n\
-                     return \"found\"\n\
-                     end if\n\
-                     end repeat\n\
-                     end tell\n\
-                     end if"
-                );
-                if let Ok(out) = std::process::Command::new("osascript")
-                    .args(["-e", &script])
-                    .output()
-                {
-                    if String::from_utf8_lossy(&out.stdout).contains("found") {
-                        return;
-                    }
-                }
-            }
-            open_dashboard();
+    let session = session.cloned();
+    // Focusing shells out (osascript/open can take a few hundred ms); keep it
+    // off the event loop.
+    thread::spawn(move || {
+        let focused = session.as_ref().is_some_and(|s| {
+            crate::terminal::focus(s.terminal.as_ref(), s.project_path.as_deref())
         });
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let _ = session;
-        open_dashboard();
-    }
+        if !focused {
+            open_dashboard();
+        }
+    });
 }
 
 /// Launch the TUI dashboard in a fresh terminal window from the tray menu.

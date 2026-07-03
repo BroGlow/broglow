@@ -10,6 +10,7 @@ mod popover;
 mod session;
 mod spawn;
 mod state;
+mod terminal;
 mod ui;
 
 use std::io;

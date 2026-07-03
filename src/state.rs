@@ -35,6 +35,58 @@ pub struct SessionStatus {
     pub project_path: Option<String>,
     pub notification_type: Option<String>,
     pub name: Option<String>,
+    /// Where the session is running, captured by the hook backend from its
+    /// own environment/process tree. Used for click-to-focus; absent in
+    /// state files written before this field existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terminal: Option<TerminalInfo>,
+}
+
+/// Identity of the terminal window / host app running a session, recorded at
+/// hook time (see `terminal::capture`). All fields are best-effort: whatever
+/// the hosting environment exposes.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct TerminalInfo {
+    /// TERM_PROGRAM: "Apple_Terminal", "iTerm.app", "vscode", "ghostty", …
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub term_program: Option<String>,
+    /// TERM_SESSION_ID (Terminal.app per-tab UUID).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub term_session_id: Option<String>,
+    /// ITERM_SESSION_ID ("w0t2p0:UUID").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iterm_session_id: Option<String>,
+    /// __CFBundleIdentifier of the hosting .app (macOS): com.apple.Terminal,
+    /// com.microsoft.VSCode, com.anthropic.claudefordesktop, …
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bundle_id: Option<String>,
+    /// Controlling terminal device, e.g. "/dev/ttys012" (unix).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tty: Option<String>,
+    /// WT_SESSION (Windows Terminal tab GUID).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wt_session: Option<String>,
+    /// KITTY_WINDOW_ID.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kitty_window_id: Option<String>,
+    /// WEZTERM_PANE.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wezterm_pane: Option<String>,
+    /// TMUX_PANE, only when TMUX is also set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tmux_pane: Option<String>,
+    /// Ancestor process chain (nearest first) on Windows/Linux, where window
+    /// focus goes through the owning process rather than scripting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ancestors: Option<Vec<Ancestor>>,
+}
+
+/// One entry of the captured ancestor process chain. The name is re-checked
+/// at focus time so a reused PID is never brought to the front.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Ancestor {
+    pub pid: u32,
+    pub name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -178,6 +230,7 @@ mod tests {
                     project_path: None,
                     notification_type: None,
                     name: None,
+                    terminal: None,
                 },
             );
         }

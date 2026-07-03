@@ -94,7 +94,17 @@ pub fn run() -> anyhow::Result<()> {
     }
 
     // Preserve an existing name across status updates.
-    let existing_name = state.sessions.get(&session_id).and_then(|s| s.name.clone());
+    let existing = state.sessions.get(&session_id);
+    let existing_name = existing.and_then(|s| s.name.clone());
+
+    // Where the session runs, for click-to-focus. Captured on SessionStart
+    // (a resumed session may live in a new window) and backfilled for
+    // sessions first seen mid-flight; otherwise carried over unchanged so
+    // routine updates skip the capture's `ps` spawn.
+    let terminal = match existing.and_then(|s| s.terminal.clone()) {
+        Some(t) if hook_event != "SessionStart" => Some(t),
+        _ => Some(crate::terminal::capture()),
+    };
 
     let timestamp = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
@@ -106,6 +116,7 @@ pub fn run() -> anyhow::Result<()> {
             project_path: cwd,
             notification_type,
             name: existing_name.clone(),
+            terminal,
         },
     );
 

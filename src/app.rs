@@ -89,58 +89,35 @@ impl App {
         self.status_message = Some((msg, Instant::now()));
     }
 
-    /// Best-effort focus of the selected session's terminal window. On macOS
-    /// this scans Terminal.app window titles for the session's project
-    /// directory name (same approach as the tray popover's Focus button);
-    /// elsewhere it reports that focus isn't wired up yet.
+    /// Best-effort focus of the selected session's terminal window, using
+    /// the terminal identity the hook backend captured (same logic as the
+    /// tray popover — see `terminal::focus`). Runs synchronously: the brief
+    /// osascript pause is fine for a deliberate keypress.
     fn focus_selected(&mut self) {
-        let Some(session) = self
-            .table_state
-            .selected()
-            .and_then(|i| self.sessions.get(i))
-        else {
-            return;
+        let (session_id, project_path, name) = {
+            let Some(session) = self
+                .table_state
+                .selected()
+                .and_then(|i| self.sessions.get(i))
+            else {
+                return;
+            };
+            (
+                session.session_id.clone(),
+                session.project_path.clone(),
+                session.name.clone(),
+            )
         };
 
-        #[cfg(target_os = "macos")]
-        {
-            let project = session.project_name.clone();
-            if project.is_empty() {
-                self.set_status("No project folder known for this session.".to_string());
-                return;
-            }
-            // Escape before shelling out: the project dir name lands inside
-            // an AppleScript string literal — escape `\` before `"`.
-            let escaped = project.replace('\\', "\\\\").replace('"', "\\\"");
-            let script = format!(
-                "if application \"Terminal\" is running then\n\
-                 tell application \"Terminal\"\n\
-                 repeat with w in windows\n\
-                 if name of w contains \"{escaped}\" then\n\
-                 set index of w to 1\n\
-                 activate\n\
-                 return \"found\"\n\
-                 end if\n\
-                 end repeat\n\
-                 end tell\n\
-                 end if"
-            );
-            let found = std::process::Command::new("osascript")
-                .args(["-e", &script])
-                .output()
-                .map(|out| String::from_utf8_lossy(&out.stdout).contains("found"))
-                .unwrap_or(false);
-            if found {
-                self.set_status(format!("Focused Terminal window for \"{project}\"."));
-            } else {
-                self.set_status(format!("No Terminal window matching \"{project}\" found."));
-            }
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = session;
-            self.set_status("Focus isn't supported on this platform yet.".to_string());
+        let terminal = read_hook_state()
+            .sessions
+            .get(&session_id)
+            .and_then(|s| s.terminal.clone());
+        let path = (!project_path.is_empty()).then_some(project_path.as_str());
+        if crate::terminal::focus(terminal.as_ref(), path) {
+            self.set_status(format!("Focused the terminal window for \"{name}\"."));
+        } else {
+            self.set_status(format!("Couldn't find a terminal window for \"{name}\"."));
         }
     }
 

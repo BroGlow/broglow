@@ -59,7 +59,8 @@ body.win .pop {
 }
 body.win .grplabel { color: rgba(255,255,255,.45); }
 
-.srow { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; }
+.srow { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; cursor: pointer; }
+.srow:active { filter: brightness(.85); }
 body.win .srow { border-radius: 5px; padding: 9px 12px; }
 .srow:hover { background: rgba(255,255,255,.08); }
 body.win .srow:hover { background: rgba(255,255,255,.06); }
@@ -238,7 +239,8 @@ function render() {
         const tail = help
           ? `<button class="focusbtn" data-cmd="focus" data-id="${esc(s.id)}">Focus</button>`
           : `<span class="time">${relTime(s.lastUpdated)}</span>`;
-        html += `<div class="srow${help ? ' helprow' : ''}">` +
+        html += `<div class="srow${help ? ' helprow' : ''}" data-cmd="focus"` +
+          ` data-id="${esc(s.id)}" title="Go to this session's terminal">` +
           `<span class="dot ${g.dot}"></span>` +
           `<div class="sinfo"><span class="sname">${esc(s.name)}</span>` +
           `<span class="smeta">${meta}</span></div>${tail}</div>`;
