@@ -99,10 +99,14 @@ q:quit   j/k:nav   r:reload   x:clear   l:toggle ESP32 LEDs
 
 ## ESP32 status LEDs (optional)
 
-If you have an ESP32 status board, clawlight can mirror the aggregate
-session state to it over USB serial — red/yellow/green LEDs that match
-the menu bar icon. The board firmware lives in a separate repository,
+If you have a [Seeed Studio XIAO ESP32-C6](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html)
+status board, clawlight can mirror the aggregate session state to it over
+USB serial — red/yellow/green LEDs that match the menu bar icon. The board
+firmware lives in a separate repository,
 [clawlight-firmware](https://github.com/clawlight/clawlight-firmware).
+
+clawlight detects the XIAO by its native USB-Serial-JTAG vendor ID; it is
+the only board supported.
 
 **Setup:** plug in the board, open `clawlight`, and press **`l`**. That's
 it — the menu bar daemon drives the LEDs from then on, automatically
@@ -115,6 +119,25 @@ board. The setting lives in `~/.claude/clawlight/config.json`.
 
 For debugging you can still run the driver in the foreground with
 `clawlight led` (use `--port /dev/cu.usbmodemXXXX` to pin a device).
+
+### Flashing the board
+
+The first time you set up a XIAO, flash the firmware over USB in one
+command. With the [clawlight-firmware](https://github.com/clawlight/clawlight-firmware)
+repo checked out next to this one and [`espflash`](https://github.com/esp-rs/espflash)
+installed (`cargo install espflash`):
+
+```bash
+# Plug in the XIAO, then:
+scripts/flash.sh              # build the XIAO firmware and flash the board
+scripts/flash.sh --monitor    # ...and open a serial monitor afterwards
+```
+
+The script auto-detects the plugged-in board. Pass `--port /dev/cu.usbmodemXXXX`
+to pin a device, `--firmware-dir DIR` (or `$CLAWLIGHT_FIRMWARE_DIR`) if the
+firmware repo lives elsewhere, or `--elf PATH` to flash a prebuilt image. It
+installs the two-slot OTA partition layout, so later firmware updates can go
+over the same serial link with `clawlight update <image>` — no cable reflash.
 
 ## Uninstall
 

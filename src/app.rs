@@ -74,12 +74,12 @@ impl App {
                 self.led_enabled = true;
                 self.led_detected = true;
                 let _ = config::write_config(&cfg);
-                self.set_status(format!("LED enabled — ESP32 detected at {port}"));
+                self.set_status(format!("LED enabled — ESP32-C6 detected at {port}"));
             }
             None => {
                 self.led_detected = false;
                 self.set_status(
-                    "No ESP32 detected — plug in the board and press l.".to_string(),
+                    "No ESP32-C6 detected — plug in the board and press l.".to_string(),
                 );
             }
         }

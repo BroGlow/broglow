@@ -1,6 +1,6 @@
 [package]
 name = "clawlight"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 description = "TUI dashboard and macOS menu bar indicator for monitoring Claude Code sessions"
 license = "MIT"

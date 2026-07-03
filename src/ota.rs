@@ -80,8 +80,8 @@ pub fn run(firmware: String, port_override: Option<String>) -> anyhow::Result<()
         .or_else(|| cfg.led_port.clone())
         .or_else(led::detect_board)
         .context(
-            "No ESP32 board found. Plug it into the native USB port, or pass \
-             --port /dev/cu.usbmodemXXX",
+            "No Seeed XIAO ESP32-C6 found. Plug it into your Mac's USB port, or \
+             pass --port /dev/cu.usbmodemXXX",
         )?;
 
     // If the daemon is currently driving LEDs it holds the port — flip the

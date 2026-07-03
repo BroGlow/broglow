@@ -37,13 +37,13 @@ enum Commands {
     Uninstall,
     /// Run the macOS menu bar daemon (foreground)
     Menubar,
-    /// Mirror session state to an ESP32 over USB serial (foreground)
+    /// Mirror session state to a Seeed XIAO ESP32-C6 over USB serial (foreground)
     Led {
-        /// Serial device path (default: auto-detect the ESP32)
+        /// Serial device path (default: auto-detect the Seeed XIAO ESP32-C6)
         #[arg(long)]
         port: Option<String>,
     },
-    /// Push new firmware to the ESP32 over serial — no cable reflash
+    /// Push new firmware to the ESP32-C6 over serial — no cable reflash
     Update {
         /// espflash image to install (output of `espflash save-image`)
         firmware: String,
@@ -421,7 +421,7 @@ fn install_hooks() -> anyhow::Result<()> {
 
     println!("\nInstallation complete! Hooks are now active for new Claude Code sessions.");
     println!("Run `clawlight` to launch the TUI dashboard.");
-    println!("Optional: plug in an ESP32 status board and press `l` in the dashboard to enable status LEDs.");
+    println!("Optional: plug in a Seeed XIAO ESP32-C6 status board and press `l` in the dashboard to enable status LEDs.");
     Ok(())
 }
 

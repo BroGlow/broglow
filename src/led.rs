@@ -1,5 +1,6 @@
-//! `clawlight led` — daemon that mirrors aggregate session state to an ESP32
-//! over USB serial, driving three status LEDs (red / yellow / green).
+//! `clawlight led` — daemon that mirrors aggregate session state to a Seeed
+//! XIAO ESP32-C6 over USB serial, driving three status LEDs (red / yellow /
+//! green).
 //!
 //! Protocol: one ASCII byte + newline per update.
 //!   'R' = needs help   (red LED)
@@ -7,7 +8,7 @@
 //!   'G' = active       (green LED)
 //!   'N' = no sessions  (all LEDs off)
 //!
-//! The daemon scans for a likely ESP32 serial device, connects, and sends
+//! The daemon scans for the Seeed XIAO ESP32-C6 serial device, connects, and sends
 //! the current state on every change plus a periodic heartbeat. If the
 //! board is unplugged it falls back to scanning until it reappears, so it
 //! can be left running unattended.
@@ -25,11 +26,11 @@ const POLL_INTERVAL: Duration = Duration::from_millis(500);
 const HEARTBEAT: Duration = Duration::from_secs(2);
 const RESCAN_INTERVAL: Duration = Duration::from_secs(2);
 
-/// USB vendor IDs treated as "probably the ESP32 board":
-///   0x303A  Espressif — native USB-Serial-JTAG (nanoESP32-C6 "USB" port)
-///   0x1A86  WCH — CH340/CH343 USB-UART bridge (nanoESP32-C6 "UART" port)
-///   0x10C4  Silicon Labs — CP210x bridges on many classic devkits
-const KNOWN_VIDS: [u16; 3] = [0x303A, 0x1A86, 0x10C4];
+/// USB vendor ID of the Seeed XIAO ESP32-C6 — the only board clawlight
+/// supports. The XIAO wires the ESP32-C6's built-in USB straight to its USB-C
+/// port (no CH340/CP210x UART bridge), so it always enumerates under
+/// Espressif's native USB-Serial-JTAG vendor ID.
+const SEEED_C6_VID: u16 = 0x303A;
 
 fn status_byte(agg: Aggregate) -> u8 {
     match agg {
@@ -40,43 +41,21 @@ fn status_byte(agg: Aggregate) -> u8 {
     }
 }
 
-/// Pick the most likely ESP32 serial device. Prefers USB devices with a
-/// known vendor ID, then falls back to anything that looks like a USB
-/// serial port. On macOS the callout (`cu.*`) device is preferred over the
-/// dial-in (`tty.*`) device — `cu.*` opens without waiting for carrier.
-fn find_port() -> Option<String> {
-    let ports = serialport::available_ports().ok()?;
-
-    let mut candidates: Vec<(u8, String)> = ports
-        .into_iter()
-        .filter_map(|p| {
-            let rank = match &p.port_type {
-                SerialPortType::UsbPort(usb) if KNOWN_VIDS.contains(&usb.vid) => 0,
-                SerialPortType::UsbPort(_) => 1,
-                _ if p.port_name.contains("usbmodem") || p.port_name.contains("usbserial") => 2,
-                _ => return None,
-            };
-            // Skip dial-in devices when a callout twin exists.
-            let cu_penalty = if p.port_name.contains("/tty.") { 1 } else { 0 };
-            Some((rank * 2 + cu_penalty, p.port_name))
-        })
-        .collect();
-
-    candidates.sort();
-    candidates.into_iter().next().map(|(_, name)| name)
-}
-
-/// Strict detection: only USB devices whose vendor ID is a known ESP32 /
-/// USB-UART chip. Unlike [`find_port`], this never falls back to an arbitrary
-/// serial device — so the always-on daemon can scan safely without risking
-/// writing status bytes to an unrelated board (an Arduino, GPS, printer, ...).
+/// Detect a connected Seeed XIAO ESP32-C6 by its USB vendor ID and return the
+/// serial device path. Matches only the XIAO's native USB-Serial-JTAG VID and
+/// never falls back to an arbitrary serial device — so the always-on daemon can
+/// scan safely without risking writing status bytes to an unrelated board (an
+/// Arduino, GPS, printer, ...). Pass `--port` to force a specific device.
+///
+/// On macOS the callout (`cu.*`) device is preferred over its dial-in (`tty.*`)
+/// twin — `cu.*` opens without waiting for carrier.
 pub fn detect_board() -> Option<String> {
     let ports = serialport::available_ports().ok()?;
 
     let mut candidates: Vec<(u8, String)> = ports
         .into_iter()
         .filter_map(|p| match &p.port_type {
-            SerialPortType::UsbPort(usb) if KNOWN_VIDS.contains(&usb.vid) => {
+            SerialPortType::UsbPort(usb) if usb.vid == SEEED_C6_VID => {
                 // Prefer the callout (cu.*) device over its dial-in (tty.*) twin.
                 let cu_penalty = if p.port_name.contains("/tty.") { 1 } else { 0 };
                 Some((cu_penalty, p.port_name))
@@ -89,17 +68,17 @@ pub fn detect_board() -> Option<String> {
     candidates.into_iter().next().map(|(_, name)| name)
 }
 
-/// Foreground command (`clawlight led`): mirror state to a board until killed,
-/// using the loose [`find_port`] detection. Kept for debugging and for users
-/// who'd rather run it standalone than via the menu bar daemon.
+/// Foreground command (`clawlight led`): mirror state to the Seeed XIAO
+/// ESP32-C6 until killed. Kept for debugging and for users who'd rather run it
+/// standalone than via the menu bar daemon.
 pub fn run(port_override: Option<String>) -> anyhow::Result<()> {
     println!(
-        "clawlight led — mirroring {} to ESP32 over serial",
+        "clawlight led — mirroring {} to the Seeed XIAO ESP32-C6 over serial",
         state::state_file_path().display()
     );
 
     loop {
-        let path = match port_override.clone().or_else(find_port) {
+        let path = match port_override.clone().or_else(detect_board) {
             Some(p) => p,
             None => {
                 std::thread::sleep(RESCAN_INTERVAL);
