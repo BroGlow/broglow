@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+/* Tray popover, from "Tray Menu Designs" 1a (macOS) / 1c (Windows 11).
+   The window is sized exactly to the card; the drop shadow is the native
+   window shadow (a CSS shadow in the transparent margin composites against
+   white and shows as a pale halo), and the transparent window corners give
+   the rounded shape. */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { background: transparent; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  -webkit-user-select: none; user-select: none;
+  cursor: default;
+}
+body.win { font-family: 'Segoe UI', system-ui, sans-serif; }
+
+.pop {
+  width: 338px;
+  /* The design's rgba+backdrop-blur can't blur the desktop behind a
+     transparent window, so stay effectively opaque to avoid text bleed. */
+  background: rgb(32,32,37);
+  border-radius: 11px;
+  border: 1px solid rgba(255,255,255,.14);
+  overflow: hidden;
+  color: rgba(255,255,255,.92);
+}
+body.win .pop {
+  width: 344px;
+  background: #202020;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.08);
+  color: #fff;
+}
+
+.pophead { display: flex; align-items: center; gap: 10px; padding: 12px 14px 10px 14px; }
+.pophead img { width: 22px; height: 22px; image-rendering: pixelated; }
+.apptitle { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agg { font-size: 11px; color: rgba(255,255,255,.5); white-space: nowrap; }
+.chips { display: flex; gap: 6px; }
+.chip {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px;
+  background: rgba(255,255,255,.08); color: rgba(255,255,255,.75);
+}
+
+.dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dgreen { background: #34c759 } .dyellow { background: #ff9f0a }
+.dred { background: #ff453a } .dgray { background: #8e8e93 }
+
+.grp { padding: 2px 6px 6px 6px; max-height: 480px; overflow-y: auto; }
+.grp::-webkit-scrollbar { width: 8px; }
+.grp::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 4px; }
+.grplabel {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: rgba(255,255,255,.35); padding: 6px 10px 3px 10px;
+}
+body.win .grplabel { color: rgba(255,255,255,.45); }
+
+.srow { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; }
+body.win .srow { border-radius: 5px; padding: 9px 12px; }
+.srow:hover { background: rgba(255,255,255,.08); }
+body.win .srow:hover { background: rgba(255,255,255,.06); }
+.sinfo { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.sname { font-size: 13px; font-weight: 590; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.smeta { font-size: 11px; color: rgba(255,255,255,.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.time { font-size: 11px; color: rgba(255,255,255,.4); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+
+.focusbtn {
+  font-size: 11px; font-weight: 600; color: #fff; background: #3577f6;
+  border-radius: 5px; padding: 3px 9px; flex-shrink: 0; border: none;
+  font-family: inherit; cursor: default;
+}
+.focusbtn:active { filter: brightness(.85); }
+body.win .focusbtn { background: #4cc2ff; color: #0b2a3a; }
+
+.helprow { background: rgba(255,69,58,.12); }
+.helprow:hover { background: rgba(255,69,58,.2); }
+.helprow .sname { color: #ff8a80; }
+body.win .helprow { background: rgba(255,153,164,.1); }
+body.win .helprow:hover { background: rgba(255,153,164,.18); }
+body.win .helprow .sname { color: #ff99a4; }
+
+/* Settings view — swapped into the same scroll area as the session groups. */
+.optrow { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 7px; }
+body.win .optrow { border-radius: 5px; padding: 9px 12px; }
+.optrow:hover { background: rgba(255,255,255,.08); }
+body.win .optrow:hover { background: rgba(255,255,255,.06); }
+.radio {
+  width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
+  border: 1.5px solid rgba(255,255,255,.4);
+}
+.radio.rsel { border: 4.5px solid #3577f6; }
+body.win .radio.rsel { border-color: #4cc2ff; }
+.setdesc { white-space: normal; line-height: 1.35; }
+
+.emptybox {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 26px 16px; color: rgba(255,255,255,.45); font-size: 12px;
+}
+.emptybox img { width: 26px; height: 26px; opacity: .5; filter: grayscale(1); image-rendering: pixelated; }
+
+.popfoot {
+  display: flex; align-items: center; gap: 6px; padding: 9px 12px;
+  border-top: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.03);
+}
+body.win .popfoot { border-top: 1px solid rgba(255,255,255,.08); background: #1b1b1b; }
+.pbtn {
+  font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 6px;
+  background: rgba(255,255,255,.09); color: rgba(255,255,255,.85);
+  border: none; font-family: inherit; white-space: nowrap; cursor: default;
+  display: flex; align-items: center; gap: 5px;
+}
+.pbtn:hover { background: rgba(255,255,255,.14); }
+.pbtn:active { filter: brightness(.8); }
+.pbtnpri { background: #3577f6; color: #fff; }
+.pbtnpri:hover { background: #4285f8; }
+body.win .pbtnpri { background: #4cc2ff; color: #0b2a3a; }
+body.win .pbtnpri:hover { background: #63cbff; }
+.pbtnghost { background: transparent; color: rgba(255,255,255,.55); }
+.pbtnghost:hover { background: rgba(255,255,255,.08); }
+.pbtn[disabled] { opacity: .55; pointer-events: none; }
+.f1 { flex: 1; }
+</style>
+</head>
+<body class="__PLATFORM__">
+<div class="pop" id="card">
+  <div class="pophead">
+    <img id="hicon" src="__ICON_NONE__" alt="">
+    <div class="sinfo">
+      <span class="apptitle">clawlight</span>
+      <span class="agg" id="aggline">No live sessions</span>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+  <div class="grp" id="groups"></div>
+  <div class="popfoot">
+    <button class="pbtn pbtnpri" data-cmd="dashboard">Open Dashboard</button>
+    <button class="pbtn" id="settingsbtn" data-local="settings">Settings</button>
+    <span class="f1"></span>
+    <button class="pbtn pbtnghost" data-cmd="quit">Quit</button>
+  </div>
+</div>
+<script>
+'use strict';
+const ICONS = {
+  red: "__ICON_RED__",
+  yellow: "__ICON_YELLOW__",
+  green: "__ICON_GREEN__",
+  none: "__ICON_NONE__",
+};
+const GROUPS = [
+  { status: 'needs_help', label: 'Needs help', dot: 'dred' },
+  { status: 'active',     label: 'Working',    dot: 'dgreen' },
+  { status: 'inactive',   label: 'Paused',     dot: 'dyellow' },
+];
+
+const YELLOW_OPTIONS = [
+  { value: 'any_inactive', title: 'Always show yellow',
+    desc: 'Yellow whenever any session is idle, even while others are working.' },
+  { value: 'active_wins', title: 'Green while working',
+    desc: 'Stay green while any session is working; yellow only when all are idle.' },
+];
+
+let state = { aggregate: 'none', sessions: [], settings: { yellowMode: 'any_inactive' } };
+let view = 'sessions';
+
+function post(msg) { window.ipc.postMessage(JSON.stringify(msg)); }
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
+}
+
+function relTime(iso) {
+  const t = Date.parse(iso);
+  if (isNaN(t)) return '';
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 60) return 'now';
+  if (s < 3600) return Math.floor(s / 60) + 'm';
+  if (s < 86400) return Math.floor(s / 3600) + 'h';
+  return Math.floor(s / 86400) + 'd';
+}
+
+function render() {
+  const sessions = state.sessions;
+  const counts = { needs_help: 0, active: 0, inactive: 0 };
+  for (const s of sessions) if (s.status in counts) counts[s.status]++;
+
+  document.getElementById('hicon').src = ICONS[state.aggregate] || ICONS.none;
+
+  const live = sessions.length;
+  let agg;
+  if (live === 0) agg = 'No live sessions';
+  else agg = live + ' live session' + (live === 1 ? '' : 's')
+       + (counts.needs_help ? ' · ' + counts.needs_help + ' needs help' : '');
+  document.getElementById('aggline').textContent = agg;
+
+  const chipDefs = [
+    ['dgreen', counts.active], ['dyellow', counts.inactive], ['dred', counts.needs_help],
+  ];
+  document.getElementById('chips').innerHTML = chipDefs
+    .filter(([, n]) => n > 0)
+    .map(([dot, n]) => `<span class="chip"><span class="dot ${dot}"></span>${n}</span>`)
+    .join('');
+
+  document.getElementById('settingsbtn').textContent =
+    view === 'settings' ? 'Back' : 'Settings';
+
+  const groupsEl = document.getElementById('groups');
+  if (view === 'settings') {
+    const mode = (state.settings && state.settings.yellowMode) || 'any_inactive';
+    groupsEl.innerHTML =
+      `<div class="grplabel">Yellow light when sessions are mixed</div>` +
+      YELLOW_OPTIONS.map(o =>
+        `<div class="optrow" data-yellow="${o.value}">` +
+        `<span class="radio${o.value === mode ? ' rsel' : ''}"></span>` +
+        `<div class="sinfo"><span class="sname">${o.title}</span>` +
+        `<span class="smeta setdesc">${o.desc}</span></div></div>`
+      ).join('');
+  } else if (live === 0) {
+    groupsEl.innerHTML =
+      `<div class="emptybox"><img src="${ICONS.none}" alt="">` +
+      `<span>No live sessions</span></div>`;
+  } else {
+    let html = '';
+    for (const g of GROUPS) {
+      const rows = sessions.filter(s => s.status === g.status);
+      if (!rows.length) continue;
+      rows.sort((a, b) => Date.parse(b.lastUpdated) - Date.parse(a.lastUpdated));
+      html += `<div class="grplabel">${g.label}</div>`;
+      for (const s of rows) {
+        const help = s.status === 'needs_help';
+        const meta = esc(s.project) + (help ? ' · waiting for input' : '');
+        const tail = help
+          ? `<button class="focusbtn" data-cmd="focus" data-id="${esc(s.id)}">Focus</button>`
+          : `<span class="time">${relTime(s.lastUpdated)}</span>`;
+        html += `<div class="srow${help ? ' helprow' : ''}">` +
+          `<span class="dot ${g.dot}"></span>` +
+          `<div class="sinfo"><span class="sname">${esc(s.name)}</span>` +
+          `<span class="smeta">${meta}</span></div>${tail}</div>`;
+      }
+    }
+    groupsEl.innerHTML = html;
+  }
+
+  // Post synchronously: offsetHeight forces layout, and requestAnimationFrame
+  // never fires while the window is hidden (no display link), which would
+  // deadlock the deferred first show.
+  post({ cmd: 'resize', height: Math.ceil(document.getElementById('card').offsetHeight) });
+}
+
+window.__setState = payload => { state = payload; render(); };
+
+document.addEventListener('click', ev => {
+  const local = ev.target.closest('[data-local]');
+  if (local) {
+    view = view === 'settings' ? 'sessions' : 'settings';
+    render();
+    return;
+  }
+  const opt = ev.target.closest('[data-yellow]');
+  if (opt) {
+    // Update optimistically; the host confirms with a fresh __setState after
+    // writing the config.
+    state.settings = state.settings || {};
+    state.settings.yellowMode = opt.dataset.yellow;
+    post({ cmd: 'set_yellow_mode', mode: opt.dataset.yellow });
+    render();
+    return;
+  }
+  const btn = ev.target.closest('[data-cmd]');
+  if (!btn) return;
+  const msg = { cmd: btn.dataset.cmd };
+  if (btn.dataset.id !== undefined) msg.id = btn.dataset.id;
+  post(msg);
+});
+document.addEventListener('keydown', ev => {
+  if (ev.key !== 'Escape') return;
+  if (view === 'settings') { view = 'sessions'; render(); }
+  else post({ cmd: 'hide' });
+});
+document.addEventListener('contextmenu', ev => ev.preventDefault());
+setInterval(() => { if (state.sessions.length) render(); }, 30000);
+render();
+post({ cmd: 'ready' });
+</script>
+</body>
+</html>

@@ -177,7 +177,12 @@ fn drive(
             return Ok(());
         }
 
-        let byte = status_byte(aggregate(&read_hook_state()));
+        // Re-read the config each poll so a yellow-mode change from the
+        // popover's Settings view takes effect without reconnecting.
+        let byte = status_byte(aggregate(
+            &read_hook_state(),
+            config::read_config().yellow_mode,
+        ));
         let changed = last_sent != Some(byte);
 
         if changed || last_write.elapsed() >= HEARTBEAT {

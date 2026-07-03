@@ -30,6 +30,14 @@ serialport = "4"
 crc32fast = "1"
 fs4 = { version = "0.13", features = ["sync"] }
 
+# Custom tray popover (design 1a/1c): frameless tao window + system webview
+# (WKWebView on macOS, WebView2 on Windows). Linux keeps the native tray menu
+# because libappindicator emits no tray click events to anchor a popover to.
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+# "transparent" is a real feature flag: without it the macOS webview paints an
+# opaque white backdrop behind the popover card's shadow padding.
+wry = { version = "0.48", features = ["transparent"] }
+
 # Desktop notifications on non-macOS platforms (WinRT toast / freedesktop).
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 notify-rust = "4"

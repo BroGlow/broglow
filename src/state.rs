@@ -50,8 +50,9 @@ impl Default for HookState {
     }
 }
 
-/// Aggregate health across all live sessions, in priority order:
-/// any needs-help session wins, then any inactive, then any active.
+/// Aggregate health across all live sessions. Any needs-help session always
+/// wins (red); how inactive vs. active resolve is the user's
+/// [`YellowMode`](crate::config::YellowMode) setting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Aggregate {
     Red,
@@ -60,7 +61,9 @@ pub enum Aggregate {
     None,
 }
 
-pub fn aggregate(state: &HookState) -> Aggregate {
+pub fn aggregate(state: &HookState, yellow_mode: crate::config::YellowMode) -> Aggregate {
+    use crate::config::YellowMode;
+
     let mut needs_help = 0;
     let mut active = 0;
     let mut inactive = 0;
@@ -73,8 +76,13 @@ pub fn aggregate(state: &HookState) -> Aggregate {
         }
     }
     if needs_help > 0 {
-        Aggregate::Red
-    } else if inactive > 0 {
+        return Aggregate::Red;
+    }
+    let yellow_first = match yellow_mode {
+        YellowMode::AnyInactive => true,
+        YellowMode::ActiveWins => false,
+    };
+    if inactive > 0 && (yellow_first || active == 0) {
         Aggregate::Yellow
     } else if active > 0 {
         Aggregate::Green
@@ -152,6 +160,60 @@ pub fn acquire_state_lock() -> Option<File> {
         .ok()?;
     file.lock_exclusive().ok()?;
     Some(file)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::YellowMode;
+
+    fn state_with(statuses: &[Status]) -> HookState {
+        let mut state = HookState::default();
+        for (i, status) in statuses.iter().enumerate() {
+            state.sessions.insert(
+                format!("s{i}"),
+                SessionStatus {
+                    status: status.clone(),
+                    last_updated: String::new(),
+                    project_path: None,
+                    notification_type: None,
+                    name: None,
+                },
+            );
+        }
+        state
+    }
+
+    #[test]
+    fn any_inactive_shows_yellow_over_active() {
+        let mixed = state_with(&[Status::Active, Status::Inactive]);
+        assert_eq!(aggregate(&mixed, YellowMode::AnyInactive), Aggregate::Yellow);
+    }
+
+    #[test]
+    fn active_wins_stays_green_while_anything_works() {
+        let mixed = state_with(&[Status::Active, Status::Inactive]);
+        assert_eq!(aggregate(&mixed, YellowMode::ActiveWins), Aggregate::Green);
+
+        // With no active sessions left, both modes agree on yellow.
+        let idle_only = state_with(&[Status::Inactive, Status::Done]);
+        assert_eq!(aggregate(&idle_only, YellowMode::ActiveWins), Aggregate::Yellow);
+        assert_eq!(aggregate(&idle_only, YellowMode::AnyInactive), Aggregate::Yellow);
+    }
+
+    #[test]
+    fn needs_help_is_red_in_both_modes() {
+        let help = state_with(&[Status::Active, Status::Inactive, Status::NeedsHelp]);
+        assert_eq!(aggregate(&help, YellowMode::AnyInactive), Aggregate::Red);
+        assert_eq!(aggregate(&help, YellowMode::ActiveWins), Aggregate::Red);
+    }
+
+    #[test]
+    fn done_only_is_none() {
+        let done = state_with(&[Status::Done]);
+        assert_eq!(aggregate(&done, YellowMode::AnyInactive), Aggregate::None);
+        assert_eq!(aggregate(&done, YellowMode::ActiveWins), Aggregate::None);
+    }
 }
 
 /// Atomic write: serialize to a sibling temp file, then rename onto the

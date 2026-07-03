@@ -5,18 +5,33 @@ use std::thread;
 use anyhow::Context;
 use notify::{EventKind, RecursiveMode, Watcher};
 use tao::event::Event;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use tao::event::WindowEvent;
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 #[cfg(target_os = "macos")]
 use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
 use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
 use tray_icon::{Icon, TrayIconBuilder};
 
-use crate::state::{self, aggregate, read_hook_state, Aggregate, HookState, Status};
+use crate::config;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use crate::popover::{Popover, PopoverMsg};
+use crate::state::{self, aggregate, read_hook_state, Aggregate, HookState};
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+use crate::state::Status;
 
-const ICON_GREEN: &[u8] = include_bytes!("../assets/icons/clawd-green.png");
-const ICON_YELLOW: &[u8] = include_bytes!("../assets/icons/clawd-yellow.png");
-const ICON_RED: &[u8] = include_bytes!("../assets/icons/clawd-red.png");
-const ICON_NONE: &[u8] = include_bytes!("../assets/icons/clawd-none.png");
+pub(crate) const ICON_GREEN: &[u8] = include_bytes!("../assets/icons/clawd-green.png");
+pub(crate) const ICON_YELLOW: &[u8] = include_bytes!("../assets/icons/clawd-yellow.png");
+pub(crate) const ICON_RED: &[u8] = include_bytes!("../assets/icons/clawd-red.png");
+pub(crate) const ICON_NONE: &[u8] = include_bytes!("../assets/icons/clawd-none.png");
+
+/// Tray icon for the current hook state, resolving inactive-vs-active through
+/// the user's yellow-mode setting.
+fn icon_for_state(state: &HookState) -> anyhow::Result<Icon> {
+    icon_for(aggregate(state, config::read_config().yellow_mode))
+}
 
 fn icon_for(agg: Aggregate) -> anyhow::Result<Icon> {
     let bytes = match agg {
@@ -31,11 +46,37 @@ fn icon_for(agg: Aggregate) -> anyhow::Result<Icon> {
     Icon::from_rgba(rgba.into_raw(), w, h).context("Building tray icon")
 }
 
+/// Session display name: the auto-namer's title when present, else a
+/// truncated session id. Char-based truncation — ids are ours, but keep the
+/// repo-wide rule of never byte-slicing.
+pub(crate) fn display_name(id: &str, s: &state::SessionStatus) -> String {
+    s.name.clone().unwrap_or_else(|| {
+        let prefix: String = id.chars().take(8).collect();
+        format!("Session {prefix}")
+    })
+}
+
+/// Last path component of the session's project directory.
+pub(crate) fn project_label(s: &state::SessionStatus) -> String {
+    s.project_path
+        .as_deref()
+        .map(|p| {
+            Path::new(p)
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| p.to_string())
+        })
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
 struct MenuIds {
     open_clawlight: MenuId,
     quit: MenuId,
 }
 
+/// Full native tray menu — Linux only. macOS and Windows render sessions in
+/// the custom popover instead and keep just a minimal right-click menu.
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
     let menu = Menu::new();
 
@@ -86,20 +127,8 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
         menu.append(&MenuItem::new("No live sessions", false, None))?;
     } else {
         for (id, s) in &live {
-            let name = s.name.clone().unwrap_or_else(|| {
-                let prefix: String = id.chars().take(8).collect();
-                format!("Session {prefix}")
-            });
-            let project = s
-                .project_path
-                .as_deref()
-                .map(|p| {
-                    Path::new(p)
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                        .unwrap_or_else(|| p.to_string())
-                })
-                .unwrap_or_else(|| "unknown".to_string());
+            let name = display_name(id, s);
+            let project = project_label(s);
             let badge = match s.status {
                 Status::NeedsHelp => "needs help",
                 Status::Active => "working",
@@ -130,9 +159,33 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
     Ok((menu, ids))
 }
 
+/// Minimal right-click menu for macOS/Windows: the sessions live in the
+/// popover (left click); this stays as a safety hatch so Quit is always
+/// reachable even if the webview fails.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn build_fallback_menu() -> anyhow::Result<(Menu, MenuIds)> {
+    let menu = Menu::new();
+    let open_clawlight = MenuItem::new("Open Dashboard", true, None);
+    let settings = MenuItem::new("Settings…  (soon)", false, None);
+    let quit = MenuItem::new("Quit clawlight", true, None);
+    let ids = MenuIds {
+        open_clawlight: open_clawlight.id().clone(),
+        quit: quit.id().clone(),
+    };
+    menu.append(&open_clawlight)?;
+    menu.append(&settings)?;
+    menu.append(&PredefinedMenuItem::separator())?;
+    menu.append(&quit)?;
+    Ok((menu, ids))
+}
+
 enum UserEvent {
     StateChanged,
     Menu(MenuEvent),
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    Tray(TrayIconEvent),
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    Popover(PopoverMsg),
 }
 
 pub fn run() -> anyhow::Result<()> {
@@ -163,19 +216,58 @@ pub fn run() -> anyhow::Result<()> {
         let _ = proxy_for_menu.send_event(UserEvent::Menu(event));
     }));
 
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    {
+        let proxy_for_tray = event_loop.create_proxy();
+        TrayIconEvent::set_event_handler(Some(move |event: TrayIconEvent| {
+            let _ = proxy_for_tray.send_event(UserEvent::Tray(event));
+        }));
+    }
+
     // Drive the optional ESP32 status LEDs in the background. This is inert
     // (touches no serial port) unless the user has enabled it via `l` in the
     // TUI, so it's safe to always spawn.
     thread::spawn(|| crate::led::run_daemon());
 
     let initial_state = read_hook_state();
+
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    let (menu, ids) = build_fallback_menu()?;
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     let (menu, mut ids) = build_menu(&initial_state)?;
-    let tray = TrayIconBuilder::new()
+
+    #[allow(unused_mut)]
+    let mut tray_builder = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
-        .with_icon(icon_for(aggregate(&initial_state))?)
-        .with_tooltip("clawlight")
-        .build()
-        .context("Building tray icon")?;
+        .with_icon(icon_for_state(&initial_state)?)
+        .with_tooltip("clawlight");
+    // Left click opens the popover; the native menu stays on right click.
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    {
+        tray_builder = tray_builder.with_menu_on_left_click(false);
+    }
+    let tray = tray_builder.build().context("Building tray icon")?;
+
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    let mut popover = {
+        let proxy = event_loop.create_proxy();
+        Popover::new(&event_loop, move |msg| {
+            let _ = proxy.send_event(UserEvent::Popover(msg));
+        })?
+    };
+
+    // Dev aid: open the popover immediately at a synthetic anchor so it can
+    // be inspected/screenshotted without clicking the real tray icon.
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    if std::env::var_os("CLAWLIGHT_POPOVER_DEBUG").is_some() {
+        popover.open_at(
+            tray_icon::Rect {
+                position: tao::dpi::PhysicalPosition::new(1200.0, 0.0),
+                size: tao::dpi::PhysicalSize::new(48, 48),
+            },
+            &initial_state,
+        );
+    }
 
     let proxy_for_watcher = event_loop.create_proxy();
     thread::spawn(move || {
@@ -214,12 +306,17 @@ pub fn run() -> anyhow::Result<()> {
         match event {
             Event::UserEvent(UserEvent::StateChanged) => {
                 let state = read_hook_state();
+                if let Some(tray) = tray_holder.as_ref() {
+                    if let Ok(icon) = icon_for_state(&state) {
+                        let _ = tray.set_icon(Some(icon));
+                    }
+                }
+                #[cfg(any(target_os = "macos", target_os = "windows"))]
+                popover.push_state(&state);
+                #[cfg(not(any(target_os = "macos", target_os = "windows")))]
                 if let Ok((menu, new_ids)) = build_menu(&state) {
                     if let Some(tray) = tray_holder.as_ref() {
                         let _ = tray.set_menu(Some(Box::new(menu)));
-                        if let Ok(icon) = icon_for(aggregate(&state)) {
-                            let _ = tray.set_icon(Some(icon));
-                        }
                     }
                     ids = new_ids;
                 }
@@ -232,9 +329,121 @@ pub fn run() -> anyhow::Result<()> {
                     std::process::exit(0);
                 }
             }
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            Event::UserEvent(UserEvent::Tray(TrayIconEvent::Click {
+                rect,
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            })) => {
+                if popover.is_visible() {
+                    popover.hide();
+                } else if !popover.just_dismissed() {
+                    popover.open_at(rect, &read_hook_state());
+                }
+            }
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            Event::UserEvent(UserEvent::Popover(msg)) => match msg {
+                PopoverMsg::Ready => popover.push_state(&read_hook_state()),
+                PopoverMsg::Resize { height } => popover.on_resize(height),
+                PopoverMsg::Focus { id } => {
+                    popover.hide();
+                    let state = read_hook_state();
+                    focus_session(state.sessions.get(&id));
+                }
+                PopoverMsg::Dashboard => {
+                    popover.hide();
+                    open_dashboard();
+                }
+                PopoverMsg::Quit => {
+                    tray_holder.take();
+                    std::process::exit(0);
+                }
+                PopoverMsg::Hide => popover.hide(),
+                PopoverMsg::SetYellowMode { mode } => {
+                    let mut cfg = config::read_config();
+                    cfg.yellow_mode = mode;
+                    if let Err(e) = config::write_config(&cfg) {
+                        eprintln!("Failed to save settings: {e}");
+                    }
+                    // The config write also lands in the watched directory and
+                    // triggers StateChanged, but update directly so the icon
+                    // and popover can't lag behind the click.
+                    let state = read_hook_state();
+                    if let Some(tray) = tray_holder.as_ref() {
+                        if let Ok(icon) = icon_for_state(&state) {
+                            let _ = tray.set_icon(Some(icon));
+                        }
+                    }
+                    popover.push_state(&state);
+                }
+            },
+            // Dismiss like a real popover: losing focus (clicking anywhere
+            // else) hides it.
+            // Dismiss like a real popover: losing focus (clicking anywhere
+            // else) hides it.
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            Event::WindowEvent {
+                window_id,
+                event: WindowEvent::Focused(false),
+                ..
+            } if window_id == popover.window_id() => popover.on_focus_lost(),
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            Event::WindowEvent {
+                window_id,
+                event: WindowEvent::CloseRequested,
+                ..
+            } if window_id == popover.window_id() => popover.hide(),
             _ => {}
         }
     })
+}
+
+/// Best-effort "Focus" for a needs-help session: bring the terminal window
+/// running it to the front. On macOS this scans Terminal.app window titles
+/// for the session's project directory name; everywhere it falls back to
+/// opening the dashboard.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn focus_session(session: Option<&state::SessionStatus>) {
+    #[cfg(target_os = "macos")]
+    {
+        let project = session.map(project_label);
+        // osascript can take a few hundred ms; keep it off the event loop.
+        thread::spawn(move || {
+            if let Some(project) = project {
+                // Escape before shelling out: the project dir name lands
+                // inside an AppleScript string literal.
+                let escaped = project.replace('\\', "\\\\").replace('"', "\\\"");
+                let script = format!(
+                    "if application \"Terminal\" is running then\n\
+                     tell application \"Terminal\"\n\
+                     repeat with w in windows\n\
+                     if name of w contains \"{escaped}\" then\n\
+                     set index of w to 1\n\
+                     activate\n\
+                     return \"found\"\n\
+                     end if\n\
+                     end repeat\n\
+                     end tell\n\
+                     end if"
+                );
+                if let Ok(out) = std::process::Command::new("osascript")
+                    .args(["-e", &script])
+                    .output()
+                {
+                    if String::from_utf8_lossy(&out.stdout).contains("found") {
+                        return;
+                    }
+                }
+            }
+            open_dashboard();
+        });
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let _ = session;
+        open_dashboard();
+    }
 }
 
 /// Launch the TUI dashboard in a fresh terminal window from the tray menu.

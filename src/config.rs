@@ -7,6 +7,19 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+/// How an `Inactive` (idle) session affects the aggregate light when other
+/// sessions are still `Active`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum YellowMode {
+    /// Any idle session turns the light yellow, even while others are working.
+    #[default]
+    AnyInactive,
+    /// Working sessions win: stay green while anything is active; yellow only
+    /// when every live session is idle.
+    ActiveWins,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct Config {
@@ -18,6 +31,9 @@ pub struct Config {
     /// auto-detects a known ESP32 board by USB vendor ID on each scan, which
     /// survives the board being unplugged and replugged at a different path.
     pub led_port: Option<String>,
+    /// How idle sessions color the aggregate (tray icon / LED) — see
+    /// [`YellowMode`]. Set from the tray popover's Settings view.
+    pub yellow_mode: YellowMode,
 }
 
 pub fn config_file_path() -> PathBuf {
@@ -55,18 +71,29 @@ pub fn write_config(cfg: &Config) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::Config;
+    use super::{Config, YellowMode};
 
     #[test]
     fn roundtrips_through_json() {
         let cfg = Config {
             led_enabled: true,
             led_port: Some("/dev/cu.usbmodem101".to_string()),
+            yellow_mode: YellowMode::ActiveWins,
         };
         let json = serde_json::to_string(&cfg).unwrap();
         let back: Config = serde_json::from_str(&json).unwrap();
         assert!(back.led_enabled);
         assert_eq!(back.led_port.as_deref(), Some("/dev/cu.usbmodem101"));
+        assert_eq!(back.yellow_mode, YellowMode::ActiveWins);
+    }
+
+    #[test]
+    fn yellow_mode_defaults_to_any_inactive() {
+        // Configs written before the setting existed must keep the original
+        // behavior: any idle session shows yellow.
+        let old: Config = serde_json::from_str(r#"{"led_enabled": true}"#).unwrap();
+        assert_eq!(old.yellow_mode, YellowMode::AnyInactive);
+        assert_eq!(Config::default().yellow_mode, YellowMode::AnyInactive);
     }
 
     #[test]

@@ -5,6 +5,8 @@ mod led;
 mod menubar;
 mod notification;
 mod ota;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+mod popover;
 mod session;
 mod spawn;
 mod state;
