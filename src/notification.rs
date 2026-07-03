@@ -8,10 +8,16 @@
 pub fn send_notification(title: &str, message: &str) {
     use std::process::Command;
 
+    // Escape for an AppleScript string literal. Backslash MUST be escaped first,
+    // otherwise the backslashes we add for quotes would themselves be doubled.
+    // Session names come from user prompts / LLM output, so a stray `\` or `"`
+    // would otherwise produce malformed (or injectable) AppleScript.
+    let escape = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
+
     let script = format!(
         r#"display notification "{}" with title "{}""#,
-        message.replace('"', "\\\""),
-        title.replace('"', "\\\""),
+        escape(message),
+        escape(title),
     );
 
     let _ = Command::new("osascript").arg("-e").arg(&script).spawn();

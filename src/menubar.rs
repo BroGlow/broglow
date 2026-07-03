@@ -87,7 +87,8 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
     } else {
         for (id, s) in &live {
             let name = s.name.clone().unwrap_or_else(|| {
-                format!("Session {}", &id[..8.min(id.len())])
+                let prefix: String = id.chars().take(8).collect();
+                format!("Session {prefix}")
             });
             let project = s
                 .project_path

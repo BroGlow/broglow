@@ -9,10 +9,11 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 
 use chrono::Utc;
-use fs4::fs_std::FileExt;
 use serde_json::Value;
 
-use crate::state::{state_file_path, write_state_atomic, HookState, SessionStatus, Status};
+use crate::state::{
+    acquire_state_lock, state_file_path, write_state_atomic, HookState, SessionStatus, Status,
+};
 
 /// Outcome of loading `state.json` for a read-modify-write cycle.
 enum LoadedState {
@@ -204,25 +205,6 @@ fn read_state_raw() -> LoadedState {
         Ok(s) => LoadedState::Ok(s),
         Err(_) => LoadedState::Unreadable,
     }
-}
-
-/// Take a blocking exclusive lock on `.state.lock` beside `state.json`,
-/// guarding the read-modify-write span against concurrent hooks from other
-/// sessions. The lock releases automatically when the returned `File` drops.
-/// Returns `None` if the lock can't be acquired (e.g. create_dir_all fails);
-/// callers proceed unlocked rather than break the hook over this.
-fn acquire_state_lock() -> Option<File> {
-    let path = state_file_path();
-    let dir = path.parent()?;
-    std::fs::create_dir_all(dir).ok()?;
-    let lock_path = dir.join(".state.lock");
-    let file = File::options()
-        .create(true)
-        .write(true)
-        .open(&lock_path)
-        .ok()?;
-    file.lock_exclusive().ok()?;
-    Some(file)
 }
 
 /// Extract the first user prompt from a JSONL transcript. `content` may be a

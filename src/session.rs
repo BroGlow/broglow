@@ -77,11 +77,22 @@ fn project_short_name(project_path: &str) -> String {
 }
 
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max {
+    // Count by chars, not bytes: byte-slicing a multibyte UTF-8 sequence (emoji,
+    // CJK, accented text, curly quotes) at a non-boundary index panics, which
+    // would take the whole TUI down on the next refresh.
+    if s.chars().count() <= max {
         s.to_string()
     } else {
-        format!("{}...", &s[..max.saturating_sub(3)])
+        let kept: String = s.chars().take(max.saturating_sub(3)).collect();
+        format!("{kept}...")
     }
+}
+
+/// Char-safe first-N-chars prefix, used for the `Session <id-prefix>` fallback
+/// name. Session IDs are ASCII UUIDs today, but slicing them by chars keeps the
+/// helper reusable and immune to the non-boundary panic that byte-slicing hits.
+fn char_prefix(s: &str, n: usize) -> String {
+    s.chars().take(n).collect()
 }
 
 pub fn load_all_sessions(hook_state: &HookState) -> Vec<DisplaySession> {
@@ -128,7 +139,7 @@ fn merge_sessions(
             .or_else(|| entry.custom_title.clone())
             .or_else(|| entry.summary.clone())
             .or_else(|| entry.first_prompt.as_ref().map(|p| truncate(p, 50)))
-            .unwrap_or_else(|| format!("Session {}", &entry.session_id[..8.min(entry.session_id.len())]));
+            .unwrap_or_else(|| format!("Session {}", char_prefix(&entry.session_id, 8)));
 
         let project_path = entry.project_path.clone().unwrap_or_default();
 
@@ -156,9 +167,7 @@ fn merge_sessions(
             let name = session_status
                 .name
                 .clone()
-                .unwrap_or_else(|| {
-                    format!("Session {}", &session_id[..8.min(session_id.len())])
-                });
+                .unwrap_or_else(|| format!("Session {}", char_prefix(session_id, 8)));
             result.push(DisplaySession {
                 session_id: session_id.clone(),
                 name,
@@ -197,4 +206,33 @@ fn merge_sessions(
     });
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{char_prefix, truncate};
+
+    #[test]
+    fn truncate_is_char_boundary_safe() {
+        // A multibyte string longer than the limit whose byte cut lands inside a
+        // char used to panic; it must now truncate cleanly on a char boundary.
+        let s = "日本語のプロンプトでセッションを開始してくださいね、これはとても長いテスト文字列でありまして五十文字を超えています本当に超えていますよ";
+        assert!(s.chars().count() > 50);
+        let out = truncate(s, 50);
+        assert!(out.ends_with("..."));
+        assert!(out.chars().count() <= 50);
+    }
+
+    #[test]
+    fn truncate_leaves_short_strings_untouched() {
+        assert_eq!(truncate("hello", 50), "hello");
+        assert_eq!(truncate("日本語", 50), "日本語");
+    }
+
+    #[test]
+    fn char_prefix_never_splits_a_char() {
+        assert_eq!(char_prefix("abcdefghij", 8), "abcdefgh");
+        // Fewer chars than requested → returns the whole string, no panic.
+        assert_eq!(char_prefix("日本", 8), "日本");
+    }
 }

@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::fs::File;
 use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
+use fs4::fs_std::FileExt;
 use serde::{Deserialize, Serialize};
 
 const STALE_AFTER_HOURS: i64 = 24;
@@ -121,6 +123,9 @@ pub fn clear_session(session_id: &str) -> anyhow::Result<()> {
     if !path.exists() {
         return Ok(());
     }
+    // Hold the same lock the hook backend uses so this read-modify-write can't
+    // interleave with a concurrent hook and clobber its status update.
+    let _lock = acquire_state_lock();
     let content = std::fs::read_to_string(&path)?;
     let mut state: HookState = serde_json::from_str(&content).unwrap_or_default();
     if state.sessions.remove(session_id).is_none() {
@@ -128,6 +133,25 @@ pub fn clear_session(session_id: &str) -> anyhow::Result<()> {
     }
 
     write_state_atomic(&state)
+}
+
+/// Take a blocking exclusive lock on `.state.lock` beside `state.json`, guarding
+/// a read-modify-write span against concurrent writers (hooks from other
+/// sessions, the TUI's `clear_session`). The lock releases when the returned
+/// `File` drops. Returns `None` if the lock can't be acquired (e.g. the dir
+/// can't be created); callers proceed unlocked rather than break over this.
+pub fn acquire_state_lock() -> Option<File> {
+    let path = state_file_path();
+    let dir = path.parent()?;
+    std::fs::create_dir_all(dir).ok()?;
+    let lock_path = dir.join(".state.lock");
+    let file = File::options()
+        .create(true)
+        .write(true)
+        .open(&lock_path)
+        .ok()?;
+    file.lock_exclusive().ok()?;
+    Some(file)
 }
 
 /// Atomic write: serialize to a sibling temp file, then rename onto the
