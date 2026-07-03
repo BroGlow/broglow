@@ -39,7 +39,14 @@ jobs:
           cd target/${{ matrix.target }}/release
           tar czf ../../../clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz "$BIN"
           cd ../../..
-          shasum -a 256 clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz > clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz.sha256
+          FILE="clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz"
+          # macOS ships `shasum` but not `sha256sum`; Windows git-bash and Linux
+          # ship `sha256sum` but not `shasum`. Both print "<hash>  <file>".
+          if command -v shasum >/dev/null 2>&1; then
+            shasum -a 256 "$FILE" > "$FILE.sha256"
+          else
+            sha256sum "$FILE" > "$FILE.sha256"
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
