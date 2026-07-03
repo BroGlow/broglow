@@ -29,7 +29,10 @@ const RESCAN_INTERVAL: Duration = Duration::from_secs(2);
 /// USB vendor ID of the Seeed XIAO ESP32-C6 — the only board clawlight
 /// supports. The XIAO wires the ESP32-C6's built-in USB straight to its USB-C
 /// port (no CH340/CP210x UART bridge), so it always enumerates under
-/// Espressif's native USB-Serial-JTAG vendor ID.
+/// Espressif's native USB-Serial-JTAG vendor ID. Matching this VID (and nothing
+/// else) is unambiguous — 0x303A is used only by native-USB ESP32 variants — so
+/// the always-on daemon never risks writing status bytes to an unrelated board
+/// (an Arduino on a CH340/CP210x bridge, a GPS, a printer, ...).
 const SEEED_C6_VID: u16 = 0x303A;
 
 fn status_byte(agg: Aggregate) -> u8 {
@@ -41,31 +44,42 @@ fn status_byte(agg: Aggregate) -> u8 {
     }
 }
 
-/// Detect a connected Seeed XIAO ESP32-C6 by its USB vendor ID and return the
-/// serial device path. Matches only the XIAO's native USB-Serial-JTAG VID and
-/// never falls back to an arbitrary serial device — so the always-on daemon can
-/// scan safely without risking writing status bytes to an unrelated board (an
-/// Arduino, GPS, printer, ...). Pass `--port` to force a specific device.
+/// Detect connected Seeed XIAO ESP32-C6 boards by USB vendor ID, most likely
+/// first. Matches only the XIAO's native USB-Serial-JTAG VID and never falls
+/// back to an arbitrary serial device, so scanning is always safe. Pass
+/// `--port` to force any other device.
 ///
-/// On macOS the callout (`cu.*`) device is preferred over its dial-in (`tty.*`)
-/// twin — `cu.*` opens without waiting for carrier.
-pub fn detect_board() -> Option<String> {
-    let ports = serialport::available_ports().ok()?;
+/// Returns a list so callers can fall through to the next candidate when one
+/// can't be opened — e.g. it's held by another app, or it's the `tty.*` twin of
+/// a `cu.*` device. On macOS the callout (`cu.*`) device is preferred over its
+/// dial-in (`tty.*`) twin; `cu.*` opens without waiting for carrier. (Windows
+/// COM names never contain "/tty.", so the penalty is simply zero there.)
+pub fn detect_boards() -> Vec<String> {
+    let ports = match serialport::available_ports() {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
 
-    let mut candidates: Vec<(u8, String)> = ports
-        .into_iter()
-        .filter_map(|p| match &p.port_type {
-            SerialPortType::UsbPort(usb) if usb.vid == SEEED_C6_VID => {
-                // Prefer the callout (cu.*) device over its dial-in (tty.*) twin.
-                let cu_penalty = if p.port_name.contains("/tty.") { 1 } else { 0 };
-                Some((cu_penalty, p.port_name))
+    let cu_penalty = |name: &str| if name.contains("/tty.") { 1u8 } else { 0u8 };
+
+    let mut boards: Vec<(u8, String)> = Vec::new();
+    for p in ports {
+        if let SerialPortType::UsbPort(usb) = &p.port_type {
+            if usb.vid == SEEED_C6_VID {
+                let penalty = cu_penalty(&p.port_name);
+                boards.push((penalty, p.port_name));
             }
-            _ => None,
-        })
-        .collect();
+        }
+    }
 
-    candidates.sort();
-    candidates.into_iter().next().map(|(_, name)| name)
+    boards.sort();
+    boards.into_iter().map(|(_, name)| name).collect()
+}
+
+/// The single most likely board — used by the TUI for its "board attached?"
+/// indicator and the `l` toggle, and by the foreground `led` command.
+pub fn detect_board() -> Option<String> {
+    detect_boards().into_iter().next()
 }
 
 /// Foreground command (`clawlight led`): mirror state to the Seeed XIAO
@@ -117,18 +131,28 @@ pub fn run_daemon() -> ! {
             continue;
         }
 
-        let Some(path) = cfg.led_port.clone().or_else(detect_board) else {
-            std::thread::sleep(RESCAN_INTERVAL);
-            continue;
+        // An explicit pin wins; otherwise try every known board in turn so a
+        // busy/unopenable port (e.g. one held by another app, or a non-board
+        // device that merely shares a known vendor ID) doesn't block a second
+        // board that is actually free.
+        let candidates = match cfg.led_port.clone() {
+            Some(p) => vec![p],
+            None => detect_boards(),
         };
 
-        if let Ok(port) = serialport::new(&path, BAUD)
-            .timeout(Duration::from_millis(500))
-            .open()
-        {
-            println!("LED: connected to {path}");
-            // Stay connected until the write fails (unplug) or LED is disabled.
-            let _ = drive(port, || config::read_config().led_enabled);
+        for path in candidates {
+            match serialport::new(&path, BAUD)
+                .timeout(Duration::from_millis(500))
+                .open()
+            {
+                Ok(port) => {
+                    println!("LED: connected to {path}");
+                    // Stay connected until the write fails (unplug) or LED is disabled.
+                    let _ = drive(port, || config::read_config().led_enabled);
+                    break;
+                }
+                Err(_) => continue,
+            }
         }
 
         std::thread::sleep(RESCAN_INTERVAL);

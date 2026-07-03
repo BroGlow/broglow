@@ -1,10 +1,12 @@
 mod app;
 mod config;
+mod hook;
 mod led;
 mod menubar;
 mod notification;
 mod ota;
 mod session;
+mod spawn;
 mod state;
 mod ui;
 
@@ -31,11 +33,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Install hooks into ~/.claude/settings.json and set up the hook script
+    /// Install hooks into ~/.claude/settings.json and start the tray daemon
     Install,
     /// Uninstall hooks and clean up
     Uninstall,
-    /// Run the macOS menu bar daemon (foreground)
+    /// Run the menu bar / system tray daemon (foreground)
     Menubar,
     /// Mirror session state to a Seeed XIAO ESP32-C6 over USB serial (foreground)
     Led {
@@ -51,6 +53,15 @@ enum Commands {
         #[arg(long)]
         port: Option<String>,
     },
+    /// (internal) Hook backend invoked by Claude Code over stdin
+    #[command(hide = true)]
+    Hook,
+    /// (internal) Generate a session name from a transcript
+    #[command(hide = true)]
+    Name {
+        session_id: String,
+        transcript_path: String,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -62,6 +73,11 @@ fn main() -> anyhow::Result<()> {
         Some(Commands::Menubar) => menubar::run(),
         Some(Commands::Led { port }) => led::run(port),
         Some(Commands::Update { firmware, port }) => ota::run(firmware, port),
+        Some(Commands::Hook) => hook::run(),
+        Some(Commands::Name {
+            session_id,
+            transcript_path,
+        }) => hook::run_namer(&session_id, &transcript_path),
         None => run_tui(),
     }
 }
@@ -94,134 +110,226 @@ fn run_tui() -> anyhow::Result<()> {
     result
 }
 
-const HOOK_SCRIPT: &str = r#"#!/bin/bash
-# clawlight hook script
-# Invoked by Claude Code hooks to track session state.
+fn hook_dir() -> PathBuf {
+    dirs::home_dir()
+        .expect("Home directory must exist")
+        .join(".claude")
+        .join("clawlight")
+}
 
-STATE_DIR="$HOME/.claude/clawlight"
-STATE_FILE="$STATE_DIR/state.json"
+fn settings_path() -> PathBuf {
+    dirs::home_dir()
+        .expect("Home directory must exist")
+        .join(".claude")
+        .join("settings.json")
+}
 
-mkdir -p "$STATE_DIR"
+// ----------------------------------------------------------------------------
+// Install / uninstall
+// ----------------------------------------------------------------------------
 
-# Read hook input from stdin
-INPUT=$(cat)
-HOOK_EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // empty')
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
-NOTIFICATION_TYPE=$(echo "$INPUT" | jq -r '.notification_type // empty')
-TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty')
+/// Claude Code lifecycle events that clawlight's built-in hook backend
+/// registers for. Single source of truth shared by install and uninstall.
+const HOOK_EVENTS: [&str; 6] = [
+    "SessionStart",
+    "UserPromptSubmit",
+    "Stop",
+    "Notification",
+    "SessionEnd",
+    "PreToolUse",
+];
 
-# Skip if this is a meta session spawned by clawlight for auto-naming
-if [ -n "$CLAWLIGHT_NAMING" ]; then
-    exit 0
-fi
+fn install_hooks() -> anyhow::Result<()> {
+    // 1. Ensure the clawlight state/log directory exists.
+    std::fs::create_dir_all(hook_dir())?;
 
-if [ -z "$SESSION_ID" ]; then
-    exit 0
-fi
+    // 2. Register the native hook backend in settings.json. The hook command is
+    //    this very binary invoked as `clawlight hook` — no bash or jq needed.
+    let exe = std::env::current_exe().context("Resolving current executable path")?;
+    let hook_cmd = format!("\"{}\" hook", exe.display());
 
-# Determine status based on hook event
-case "$HOOK_EVENT" in
-    "SessionStart"|"UserPromptSubmit"|"PreToolUse")
-        STATUS="active"
-        ;;
-    "Stop")
-        STATUS="inactive"
-        ;;
-    "Notification")
-        # idle_prompt is an informational nudge, not a user-action-required signal.
-        # Skip so the icon doesn't flip red on idle warnings.
-        if [ "$NOTIFICATION_TYPE" = "idle_prompt" ]; then
-            exit 0
-        fi
-        STATUS="needs_help"
-        ;;
-    "SessionEnd")
-        STATUS="done"
-        ;;
-    *)
-        exit 0
-        ;;
-esac
+    let settings_file = settings_path();
+    let mut settings: serde_json::Value = if settings_file.exists() {
+        let content = std::fs::read_to_string(&settings_file).context("Reading settings.json")?;
+        serde_json::from_str(&content).context("Parsing settings.json")?
+    } else {
+        serde_json::json!({})
+    };
 
-# For PreToolUse, skip the write if already active (fires very frequently)
-if [ "$HOOK_EVENT" = "PreToolUse" ]; then
-    if [ -f "$STATE_FILE" ]; then
-        CURRENT=$(jq -r --arg sid "$SESSION_ID" '.sessions[$sid].status // empty' "$STATE_FILE" 2>/dev/null)
-        if [ "$CURRENT" = "active" ]; then
-            exit 0
-        fi
-    fi
-fi
+    let hook_entry = serde_json::json!([
+        {
+            "hooks": [{
+                "type": "command",
+                "command": hook_cmd
+            }]
+        }
+    ]);
 
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    let hooks = settings
+        .as_object_mut()
+        .context("settings.json must be an object")?
+        .entry("hooks")
+        .or_insert_with(|| serde_json::json!({}));
 
-# Initialize state file if it doesn't exist
-if [ ! -f "$STATE_FILE" ]; then
-    echo '{"sessions":{}}' > "$STATE_FILE"
-fi
+    let hooks_obj = hooks.as_object_mut().context("hooks must be an object")?;
 
-# Preserve existing name if present
-EXISTING_NAME=$(jq -r --arg sid "$SESSION_ID" '.sessions[$sid].name // empty' "$STATE_FILE" 2>/dev/null)
+    for event in HOOK_EVENTS {
+        hooks_obj.insert(event.to_string(), hook_entry.clone());
+    }
 
-# Atomic update: read, modify, write to temp, rename
-TMPFILE=$(mktemp "$STATE_DIR/state.XXXXXX.json")
-jq --arg sid "$SESSION_ID" \
-   --arg status "$STATUS" \
-   --arg ts "$TIMESTAMP" \
-   --arg cwd "$CWD" \
-   --arg ntype "$NOTIFICATION_TYPE" \
-   --arg name "$EXISTING_NAME" \
-   '.sessions[$sid] = {
-       "status": $status,
-       "last_updated": $ts,
-       "project_path": $cwd,
-       "notification_type": (if $ntype != "" then $ntype else null end),
-       "name": (if $name != "" then $name else null end)
-   }' "$STATE_FILE" > "$TMPFILE" && mv "$TMPFILE" "$STATE_FILE"
+    let settings_str = serde_json::to_string_pretty(&settings)?;
+    std::fs::write(&settings_file, settings_str)?;
 
-# Auto-name: on first Stop event, generate a name via claude CLI in background
-if [ "$HOOK_EVENT" = "Stop" ] && [ -z "$EXISTING_NAME" ] && [ -n "$TRANSCRIPT_PATH" ]; then
-    (
-        # Unset to allow nested claude CLI usage from hook context
-        unset CLAUDECODE
+    println!("Updated {}", settings_file.display());
 
-        # Extract the first user prompt from the transcript
-        # content may be a plain string or an array of content blocks
-        FIRST_PROMPT=$(jq -r '
-            select(.message.role == "user")
-            | .message.content
-            | if type == "array" then
-                map(select(.type == "text") | .text) | join(" ")
-              else
-                tostring
-              end' "$TRANSCRIPT_PATH" 2>/dev/null \
-            | head -c 500 \
-            | head -1)
+    // 3. Install autostart for the tray daemon (platform-specific).
+    install_autostart()?;
 
-        if [ -z "$FIRST_PROMPT" ]; then
-            exit 0
-        fi
+    println!("\nInstallation complete! Hooks are now active for new Claude Code sessions.");
+    println!("Run `clawlight` to launch the TUI dashboard.");
+    println!("Optional: plug in a Seeed XIAO ESP32-C6 status board and press `l` in the dashboard to enable status LEDs.");
+    Ok(())
+}
 
-        # Generate name via claude CLI (haiku for speed/cost)
-        # Export CLAWLIGHT_NAMING so hooks triggered by this call skip processing
-        NAME=$(CLAWLIGHT_NAMING=1 claude -p --model haiku "Generate a concise 3-5 word title for this coding session. Output ONLY the title, nothing else. No quotes. User's request: $FIRST_PROMPT" 2>/dev/null)
+fn uninstall_hooks() -> anyhow::Result<()> {
+    // Remove autostart first (best-effort).
+    let _ = uninstall_autostart();
 
-        if [ -n "$NAME" ]; then
-            # Write the name back to state.json
-            TMPFILE2=$(mktemp "$STATE_DIR/state.XXXXXX.json")
-            jq --arg sid "$SESSION_ID" \
-               --arg name "$NAME" \
-               '.sessions[$sid].name = $name' "$STATE_FILE" > "$TMPFILE2" && mv "$TMPFILE2" "$STATE_FILE"
-        fi
-    ) &
-fi
+    // Remove hooks from settings.json
+    let settings_file = settings_path();
+    if settings_file.exists() {
+        let content = std::fs::read_to_string(&settings_file)?;
+        let mut settings: serde_json::Value = serde_json::from_str(&content)?;
 
-exit 0
-"#;
+        if let Some(hooks) = settings.get_mut("hooks").and_then(|h| h.as_object_mut()) {
+            for event in HOOK_EVENTS {
+                hooks.remove(event);
+            }
+            if hooks.is_empty() {
+                settings.as_object_mut().unwrap().remove("hooks");
+            }
+        }
 
+        let settings_str = serde_json::to_string_pretty(&settings)?;
+        std::fs::write(&settings_file, settings_str)?;
+        println!("Removed hooks from {}", settings_file.display());
+    }
+
+    // Remove hook state and logs
+    let dir = hook_dir();
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir)?;
+        println!("Removed {}", dir.display());
+    }
+
+    println!("\nUninstall complete.");
+    Ok(())
+}
+
+// ----------------------------------------------------------------------------
+// Autostart — platform dispatch
+// ----------------------------------------------------------------------------
+
+fn install_autostart() -> anyhow::Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        install_launch_agent()
+    }
+    #[cfg(target_os = "windows")]
+    {
+        install_run_key()
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        install_xdg_autostart()
+    }
+}
+
+fn uninstall_autostart() -> anyhow::Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        uninstall_launch_agent()
+    }
+    #[cfg(target_os = "windows")]
+    {
+        uninstall_run_key()
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        uninstall_xdg_autostart()
+    }
+}
+
+// ----------------------------------------------------------------------------
+// Autostart — Windows (registry Run key)
+// ----------------------------------------------------------------------------
+
+#[cfg(target_os = "windows")]
+const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+#[cfg(target_os = "windows")]
+const RUN_VALUE: &str = "clawlight";
+
+#[cfg(target_os = "windows")]
+fn install_run_key() -> anyhow::Result<()> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+
+    let exe = std::env::current_exe().context("Resolving current executable path")?;
+
+    // Launch through conhost in headless mode instead of invoking the
+    // console-subsystem exe directly. On Windows 11 with Windows Terminal set
+    // as the default terminal host, a directly-launched console app gets a
+    // pseudoconsole HWND from GetConsoleWindow() that ShowWindow(SW_HIDE)
+    // cannot hide (see https://github.com/microsoft/terminal/issues/12570),
+    // so every login would otherwise leave a visible empty terminal window
+    // whose closure kills the tray. `conhost.exe --headless` forces a
+    // windowless pseudoconsole regardless of the user's default-terminal
+    // setting.
+    let command = format!("conhost.exe --headless \"{}\" menubar", exe.display());
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let (key, _) = hkcu
+        .create_subkey(RUN_KEY)
+        .context("Opening HKCU Run registry key")?;
+    key.set_value(RUN_VALUE, &command)
+        .context("Writing autostart registry value")?;
+    println!("Registered tray autostart (HKCU\\...\\Run\\{RUN_VALUE}).");
+
+    // Start the tray now, detached and windowless, so the icon appears
+    // immediately without waiting for the next login.
+    let mut cmd = std::process::Command::new(&exe);
+    cmd.arg("menubar")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    crate::spawn::configure_detached(&mut cmd);
+    let _ = cmd.spawn();
+    println!("Tray icon launched — look for the Clawd icon in the system tray.");
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn uninstall_run_key() -> anyhow::Result<()> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    if let Ok(key) = hkcu.open_subkey_with_flags(RUN_KEY, winreg::enums::KEY_ALL_ACCESS) {
+        let _ = key.delete_value(RUN_VALUE);
+        println!("Removed tray autostart registry value.");
+    }
+    println!("Note: a running tray icon stays until you quit it (tray menu \u{2192} Quit) or log out.");
+    Ok(())
+}
+
+// ----------------------------------------------------------------------------
+// Autostart — macOS (launchd LaunchAgent)
+// ----------------------------------------------------------------------------
+
+#[cfg(target_os = "macos")]
 const LAUNCH_AGENT_LABEL: &str = "io.roush.clawlight.menubar";
 
+#[cfg(target_os = "macos")]
 const LAUNCH_AGENT_PLIST: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -243,17 +351,7 @@ const LAUNCH_AGENT_PLIST: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 </plist>
 "#;
 
-fn hook_dir() -> PathBuf {
-    dirs::home_dir()
-        .expect("Home directory must exist")
-        .join(".claude")
-        .join("clawlight")
-}
-
-fn hook_script_path() -> PathBuf {
-    hook_dir().join("hook.sh")
-}
-
+#[cfg(target_os = "macos")]
 fn launch_agent_path() -> PathBuf {
     dirs::home_dir()
         .expect("Home directory must exist")
@@ -262,6 +360,7 @@ fn launch_agent_path() -> PathBuf {
         .join(format!("{LAUNCH_AGENT_LABEL}.plist"))
 }
 
+#[cfg(target_os = "macos")]
 fn current_uid() -> anyhow::Result<String> {
     let out = std::process::Command::new("id")
         .arg("-u")
@@ -273,13 +372,7 @@ fn current_uid() -> anyhow::Result<String> {
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
-fn settings_path() -> PathBuf {
-    dirs::home_dir()
-        .expect("Home directory must exist")
-        .join(".claude")
-        .join("settings.json")
-}
-
+#[cfg(target_os = "macos")]
 fn install_launch_agent() -> anyhow::Result<()> {
     let exe = std::env::current_exe().context("Resolving current executable path")?;
     let home = dirs::home_dir().context("No home directory")?;
@@ -345,6 +438,7 @@ fn install_launch_agent() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
 fn uninstall_launch_agent() -> anyhow::Result<()> {
     if let Ok(uid) = current_uid() {
         let service = format!("gui/{uid}/{LAUNCH_AGENT_LABEL}");
@@ -361,101 +455,59 @@ fn uninstall_launch_agent() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn install_hooks() -> anyhow::Result<()> {
-    // 1. Create directory and write hook script
-    let dir = hook_dir();
-    std::fs::create_dir_all(&dir)?;
+// ----------------------------------------------------------------------------
+// Autostart — Linux (XDG autostart entry)
+// ----------------------------------------------------------------------------
 
-    let script_path = hook_script_path();
-    std::fs::write(&script_path, HOOK_SCRIPT)?;
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn xdg_autostart_path() -> PathBuf {
+    dirs::home_dir()
+        .expect("Home directory must exist")
+        .join(".config")
+        .join("autostart")
+        .join("clawlight.desktop")
+}
 
-    // Make executable
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))?;
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn install_xdg_autostart() -> anyhow::Result<()> {
+    let exe = std::env::current_exe().context("Resolving current executable path")?;
+
+    let desktop_entry = format!(
+        "[Desktop Entry]\nType=Application\nName=clawlight\nExec=\"{}\" menubar\nX-GNOME-Autostart-enabled=true\n",
+        exe.display()
+    );
+
+    let entry_path = xdg_autostart_path();
+    if let Some(parent) = entry_path.parent() {
+        std::fs::create_dir_all(parent).context("Creating ~/.config/autostart")?;
     }
+    std::fs::write(&entry_path, desktop_entry).context("Writing XDG autostart entry")?;
+    println!("Wrote XDG autostart entry to {}", entry_path.display());
 
-    println!("Wrote hook script to {}", script_path.display());
-
-    // 2. Update settings.json
-    let settings_file = settings_path();
-    let mut settings: serde_json::Value = if settings_file.exists() {
-        let content =
-            std::fs::read_to_string(&settings_file).context("Reading settings.json")?;
-        serde_json::from_str(&content).context("Parsing settings.json")?
-    } else {
-        serde_json::json!({})
-    };
-
-    let hook_cmd = format!("bash {}", script_path.display());
-
-    let hook_entry = serde_json::json!([
-        {
-            "hooks": [{
-                "type": "command",
-                "command": hook_cmd
-            }]
-        }
-    ]);
-
-    let hooks = settings
-        .as_object_mut()
-        .context("settings.json must be an object")?
-        .entry("hooks")
-        .or_insert_with(|| serde_json::json!({}));
-
-    let hooks_obj = hooks.as_object_mut().context("hooks must be an object")?;
-
-    for event in &["SessionStart", "UserPromptSubmit", "Stop", "Notification", "SessionEnd", "PreToolUse"] {
-        hooks_obj.insert(event.to_string(), hook_entry.clone());
-    }
-
-    let settings_str = serde_json::to_string_pretty(&settings)?;
-    std::fs::write(&settings_file, settings_str)?;
-
-    println!("Updated {}", settings_file.display());
-
-    // 3. Install the menu bar LaunchAgent
-    install_launch_agent()?;
-
-    println!("\nInstallation complete! Hooks are now active for new Claude Code sessions.");
-    println!("Run `clawlight` to launch the TUI dashboard.");
-    println!("Optional: plug in a Seeed XIAO ESP32-C6 status board and press `l` in the dashboard to enable status LEDs.");
+    // Start the tray now, detached, so the icon appears immediately without
+    // waiting for the next login — mirrors the Windows/macOS behavior.
+    // Note: whether a tray icon actually shows up depends on the desktop
+    // environment's support for the AppIndicator/StatusNotifierItem
+    // protocol (GNOME needs an extension; most other DEs work out of the
+    // box), so this is best-effort on Linux.
+    let mut cmd = std::process::Command::new(&exe);
+    cmd.arg("menubar")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    crate::spawn::configure_detached(&mut cmd); // no-op on this platform
+    let _ = cmd.spawn();
+    println!("Tray icon launched (if your desktop environment supports system-tray icons).");
     Ok(())
 }
 
-fn uninstall_hooks() -> anyhow::Result<()> {
-    // Unload and remove the LaunchAgent first (best-effort)
-    let _ = uninstall_launch_agent();
-
-    // Remove hooks from settings.json
-    let settings_file = settings_path();
-    if settings_file.exists() {
-        let content = std::fs::read_to_string(&settings_file)?;
-        let mut settings: serde_json::Value = serde_json::from_str(&content)?;
-
-        if let Some(hooks) = settings.get_mut("hooks").and_then(|h| h.as_object_mut()) {
-            for event in &["SessionStart", "UserPromptSubmit", "Stop", "Notification", "SessionEnd", "PreToolUse"] {
-                hooks.remove(*event);
-            }
-            if hooks.is_empty() {
-                settings.as_object_mut().unwrap().remove("hooks");
-            }
-        }
-
-        let settings_str = serde_json::to_string_pretty(&settings)?;
-        std::fs::write(&settings_file, settings_str)?;
-        println!("Removed hooks from {}", settings_file.display());
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn uninstall_xdg_autostart() -> anyhow::Result<()> {
+    let entry_path = xdg_autostart_path();
+    if entry_path.exists() {
+        std::fs::remove_file(&entry_path)?;
+        println!("Removed {}", entry_path.display());
     }
-
-    // Remove hook script and state
-    let dir = hook_dir();
-    if dir.exists() {
-        std::fs::remove_dir_all(&dir)?;
-        println!("Removed {}", dir.display());
-    }
-
-    println!("\nUninstall complete.");
+    println!("Note: a running tray icon stays until you quit it (tray menu \u{2192} Quit) or log out.");
     Ok(())
 }
