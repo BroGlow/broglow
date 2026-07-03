@@ -89,6 +89,61 @@ impl App {
         self.status_message = Some((msg, Instant::now()));
     }
 
+    /// Best-effort focus of the selected session's terminal window. On macOS
+    /// this scans Terminal.app window titles for the session's project
+    /// directory name (same approach as the tray popover's Focus button);
+    /// elsewhere it reports that focus isn't wired up yet.
+    fn focus_selected(&mut self) {
+        let Some(session) = self
+            .table_state
+            .selected()
+            .and_then(|i| self.sessions.get(i))
+        else {
+            return;
+        };
+
+        #[cfg(target_os = "macos")]
+        {
+            let project = session.project_name.clone();
+            if project.is_empty() {
+                self.set_status("No project folder known for this session.".to_string());
+                return;
+            }
+            // Escape before shelling out: the project dir name lands inside
+            // an AppleScript string literal — escape `\` before `"`.
+            let escaped = project.replace('\\', "\\\\").replace('"', "\\\"");
+            let script = format!(
+                "if application \"Terminal\" is running then\n\
+                 tell application \"Terminal\"\n\
+                 repeat with w in windows\n\
+                 if name of w contains \"{escaped}\" then\n\
+                 set index of w to 1\n\
+                 activate\n\
+                 return \"found\"\n\
+                 end if\n\
+                 end repeat\n\
+                 end tell\n\
+                 end if"
+            );
+            let found = std::process::Command::new("osascript")
+                .args(["-e", &script])
+                .output()
+                .map(|out| String::from_utf8_lossy(&out.stdout).contains("found"))
+                .unwrap_or(false);
+            if found {
+                self.set_status(format!("Focused Terminal window for \"{project}\"."));
+            } else {
+                self.set_status(format!("No Terminal window matching \"{project}\" found."));
+            }
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = session;
+            self.set_status("Focus isn't supported on this platform yet.".to_string());
+        }
+    }
+
     pub fn reload_data(&mut self) {
         let hook_state = read_hook_state();
         let sessions = load_all_sessions(&hook_state);
@@ -98,10 +153,7 @@ impl App {
             if session.status == Status::NeedsHelp {
                 let prev = self.previous_statuses.get(&session.session_id);
                 if prev != Some(&Status::NeedsHelp) {
-                    send_notification(
-                        "clawlight",
-                        &format!("\"{}\" needs help!", session.name),
-                    );
+                    send_notification("clawlight", &format!("\"{}\" needs help!", session.name));
                 }
             }
         }
@@ -187,9 +239,7 @@ impl App {
             })?;
 
         // Watch state file directory
-        let state_dir = state::state_file_path()
-            .parent()
-            .map(|p| p.to_path_buf());
+        let state_dir = state::state_file_path().parent().map(|p| p.to_path_buf());
         if let Some(ref dir) = state_dir {
             if dir.exists() {
                 let _ = watcher.watch(dir, RecursiveMode::NonRecursive);
@@ -228,6 +278,7 @@ impl App {
                             KeyCode::Char('q') | KeyCode::Esc => {
                                 self.should_quit = true;
                             }
+                            KeyCode::Enter => self.focus_selected(),
                             KeyCode::Down | KeyCode::Char('j') => self.next(),
                             KeyCode::Up | KeyCode::Char('k') => self.previous(),
                             KeyCode::Char('r') => self.reload_data(),
