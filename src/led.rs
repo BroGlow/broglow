@@ -162,10 +162,7 @@ pub fn run_daemon() -> ! {
 /// Stream state to a connected board until the serial write fails (typically
 /// because the board was unplugged) or `keep_running` returns false (the user
 /// disabled the LED), whichever comes first.
-fn drive(
-    mut port: Box<dyn SerialPort>,
-    keep_running: impl Fn() -> bool,
-) -> anyhow::Result<()> {
+fn drive(mut port: Box<dyn SerialPort>, keep_running: impl Fn() -> bool) -> anyhow::Result<()> {
     // Native USB CDC stacks use DTR to learn that a host is listening.
     let _ = port.write_data_terminal_ready(true);
 
