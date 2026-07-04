@@ -20,11 +20,9 @@ pub struct SessionEntry {
     pub summary: Option<String>,
     pub custom_title: Option<String>,
     pub message_count: Option<u32>,
-    pub created: Option<String>,
     pub modified: Option<String>,
     pub git_branch: Option<String>,
     pub project_path: Option<String>,
-    pub is_sidechain: Option<bool>,
 }
 
 #[derive(Debug, Clone)]

@@ -253,8 +253,7 @@ impl Popover {
             anchor.position.y - size.height as f64 - ANCHOR_GAP * scale
         };
 
-        self.window
-            .set_outer_position(PhysicalPosition::new(x, y));
+        self.window.set_outer_position(PhysicalPosition::new(x, y));
     }
 }
 
@@ -296,7 +295,11 @@ fn build_payload(state: &HookState) -> String {
 
 fn popover_html() -> String {
     const HTML: &str = include_str!("../assets/popover.html");
-    let platform = if cfg!(target_os = "macos") { "mac" } else { "win" };
+    let platform = if cfg!(target_os = "macos") {
+        "mac"
+    } else {
+        "win"
+    };
     HTML.replace("__PLATFORM__", platform)
         .replace("__ICON_RED__", &data_uri(ICON_RED))
         .replace("__ICON_YELLOW__", &data_uri(ICON_YELLOW))
@@ -314,7 +317,11 @@ fn base64(data: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
     for chunk in data.chunks(3) {
-        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
         let n = u32::from_be_bytes([0, b[0], b[1], b[2]]);
         out.push(ALPHABET[(n >> 18) as usize & 63] as char);
         out.push(ALPHABET[(n >> 12) as usize & 63] as char);

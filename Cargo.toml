@@ -13,6 +13,11 @@ categories = ["command-line-utilities"]
 name = "clawlight"
 path = "src/main.rs"
 
+[dev-dependencies]
+# Integration tests (tests/) drive the compiled binary end-to-end.
+assert_cmd = "2"
+tempfile = "3"
+
 [dependencies]
 ratatui = "0.28"
 crossterm = "0.28"

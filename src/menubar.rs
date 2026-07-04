@@ -11,16 +11,16 @@ use tao::event_loop::{ControlFlow, EventLoopBuilder};
 #[cfg(target_os = "macos")]
 use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
 use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
+use tray_icon::{Icon, TrayIconBuilder};
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
-use tray_icon::{Icon, TrayIconBuilder};
 
 use crate::config;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::popover::{Popover, PopoverMsg};
-use crate::state::{self, aggregate, read_hook_state, Aggregate, HookState};
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 use crate::state::Status;
+use crate::state::{self, aggregate, read_hook_state, Aggregate, HookState};
 
 pub(crate) const ICON_GREEN: &[u8] = include_bytes!("../assets/icons/clawd-green.png");
 pub(crate) const ICON_YELLOW: &[u8] = include_bytes!("../assets/icons/clawd-yellow.png");
@@ -98,11 +98,7 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
 
     let header = MenuItem::new("Sessions", false, None);
     menu.append(&header)?;
-    menu.append(&MenuItem::new(
-        format!("  Active: {active}"),
-        false,
-        None,
-    ))?;
+    menu.append(&MenuItem::new(format!("  Active: {active}"), false, None))?;
     menu.append(&MenuItem::new(
         format!("  Inactive: {inactive}"),
         false,
@@ -281,14 +277,13 @@ pub fn run() -> anyhow::Result<()> {
     let proxy_for_watcher = event_loop.create_proxy();
     thread::spawn(move || {
         let (tx, rx) = mpsc::channel();
-        let mut watcher = match notify::recommended_watcher(
-            move |res: Result<notify::Event, notify::Error>| {
+        let mut watcher =
+            match notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
                 let _ = tx.send(res);
-            },
-        ) {
-            Ok(w) => w,
-            Err(_) => return,
-        };
+            }) {
+                Ok(w) => w,
+                Err(_) => return,
+            };
 
         if let Some(dir) = state::state_file_path().parent() {
             let _ = std::fs::create_dir_all(dir);
@@ -325,7 +320,7 @@ pub fn run() -> anyhow::Result<()> {
                 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
                 if let Ok((menu, new_ids)) = build_menu(&state) {
                     if let Some(tray) = tray_holder.as_ref() {
-                        let _ = tray.set_menu(Some(Box::new(menu)));
+                        tray.set_menu(Some(Box::new(menu)));
                     }
                     ids = new_ids;
                 }
