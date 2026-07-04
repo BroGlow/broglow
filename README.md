@@ -1,5 +1,9 @@
 # clawlight
 
+<img width="611" height="292" alt="Screenshot 2026-07-04 at 4 35 50 PM" src="https://github.com/user-attachments/assets/ad5353db-6a6d-4d68-aed0-c31d6ed92f0b" />
+
+
+
 A lightweight TUI dashboard and menu bar / system tray indicator for
 monitoring [Claude Code](https://claude.ai/code) sessions in real time.
 Runs on macOS, Windows, and Linux.
