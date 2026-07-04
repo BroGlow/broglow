@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Lets release.yml reuse this exact suite as a pre-release gate.
+  workflow_call:
 
 env:
   CARGO_TERM_COLOR: always
