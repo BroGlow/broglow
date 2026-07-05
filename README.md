@@ -1,6 +1,6 @@
 # clawlight
 
-<img width="611" height="292" alt="clawlight TUI dashboard" src="https://github.com/user-attachments/assets/ad5353db-6a6d-4d68-aed0-c31d6ed92f0b" />
+<img width="1164" height="655" alt="claw-light-gif" src="https://github.com/user-attachments/assets/3e148527-169f-4f36-b2cd-0bcc3160527b" />
 
 **The simple way to manage your Claude Code sessions.**
 
