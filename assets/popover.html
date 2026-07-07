@@ -97,6 +97,36 @@ body.win .optrow:hover { background: rgba(255,255,255,.06); }
 body.win .radio.rsel { border-color: #4cc2ff; }
 .setdesc { white-space: normal; line-height: 1.35; }
 
+/* Usage section (design 1a/1c) — sits between the session groups and the
+   footer. Plan mode: 5h-block + week bars; API mode: per-model cost bar. */
+.usec {
+  padding: 9px 14px 11px 14px; border-top: 1px solid rgba(255,255,255,.1);
+  display: flex; flex-direction: column; gap: 5px;
+}
+body.win .usec { border-top: 1px solid rgba(255,255,255,.08); }
+.ulhead {
+  display: flex; align-items: baseline; gap: 5px;
+  font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: rgba(255,255,255,.38);
+}
+.uval { font-size: 12px; font-weight: 700; color: rgba(255,255,255,.9); letter-spacing: 0; text-transform: none; }
+.usub { font-size: 11px; font-weight: 400; color: rgba(255,255,255,.42); letter-spacing: 0; text-transform: none; }
+.ubar { height: 5px; border-radius: 99px; background: rgba(255,255,255,.1); overflow: hidden; display: flex; gap: 2px; }
+.ufill { background: #3577f6; border-radius: 99px; }
+.uweek { opacity: .55; }
+.useg { height: 100%; }
+body.win .ubar { border-radius: 2px; }
+body.win .ufill { background: #4cc2ff; border-radius: 2px; }
+.mopus { background: #bf5af2 } .msonnet { background: #3577f6 }
+.mhaiku { background: #40c8e0 } .mother { background: #8e8e93 }
+body.win .msonnet { background: #4cc2ff; }
+.urow { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: rgba(255,255,255,.75); }
+.udot { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
+.uname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.utok { color: rgba(255,255,255,.4); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ucost { color: rgba(255,255,255,.88); font-weight: 600; font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+.mt4 { margin-top: 4px; }
+
 .emptybox {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   padding: 26px 16px; color: rgba(255,255,255,.45); font-size: 12px;
@@ -137,6 +167,7 @@ body.win .pbtnpri:hover { background: #63cbff; }
     <div class="chips" id="chips"></div>
   </div>
   <div class="grp" id="groups"></div>
+  <div class="usec" id="usage" hidden></div>
   <div class="popfoot">
     <button class="pbtn pbtnpri" data-cmd="dashboard">Open Dashboard</button>
     <button class="pbtn" id="settingsbtn" data-local="settings">Settings</button>
@@ -165,6 +196,15 @@ const YELLOW_OPTIONS = [
     desc: 'Stay green while any session is working; yellow only when all are idle.' },
 ];
 
+const BILLING_OPTIONS = [
+  { value: 'plan', title: 'Plan percentages',
+    desc: 'Rate-limit view: how much of the 5-hour block and week is used.' },
+  { value: 'api', title: 'API dollars',
+    desc: "Cost view: today's per-model tokens and API-equivalent dollars." },
+];
+
+const FAMILY_CLASS = { opus: 'mopus', sonnet: 'msonnet', haiku: 'mhaiku' };
+
 let state = { aggregate: 'none', sessions: [], settings: { yellowMode: 'any_inactive' } };
 let view = 'sessions';
 
@@ -174,6 +214,82 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[c]);
+}
+
+function fmtTokens(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return Math.round(n / 1e3) + 'k';
+  return String(n);
+}
+
+function fmtCost(c) {
+  return '$' + (c >= 100 ? c.toFixed(0) : c.toFixed(2));
+}
+
+/* Usage section, per design 1a/1c. Plan mode: 5h-block + week bars from the
+   plan endpoint, with today's token/$ line under them (or alone, when the
+   percentages are unavailable). API mode: per-model cost bar + rows. */
+function renderUsage() {
+  const el = document.getElementById('usage');
+  const u = state.usage;
+  const mode = (state.settings && state.settings.billingMode) || 'plan';
+  const havePlan = u && u.fiveHourPct != null;
+  if (!u || (!havePlan && !u.todayTokens)) {
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+
+  const todayLine =
+    `Today ≈ ${fmtTokens(u.todayTokens)} tokens · ~${fmtCost(u.todayCost)} API-equivalent`;
+  let html = '';
+  if (mode === 'plan' && havePlan) {
+    const pct = v => Math.max(0, Math.min(100, v));
+    html +=
+      `<div class="ulhead"><span>Usage · 5h block</span><span class="f1"></span>` +
+      `<span class="uval">${Math.round(u.fiveHourPct)}%</span>` +
+      (u.fiveHourReset ? `<span class="usub">resets ${esc(u.fiveHourReset)}</span>` : '') +
+      `</div><div class="ubar"><span class="ufill" style="width:${pct(u.fiveHourPct)}%"></span></div>`;
+    if (u.weekPct != null) {
+      html +=
+        `<div class="ulhead mt4"><span>Week</span><span class="f1"></span>` +
+        `<span class="uval">${Math.round(u.weekPct)}%</span>` +
+        (u.weekReset ? `<span class="usub">resets ${esc(u.weekReset)}</span>` : '') +
+        `</div><div class="ubar"><span class="ufill uweek" style="width:${pct(u.weekPct)}%"></span></div>`;
+    }
+    html += `<div class="usub mt4">${todayLine}</div>`;
+  } else if (mode === 'plan') {
+    // Plan mode without plan data (API-key install, no creds): today only.
+    html +=
+      `<div class="ulhead"><span>Usage · today</span><span class="f1"></span>` +
+      `<span class="uval">~${fmtCost(u.todayCost)}</span></div>` +
+      `<div class="usub">≈ ${fmtTokens(u.todayTokens)} tokens · API-equivalent estimate</div>`;
+  } else {
+    html +=
+      `<div class="ulhead"><span>Usage · today</span><span class="f1"></span>` +
+      `<span class="uval">${fmtCost(u.todayCost)}</span></div>`;
+    const models = u.models || [];
+    // Segment widths by cost share; fall back to token share when today is
+    // all cache reads on unpriced models.
+    const total = models.reduce((a, m) => a + m.cost, 0);
+    const share = total > 0
+      ? m => m.cost / total
+      : m => m.tokens / Math.max(1, u.todayTokens);
+    html += `<div class="ubar">` + models.map(m =>
+      `<span class="useg ${FAMILY_CLASS[m.family] || 'mother'}"` +
+      ` style="width:${Math.max(1.5, share(m) * 100)}%"></span>`
+    ).join('') + `</div>`;
+    models.forEach((m, i) => {
+      html +=
+        `<div class="urow${i === 0 ? ' mt4' : ''}">` +
+        `<span class="udot ${FAMILY_CLASS[m.family] || 'mother'}"></span>` +
+        `<span class="uname">${esc(m.name)}</span><span class="f1"></span>` +
+        `<span class="utok">${fmtTokens(m.tokens)} tok</span>` +
+        `<span class="ucost">${fmtCost(m.cost)}</span></div>`;
+    });
+  }
+  el.innerHTML = html;
+  el.hidden = false;
 }
 
 function relTime(iso) {
@@ -214,11 +330,19 @@ function render() {
   const groupsEl = document.getElementById('groups');
   if (view === 'settings') {
     const mode = (state.settings && state.settings.yellowMode) || 'any_inactive';
+    const billing = (state.settings && state.settings.billingMode) || 'plan';
     groupsEl.innerHTML =
       `<div class="grplabel">Yellow light when sessions are mixed</div>` +
       YELLOW_OPTIONS.map(o =>
         `<div class="optrow" data-yellow="${o.value}">` +
         `<span class="radio${o.value === mode ? ' rsel' : ''}"></span>` +
+        `<div class="sinfo"><span class="sname">${o.title}</span>` +
+        `<span class="smeta setdesc">${o.desc}</span></div></div>`
+      ).join('') +
+      `<div class="grplabel">Usage readout</div>` +
+      BILLING_OPTIONS.map(o =>
+        `<div class="optrow" data-billing="${o.value}">` +
+        `<span class="radio${o.value === billing ? ' rsel' : ''}"></span>` +
         `<div class="sinfo"><span class="sname">${o.title}</span>` +
         `<span class="smeta setdesc">${o.desc}</span></div></div>`
       ).join('');
@@ -249,6 +373,8 @@ function render() {
     groupsEl.innerHTML = html;
   }
 
+  renderUsage();
+
   // Post synchronously: offsetHeight forces layout, and requestAnimationFrame
   // never fires while the window is hidden (no display link), which would
   // deadlock the deferred first show.
@@ -271,6 +397,14 @@ document.addEventListener('click', ev => {
     state.settings = state.settings || {};
     state.settings.yellowMode = opt.dataset.yellow;
     post({ cmd: 'set_yellow_mode', mode: opt.dataset.yellow });
+    render();
+    return;
+  }
+  const bill = ev.target.closest('[data-billing]');
+  if (bill) {
+    state.settings = state.settings || {};
+    state.settings.billingMode = bill.dataset.billing;
+    post({ cmd: 'set_billing_mode', mode: bill.dataset.billing });
     render();
     return;
   }

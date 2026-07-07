@@ -20,6 +20,17 @@ pub enum YellowMode {
     ActiveWins,
 }
 
+/// Which usage readout the tray shows (design 1a/1c "billing" tweak).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum BillingMode {
+    /// Subscription view: 5-hour block and weekly rate-limit percentages.
+    #[default]
+    Plan,
+    /// API view: today's per-model tokens and list-price dollars.
+    Api,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct Config {
@@ -34,6 +45,9 @@ pub struct Config {
     /// How idle sessions color the aggregate (tray icon / LED) — see
     /// [`YellowMode`]. Set from the tray popover's Settings view.
     pub yellow_mode: YellowMode,
+    /// Plan-percentage vs API-dollar usage readout — see [`BillingMode`].
+    /// Set from the tray popover's Settings view.
+    pub billing_mode: BillingMode,
 }
 
 pub fn config_file_path() -> PathBuf {
@@ -71,7 +85,7 @@ pub fn write_config(cfg: &Config) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Config, YellowMode};
+    use super::{BillingMode, Config, YellowMode};
 
     #[test]
     fn roundtrips_through_json() {
@@ -79,12 +93,21 @@ mod tests {
             led_enabled: true,
             led_port: Some("/dev/cu.usbmodem101".to_string()),
             yellow_mode: YellowMode::ActiveWins,
+            billing_mode: BillingMode::Api,
         };
         let json = serde_json::to_string(&cfg).unwrap();
         let back: Config = serde_json::from_str(&json).unwrap();
         assert!(back.led_enabled);
         assert_eq!(back.led_port.as_deref(), Some("/dev/cu.usbmodem101"));
         assert_eq!(back.yellow_mode, YellowMode::ActiveWins);
+        assert_eq!(back.billing_mode, BillingMode::Api);
+    }
+
+    #[test]
+    fn billing_mode_defaults_to_plan() {
+        // Configs written before the setting existed default to the plan view.
+        let old: Config = serde_json::from_str(r#"{"led_enabled": true}"#).unwrap();
+        assert_eq!(old.billing_mode, BillingMode::Plan);
     }
 
     #[test]
