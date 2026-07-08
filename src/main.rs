@@ -326,7 +326,9 @@ fn uninstall_run_key() -> anyhow::Result<()> {
         let _ = key.delete_value(RUN_VALUE);
         println!("Removed tray autostart registry value.");
     }
-    println!("Note: a running tray icon stays until you quit it (tray menu \u{2192} Quit) or log out.");
+    println!(
+        "Note: a running tray icon stays until you quit it (tray menu \u{2192} Quit) or log out."
+    );
     Ok(())
 }
 
@@ -516,6 +518,8 @@ fn uninstall_xdg_autostart() -> anyhow::Result<()> {
         std::fs::remove_file(&entry_path)?;
         println!("Removed {}", entry_path.display());
     }
-    println!("Note: a running tray icon stays until you quit it (tray menu \u{2192} Quit) or log out.");
+    println!(
+        "Note: a running tray icon stays until you quit it (tray menu \u{2192} Quit) or log out."
+    );
     Ok(())
 }

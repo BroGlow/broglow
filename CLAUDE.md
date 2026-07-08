@@ -17,8 +17,9 @@ Cross-platform: macOS, Windows, Linux. MIT licensed.
 
 ```bash
 cargo build              # debug build
-cargo test               # unit tests (config, ota crc, session truncate)
-cargo clippy             # lint
+cargo test               # unit tests + end-to-end tests (tests/) of the built binary
+cargo clippy             # lint (CI enforces -D warnings)
+cargo fmt                # format (CI enforces --check)
 cargo install --path .   # build + install to ~/.cargo/bin/clawlight
 clawlight install        # register hooks in ~/.claude/settings.json + login autostart
 clawlight uninstall      # reverse install and delete ~/.claude/clawlight
@@ -131,5 +132,16 @@ the same serial link. The OTA CRC-32 must match the firmware's implementation �
 by the test in `ota.rs`.
 
 ## CI
+
+`.github/workflows/ci.yml` runs on PRs and pushes to main: `cargo fmt --check`,
+then clippy (`-D warnings`) + `cargo test` on ubuntu/macos/windows. The tests/
+suite drives the *compiled binary* end-to-end: hook events on stdin →
+`state.json` assertions, the auto-namer against a fake `claude` on PATH
+(hook_lifecycle.rs, unix-only — `$HOME` can't be redirected on Windows),
+install/uninstall round-trip (install.rs, Linux-only — on macOS it would
+`launchctl bootout` the dev machine's real daemon), and CLI smoke tests
+(cli.rs, all platforms). Prefer extending these over unit tests for new
+behavior. A `Stop` event with a `transcript_path` spawns the real detached
+namer — tests must omit it or pre-seed a name.
 
 `.github/workflows/release.yml` builds and packages release binaries per platform.

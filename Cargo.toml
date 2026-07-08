@@ -1,6 +1,6 @@
 [package]
 name = "clawlight"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2021"
 description = "TUI dashboard and menu bar / system tray indicator for monitoring Claude Code sessions"
 license = "MIT"
@@ -12,6 +12,11 @@ categories = ["command-line-utilities"]
 [[bin]]
 name = "clawlight"
 path = "src/main.rs"
+
+[dev-dependencies]
+# Integration tests (tests/) drive the compiled binary end-to-end.
+assert_cmd = "2"
+tempfile = "3"
 
 [dependencies]
 ratatui = "0.28"

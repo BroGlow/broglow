@@ -89,17 +89,9 @@ pub struct Ancestor {
     pub name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct HookState {
     pub sessions: HashMap<String, SessionStatus>,
-}
-
-impl Default for HookState {
-    fn default() -> Self {
-        Self {
-            sessions: HashMap::new(),
-        }
-    }
 }
 
 /// Aggregate health across all live sessions. Any needs-help session always
@@ -208,10 +200,26 @@ pub fn acquire_state_lock() -> Option<File> {
     let file = File::options()
         .create(true)
         .write(true)
+        // The lock file is only ever empty; keep (non-)contents as-is.
+        .truncate(false)
         .open(&lock_path)
         .ok()?;
     file.lock_exclusive().ok()?;
     Some(file)
+}
+
+/// Atomic write: serialize to a sibling temp file, then rename onto the
+/// target. The temp name is PID-scoped so concurrent writers never collide
+/// on the same temp path.
+pub fn write_state_atomic(state: &HookState) -> anyhow::Result<()> {
+    let path = state_file_path();
+    let dir = path.parent().expect("state path must have a parent");
+    std::fs::create_dir_all(dir)?;
+    let tmp_path = dir.join(format!(".state.{}.tmp", std::process::id()));
+    let serialized = serde_json::to_string(state)?;
+    std::fs::write(&tmp_path, serialized)?;
+    std::fs::rename(&tmp_path, &path)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -240,7 +248,10 @@ mod tests {
     #[test]
     fn any_inactive_shows_yellow_over_active() {
         let mixed = state_with(&[Status::Active, Status::Inactive]);
-        assert_eq!(aggregate(&mixed, YellowMode::AnyInactive), Aggregate::Yellow);
+        assert_eq!(
+            aggregate(&mixed, YellowMode::AnyInactive),
+            Aggregate::Yellow
+        );
     }
 
     #[test]
@@ -250,8 +261,14 @@ mod tests {
 
         // With no active sessions left, both modes agree on yellow.
         let idle_only = state_with(&[Status::Inactive, Status::Done]);
-        assert_eq!(aggregate(&idle_only, YellowMode::ActiveWins), Aggregate::Yellow);
-        assert_eq!(aggregate(&idle_only, YellowMode::AnyInactive), Aggregate::Yellow);
+        assert_eq!(
+            aggregate(&idle_only, YellowMode::ActiveWins),
+            Aggregate::Yellow
+        );
+        assert_eq!(
+            aggregate(&idle_only, YellowMode::AnyInactive),
+            Aggregate::Yellow
+        );
     }
 
     #[test]
@@ -267,18 +284,4 @@ mod tests {
         assert_eq!(aggregate(&done, YellowMode::AnyInactive), Aggregate::None);
         assert_eq!(aggregate(&done, YellowMode::ActiveWins), Aggregate::None);
     }
-}
-
-/// Atomic write: serialize to a sibling temp file, then rename onto the
-/// target. The temp name is PID-scoped so concurrent writers never collide
-/// on the same temp path.
-pub fn write_state_atomic(state: &HookState) -> anyhow::Result<()> {
-    let path = state_file_path();
-    let dir = path.parent().expect("state path must have a parent");
-    std::fs::create_dir_all(dir)?;
-    let tmp_path = dir.join(format!(".state.{}.tmp", std::process::id()));
-    let serialized = serde_json::to_string(state)?;
-    std::fs::write(&tmp_path, serialized)?;
-    std::fs::rename(&tmp_path, &path)?;
-    Ok(())
 }

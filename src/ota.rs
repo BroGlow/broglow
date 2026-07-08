@@ -155,11 +155,19 @@ fn transfer(port: &mut dyn SerialPort, image: &[u8], crc: u32) -> anyhow::Result
     for (i, chunk) in image.chunks(BLOCK).enumerate() {
         port.write_all(chunk)?;
         port.flush()?;
-        match read_ack(port).with_context(|| format!("waiting for ack on block {}/{total}", i + 1))?
+        match read_ack(port)
+            .with_context(|| format!("waiting for ack on block {}/{total}", i + 1))?
         {
             b'K' => {}
-            b'E' => bail!("Board reported a flash-write error on block {}/{total}", i + 1),
-            other => bail!("Unexpected reply {:?} on block {}/{total}", other as char, i + 1),
+            b'E' => bail!(
+                "Board reported a flash-write error on block {}/{total}",
+                i + 1
+            ),
+            other => bail!(
+                "Unexpected reply {:?} on block {}/{total}",
+                other as char,
+                i + 1
+            ),
         }
         print_progress(i + 1, total, image.len());
     }
@@ -203,7 +211,9 @@ fn read_ack(port: &mut dyn SerialPort) -> anyhow::Result<u8> {
 fn print_progress(done: usize, total: usize, bytes: usize) {
     let pct = done * 100 / total;
     let filled = pct / 5;
-    let bar: String = (0..20).map(|i| if i < filled { '#' } else { ' ' }).collect();
+    let bar: String = (0..20)
+        .map(|i| if i < filled { '#' } else { ' ' })
+        .collect();
     print!("\r  [{bar}] {pct:3}%  block {done}/{total} ({bytes} bytes)");
     let _ = std::io::stdout().flush();
 }

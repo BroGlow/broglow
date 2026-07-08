@@ -9,7 +9,14 @@ permissions:
   contents: write
 
 jobs:
+  # Gate the release on the full CI suite (fmt + clippy + tests, all OSes) run
+  # against the tagged commit. A red check aborts before anything is built or
+  # published. Reuses ci.yml so the gate can never drift from PR/main CI.
+  check:
+    uses: ./.github/workflows/ci.yml
+
   build:
+    needs: check
     strategy:
       matrix:
         include:

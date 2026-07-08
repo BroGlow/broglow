@@ -232,7 +232,9 @@ impl Tracker {
         }
 
         let Some(root) = projects_dir() else { return };
-        let Ok(projects) = std::fs::read_dir(&root) else { return };
+        let Ok(projects) = std::fs::read_dir(&root) else {
+            return;
+        };
         // Session files last written before local midnight can't contain
         // today's entries (lines are appended as they happen).
         let midnight = today
@@ -399,12 +401,36 @@ impl Rates {
     }
 }
 
-const OPUS_45: Rates = Rates { input: 5.0, output: 25.0, cache_read: 0.50 };
-const OPUS_LEGACY: Rates = Rates { input: 15.0, output: 75.0, cache_read: 1.50 };
-const SONNET: Rates = Rates { input: 3.0, output: 15.0, cache_read: 0.30 };
-const HAIKU_45: Rates = Rates { input: 1.0, output: 5.0, cache_read: 0.10 };
-const HAIKU_35: Rates = Rates { input: 0.80, output: 4.0, cache_read: 0.08 };
-const HAIKU_3: Rates = Rates { input: 0.25, output: 1.25, cache_read: 0.03 };
+const OPUS_45: Rates = Rates {
+    input: 5.0,
+    output: 25.0,
+    cache_read: 0.50,
+};
+const OPUS_LEGACY: Rates = Rates {
+    input: 15.0,
+    output: 75.0,
+    cache_read: 1.50,
+};
+const SONNET: Rates = Rates {
+    input: 3.0,
+    output: 15.0,
+    cache_read: 0.30,
+};
+const HAIKU_45: Rates = Rates {
+    input: 1.0,
+    output: 5.0,
+    cache_read: 0.10,
+};
+const HAIKU_35: Rates = Rates {
+    input: 0.80,
+    output: 4.0,
+    cache_read: 0.08,
+};
+const HAIKU_3: Rates = Rates {
+    input: 0.25,
+    output: 1.25,
+    cache_read: 0.03,
+};
 
 /// Best-effort list-price lookup by model id. Unknown ids fall back to their
 /// family's latest rates (or Sonnet's) — the readout is an estimate either
@@ -569,7 +595,12 @@ fn read_keychain_credentials() -> Option<Credentials> {
         return None;
     }
     let out = Command::new("security")
-        .args(["find-generic-password", "-s", "Claude Code-credentials", "-w"])
+        .args([
+            "find-generic-password",
+            "-s",
+            "Claude Code-credentials",
+            "-w",
+        ])
         .stderr(Stdio::null())
         .output()
         .ok()?;
@@ -672,7 +703,12 @@ mod tests {
         t.ingest_line(&line("claude-haiku-4-5-20251001", "msg_1", &ts, 50));
         t.ingest_line(&line("claude-haiku-4-5-20251001", "msg_2", &ts, 50));
         // Yesterday's line: ignored.
-        t.ingest_line(&line("claude-haiku-4-5-20251001", "msg_3", "2020-01-01T12:00:00Z", 50));
+        t.ingest_line(&line(
+            "claude-haiku-4-5-20251001",
+            "msg_3",
+            "2020-01-01T12:00:00Z",
+            50,
+        ));
         // Non-assistant and synthetic lines: ignored.
         t.ingest_line(r#"{"type":"user","message":{"role":"user"}}"#);
         t.ingest_line(&line("<synthetic>", "msg_4", &ts, 50));
@@ -706,7 +742,10 @@ mod tests {
     fn display_names() {
         assert_eq!(model_display_name("claude-opus-4-5-20251101"), "Opus 4.5");
         assert_eq!(model_display_name("claude-sonnet-4-20250514"), "Sonnet 4");
-        assert_eq!(model_display_name("claude-3-5-sonnet-20241022"), "Sonnet 3.5");
+        assert_eq!(
+            model_display_name("claude-3-5-sonnet-20241022"),
+            "Sonnet 3.5"
+        );
         assert_eq!(model_display_name("claude-haiku-4-5-20251001"), "Haiku 4.5");
         assert_eq!(model_display_name("claude-fable-5"), "Fable 5");
         assert_eq!(model_display_name("claude-opus-4-8"), "Opus 4.8");
