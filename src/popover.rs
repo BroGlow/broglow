@@ -59,8 +59,10 @@ pub enum PopoverMsg {
     Ready,
     /// A yellow-light option picked in the Settings view.
     SetYellowMode { mode: YellowMode },
-    /// A usage-readout option picked in the Settings view.
-    SetBillingMode { mode: BillingMode },
+    /// A usage-tracking option picked in the Settings view: whether to track
+    /// usage at all (`enabled`) and, when on, which readout (`mode`). The page
+    /// sends both together so "Off" and the Plan/API choice are one control.
+    SetUsage { enabled: bool, mode: BillingMode },
 }
 
 #[derive(Serialize)]
@@ -77,6 +79,10 @@ struct SessionPayload<'a> {
 struct SettingsPayload {
     #[serde(rename = "yellowMode")]
     yellow_mode: YellowMode,
+    /// Whether usage tracking is opted into; drives the Settings selection and
+    /// whether the usage section shows at all.
+    #[serde(rename = "usageEnabled")]
+    usage_enabled: bool,
     #[serde(rename = "billingMode")]
     billing_mode: BillingMode,
 }
@@ -295,9 +301,12 @@ fn build_payload(state: &HookState) -> String {
         sessions,
         settings: SettingsPayload {
             yellow_mode: cfg.yellow_mode,
+            usage_enabled: cfg.usage_enabled,
             billing_mode: cfg.billing_mode,
         },
-        usage: usage::latest(),
+        // Only surface usage once the user has opted in — otherwise the section
+        // stays absent even if a stale snapshot is still cached.
+        usage: cfg.usage_enabled.then(usage::latest).flatten(),
     };
     serde_json::to_string(&payload)
         .unwrap_or_else(|_| r#"{"aggregate":"none","sessions":[]}"#.to_string())
@@ -368,23 +377,27 @@ mod tests {
         ));
     }
 
-    /// Pins the IPC wire format for the usage-readout setting
-    /// (`{cmd:'set_billing_mode', mode:'...'}` in assets/popover.html).
+    /// Pins the IPC wire format for the usage-tracking setting
+    /// (`{cmd:'set_usage', enabled:..., mode:'...'}` in assets/popover.html):
+    /// the "Off" row disables tracking; the Plan/API rows enable it and pick the
+    /// readout.
     #[test]
-    fn set_billing_mode_parses_from_page_json() {
+    fn set_usage_parses_from_page_json() {
         let msg: PopoverMsg =
-            serde_json::from_str(r#"{"cmd":"set_billing_mode","mode":"api"}"#).unwrap();
+            serde_json::from_str(r#"{"cmd":"set_usage","enabled":true,"mode":"api"}"#).unwrap();
         assert!(matches!(
             msg,
-            PopoverMsg::SetBillingMode {
+            PopoverMsg::SetUsage {
+                enabled: true,
                 mode: BillingMode::Api
             }
         ));
         let msg: PopoverMsg =
-            serde_json::from_str(r#"{"cmd":"set_billing_mode","mode":"plan"}"#).unwrap();
+            serde_json::from_str(r#"{"cmd":"set_usage","enabled":false,"mode":"plan"}"#).unwrap();
         assert!(matches!(
             msg,
-            PopoverMsg::SetBillingMode {
+            PopoverMsg::SetUsage {
+                enabled: false,
                 mode: BillingMode::Plan
             }
         ));

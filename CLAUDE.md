@@ -111,6 +111,13 @@ See `state::aggregate`.
 - **LEDs are strictly opt-in.** The daemon never opens a serial port until `led_enabled`
   is set (TUI: `l`). Board detection matches only the XIAO's native USB-Serial-JTAG
   vendor ID (`0x303A`), so it never writes to an unrelated serial device.
+- **Usage/spend tracking is strictly opt-in** (`usage_enabled`, set in the popover's
+  Settings view; off by default). While off, `usage::spawn_refresher` does *no* work —
+  it never scans the transcript JSONLs, reads Claude Code's credentials, or contacts the
+  OAuth usage endpoint — and both the tray readout (`apply_readout`) and the popover's
+  usage section stay empty regardless of any cached snapshot. Enabling it is what
+  authorizes that work. The foreground `clawlight usage` subcommand is the exception:
+  running it is itself the opt-in for that one invocation, like `clawlight led`.
 - **Escape before shelling out.** The macOS notification path builds an AppleScript
   string — escape `\` before `"`.
 - Platform-specific code is `#[cfg(...)]`-gated in place (autostart in main.rs, console

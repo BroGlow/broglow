@@ -64,15 +64,39 @@ pub fn latest() -> Option<UsageSnapshot> {
 /// Background refresher for the tray daemon: rescans the transcripts every
 /// minute, refetches the plan percentages every five, and calls `on_change`
 /// after each snapshot so the event loop can repaint.
+///
+/// Gated on the opt-in `config::usage_enabled`: while usage is off (the
+/// default) this does no work at all — no transcript scan, no reading of Claude
+/// Code's credentials, no request to the usage endpoint — it only re-checks the
+/// setting cheaply so it can start the moment the user turns it on. Turning it
+/// back off clears the last snapshot so the UI drops the usage section.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub fn spawn_refresher(on_change: impl Fn() + Send + 'static) {
     std::thread::spawn(move || {
         const SCAN_EVERY: std::time::Duration = std::time::Duration::from_secs(60);
+        // While disabled, poll the setting this often so opting in feels prompt
+        // without doing any of the actual (privacy-sensitive) work.
+        const IDLE_POLL: std::time::Duration = std::time::Duration::from_secs(5);
         const PLAN_EVERY_SCANS: u32 = 5;
         let mut tracker = Tracker::new();
         let mut plan = None;
         let mut scans = 0u32;
+        let mut prev_enabled = false;
         loop {
+            if !crate::config::read_config().usage_enabled {
+                // On the enabled→disabled edge, drop the snapshot and repaint
+                // once so a stale readout can't linger after opting out.
+                if prev_enabled {
+                    if let Ok(mut latest) = LATEST.lock() {
+                        *latest = None;
+                    }
+                    on_change();
+                }
+                prev_enabled = false;
+                std::thread::sleep(IDLE_POLL);
+                continue;
+            }
+            prev_enabled = true;
             tracker.scan();
             if scans.is_multiple_of(PLAN_EVERY_SCANS) {
                 plan = fetch_plan_usage();

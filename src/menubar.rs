@@ -222,10 +222,15 @@ fn usage_readout(mode: BillingMode) -> Option<String> {
 }
 
 /// Put the readout where the platform can show it: next to the menu bar icon
-/// on macOS (design 1a), in the tray tooltip on Windows (design 1c).
+/// on macOS (design 1a), in the tray tooltip on Windows (design 1c). Shows
+/// nothing while usage tracking is off (the opt-in default).
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 fn apply_readout(tray: &tray_icon::TrayIcon) {
-    let text = usage_readout(config::read_config().billing_mode);
+    let cfg = config::read_config();
+    let text = cfg
+        .usage_enabled
+        .then(|| usage_readout(cfg.billing_mode))
+        .flatten();
     #[cfg(target_os = "macos")]
     tray.set_title(text.as_deref());
     #[cfg(target_os = "windows")]
@@ -459,14 +464,17 @@ pub fn run() -> anyhow::Result<()> {
                     }
                     popover.push_state(&state);
                 }
-                PopoverMsg::SetBillingMode { mode } => {
+                PopoverMsg::SetUsage { enabled, mode } => {
                     let mut cfg = config::read_config();
+                    cfg.usage_enabled = enabled;
                     cfg.billing_mode = mode;
                     if let Err(e) = config::write_config(&cfg) {
                         eprintln!("Failed to save settings: {e}");
                     }
                     // Flip the tray readout and the popover's usage section
-                    // immediately rather than waiting for the next scan.
+                    // immediately. When enabling, the readout stays blank until
+                    // the first scan lands (seconds later); when disabling, it
+                    // clears now instead of waiting for the refresher.
                     if let Some(tray) = tray_holder.as_ref() {
                         apply_readout(tray);
                     }

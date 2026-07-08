@@ -45,8 +45,15 @@ pub struct Config {
     /// How idle sessions color the aggregate (tray icon / LED) — see
     /// [`YellowMode`]. Set from the tray popover's Settings view.
     pub yellow_mode: YellowMode,
-    /// Plan-percentage vs API-dollar usage readout — see [`BillingMode`].
-    /// Set from the tray popover's Settings view.
+    /// Whether the tray shows today's Claude Code usage (the token/$ readout and
+    /// the popover's usage section). Off by default — strictly opt-in, like the
+    /// LEDs: until a user turns it on in the popover's Settings view, the daemon
+    /// never scans transcripts, reads Claude Code's credentials, or contacts the
+    /// usage endpoint. Enabling it is what authorizes that work.
+    pub usage_enabled: bool,
+    /// Plan-percentage vs API-dollar usage readout — see [`BillingMode`]. Only
+    /// consulted when [`usage_enabled`](Self::usage_enabled) is set. Set from
+    /// the tray popover's Settings view.
     pub billing_mode: BillingMode,
 }
 
@@ -93,6 +100,7 @@ mod tests {
             led_enabled: true,
             led_port: Some("/dev/cu.usbmodem101".to_string()),
             yellow_mode: YellowMode::ActiveWins,
+            usage_enabled: true,
             billing_mode: BillingMode::Api,
         };
         let json = serde_json::to_string(&cfg).unwrap();
@@ -100,7 +108,21 @@ mod tests {
         assert!(back.led_enabled);
         assert_eq!(back.led_port.as_deref(), Some("/dev/cu.usbmodem101"));
         assert_eq!(back.yellow_mode, YellowMode::ActiveWins);
+        assert!(back.usage_enabled);
         assert_eq!(back.billing_mode, BillingMode::Api);
+    }
+
+    #[test]
+    fn usage_defaults_to_off() {
+        // Usage tracking is strictly opt-in: a brand-new user (no config file),
+        // a partial config, and a config written before the setting existed
+        // must all resolve to usage off, so the daemon never scans transcripts
+        // or reads credentials until the user turns it on.
+        assert!(!Config::default().usage_enabled);
+        let from_empty: Config = serde_json::from_str("{}").unwrap();
+        assert!(!from_empty.usage_enabled);
+        let old: Config = serde_json::from_str(r#"{"led_enabled": true}"#).unwrap();
+        assert!(!old.usage_enabled);
     }
 
     #[test]

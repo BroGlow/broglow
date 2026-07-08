@@ -196,7 +196,12 @@ const YELLOW_OPTIONS = [
     desc: 'Stay green while any session is working; yellow only when all are idle.' },
 ];
 
-const BILLING_OPTIONS = [
+// Usage tracking is opt-in. "Off" tracks nothing; the other two turn it on and
+// pick the readout. Turning it on lets clawlight read local Claude Code
+// transcripts (and, for plan %, its usage endpoint) — hence the off default.
+const USAGE_OPTIONS = [
+  { value: 'off', title: 'Off',
+    desc: "Don't track usage. No transcript scanning or network requests." },
   { value: 'plan', title: 'Plan percentages',
     desc: 'Rate-limit view: how much of the 5-hour block and week is used.' },
   { value: 'api', title: 'API dollars',
@@ -330,7 +335,10 @@ function render() {
   const groupsEl = document.getElementById('groups');
   if (view === 'settings') {
     const mode = (state.settings && state.settings.yellowMode) || 'any_inactive';
-    const billing = (state.settings && state.settings.billingMode) || 'plan';
+    // Off unless opted in; then reflect the chosen readout.
+    const usage = (state.settings && state.settings.usageEnabled)
+      ? ((state.settings && state.settings.billingMode) || 'plan')
+      : 'off';
     groupsEl.innerHTML =
       `<div class="grplabel">Yellow light when sessions are mixed</div>` +
       YELLOW_OPTIONS.map(o =>
@@ -339,10 +347,10 @@ function render() {
         `<div class="sinfo"><span class="sname">${o.title}</span>` +
         `<span class="smeta setdesc">${o.desc}</span></div></div>`
       ).join('') +
-      `<div class="grplabel">Usage readout</div>` +
-      BILLING_OPTIONS.map(o =>
-        `<div class="optrow" data-billing="${o.value}">` +
-        `<span class="radio${o.value === billing ? ' rsel' : ''}"></span>` +
+      `<div class="grplabel">Usage tracking</div>` +
+      USAGE_OPTIONS.map(o =>
+        `<div class="optrow" data-usage="${o.value}">` +
+        `<span class="radio${o.value === usage ? ' rsel' : ''}"></span>` +
         `<div class="sinfo"><span class="sname">${o.title}</span>` +
         `<span class="smeta setdesc">${o.desc}</span></div></div>`
       ).join('');
@@ -400,11 +408,17 @@ document.addEventListener('click', ev => {
     render();
     return;
   }
-  const bill = ev.target.closest('[data-billing]');
-  if (bill) {
+  const usa = ev.target.closest('[data-usage]');
+  if (usa) {
+    const v = usa.dataset.usage;
+    const enabled = v !== 'off';
+    // Keep the last Plan/API choice when toggling Off, so turning it back on
+    // restores the previous readout.
+    const mode = enabled ? v : ((state.settings && state.settings.billingMode) || 'plan');
     state.settings = state.settings || {};
-    state.settings.billingMode = bill.dataset.billing;
-    post({ cmd: 'set_billing_mode', mode: bill.dataset.billing });
+    state.settings.usageEnabled = enabled;
+    state.settings.billingMode = mode;
+    post({ cmd: 'set_usage', enabled, mode });
     render();
     return;
   }
