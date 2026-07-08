@@ -19,6 +19,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::sync::Mutex;
 
 use chrono::{DateTime, Local, NaiveDate};
@@ -53,6 +54,11 @@ pub struct UsageSnapshot {
     pub week_reset: Option<String>,
 }
 
+/// Shared cache between the refresher thread and the tray/popover readers.
+/// Only the tray daemon (macOS/Windows) uses it; the cross-platform `clawlight
+/// usage` subcommand computes its snapshot directly, so gate it to those
+/// platforms to avoid a dead-code error on Linux.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 static LATEST: Mutex<Option<UsageSnapshot>> = Mutex::new(None);
 
 /// Most recent snapshot computed by the refresher thread.
