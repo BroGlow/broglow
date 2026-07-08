@@ -15,9 +15,10 @@ use tao::window::{Window, WindowBuilder, WindowId};
 use tray_icon::Rect;
 use wry::WebView;
 
-use crate::config::{self, YellowMode};
+use crate::config::{self, BillingMode, YellowMode};
 use crate::menubar::{display_name, project_label, ICON_GREEN, ICON_NONE, ICON_RED, ICON_YELLOW};
 use crate::state::{aggregate, Aggregate, HookState, Status};
+use crate::usage::{self, UsageSnapshot};
 
 /// Logical width of the popover window. Must match the card width in
 /// assets/popover.html; the window is sized exactly to the card and the
@@ -58,6 +59,10 @@ pub enum PopoverMsg {
     Ready,
     /// A yellow-light option picked in the Settings view.
     SetYellowMode { mode: YellowMode },
+    /// A usage-tracking option picked in the Settings view: whether to track
+    /// usage at all (`enabled`) and, when on, which readout (`mode`). The page
+    /// sends both together so "Off" and the Plan/API choice are one control.
+    SetUsage { enabled: bool, mode: BillingMode },
 }
 
 #[derive(Serialize)]
@@ -74,6 +79,12 @@ struct SessionPayload<'a> {
 struct SettingsPayload {
     #[serde(rename = "yellowMode")]
     yellow_mode: YellowMode,
+    /// Whether usage tracking is opted into; drives the Settings selection and
+    /// whether the usage section shows at all.
+    #[serde(rename = "usageEnabled")]
+    usage_enabled: bool,
+    #[serde(rename = "billingMode")]
+    billing_mode: BillingMode,
 }
 
 #[derive(Serialize)]
@@ -81,6 +92,8 @@ struct StatePayload<'a> {
     aggregate: &'static str,
     sessions: Vec<SessionPayload<'a>>,
     settings: SettingsPayload,
+    /// Usage section (design 1a/1c); absent until the first scan completes.
+    usage: Option<UsageSnapshot>,
 }
 
 pub struct Popover {
@@ -287,7 +300,12 @@ fn build_payload(state: &HookState) -> String {
         sessions,
         settings: SettingsPayload {
             yellow_mode: cfg.yellow_mode,
+            usage_enabled: cfg.usage_enabled,
+            billing_mode: cfg.billing_mode,
         },
+        // Only surface usage once the user has opted in — otherwise the section
+        // stays absent even if a stale snapshot is still cached.
+        usage: cfg.usage_enabled.then(usage::latest).flatten(),
     };
     serde_json::to_string(&payload)
         .unwrap_or_else(|_| r#"{"aggregate":"none","sessions":[]}"#.to_string())
@@ -342,7 +360,7 @@ fn base64(data: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::{base64, PopoverMsg};
-    use crate::config::YellowMode;
+    use crate::config::{BillingMode, YellowMode};
 
     /// Pins the IPC wire format the popover page's JS emits for the Settings
     /// view (`{cmd:'set_yellow_mode', mode:'...'}` in assets/popover.html).
@@ -362,6 +380,32 @@ mod tests {
             msg,
             PopoverMsg::SetYellowMode {
                 mode: YellowMode::AnyInactive
+            }
+        ));
+    }
+
+    /// Pins the IPC wire format for the usage-tracking setting
+    /// (`{cmd:'set_usage', enabled:..., mode:'...'}` in assets/popover.html):
+    /// the "Off" row disables tracking; the Plan/API rows enable it and pick the
+    /// readout.
+    #[test]
+    fn set_usage_parses_from_page_json() {
+        let msg: PopoverMsg =
+            serde_json::from_str(r#"{"cmd":"set_usage","enabled":true,"mode":"api"}"#).unwrap();
+        assert!(matches!(
+            msg,
+            PopoverMsg::SetUsage {
+                enabled: true,
+                mode: BillingMode::Api
+            }
+        ));
+        let msg: PopoverMsg =
+            serde_json::from_str(r#"{"cmd":"set_usage","enabled":false,"mode":"plan"}"#).unwrap();
+        assert!(matches!(
+            msg,
+            PopoverMsg::SetUsage {
+                enabled: false,
+                mode: BillingMode::Plan
             }
         ));
     }

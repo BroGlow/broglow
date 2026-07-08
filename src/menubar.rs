@@ -17,10 +17,14 @@ use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
 
 use crate::config;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
+use crate::config::BillingMode;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::popover::{Popover, PopoverMsg};
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 use crate::state::Status;
 use crate::state::{self, aggregate, read_hook_state, Aggregate, HookState};
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use crate::usage;
 
 pub(crate) const ICON_GREEN: &[u8] = include_bytes!("../assets/icons/clawd-green.png");
 pub(crate) const ICON_YELLOW: &[u8] = include_bytes!("../assets/icons/clawd-yellow.png");
@@ -191,6 +195,45 @@ enum UserEvent {
     Tray(TrayIconEvent),
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     Popover(PopoverMsg),
+    /// The usage refresher produced a new snapshot (design 1a/1c readout).
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    UsageChanged,
+}
+
+/// Short usage readout for the tray: the plan's 5h-block percentage, or
+/// today's API-equivalent dollars — per the billing mode setting. `None`
+/// until the first scan lands (or plan data is unavailable and nothing ran
+/// today), which keeps the bar clean instead of showing a zero.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn usage_readout(mode: BillingMode) -> Option<String> {
+    let u = usage::latest()?;
+    let dollars = || (u.today_tokens > 0).then(|| format!("${:.2}", u.today_cost));
+    match mode {
+        BillingMode::Plan => u.five_hour_pct.map(|p| format!("{p:.0}%")).or_else(dollars),
+        BillingMode::Api => dollars(),
+    }
+}
+
+/// Put the readout where the platform can show it: next to the menu bar icon
+/// on macOS (design 1a), in the tray tooltip on Windows (design 1c). Shows
+/// nothing while usage tracking is off (the opt-in default).
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn apply_readout(tray: &tray_icon::TrayIcon) {
+    let cfg = config::read_config();
+    let text = cfg
+        .usage_enabled
+        .then(|| usage_readout(cfg.billing_mode))
+        .flatten();
+    #[cfg(target_os = "macos")]
+    tray.set_title(text.as_deref());
+    #[cfg(target_os = "windows")]
+    {
+        let tooltip = match text {
+            Some(t) => format!("clawlight — {t}"),
+            None => "clawlight".to_string(),
+        };
+        let _ = tray.set_tooltip(Some(tooltip));
+    }
 }
 
 pub fn run() -> anyhow::Result<()> {
@@ -252,6 +295,16 @@ pub fn run() -> anyhow::Result<()> {
         tray_builder = tray_builder.with_menu_on_left_click(false);
     }
     let tray = tray_builder.build().context("Building tray icon")?;
+
+    // Usage readout (design 1a/1c): a background thread scans the transcript
+    // JSONLs / plan endpoint and wakes the loop whenever a snapshot lands.
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    {
+        let proxy = event_loop.create_proxy();
+        usage::spawn_refresher(move || {
+            let _ = proxy.send_event(UserEvent::UsageChanged);
+        });
+    }
 
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     let mut popover = {
@@ -347,6 +400,15 @@ pub fn run() -> anyhow::Result<()> {
                 }
             }
             #[cfg(any(target_os = "macos", target_os = "windows"))]
+            Event::UserEvent(UserEvent::UsageChanged) => {
+                if let Some(tray) = tray_holder.as_ref() {
+                    apply_readout(tray);
+                }
+                // The popover payload embeds the snapshot; refresh it so an
+                // open popover's usage section tracks the readout.
+                popover.push_state(&read_hook_state());
+            }
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::UserEvent(UserEvent::Tray(TrayIconEvent::Click {
                 rect,
                 button: MouseButton::Left,
@@ -393,6 +455,22 @@ pub fn run() -> anyhow::Result<()> {
                         }
                     }
                     popover.push_state(&state);
+                }
+                PopoverMsg::SetUsage { enabled, mode } => {
+                    let mut cfg = config::read_config();
+                    cfg.usage_enabled = enabled;
+                    cfg.billing_mode = mode;
+                    if let Err(e) = config::write_config(&cfg) {
+                        eprintln!("Failed to save settings: {e}");
+                    }
+                    // Flip the tray readout and the popover's usage section
+                    // immediately. When enabling, the readout stays blank until
+                    // the first scan lands (seconds later); when disabling, it
+                    // clears now instead of waiting for the refresher.
+                    if let Some(tray) = tray_holder.as_ref() {
+                        apply_readout(tray);
+                    }
+                    popover.push_state(&read_hook_state());
                 }
             },
             // Dismiss like a real popover: losing focus (clicking anywhere

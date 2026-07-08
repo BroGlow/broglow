@@ -12,6 +12,7 @@ mod spawn;
 mod state;
 mod terminal;
 mod ui;
+mod usage;
 
 use std::io;
 use std::path::PathBuf;
@@ -56,6 +57,9 @@ enum Commands {
         #[arg(long)]
         port: Option<String>,
     },
+    /// (internal) Print today's usage snapshot (tokens / $ / plan %) as JSON
+    #[command(hide = true)]
+    Usage,
     /// (internal) Hook backend invoked by Claude Code over stdin
     #[command(hide = true)]
     Hook,
@@ -76,6 +80,7 @@ fn main() -> anyhow::Result<()> {
         Some(Commands::Menubar) => menubar::run(),
         Some(Commands::Led { port }) => led::run(port),
         Some(Commands::Update { firmware, port }) => ota::run(firmware, port),
+        Some(Commands::Usage) => usage::run_once(),
         Some(Commands::Hook) => hook::run(),
         Some(Commands::Name {
             session_id,
