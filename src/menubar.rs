@@ -253,6 +253,12 @@ pub fn run() -> anyhow::Result<()> {
     #[cfg(target_os = "windows")]
     hide_console_window();
 
+    // If the daemon is up but the hooks were never registered (e.g. launched
+    // manually before `clawlight install`), wire them in so sessions report
+    // status. Hooks only — never autostart from here, or we'd spawn a duplicate
+    // tray (see first_run_setup_daemon).
+    crate::first_run_setup_daemon();
+
     #[allow(unused_mut)]
     let mut event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     // macOS: keep the daemon out of the Dock / app switcher (menu-bar only).

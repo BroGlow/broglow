@@ -91,6 +91,11 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn run_tui() -> anyhow::Result<()> {
+    // On a machine where clawlight isn't wired into Claude Code yet, treat the
+    // first dashboard launch as the install step. Runs before we touch the
+    // terminal so its output lands in normal scrollback, not the alt-screen.
+    first_run_setup_tui();
+
     // Set up panic hook to restore terminal
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
@@ -147,7 +152,11 @@ const HOOK_EVENTS: [&str; 6] = [
     "PreToolUse",
 ];
 
-fn install_hooks() -> anyhow::Result<()> {
+/// Register clawlight's native hook backend in ~/.claude/settings.json for every
+/// lifecycle event, and ensure the state/log dir exists. Idempotent. Does *not*
+/// touch autostart — `install_hooks` layers that on top; the menu-bar daemon's
+/// first-run path deliberately calls only this (see `first_run_setup_daemon`).
+fn register_hooks() -> anyhow::Result<()> {
     // 1. Ensure the clawlight state/log directory exists.
     std::fs::create_dir_all(hook_dir())?;
 
@@ -189,6 +198,12 @@ fn install_hooks() -> anyhow::Result<()> {
     std::fs::write(&settings_file, settings_str)?;
 
     println!("Updated {}", settings_file.display());
+    Ok(())
+}
+
+fn install_hooks() -> anyhow::Result<()> {
+    // 1./2. Register the hook backend in settings.json.
+    register_hooks()?;
 
     // 3. Install autostart for the tray daemon (platform-specific).
     install_autostart()?;
@@ -197,6 +212,72 @@ fn install_hooks() -> anyhow::Result<()> {
     println!("Run `clawlight` to launch the TUI dashboard.");
     println!("Optional: plug in a Seeed XIAO ESP32-C6 status board and press `l` in the dashboard to enable status LEDs.");
     Ok(())
+}
+
+/// True if clawlight's hook backend is already wired into settings.json for at
+/// least one lifecycle event. Gates the first-run auto-setup so a normal launch
+/// (TUI or tray daemon) doesn't rewrite settings — or, on the TUI path,
+/// re-bootstrap the LaunchAgent — every time.
+fn hooks_registered() -> bool {
+    let Ok(content) = std::fs::read_to_string(settings_path()) else {
+        return false;
+    };
+    let Ok(settings) = serde_json::from_str::<serde_json::Value>(&content) else {
+        // Unparseable settings.json (a mid-write snapshot, or a schema we don't
+        // understand): stay hands-off rather than auto-clobber a file we can't
+        // read — mirrors hook.rs's "never write on a failed read" rule.
+        return true;
+    };
+    let Some(hooks) = settings.get("hooks").and_then(|h| h.as_object()) else {
+        return false;
+    };
+    HOOK_EVENTS.iter().any(|event| {
+        hooks
+            .get(*event)
+            .and_then(|v| v.as_array())
+            .into_iter()
+            .flatten()
+            .filter_map(|matcher| matcher.get("hooks").and_then(|h| h.as_array()))
+            .flatten()
+            .filter_map(|hook| hook.get("command").and_then(|c| c.as_str()))
+            .any(|cmd| cmd.contains("clawlight"))
+    })
+}
+
+/// First-run onboarding for the TUI. If clawlight isn't wired into Claude Code
+/// yet, run the full install (hooks + login autostart, which also brings up the
+/// tray daemon) so that `brew install clawlight && clawlight` — or a plain
+/// `cargo install` then launch — is a complete setup with no manual step.
+///
+/// Safe here because the TUI is a foreground process distinct from the daemon:
+/// kickstarting the LaunchAgent spawns the tray we want, with nothing to collide
+/// with on a fresh machine. Best-effort — a failure just leaves `clawlight
+/// install` as the manual fallback and never blocks the dashboard.
+fn first_run_setup_tui() {
+    if hooks_registered() {
+        return;
+    }
+    println!("First run — registering Claude Code hooks and starting the menu bar daemon…\n");
+    if let Err(e) = install_hooks() {
+        eprintln!(
+            "clawlight: first-run setup failed: {e:#}\nRun `clawlight install` to finish setup."
+        );
+    }
+}
+
+/// First-run onboarding for the tray daemon. Ensure the hooks are registered so
+/// sessions report status, but — unlike the TUI path — deliberately skip
+/// autostart. The daemon must never bootstrap/kickstart its own LaunchAgent (or
+/// spawn a detached `menubar` on Linux/Windows): it is already running, and
+/// doing so would spin up a duplicate tray. Login autostart is established by
+/// the TUI's first run or by `clawlight install`.
+pub fn first_run_setup_daemon() {
+    if hooks_registered() {
+        return;
+    }
+    if let Err(e) = register_hooks() {
+        eprintln!("clawlight: first-run hook registration failed: {e:#}");
+    }
 }
 
 fn uninstall_hooks() -> anyhow::Result<()> {

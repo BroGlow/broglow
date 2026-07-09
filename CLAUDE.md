@@ -44,7 +44,7 @@ serial port. Redeploy the installed one instead.
 
 | Command | Purpose |
 |---|---|
-| *(none)* | Launch the TUI dashboard (`run_tui`) |
+| *(none)* | Launch the TUI dashboard (`run_tui`); first launch on an unconfigured machine auto-runs the install (see gotchas) |
 | `install` / `uninstall` | Hooks + platform autostart (launchd / registry Run key / XDG autostart) |
 | `menubar` | Run the tray daemon in the foreground |
 | `led [--port]` | Foreground ESP32 LED mirror (debugging) |
@@ -97,6 +97,14 @@ See `state::aggregate`.
 
 ## Conventions & gotchas
 
+- **First-run auto-setup is asymmetric on purpose** (main.rs). Both entry points check
+  `hooks_registered()` (a clawlight hook command present in `settings.json`) and act only
+  when it's false. The **TUI** (`first_run_setup_tui`) runs the *full* `install_hooks`
+  (hooks + autostart), so `brew install clawlight && clawlight` is a complete setup. The
+  **tray daemon** (`first_run_setup_daemon`) runs `register_hooks` **only** — never
+  autostart: the daemon is already running, and bootstrapping/kickstarting its own
+  LaunchAgent (or spawning a detached `menubar` on Linux/Windows) would create a duplicate
+  tray. Unparseable `settings.json` counts as "registered" so we stay hands-off.
 - **Never byte-slice user/LLM strings.** Session names come from prompts, transcript
   summaries, and LLM-generated titles — all arbitrary UTF-8. Slice by chars (see
   `truncate` / `char_prefix` in session.rs); a byte cut inside a multibyte char panics

@@ -18,13 +18,18 @@ class Clawlight < Formula
 
   def caveats
     <<~EOS
-      To install Claude Code hooks and start the menu bar daemon
-      (LaunchAgent that runs at login), run:
+      Just run:
+
+        clawlight
+
+      The first launch registers the Claude Code hooks and starts the
+      menu bar daemon (a LaunchAgent that runs at login) automatically.
+      Prefer to set it up without opening the dashboard? Run:
 
         clawlight install
 
-      The menu bar daemon will appear in your menu bar immediately
-      and auto-start on subsequent logins.
+      Either way the menu bar icon appears immediately and auto-starts
+      on subsequent logins.
 
       To remove everything:
 
