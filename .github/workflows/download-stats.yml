@@ -1,0 +1,45 @@
+name: Download stats
+
+# Passive install tracking, no telemetry. Once a week (and on demand) this reads
+# the release assets' GitHub-reported download counts and writes them to the
+# run's job summary, so the Actions tab becomes a dated history of the install
+# proxy over time. Downloads are the closest signal we have to installs — there
+# is no uninstall signal, `cargo install` builds don't show up, and CI/mirrors
+# inflate it, so read it as a trend, not a headcount. See
+# scripts/download-stats.sh for the full caveats.
+
+on:
+  schedule:
+    # Mondays at 15:00 UTC.
+    - cron: "0 15 * * 1"
+  workflow_dispatch:
+
+# The default token only needs to read this repo's public release metadata.
+permissions:
+  contents: read
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Report release download counts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          {
+            echo '## Release download counts'
+            echo
+            echo 'Proxy for installs (no uninstall signal; excludes `cargo install`). See `scripts/download-stats.sh`.'
+            echo
+            echo '### Per release'
+            echo '```'
+            ./scripts/download-stats.sh
+            echo '```'
+            echo '### Per platform asset'
+            echo '```'
+            ./scripts/download-stats.sh --by-asset
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
