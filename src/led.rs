@@ -14,6 +14,8 @@
 //! can be left running unattended.
 
 use std::io::Write;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use serialport::{SerialPort, SerialPortType};
@@ -80,6 +82,24 @@ pub fn detect_boards() -> Vec<String> {
 /// indicator and the `l` toggle, and by the foreground `led` command.
 pub fn detect_board() -> Option<String> {
     detect_boards().into_iter().next()
+}
+
+/// Is a clawlight board attached right now? Cached with a short TTL so the tray
+/// popover — which asks on every state push, potentially several times a second
+/// during a busy session — doesn't re-enumerate the USB bus each time. The LED
+/// daemon and the TUI call [`detect_board`] directly instead; they already scan
+/// on their own slow timers.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+pub fn board_present_cached() -> bool {
+    const TTL: Duration = Duration::from_millis(1500);
+    static CACHE: OnceLock<Mutex<Option<(Instant, bool)>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(None));
+    let mut guard = cache.lock().unwrap_or_else(|e| e.into_inner());
+    let fresh = guard.is_some_and(|(t, _)| t.elapsed() < TTL);
+    if !fresh {
+        *guard = Some((Instant::now(), detect_board().is_some()));
+    }
+    guard.map(|(_, present)| present).unwrap_or(false)
 }
 
 /// Foreground command (`clawlight led`): mirror state to the Seeed XIAO

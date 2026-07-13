@@ -478,6 +478,21 @@ pub fn run() -> anyhow::Result<()> {
                     }
                     popover.push_state(&read_hook_state());
                 }
+                PopoverMsg::SetLed { enabled } => {
+                    let mut cfg = config::read_config();
+                    cfg.led_enabled = enabled;
+                    if let Err(e) = config::write_config(&cfg) {
+                        eprintln!("Failed to save settings: {e}");
+                    }
+                    // The LED daemon thread re-reads config on its own poll and
+                    // (dis)connects within a couple of seconds; refresh the
+                    // popover now so the footer indicator flips immediately.
+                    popover.push_state(&read_hook_state());
+                }
+                PopoverMsg::GetLamp => {
+                    popover.hide();
+                    open_url("https://clawlight.dev");
+                }
             },
             // Dismiss like a real popover: losing focus (clicking anywhere
             // else) hides it.
@@ -517,6 +532,22 @@ fn focus_session(session: Option<&state::SessionStatus>) {
             open_dashboard();
         }
     });
+}
+
+/// Open a URL (the "Get a lamp" footer link) in the default browser. Only the
+/// popover triggers this, so it's needed on macOS/Windows only.
+#[cfg(target_os = "macos")]
+fn open_url(url: &str) {
+    let _ = std::process::Command::new("open").arg(url).spawn();
+}
+
+#[cfg(target_os = "windows")]
+fn open_url(url: &str) {
+    // `start` treats its first quoted arg as the window title, so pass an empty
+    // one before the URL.
+    let _ = std::process::Command::new("cmd")
+        .args(["/C", "start", "", url])
+        .spawn();
 }
 
 /// Launch the TUI dashboard in a fresh terminal window from the tray menu.

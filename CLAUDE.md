@@ -117,9 +117,19 @@ See `state::aggregate`.
   must not write, or it would wipe every other session's status.
 - **The auto-namer runs detached** and sets `CLAWLIGHT_NAMING=1` so the nested `claude`
   CLI call's own hooks no-op instead of recursing.
-- **LEDs are strictly opt-in.** The daemon never opens a serial port until `led_enabled`
-  is set (TUI: `l`). Board detection matches only the XIAO's native USB-Serial-JTAG
-  vendor ID (`0x303A`), so it never writes to an unrelated serial device.
+- **LEDs are opt-in, but a clean first install auto-enables them when a board is already
+  plugged in** (`maybe_autoenable_led` in main.rs, called from `install_hooks`). It's gated
+  on there being no `config.json` yet, so re-running install — or an existing user — never
+  has the LEDs flipped back on against a deliberate opt-out. Otherwise the daemon never
+  opens a serial port until `led_enabled` is set — from the tray popover's footer lamp
+  control (macOS/Windows) or `l` in the TUI. Board detection matches only the XIAO's native
+  USB-Serial-JTAG vendor ID (`0x303A`), so a positive hit is unambiguously our board and
+  clawlight never writes to an unrelated serial device.
+- **The popover footer shows lamp connection status** (`renderLamp` in assets/popover.html,
+  fed by `LampPayload` in popover.rs). Four states from `{present, enabled}`: connected
+  (click disconnects), detected-but-off (click connects → `SetLed`), owned-but-unplugged,
+  and none (a "Get a lamp" link → `GetLamp` opens clawlight.dev). Presence is read via
+  `led::board_present_cached` (short-TTL cache, since the page asks on every state push).
 - **Usage/spend tracking is strictly opt-in** (`usage_enabled`, set in the popover's
   Settings view; off by default). While off, `usage::spawn_refresher` does *no* work —
   it never scans the transcript JSONLs, reads Claude Code's credentials, or contacts the

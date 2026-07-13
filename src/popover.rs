@@ -49,7 +49,7 @@ pub enum PopoverMsg {
     Resize { height: f64 },
     /// The Focus button on a needs-help session row.
     Focus { id: String },
-    /// The Open Dashboard footer button.
+    /// The Dashboard footer button.
     Dashboard,
     /// The Quit footer button.
     Quit,
@@ -63,6 +63,12 @@ pub enum PopoverMsg {
     /// usage at all (`enabled`) and, when on, which readout (`mode`). The page
     /// sends both together so "Off" and the Plan/API choice are one control.
     SetUsage { enabled: bool, mode: BillingMode },
+    /// The footer lamp control: connect (`enabled: true`) or disconnect the
+    /// physical status lamp by toggling LED mirroring.
+    SetLed { enabled: bool },
+    /// The footer lamp link shown when no board is attached — opens the store /
+    /// setup page so a lampless user can get one.
+    GetLamp,
 }
 
 #[derive(Serialize)]
@@ -87,6 +93,15 @@ struct SettingsPayload {
     billing_mode: BillingMode,
 }
 
+/// Physical status-lamp state for the footer connection indicator.
+#[derive(Serialize)]
+struct LampPayload {
+    /// A clawlight board is attached over USB right now.
+    present: bool,
+    /// LED mirroring is turned on in config (the daemon drives the board).
+    enabled: bool,
+}
+
 #[derive(Serialize)]
 struct StatePayload<'a> {
     aggregate: &'static str,
@@ -94,6 +109,8 @@ struct StatePayload<'a> {
     settings: SettingsPayload,
     /// Usage section (design 1a/1c); absent until the first scan completes.
     usage: Option<UsageSnapshot>,
+    /// Footer lamp connection indicator.
+    lamp: LampPayload,
 }
 
 pub struct Popover {
@@ -306,6 +323,10 @@ fn build_payload(state: &HookState) -> String {
         // Only surface usage once the user has opted in — otherwise the section
         // stays absent even if a stale snapshot is still cached.
         usage: cfg.usage_enabled.then(usage::latest).flatten(),
+        lamp: LampPayload {
+            present: crate::led::board_present_cached(),
+            enabled: cfg.led_enabled,
+        },
     };
     serde_json::to_string(&payload)
         .unwrap_or_else(|_| r#"{"aggregate":"none","sessions":[]}"#.to_string())
@@ -408,6 +429,19 @@ mod tests {
                 mode: BillingMode::Plan
             }
         ));
+    }
+
+    /// Pins the IPC wire format the footer lamp control emits
+    /// (`{cmd:'set_led', enabled:...}` and `{cmd:'get_lamp'}` in
+    /// assets/popover.html): connect/disconnect the lamp, or open the store.
+    #[test]
+    fn lamp_controls_parse_from_page_json() {
+        let msg: PopoverMsg = serde_json::from_str(r#"{"cmd":"set_led","enabled":true}"#).unwrap();
+        assert!(matches!(msg, PopoverMsg::SetLed { enabled: true }));
+        let msg: PopoverMsg = serde_json::from_str(r#"{"cmd":"set_led","enabled":false}"#).unwrap();
+        assert!(matches!(msg, PopoverMsg::SetLed { enabled: false }));
+        let msg: PopoverMsg = serde_json::from_str(r#"{"cmd":"get_lamp"}"#).unwrap();
+        assert!(matches!(msg, PopoverMsg::GetLamp));
     }
 
     #[test]
