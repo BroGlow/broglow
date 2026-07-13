@@ -205,13 +205,56 @@ fn install_hooks() -> anyhow::Result<()> {
     // 1./2. Register the hook backend in settings.json.
     register_hooks()?;
 
-    // 3. Install autostart for the tray daemon (platform-specific).
+    // 3. If a status board is already plugged in on this first setup, turn the
+    //    LEDs on automatically so the lamp lights up with no extra step.
+    let lamp_enabled = maybe_autoenable_led();
+
+    // 4. Install autostart for the tray daemon (platform-specific).
     install_autostart()?;
 
     println!("\nInstallation complete! Hooks are now active for new Claude Code sessions.");
     println!("Run `clawlight` to launch the TUI dashboard.");
-    println!("Optional: plug in a Seeed XIAO ESP32-C6 status board and press `l` in the dashboard to enable status LEDs.");
+    if !lamp_enabled {
+        println!("Optional: plug in a Seeed XIAO ESP32-C6 status board and press `l` in the dashboard to enable status LEDs.");
+    }
     Ok(())
+}
+
+/// On a clean first install, enable the status LEDs automatically if a clawlight
+/// board is already plugged in — so "plug it in, install, done" just works.
+///
+/// Gated on there being no `config.json` yet: a config file means the user has
+/// already made a choice in the popover/TUI, so re-running install must never
+/// flip the LEDs back on against a deliberate opt-out. Detection matches only
+/// the XIAO's native USB vendor ID (see `led::detect_board`), so a positive hit
+/// is unambiguously our board — enabling it can't drive an unrelated device.
+///
+/// Returns whether the LEDs ended up enabled (either just now or already), so
+/// the caller can tailor the closing hint. Best-effort: a config write failure
+/// just leaves the LEDs off, recoverable with `l` in the dashboard.
+fn maybe_autoenable_led() -> bool {
+    let cfg = config::read_config();
+    if config::config_file_path().exists() {
+        // Not a clean first run — respect whatever the user already chose.
+        return cfg.led_enabled;
+    }
+    let Some(port) = led::detect_board() else {
+        return false;
+    };
+    let cfg = config::Config {
+        led_enabled: true,
+        ..cfg
+    };
+    match config::write_config(&cfg) {
+        Ok(()) => {
+            println!("Detected a Claw Light board at {port} — status LEDs enabled.");
+            true
+        }
+        Err(e) => {
+            eprintln!("clawlight: could not enable status LEDs: {e:#} (press `l` in the dashboard to enable them).");
+            false
+        }
+    }
 }
 
 /// True if clawlight's hook backend is already wired into settings.json for at

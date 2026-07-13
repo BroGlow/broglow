@@ -154,6 +154,10 @@ body.win .pbtnpri:hover { background: #63cbff; }
 .pbtnghost:hover { background: rgba(255,255,255,.08); }
 .pbtn[disabled] { opacity: .55; pointer-events: none; }
 .f1 { flex: 1; }
+/* Footer lamp indicator: compact status + connect/store affordance. */
+.lampbtn { gap: 6px; padding-left: 9px; padding-right: 9px; }
+.lampbtn .dot { width: 7px; height: 7px; }
+.lampbtn.lon { color: rgba(255,255,255,.8); }
 </style>
 </head>
 <body class="__PLATFORM__">
@@ -169,9 +173,10 @@ body.win .pbtnpri:hover { background: #63cbff; }
   <div class="grp" id="groups"></div>
   <div class="usec" id="usage" hidden></div>
   <div class="popfoot">
-    <button class="pbtn pbtnpri" data-cmd="dashboard">Open Dashboard</button>
+    <button class="pbtn pbtnpri" data-cmd="dashboard">Dashboard</button>
     <button class="pbtn" id="settingsbtn" data-local="settings">Settings</button>
     <span class="f1"></span>
+    <button class="pbtn pbtnghost lampbtn" id="lampbtn"></button>
     <button class="pbtn pbtnghost" data-cmd="quit">Quit</button>
   </div>
 </div>
@@ -210,7 +215,8 @@ const USAGE_OPTIONS = [
 
 const FAMILY_CLASS = { opus: 'mopus', sonnet: 'msonnet', haiku: 'mhaiku' };
 
-let state = { aggregate: 'none', sessions: [], settings: { yellowMode: 'any_inactive' } };
+let state = { aggregate: 'none', sessions: [], settings: { yellowMode: 'any_inactive' },
+              lamp: { present: false, enabled: false } };
 let view = 'sessions';
 
 function post(msg) { window.ipc.postMessage(JSON.stringify(msg)); }
@@ -295,6 +301,39 @@ function renderUsage() {
   }
   el.innerHTML = html;
   el.hidden = false;
+}
+
+/* Footer lamp indicator. Four states from {present, enabled}: connected (green,
+   click disconnects), detected-but-off (click connects), owned-but-unplugged,
+   and none (link to the store). Kept to one short word so the footer row's
+   footprint doesn't grow. */
+function renderLamp() {
+  const l = state.lamp || {};
+  const el = document.getElementById('lampbtn');
+  // A colored dot only when there's an active lamp status to show (green =
+  // connected, yellow = detected). The gray "off"/"none" states are plain
+  // text links, so no leading circle.
+  let dot = null, label, cmd, enabled, title, on = false;
+  if (l.present && l.enabled) {
+    dot = 'dgreen'; label = 'Lamp'; cmd = 'set_led'; enabled = false; on = true;
+    title = 'Status lamp connected — click to turn off';
+  } else if (l.present) {
+    dot = 'dyellow'; label = 'Connect'; cmd = 'set_led'; enabled = true;
+    title = 'Status lamp detected — click to connect';
+  } else if (l.enabled) {
+    label = 'Lamp off'; cmd = 'get_lamp';
+    title = 'No lamp detected — setup help at clawlight.dev';
+  } else {
+    label = 'Get a lamp'; cmd = 'get_lamp';
+    title = 'Get the Claw Light desk lamp';
+  }
+  el.className = 'pbtn pbtnghost lampbtn' + (on ? ' lon' : '');
+  el.dataset.cmd = cmd;
+  if (enabled === undefined) delete el.dataset.enabled;
+  else el.dataset.enabled = String(enabled);
+  el.title = title;
+  el.innerHTML = (dot ? `<span class="dot ${dot}"></span>` : '') + esc(label) +
+    (cmd === 'get_lamp' && !l.enabled ? ' ↗' : '');
 }
 
 function relTime(iso) {
@@ -382,6 +421,7 @@ function render() {
   }
 
   renderUsage();
+  renderLamp();
 
   // Post synchronously: offsetHeight forces layout, and requestAnimationFrame
   // never fires while the window is hidden (no display link), which would
@@ -426,6 +466,14 @@ document.addEventListener('click', ev => {
   if (!btn) return;
   const msg = { cmd: btn.dataset.cmd };
   if (btn.dataset.id !== undefined) msg.id = btn.dataset.id;
+  if (btn.dataset.enabled !== undefined) msg.enabled = btn.dataset.enabled === 'true';
+  // Flip the lamp indicator optimistically; the host confirms with a fresh
+  // __setState once the config write lands and the daemon reconnects.
+  if (msg.cmd === 'set_led') {
+    state.lamp = state.lamp || {};
+    state.lamp.enabled = msg.enabled;
+    renderLamp();
+  }
   post(msg);
 });
 document.addEventListener('keydown', ev => {

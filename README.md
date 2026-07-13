@@ -24,7 +24,9 @@ monitoring [Claude Code](https://claude.ai/code) sessions in real time.
 - **Auto-naming**: sessions are named from their first prompt using the
   Claude CLI, so the list reads "fix flaky auth test," not a UUID
 - **ESP32 status light (optional)**: mirror the aggregate state to a
-  physical desk light over USB serial ([clawlight.dev](https://clawlight.dev))
+  physical desk light over USB serial ([clawlight.dev](https://clawlight.dev)).
+  Plug it in before installing and it lights up automatically; otherwise
+  connect it any time from the tray popover's footer (or `l` in the TUI)
 
 
 ## Install
