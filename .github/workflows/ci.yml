@@ -56,6 +56,20 @@ jobs:
 
       # Includes the end-to-end suite in tests/: the hook backend and auto-namer
       # driven through the real binary (unix), install/uninstall (Linux), and
-      # CLI smoke tests (all platforms).
+      # CLI smoke tests (all platforms). Also builds target/debug/clawlight,
+      # which the JS integration step below reuses.
       - name: Test
         run: cargo test --locked
+
+      # Drive the REAL embedded opencode plugin (assets/opencode-plugin.js)
+      # against the built binary and assert state.json — the opencode↔clawlight
+      # contract. Linux only: it sandboxes state via $HOME like the Rust suite.
+      - name: Set up Node
+        if: runner.os == 'Linux'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: opencode plugin integration tests
+        if: runner.os == 'Linux'
+        run: node --test tests/js/opencode-integration.test.mjs

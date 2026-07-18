@@ -213,4 +213,11 @@ opencode plugin when node is present (cli.rs, all platforms). Prefer extending
 these over unit tests for new behavior. A `Stop` event with a `transcript_path` spawns the real detached
 namer — tests must omit it or pre-seed a name.
 
+`tests/js/` holds the opencode plugin **integration** tests (`node --test`,
+Linux CI): they drive the real `assets/opencode-plugin.js` with opencode's
+actual event shapes and assert the `state.json` the built binary writes — the
+one boundary the Rust suite (which feeds `clawlight event` directly) can't cover.
+`exit-child.mjs` is a helper process, not a test, so the plugin's
+`process.on("exit")` shutdown path can be exercised for real.
+
 `.github/workflows/release.yml` builds and packages release binaries per platform.
