@@ -45,8 +45,16 @@ const FOCUS_GRACE: Duration = Duration::from_millis(600);
 #[derive(Debug, Deserialize)]
 #[serde(tag = "cmd", rename_all = "snake_case")]
 pub enum PopoverMsg {
-    /// The page finished a render and reports its content height (logical px).
-    Resize { height: f64 },
+    /// The page finished a render and reports its content height (logical px)
+    /// plus the devicePixelRatio WebView2 is actually rendering at — on
+    /// Windows the window is sized from that ratio, since it's the only scale
+    /// value guaranteed to match the rendered surface (tao's and Win32's
+    /// opinions of the window's DPI both diverge from it in practice).
+    Resize {
+        height: f64,
+        #[serde(default)]
+        dpr: Option<f64>,
+    },
     /// The Focus button on a needs-help session row.
     Focus { id: String },
     /// The Dashboard footer button.
@@ -122,6 +130,14 @@ pub struct Popover {
     pending_show: bool,
     hidden_at: Option<Instant>,
     shown_at: Option<Instant>,
+    /// Windows: the physical size last applied from the page's reported
+    /// devicePixelRatio — re-asserted when tao tries to rescale the window
+    /// on monitor-DPI changes (see the ScaleFactorChanged arm in menubar).
+    #[cfg(target_os = "windows")]
+    wanted: Option<PhysicalSize<u32>>,
+    /// Windows: last time on_window_resized re-asserted the wanted size.
+    #[cfg(target_os = "windows")]
+    enforced_at: Option<Instant>,
     /// CLAWLIGHT_POPOVER_DEBUG: the popover was force-opened without user
     /// interaction, so macOS revokes our activation; don't treat the
     /// resulting focus loss as a dismissal.
@@ -173,6 +189,10 @@ impl Popover {
             pending_show: false,
             hidden_at: None,
             shown_at: None,
+            #[cfg(target_os = "windows")]
+            wanted: None,
+            #[cfg(target_os = "windows")]
+            enforced_at: None,
             debug: std::env::var_os("CLAWLIGHT_POPOVER_DEBUG").is_some(),
         })
     }
@@ -230,11 +250,45 @@ impl Popover {
 
     /// The page reported its rendered height: size the window to fit, keep it
     /// glued to the anchor, and complete a deferred show.
-    pub fn on_resize(&mut self, logical_height: f64) {
+    pub fn on_resize(&mut self, logical_height: f64, dpr: Option<f64>) {
         let size = LogicalSize::new(WIDTH, logical_height.clamp(120.0, 720.0));
-        self.window.set_inner_size(size);
-        if let Some(anchor) = self.anchor {
-            self.position_at(anchor, size.to_physical(self.window.scale_factor()));
+        // Windows: tao is wrong about this window three ways over — its
+        // set_inner_size never resizes the window at all (stuck at the
+        // builder size; the uncovered client area painted an opaque white
+        // gutter), it pads requests by AdjustWindowRect extents for a frame
+        // the undecorated window doesn't have, and both tao's scale_factor()
+        // and Win32's GetDpiForWindow disagree with the scale WebView2
+        // actually renders at on scaled monitors (the card drew 1.5x larger
+        // than the window and got clipped). Size the frameless window
+        // directly with SetWindowPos (outer == client) using the page's own
+        // devicePixelRatio — the one scale that by definition matches the
+        // rendered surface — and hand wry the logical size, since its bounds
+        // are logical and it scales by the webview's own DPI. If a move to a
+        // different-DPI monitor changes the ratio, the page's next render
+        // reports the new dpr and this converges.
+        #[cfg(target_os = "windows")]
+        {
+            let scale = dpr
+                .filter(|d| *d > 0.0)
+                .unwrap_or_else(|| self.true_scale());
+            let want: PhysicalSize<u32> = size.to_physical(scale);
+            self.wanted = Some(want);
+            self.set_size_raw(want);
+            let _ = self.webview.set_bounds(wry::Rect {
+                position: tao::dpi::LogicalPosition::new(0.0, 0.0).into(),
+                size: size.into(),
+            });
+            if let Some(anchor) = self.anchor {
+                self.position_at(anchor, want);
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = dpr;
+            self.window.set_inner_size(size);
+            if let Some(anchor) = self.anchor {
+                self.position_at(anchor, size.to_physical(self.window.scale_factor()));
+            }
         }
         if self.pending_show {
             self.pending_show = false;
@@ -244,11 +298,102 @@ impl Popover {
         }
     }
 
+    /// The physical size last applied from the page's devicePixelRatio, used
+    /// by the menubar's ScaleFactorChanged handler to veto tao's rescaling.
+    #[cfg(target_os = "windows")]
+    pub fn wanted_physical(&self) -> Option<PhysicalSize<u32>> {
+        self.wanted
+    }
+
+    /// Windows: tao rescales the window to the monitor's DPI on
+    /// WM_DPICHANGED, which fights the devicePixelRatio-derived size when the
+    /// two disagree (stale system DPI, virtual displays). Snap back whenever
+    /// a resize lands somewhere other than the wanted size, rate-limited so a
+    /// hypothetical ping-pong can't spin the event loop.
+    #[cfg(target_os = "windows")]
+    pub fn on_window_resized(&mut self, new_size: PhysicalSize<u32>) {
+        let Some(want) = self.wanted else { return };
+        if new_size == want {
+            return;
+        }
+        if self
+            .enforced_at
+            .is_some_and(|t| t.elapsed() < Duration::from_millis(100))
+        {
+            return;
+        }
+        self.enforced_at = Some(Instant::now());
+        self.set_size_raw(want);
+        if let Some(anchor) = self.anchor {
+            self.position_at(anchor, want);
+        }
+    }
+
+    /// The window's real scale factor from its per-monitor DPI —
+    /// tao's scale_factor() reports 1.0 regardless of monitor scaling.
+    #[cfg(target_os = "windows")]
+    fn true_scale(&self) -> f64 {
+        use tao::platform::windows::WindowExtWindows;
+        #[link(name = "user32")]
+        extern "system" {
+            fn GetDpiForWindow(hwnd: isize) -> u32;
+        }
+        let dpi = unsafe { GetDpiForWindow(self.window.hwnd()) };
+        if dpi == 0 {
+            self.window.scale_factor()
+        } else {
+            f64::from(dpi) / 96.0
+        }
+    }
+
+    /// Set the window's size in physical pixels via SetWindowPos — the window
+    /// is frameless, so outer == client and no frame adjustment applies.
+    #[cfg(target_os = "windows")]
+    fn set_size_raw(&self, want: PhysicalSize<u32>) {
+        use tao::platform::windows::WindowExtWindows;
+        #[link(name = "user32")]
+        extern "system" {
+            fn SetWindowPos(
+                hwnd: isize,
+                after: isize,
+                x: i32,
+                y: i32,
+                cx: i32,
+                cy: i32,
+                flags: u32,
+            ) -> i32;
+        }
+        // SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
+        const SWP_RESIZE_ONLY: u32 = 0x0002 | 0x0004 | 0x0010;
+        // SetWindowPos consults WM_GETMINMAXINFO, and tao pins a
+        // non-resizable window's min/max to its own idea of the size —
+        // resize attempts get clamped right back (set_resizable(true) doesn't
+        // lift this synchronously). Point the clamp at the size we want
+        // instead: with min == max == want, whatever tao's handler enforces
+        // IS the target.
+        self.window.set_min_inner_size(Some(want));
+        self.window.set_max_inner_size(Some(want));
+        unsafe {
+            SetWindowPos(
+                self.window.hwnd(),
+                0,
+                0,
+                0,
+                want.width as i32,
+                want.height as i32,
+                SWP_RESIZE_ONLY,
+            );
+        }
+    }
+
     /// Position the window against the tray icon rect (physical px, top-left
     /// origin on every platform — tray-icon pre-flips macOS coordinates).
     /// macOS hangs the card below the menu bar icon; Windows floats it above
     /// the taskbar. Horizontally centered on the icon, clamped to the monitor.
     fn position_at(&self, anchor: Rect, size: PhysicalSize<u32>) {
+        #[cfg(target_os = "windows")]
+        let scale = self.true_scale();
+        #[cfg(not(target_os = "windows"))]
         let scale = self.window.scale_factor();
         let w = size.width as f64;
 

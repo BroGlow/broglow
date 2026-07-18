@@ -15,7 +15,11 @@ body {
   -webkit-user-select: none; user-select: none;
   cursor: default;
 }
-body.win { font-family: 'Segoe UI', system-ui, sans-serif; }
+/* Windows: paint the canvas card-dark instead of transparent. Any mismatch
+   between the client area and the card (window-frame padding quirks, resize
+   races) then shows as card background instead of an opaque white gutter,
+   and DWM rounds the window corners for us. */
+body.win { font-family: 'Segoe UI', system-ui, sans-serif; background: #202020; }
 
 .pop {
   width: 338px;
@@ -426,7 +430,10 @@ function render() {
   // Post synchronously: offsetHeight forces layout, and requestAnimationFrame
   // never fires while the window is hidden (no display link), which would
   // deadlock the deferred first show.
-  post({ cmd: 'resize', height: Math.ceil(document.getElementById('card').offsetHeight) });
+  // dpr rides along because on Windows the host sizes the window in physical
+  // pixels from it — the only scale guaranteed to match the rendered surface.
+  post({ cmd: 'resize', height: Math.ceil(document.getElementById('card').offsetHeight),
+         dpr: window.devicePixelRatio });
 }
 
 window.__setState = payload => { state = payload; render(); };

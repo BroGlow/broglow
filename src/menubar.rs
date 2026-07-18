@@ -328,12 +328,29 @@ pub fn run() -> anyhow::Result<()> {
     };
 
     // Dev aid: open the popover immediately at a synthetic anchor so it can
-    // be inspected/screenshotted without clicking the real tray icon.
+    // be inspected/screenshotted without clicking the real tray icon. The
+    // anchor mimics where the real icon lives — top of the screen on macOS
+    // (menu bar), bottom on Windows (taskbar tray). The card opens on the
+    // opposite side of the anchor, so a top-of-screen anchor on Windows
+    // would push it off-screen above the monitor, where per-monitor DPI
+    // assignment is ambiguous and flip-flops.
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     if std::env::var_os("CLAWLIGHT_POPOVER_DEBUG").is_some() {
+        #[cfg(target_os = "macos")]
+        let anchor_y = 0.0;
+        #[cfg(target_os = "windows")]
+        let anchor_y = {
+            #[link(name = "user32")]
+            extern "system" {
+                fn GetSystemMetrics(index: i32) -> i32;
+            }
+            // SM_CYSCREEN: primary monitor height — anchor at its bottom edge
+            // like a real tray icon.
+            f64::from(unsafe { GetSystemMetrics(1) }) - 48.0
+        };
         popover.open_at(
             tray_icon::Rect {
-                position: tao::dpi::PhysicalPosition::new(1200.0, 0.0),
+                position: tao::dpi::PhysicalPosition::new(1200.0, anchor_y),
                 size: tao::dpi::PhysicalSize::new(48, 48),
             },
             &initial_state,
@@ -470,7 +487,7 @@ pub fn run() -> anyhow::Result<()> {
             #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::UserEvent(UserEvent::Popover(msg)) => match msg {
                 PopoverMsg::Ready => popover.push_state(&read_hook_state()),
-                PopoverMsg::Resize { height } => popover.on_resize(height),
+                PopoverMsg::Resize { height, dpr } => popover.on_resize(height, dpr),
                 PopoverMsg::Focus { id } => {
                     popover.hide();
                     let state = read_hook_state();
@@ -550,6 +567,31 @@ pub fn run() -> anyhow::Result<()> {
                 event: WindowEvent::CloseRequested,
                 ..
             } if window_id == popover.window_id() => popover.hide(),
+            // Windows: when the popover crosses (or is assigned) a monitor
+            // DPI boundary, tao rescales it to the monitor's DPI — but
+            // WebView2 renders at its own devicePixelRatio, which can differ
+            // (e.g. a stale system DPI from logon). Keep the window at the
+            // size derived from the page's reported ratio; overriding
+            // new_inner_size here replaces tao's suggested rescale.
+            #[cfg(target_os = "windows")]
+            Event::WindowEvent {
+                window_id,
+                event: WindowEvent::ScaleFactorChanged { new_inner_size, .. },
+                ..
+            } if window_id == popover.window_id() => {
+                if let Some(want) = popover.wanted_physical() {
+                    *new_inner_size = want;
+                }
+            }
+            // Belt to the veto's suspenders: if a resize still lands off the
+            // wanted size (tao's DPI rescale ignoring the override above),
+            // snap back.
+            #[cfg(target_os = "windows")]
+            Event::WindowEvent {
+                window_id,
+                event: WindowEvent::Resized(new_size),
+                ..
+            } if window_id == popover.window_id() => popover.on_window_resized(new_size),
             _ => {}
         }
     })
