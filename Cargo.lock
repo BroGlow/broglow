@@ -507,6 +507,7 @@ dependencies = [
  "dirs 5.0.1",
  "fs4",
  "image",
+ "libc",
  "notify",
  "notify-rust",
  "ratatui",

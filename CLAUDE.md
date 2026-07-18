@@ -60,7 +60,8 @@ serial port. Redeploy the installed one instead.
   locked read-modify-write of `state.json`, spawns the detached auto-namer on first `Stop`.
 - **state.rs** — `HookState`/`SessionStatus`/`Status` types, `state.json` read/write
   (atomic temp-file + rename), the shared `.state.lock` (`acquire_state_lock`), the
-  24h staleness downgrade to `Done`, and `Aggregate` (Red/Yellow/Green/None) health rollup.
+  `reap_ended_sessions` downgrade to `Done` (dead-process reap via `terminal::is_alive`,
+  plus the 24h staleness backstop), and `Aggregate` (Red/Yellow/Green/None) health rollup.
 - **session.rs** — discovers `~/.claude/projects/*/sessions-index.json`, merges those
   entries with hook state into `DisplaySession`s, resolves display names and sort order.
 - **config.rs** — `~/.claude/clawlight/config.json` (LED opt-in, optional `led_port`,

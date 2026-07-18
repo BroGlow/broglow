@@ -19,6 +19,7 @@ use std::process::Command;
 /// and ancestry. Called by the hook backend while handling an event.
 pub fn capture() -> TerminalInfo {
     let env = |key: &str| std::env::var(key).ok().filter(|v| !v.is_empty());
+    let (tty, owner_pid) = capture_tty_owner();
     TerminalInfo {
         term_program: env("TERM_PROGRAM"),
         term_session_id: env("TERM_SESSION_ID"),
@@ -30,20 +31,27 @@ pub fn capture() -> TerminalInfo {
         // TMUX_PANE can linger in the environment after leaving tmux; only
         // trust it while TMUX itself is set.
         tmux_pane: env("TMUX").and_then(|_| env("TMUX_PANE")),
-        tty: capture_tty(),
+        tty,
+        owner_pid,
         ancestors: capture_ancestors(),
     }
 }
 
-/// Terminal device of the session ("/dev/ttys012"). Claude Code spawns hook
-/// subprocesses without a controlling tty, so walk up the parent chain (one
-/// `ps` snapshot) to the claude process, which does own the terminal's tty.
+/// The session's controlling terminal device ("/dev/ttys012") and the PID that
+/// owns it. Claude Code spawns hook subprocesses without a controlling tty, so
+/// walk up the parent chain (one `ps` snapshot) to the first ancestor that does
+/// own a tty — that is the `claude` process itself. Its tty identifies the
+/// window for click-to-focus; its PID lets the readers tell later whether the
+/// session is still alive (see [`is_alive`]).
 #[cfg(unix)]
-fn capture_tty() -> Option<String> {
-    let out = Command::new("ps")
+fn capture_tty_owner() -> (Option<String>, Option<u32>) {
+    let out = match Command::new("ps")
         .args(["-axo", "pid=,ppid=,tty="])
         .output()
-        .ok()?;
+    {
+        Ok(o) => o,
+        Err(_) => return (None, None),
+    };
     let stdout = String::from_utf8_lossy(&out.stdout);
     let mut table = std::collections::HashMap::new();
     for line in stdout.lines() {
@@ -59,26 +67,63 @@ fn capture_tty() -> Option<String> {
 
     let mut pid = std::process::id();
     for _ in 0..16 {
-        let (ppid, tty) = table.get(&pid)?;
+        let Some((ppid, tty)) = table.get(&pid) else {
+            return (None, None);
+        };
         // ps prints "??" (macOS) / "?" (Linux) when there is no controlling tty.
         if !tty.is_empty() && !tty.starts_with('?') && tty != "-" {
-            return Some(if tty.starts_with("/dev/") {
+            let dev = if tty.starts_with("/dev/") {
                 tty.clone()
             } else {
                 format!("/dev/{tty}")
-            });
+            };
+            return (Some(dev), Some(pid));
         }
         if *ppid <= 1 || *ppid == pid {
-            return None;
+            return (None, None);
         }
         pid = *ppid;
     }
-    None
+    (None, None)
 }
 
 #[cfg(not(unix))]
-fn capture_tty() -> Option<String> {
-    None
+fn capture_tty_owner() -> (Option<String>, Option<u32>) {
+    (None, None)
+}
+
+/// Whether a process with this PID is still running. Used to reap sessions
+/// whose Claude Code process exited without a SessionEnd hook (terminal window
+/// closed, crash, SIGKILL), which would otherwise leave the status light stuck.
+///
+/// Fail-safe toward "alive": on any ambiguity (can't probe, access denied) we
+/// report `true`, so a session that is genuinely still running is never cleared
+/// out from under the user. The worst case is a dead session lingering a little
+/// longer — the same outcome as before this check existed.
+#[cfg(unix)]
+pub fn is_alive(pid: u32) -> bool {
+    // Signal 0 does the kernel's existence/permission checks without delivering
+    // a signal: 0 => the process exists; ESRCH => it's gone; EPERM => it exists
+    // but is owned by another user.
+    if unsafe { libc::kill(pid as libc::pid_t, 0) } == 0 {
+        return true;
+    }
+    std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+}
+
+/// Windows liveness via the same process snapshot the focus path already uses:
+/// a PID present in the table is live. If the snapshot can't be taken, fail
+/// safe toward "alive".
+#[cfg(target_os = "windows")]
+pub fn is_alive(pid: u32) -> bool {
+    process_table()
+        .map(|t| t.contains_key(&pid))
+        .unwrap_or(true)
+}
+
+#[cfg(not(any(unix, target_os = "windows")))]
+pub fn is_alive(_pid: u32) -> bool {
+    true
 }
 
 /// Ancestor process chain, nearest first. Only captured where focusing goes

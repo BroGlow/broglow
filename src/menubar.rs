@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::sync::mpsc;
 use std::thread;
+use std::time::Duration;
 
 use anyhow::Context;
 use notify::{EventKind, RecursiveMode, Watcher};
@@ -190,6 +191,12 @@ fn build_fallback_menu() -> anyhow::Result<(Menu, MenuIds)> {
 
 enum UserEvent {
     StateChanged,
+    /// Periodic re-evaluation. Session state can go stale with no file write to
+    /// watch for — a session's Claude Code process can exit without a
+    /// SessionEnd hook (window closed, crash, SIGKILL), so `read_hook_state`
+    /// reaps it only when something asks. This tick makes the tray icon (and an
+    /// open popover) recompute on a timer so a stuck-red light clears itself.
+    Tick,
     Menu(MenuEvent),
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     Tray(TrayIconEvent),
@@ -361,6 +368,18 @@ pub fn run() -> anyhow::Result<()> {
         }
     });
 
+    // Periodic tick so the tray recomputes even when no file event fires — the
+    // case that leaves a killed session's light stuck (its process exited
+    // without a SessionEnd hook, so nothing writes state.json again). Matches
+    // the TUI's 5s refresh cadence.
+    let proxy_for_tick = event_loop.create_proxy();
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_secs(5));
+        if proxy_for_tick.send_event(UserEvent::Tick).is_err() {
+            break; // event loop gone; stop ticking.
+        }
+    });
+
     let mut tray_holder = Some(tray);
 
     event_loop.run(move |event, _, control_flow| {
@@ -376,6 +395,27 @@ pub fn run() -> anyhow::Result<()> {
                 }
                 #[cfg(any(target_os = "macos", target_os = "windows"))]
                 popover.push_state(&state);
+                #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+                if let Ok((menu, new_ids)) = build_menu(&state) {
+                    if let Some(tray) = tray_holder.as_ref() {
+                        tray.set_menu(Some(Box::new(menu)));
+                    }
+                    ids = new_ids;
+                }
+            }
+            Event::UserEvent(UserEvent::Tick) => {
+                let state = read_hook_state();
+                if let Some(tray) = tray_holder.as_ref() {
+                    if let Ok(icon) = icon_for_state(&state) {
+                        let _ = tray.set_icon(Some(icon));
+                    }
+                }
+                // Only push to the popover when it's actually on screen —
+                // re-rendering a hidden webview every 5s would be wasted work.
+                #[cfg(any(target_os = "macos", target_os = "windows"))]
+                if popover.is_visible() {
+                    popover.push_state(&state);
+                }
                 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
                 if let Ok((menu, new_ids)) = build_menu(&state) {
                     if let Some(tray) = tray_holder.as_ref() {

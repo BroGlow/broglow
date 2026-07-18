@@ -63,6 +63,14 @@ pub struct TerminalInfo {
     /// Controlling terminal device, e.g. "/dev/ttys012" (unix).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tty: Option<String>,
+    /// PID of the Claude Code process hosting the session, captured at hook
+    /// time (unix: the first ancestor that owns a real tty — see
+    /// `terminal::capture`). Lets the readers reap a session whose process
+    /// exited without a SessionEnd hook (window closed, crash, SIGKILL) instead
+    /// of leaving its status stuck. Absent where the process can't be
+    /// identified (older state files, non-unix platforms).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner_pid: Option<u32>,
     /// WT_SESSION (Windows Terminal tab GUID).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wt_session: Option<String>,
@@ -154,11 +162,38 @@ pub fn read_hook_state() -> HookState {
         .and_then(|content| serde_json::from_str(&content).ok())
         .unwrap_or_default();
 
-    // Downgrade sessions to Done if they haven't been touched in 24h. Catches
-    // orphans from Claude crashes or kills that skipped the SessionEnd hook.
-    let now = Utc::now();
+    reap_ended_sessions(&mut state, Utc::now(), crate::terminal::is_alive);
+    state
+}
+
+/// Downgrade sessions that have ended to `Done`, in memory, before the caller
+/// aggregates or displays them. Two signals, cheapest first:
+///
+/// 1. **Process gone.** If we captured the session's Claude Code PID and that
+///    process is no longer alive, the session is over — it exited without a
+///    SessionEnd hook (terminal window closed, crash, SIGKILL), which would
+///    otherwise leave a mid-`NeedsHelp` session stuck red. All three of those
+///    look identical to us (no hook, dead process) and want the same outcome,
+///    so the session is cleared as soon as we notice — the same result a clean
+///    `/exit` reaches instantly via its SessionEnd hook. `is_alive` fails safe
+///    toward "alive", so a session that is genuinely still running is never
+///    cleared out from under the user.
+/// 2. **Stale.** For sessions with no captured PID (older state files, or a
+///    platform where the process couldn't be identified), fall back to the 24h
+///    staleness backstop.
+///
+/// This mutates a snapshot only; it never writes `state.json`.
+fn reap_ended_sessions(state: &mut HookState, now: DateTime<Utc>, is_alive: impl Fn(u32) -> bool) {
     for s in state.sessions.values_mut() {
         if s.status == Status::Done {
+            continue;
+        }
+        if let Some(pid) = s.terminal.as_ref().and_then(|t| t.owner_pid) {
+            if !is_alive(pid) {
+                s.status = Status::Done;
+            }
+            // A live PID is authoritative — the session is still running, so
+            // don't let the staleness backstop reap a long-idle-but-alive one.
             continue;
         }
         if let Ok(ts) = s.last_updated.parse::<DateTime<Utc>>() {
@@ -167,7 +202,6 @@ pub fn read_hook_state() -> HookState {
             }
         }
     }
-    state
 }
 
 pub fn clear_session(session_id: &str) -> anyhow::Result<()> {
@@ -283,5 +317,85 @@ mod tests {
         let done = state_with(&[Status::Done]);
         assert_eq!(aggregate(&done, YellowMode::AnyInactive), Aggregate::None);
         assert_eq!(aggregate(&done, YellowMode::ActiveWins), Aggregate::None);
+    }
+
+    /// Build a single-session state carrying `owner_pid`, whose last hook event
+    /// was `last_updated`. Lets a test place the session inside or outside the
+    /// reap-grace / staleness windows.
+    fn state_with_owner(
+        status: Status,
+        owner_pid: Option<u32>,
+        last_updated: DateTime<Utc>,
+    ) -> HookState {
+        let mut state = HookState::default();
+        state.sessions.insert(
+            "s".to_string(),
+            SessionStatus {
+                status,
+                last_updated: last_updated.to_rfc3339(),
+                project_path: None,
+                notification_type: None,
+                name: None,
+                terminal: Some(TerminalInfo {
+                    owner_pid,
+                    ..Default::default()
+                }),
+            },
+        );
+        state
+    }
+
+    fn status_of(state: &HookState) -> Status {
+        state.sessions["s"].status.clone()
+    }
+
+    #[test]
+    fn a_dead_process_is_reaped_immediately() {
+        let now = Utc::now();
+        // Even with a just-now last event, a dead process is cleared at once —
+        // a crash / kill / closed window has no SessionEnd to wait for.
+        let mut state = state_with_owner(Status::NeedsHelp, Some(4242), now);
+        reap_ended_sessions(&mut state, now, |_| false);
+        assert_eq!(status_of(&state), Status::Done);
+    }
+
+    #[test]
+    fn a_live_process_keeps_needs_help_no_matter_how_old() {
+        let now = Utc::now();
+        // A live PID must win even past the staleness window: the session is
+        // genuinely still waiting for the user.
+        let mut state = state_with_owner(
+            Status::NeedsHelp,
+            Some(4242),
+            now - chrono::Duration::hours(STALE_AFTER_HOURS + 1),
+        );
+        reap_ended_sessions(&mut state, now, |_| true);
+        assert_eq!(status_of(&state), Status::NeedsHelp);
+    }
+
+    #[test]
+    fn without_a_pid_the_24h_staleness_backstop_still_applies() {
+        let now = Utc::now();
+        // Old timestamp, no owner_pid → the staleness path reaps it.
+        let mut stale = state_with_owner(
+            Status::NeedsHelp,
+            None,
+            now - chrono::Duration::hours(STALE_AFTER_HOURS + 1),
+        );
+        reap_ended_sessions(&mut stale, now, |_| unreachable!("no pid to probe"));
+        assert_eq!(status_of(&stale), Status::Done);
+
+        // Fresh timestamp, no owner_pid → left alone.
+        let mut fresh = state_with_owner(Status::NeedsHelp, None, now);
+        reap_ended_sessions(&mut fresh, now, |_| unreachable!("no pid to probe"));
+        assert_eq!(status_of(&fresh), Status::NeedsHelp);
+    }
+
+    #[test]
+    fn a_dead_process_is_not_probed_for_already_done_sessions() {
+        let now = Utc::now();
+        let mut state = state_with_owner(Status::Done, Some(4242), now);
+        reap_ended_sessions(&mut state, now, |_| unreachable!("Done is skipped"));
+        assert_eq!(status_of(&state), Status::Done);
     }
 }
