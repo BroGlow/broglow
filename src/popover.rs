@@ -268,7 +268,9 @@ impl Popover {
         // reports the new dpr and this converges.
         #[cfg(target_os = "windows")]
         {
-            let scale = dpr.filter(|d| *d > 0.0).unwrap_or_else(|| self.true_scale());
+            let scale = dpr
+                .filter(|d| *d > 0.0)
+                .unwrap_or_else(|| self.true_scale());
             let want: PhysicalSize<u32> = size.to_physical(scale);
             self.wanted = Some(want);
             self.set_size_raw(want);
@@ -314,7 +316,10 @@ impl Popover {
         if new_size == want {
             return;
         }
-        if self.enforced_at.is_some_and(|t| t.elapsed() < Duration::from_millis(100)) {
+        if self
+            .enforced_at
+            .is_some_and(|t| t.elapsed() < Duration::from_millis(100))
+        {
             return;
         }
         self.enforced_at = Some(Instant::now());
