@@ -338,7 +338,7 @@ impl Popover {
         extern "system" {
             fn GetDpiForWindow(hwnd: isize) -> u32;
         }
-        let dpi = unsafe { GetDpiForWindow(self.window.hwnd() as isize) };
+        let dpi = unsafe { GetDpiForWindow(self.window.hwnd()) };
         if dpi == 0 {
             self.window.scale_factor()
         } else {
@@ -375,7 +375,7 @@ impl Popover {
         self.window.set_max_inner_size(Some(want));
         unsafe {
             SetWindowPos(
-                self.window.hwnd() as isize,
+                self.window.hwnd(),
                 0,
                 0,
                 0,
