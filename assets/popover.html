@@ -67,6 +67,11 @@ body.win .srow:hover { background: rgba(255,255,255,.06); }
 .sinfo { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
 .sname { font-size: 13px; font-weight: 590; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .smeta { font-size: 11px; color: rgba(255,255,255,.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Per-harness tag; rendered only for non-Claude sessions (opencode, …). */
+.badge { display: inline-block; font-size: 9px; font-weight: 700; line-height: 1.4;
+  color: #c678dd; background: rgba(198,120,221,.16); border-radius: 4px;
+  padding: 0 5px; margin-right: 6px; vertical-align: 1px; }
+body.win .badge { color: #c9a0ff; background: rgba(201,160,255,.16); }
 .time { font-size: 11px; color: rgba(255,255,255,.4); flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
 .focusbtn {
@@ -410,10 +415,11 @@ function render() {
         const tail = help
           ? `<button class="focusbtn" data-cmd="focus" data-id="${esc(s.id)}">Focus</button>`
           : `<span class="time">${relTime(s.lastUpdated)}</span>`;
+        const badge = s.badge ? `<span class="badge">${esc(s.badge)}</span>` : '';
         html += `<div class="srow${help ? ' helprow' : ''}" data-cmd="focus"` +
           ` data-id="${esc(s.id)}" title="Go to this session's terminal">` +
           `<span class="dot ${g.dot}"></span>` +
-          `<div class="sinfo"><span class="sname">${esc(s.name)}</span>` +
+          `<div class="sinfo"><span class="sname">${badge}${esc(s.name)}</span>` +
           `<span class="smeta">${meta}</span></div>${tail}</div>`;
       }
     }

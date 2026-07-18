@@ -35,6 +35,9 @@ pub struct DisplaySession {
     pub git_branch: Option<String>,
     pub message_count: u32,
     pub modified: String,
+    /// Which coding agent the session comes from: `None` for Claude Code (the
+    /// default), `Some("opencode")` etc. Drives the per-harness badge in the UI.
+    pub harness: Option<String>,
 }
 
 pub fn discover_projects() -> anyhow::Result<Vec<PathBuf>> {
@@ -93,6 +96,17 @@ fn char_prefix(s: &str, n: usize) -> String {
     s.chars().take(n).collect()
 }
 
+/// Compact per-harness badge label shown in both the TUI table and the tray
+/// popover (single source of truth so the two never drift). Claude sessions
+/// carry no harness and never reach here; known harnesses get a short code, and
+/// any future one falls back to its first two chars so nothing renders blank.
+pub fn harness_badge(harness: &str) -> String {
+    match harness {
+        "opencode" => "oc".to_string(),
+        other => other.chars().take(2).collect(),
+    }
+}
+
 pub fn load_all_sessions(hook_state: &HookState) -> Vec<DisplaySession> {
     let projects = discover_projects().unwrap_or_default();
     let mut all_entries: Vec<(String, SessionEntry)> = Vec::new();
@@ -133,6 +147,11 @@ fn merge_sessions(
             .get(&entry.session_id)
             .and_then(|s| s.name.clone());
 
+        let harness = hook_state
+            .sessions
+            .get(&entry.session_id)
+            .and_then(|s| s.harness.clone());
+
         let name = clawlight_name
             .or_else(|| entry.custom_title.clone())
             .or_else(|| entry.summary.clone())
@@ -150,6 +169,7 @@ fn merge_sessions(
             git_branch: entry.git_branch.clone(),
             message_count: entry.message_count.unwrap_or(0),
             modified: entry.modified.clone().unwrap_or_default(),
+            harness,
         });
 
         seen_ids.insert(entry.session_id.clone());
@@ -175,6 +195,7 @@ fn merge_sessions(
                 git_branch: None,
                 message_count: 0,
                 modified: session_status.last_updated.clone(),
+                harness: session_status.harness.clone(),
             });
         }
     }
@@ -232,5 +253,36 @@ mod tests {
         assert_eq!(char_prefix("abcdefghij", 8), "abcdefgh");
         // Fewer chars than requested → returns the whole string, no panic.
         assert_eq!(char_prefix("日本", 8), "日本");
+    }
+
+    #[test]
+    fn merge_carries_the_harness_tag_from_hook_state() {
+        use crate::state::{HookState, SessionStatus, Status};
+
+        let session = |name: &str, harness: Option<&str>| SessionStatus {
+            status: Status::Active,
+            last_updated: "2026-01-01T00:00:00Z".to_string(),
+            project_path: Some("/tmp/proj".to_string()),
+            notification_type: None,
+            name: Some(name.to_string()),
+            terminal: None,
+            harness: harness.map(str::to_string),
+        };
+
+        let mut hook_state = HookState::default();
+        hook_state.sessions.insert(
+            "ses_oc".to_string(),
+            session("Wire opencode", Some("opencode")),
+        );
+        hook_state
+            .sessions
+            .insert("cc_1".to_string(), session("Fix bug", None));
+
+        // No sessions-index entries → both take the hook-only merge path.
+        let sessions = super::merge_sessions(Vec::new(), &hook_state);
+        let oc = sessions.iter().find(|s| s.session_id == "ses_oc").unwrap();
+        let cc = sessions.iter().find(|s| s.session_id == "cc_1").unwrap();
+        assert_eq!(oc.harness.as_deref(), Some("opencode"));
+        assert_eq!(cc.harness, None, "claude sessions carry no harness tag");
     }
 }

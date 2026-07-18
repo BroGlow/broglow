@@ -49,16 +49,21 @@ serial port. Redeploy the installed one instead.
 | `menubar` | Run the tray daemon in the foreground |
 | `led [--port]` | Foreground ESP32 LED mirror (debugging) |
 | `update <firmware> [--port]` | Serial-OTA push of new board firmware |
-| `hook` *(hidden)* | Hook backend; reads one event as JSON on stdin |
+| `hook` *(hidden)* | Claude Code hook backend; reads one event as JSON on stdin |
+| `event` *(hidden)* | Normalized-event backend for non-Claude harnesses (opencode); reads one event as JSON on stdin |
 | `name <id> <transcript>` *(hidden)* | Detached auto-namer; titles a session via the `claude` CLI |
 
 ## Module map (src/)
 
 - **main.rs** — CLI parsing, TUI setup/teardown (panic hook restores the terminal),
   and all install/uninstall + per-platform autostart logic.
-- **hook.rs** — the `hook` and `name` backends. Maps hook events → `Status`, does the
-  locked read-modify-write of `state.json`, spawns the detached auto-namer on first `Stop`.
-- **state.rs** — `HookState`/`SessionStatus`/`Status` types, `state.json` read/write
+- **hook.rs** — the `hook`, `event`, and `name` backends. Maps Claude hook events (and
+  the harness-agnostic normalized verbs from `event`) → `Status`, does the locked
+  read-modify-write of `state.json` via the shared `update_state` helper, spawns the
+  detached auto-namer on first `Stop`. `run_event` is the multi-harness ingestion path
+  (opencode today) — see "Multi-harness adapters" below.
+- **state.rs** — `HookState`/`SessionStatus`/`Status` types (incl. the optional
+  `harness` tag: absent = Claude, `"opencode"` = opencode), `state.json` read/write
   (atomic temp-file + rename), the shared `.state.lock` (`acquire_state_lock`), the
   `reap_ended_sessions` downgrade to `Done` (dead-process reap via `terminal::is_alive`,
   plus the 24h staleness backstop), and `Aggregate` (Red/Yellow/Green/None) health rollup.
@@ -95,6 +100,49 @@ Aggregate health for the icon/LED: any `NeedsHelp` → Red; then the `yellow_mod
 any `Inactive` → Yellow, else any `Active` → Green; `active_wins`: any `Active` → Green,
 Yellow only when every live session is idle. No live sessions → None (gray).
 See `state::aggregate`.
+
+## Multi-harness adapters (opencode, and future ones)
+
+Sessions from other coding agents flow into the *same* `state.json` and so light up the
+TUI, tray, aggregate, and LED with no reader changes — `merge_sessions` already displays
+hook-state sessions that have no Claude sessions-index entry. The adapter is deliberately
+thin:
+
+- **`clawlight event`** (`hook::run_event`) is the ingestion path. It reads one *normalized*
+  event as JSON on stdin: `{ harness, event, session_id, title?, directory? }`. The status
+  verbs are harness-agnostic — a future Codex/Copilot adapter emits the same shape and needs
+  no new Rust:
+
+  | verb | `Status` |
+  |---|---|
+  | `working` / `resumed` | `Active` (chatty `working` is write-suppressed when already active, unless a title rides along) |
+  | `idle` | `Inactive` |
+  | `needs_input` | `NeedsHelp` |
+  | `ended` | `Done` |
+  | `title` | name-only update, never changes status (an idle session must not flip green on a rename) |
+  | `reconnected` | restart sweep: this harness's `Active`/`Inactive` sessions whose owner process is gone (or was never captured) → `Done` |
+
+  Unknown verbs and (except `reconnected`) missing session ids are dropped, never errors.
+- **`SessionStatus.harness`** tags the origin (`#[serde(default, skip_serializing_if)]`;
+  absent = Claude). Backward/forward compatible in both directions.
+- **`update_state`** in hook.rs is the one locked RMW helper shared by `run` (Claude hooks),
+  `run_event`, and `run_namer` — never reimplement the lock / atomic-write / never-write-on-
+  unreadable rules.
+- **`assets/opencode-plugin.js`** is embedded via `include_str!` and written to opencode's
+  global `~/.config/opencode/plugins/clawlight.js` at install time, with this binary's absolute
+  path and version baked in (so it runs even when clawlight isn't on opencode's PATH; the
+  unconditional rewrite each install is the version-skew fix). It is **logic-free by design**:
+  it only normalizes opencode's bus events to the verbs above and fire-and-forgets `clawlight
+  event` — every mapping decision lives in Rust where it's tested. Install is detection-gated
+  (opencode config dir exists *or* `opencode` on PATH); uninstall removes the file only if it
+  still carries the `managed by clawlight` header. opencode loads plugins at startup, so
+  already-running sessions need a restart to appear.
+- **Shutdown** (opencode has no per-session exit event) is handled in three layers: the
+  plugin's `process.on("exit")` emits `ended`; the `reconnected` sweep is the backstop; and,
+  because `run_event` captures the host terminal's `owner_pid` on first sighting, the existing
+  `state::reap_ended_sessions` dead-process reap already clears a terminal-hosted opencode
+  session whose process exits. `opencode serve` (no controlling tty) has no `owner_pid` and
+  leans on the sweep / 24h staleness backstop.
 
 ## Conventions & gotchas
 
@@ -154,13 +202,15 @@ by the test in `ota.rs`.
 
 `.github/workflows/ci.yml` runs on PRs and pushes to main: `cargo fmt --check`,
 then clippy (`-D warnings`) + `cargo test` on ubuntu/macos/windows. The tests/
-suite drives the *compiled binary* end-to-end: hook events on stdin →
+suite drives the *compiled binary* end-to-end: Claude hook events on stdin →
 `state.json` assertions, the auto-namer against a fake `claude` on PATH
 (hook_lifecycle.rs, unix-only — `$HOME` can't be redirected on Windows),
-install/uninstall round-trip (install.rs, Linux-only — on macOS it would
-`launchctl bootout` the dev machine's real daemon), and CLI smoke tests
-(cli.rs, all platforms). Prefer extending these over unit tests for new
-behavior. A `Stop` event with a `transcript_path` spawns the real detached
+normalized harness events → `state.json` (event_lifecycle.rs, unix-only, same
+reason), install/uninstall round-trip incl. the opencode plugin (install.rs,
+Linux-only — on macOS it would `launchctl bootout` the dev machine's real
+daemon), and CLI smoke tests incl. a `node --check` parse of the embedded
+opencode plugin when node is present (cli.rs, all platforms). Prefer extending
+these over unit tests for new behavior. A `Stop` event with a `transcript_path` spawns the real detached
 namer — tests must omit it or pre-seed a name.
 
 `.github/workflows/release.yml` builds and packages release binaries per platform.
