@@ -43,6 +43,11 @@ fs4 = { version = "0.13", features = ["sync"] }
 # opaque white backdrop behind the popover card's shadow padding.
 wry = { version = "0.48", features = ["transparent"] }
 
+# Process-liveness check for reaping sessions whose Claude Code process exited
+# without a SessionEnd hook (terminal.rs `is_alive`): kill(pid, 0) via libc.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 # Desktop notifications on non-macOS platforms (WinRT toast / freedesktop).
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 notify-rust = "4"
