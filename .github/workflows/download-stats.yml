@@ -22,7 +22,7 @@ jobs:
   stats:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Report release download counts
         env:
