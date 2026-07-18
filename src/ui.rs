@@ -25,7 +25,7 @@ const FOOT_FG: Color = Color::Rgb(0x8a, 0x8d, 0x98);
 const KBD_BG: Color = Color::Rgb(0x2a, 0x2e, 0x3a);
 // Per-harness badge (One Dark purple on a muted fill) — only non-Claude
 // sessions carry one, so Claude rows stay unadorned. The label comes from the
-// shared `session::harness_badge` so the TUI and popover can't diverge.
+// shared `harness::badge` so the TUI and popover can't diverge.
 const BADGE_FG: Color = Color::Rgb(0xc6, 0x78, 0xdd);
 const BADGE_BG: Color = Color::Rgb(0x30, 0x28, 0x3a);
 
@@ -157,7 +157,7 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
             let mut name_spans = Vec::new();
             if let Some(h) = &s.harness {
                 name_spans.push(Span::styled(
-                    format!(" {} ", crate::session::harness_badge(h)),
+                    format!(" {} ", crate::harness::badge(h)),
                     Style::default().fg(BADGE_FG).bg(BADGE_BG),
                 ));
                 name_spans.push(Span::raw(" "));

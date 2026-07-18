@@ -310,3 +310,151 @@ fn reconnected_sweeps_stale_opencode_sessions_but_spares_other_harnesses() {
     assert_eq!(session_status(&state, "ses-stale"), "done");
     assert_eq!(session_status(&state, "cc-1"), "active");
 }
+
+#[test]
+fn an_event_without_a_harness_is_dropped() {
+    let home = temp_home();
+    // A generic ingestion path must not attribute a harness-less event to
+    // anyone (that's how a buggy future adapter would masquerade as opencode).
+    run_event(
+        &home,
+        &json!({"event": "working", "session_id": "nh-1"}).to_string(),
+    )
+    .success();
+    assert!(!state_path(&home).exists());
+}
+
+#[test]
+fn ended_for_an_unknown_session_writes_nothing() {
+    let home = temp_home();
+    // No ghost `Done` row for a session we never saw.
+    run_event(&home, &ev("ended", "ses-ghost")).success();
+    assert!(!state_path(&home).exists());
+}
+
+#[test]
+fn a_status_event_without_a_directory_preserves_the_project_path() {
+    let home = temp_home();
+    // First event carries the directory…
+    run_event(&home, &ev("working", "ses-dir")).success();
+    assert_eq!(
+        read_state(&home)["sessions"]["ses-dir"]["project_path"],
+        "/tmp/oc-project"
+    );
+    // …a later status-only event omits it and must not blank the label.
+    run_event(
+        &home,
+        &json!({"harness": "opencode", "event": "idle", "session_id": "ses-dir"}).to_string(),
+    )
+    .success();
+    let state = read_state(&home);
+    assert_eq!(session_status(&state, "ses-dir"), "inactive");
+    assert_eq!(
+        state["sessions"]["ses-dir"]["project_path"],
+        "/tmp/oc-project"
+    );
+}
+
+#[test]
+fn a_working_event_with_a_title_writes_even_when_already_active() {
+    let home = temp_home();
+    let old_timestamp = "2020-01-01T00:00:00Z";
+    seed_state(
+        &home,
+        &json!({
+            "sessions": {
+                "ses-w": {
+                    "status": "active",
+                    "last_updated": old_timestamp,
+                    "project_path": null,
+                    "notification_type": null,
+                    "name": "old name",
+                    "harness": "opencode",
+                }
+            }
+        }),
+    );
+
+    // Already active, but a title rides along → the write is NOT suppressed.
+    run_event(&home, &ev_title("working", "ses-w", "fresh title")).success();
+
+    let state = read_state(&home);
+    assert_eq!(state["sessions"]["ses-w"]["name"], "fresh title");
+    assert_ne!(state["sessions"]["ses-w"]["last_updated"], old_timestamp);
+}
+
+#[test]
+fn a_foreign_harness_flows_through_and_sweeps_stay_scoped() {
+    let home = temp_home();
+    // A future adapter (here "codex") uses the exact same verbs, no new Rust.
+    run_event(
+        &home,
+        &json!({"harness": "codex", "event": "working", "session_id": "cx-1"}).to_string(),
+    )
+    .success();
+    let state = read_state(&home);
+    assert_eq!(session_status(&state, "cx-1"), "active");
+    assert_eq!(state["sessions"]["cx-1"]["harness"], "codex");
+
+    // A codex reconnect sweep must leave a stale opencode session untouched, and
+    // vice-versa. Seed one stale session of each (no owner PID → stale).
+    seed_state(
+        &home,
+        &json!({
+            "sessions": {
+                "cx-stale": {"status": "active", "last_updated": "2020-01-01T00:00:00Z",
+                    "project_path": null, "notification_type": null, "name": null, "harness": "codex"},
+                "oc-stale": {"status": "active", "last_updated": "2020-01-01T00:00:00Z",
+                    "project_path": null, "notification_type": null, "name": null, "harness": "opencode"},
+            }
+        }),
+    );
+    run_event(
+        &home,
+        &json!({"harness": "codex", "event": "reconnected"}).to_string(),
+    )
+    .success();
+    let state = read_state(&home);
+    assert_eq!(
+        session_status(&state, "cx-stale"),
+        "done",
+        "codex sweep clears codex"
+    );
+    assert_eq!(
+        session_status(&state, "oc-stale"),
+        "active",
+        "codex sweep must not touch opencode"
+    );
+}
+
+#[test]
+fn reconnected_spares_a_session_whose_owner_is_alive() {
+    let home = temp_home();
+    // owner_pid = this test process, which is alive for the duration → the
+    // session belongs to a still-running server and must survive the sweep.
+    let live_pid = std::process::id();
+    seed_state(
+        &home,
+        &json!({
+            "sessions": {
+                "ses-live": {
+                    "status": "active",
+                    "last_updated": "2020-01-01T00:00:00Z",
+                    "project_path": null,
+                    "notification_type": null,
+                    "name": null,
+                    "harness": "opencode",
+                    "terminal": { "owner_pid": live_pid },
+                }
+            }
+        }),
+    );
+
+    run_event(
+        &home,
+        &json!({"harness": "opencode", "event": "reconnected"}).to_string(),
+    )
+    .success();
+
+    assert_eq!(session_status(&read_state(&home), "ses-live"), "active");
+}

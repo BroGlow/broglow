@@ -1,5 +1,6 @@
 mod app;
 mod config;
+mod harness;
 mod hook;
 mod led;
 mod menubar;
@@ -156,110 +157,6 @@ const HOOK_EVENTS: [&str; 6] = [
     "PreToolUse",
 ];
 
-/// The opencode plugin, embedded at build time. `install` writes this to
-/// opencode's global plugin dir with the version and this binary's absolute
-/// path substituted in (see [`install_opencode_plugin`]).
-const OPENCODE_PLUGIN_TEMPLATE: &str = include_str!("../assets/opencode-plugin.js");
-
-/// Header line every clawlight-written plugin carries. `uninstall` only deletes
-/// a plugin file that still has it, so a user's hand-rolled file at the same
-/// path is never removed.
-const OPENCODE_PLUGIN_MARKER: &str = "managed by clawlight";
-
-/// opencode's global config directory (`~/.config/opencode`). Its existence is
-/// one of the two opencode-present signals (the other is the binary on PATH).
-fn opencode_config_dir() -> PathBuf {
-    dirs::home_dir()
-        .expect("Home directory must exist")
-        .join(".config")
-        .join("opencode")
-}
-
-/// Where the clawlight plugin is written. opencode auto-loads JS/TS modules from
-/// the global `plugins/` directory (plural — confirmed against opencode's plugin
-/// docs; a spike item because ecosystem posts disagree on singular vs plural).
-fn opencode_plugin_path() -> PathBuf {
-    opencode_config_dir().join("plugins").join("clawlight.js")
-}
-
-/// Whether opencode looks installed on this machine: its config dir exists, or
-/// an `opencode` executable is on PATH. Gates writing the plugin so we stay
-/// silent on machines that don't use opencode.
-fn opencode_detected() -> bool {
-    opencode_config_dir().exists() || is_on_path("opencode")
-}
-
-/// Whether `program` resolves to a file on the current `PATH`. On Windows also
-/// tries the `.exe`/`.cmd` extensions from `PATHEXT`.
-fn is_on_path(program: &str) -> bool {
-    let Some(paths) = std::env::var_os("PATH") else {
-        return false;
-    };
-    let candidates = |dir: &std::path::Path| -> Vec<PathBuf> {
-        let base = dir.join(program);
-        #[cfg(windows)]
-        {
-            let mut v = vec![base];
-            for ext in ["exe", "cmd", "bat"] {
-                v.push(dir.join(format!("{program}.{ext}")));
-            }
-            v
-        }
-        #[cfg(not(windows))]
-        {
-            vec![base]
-        }
-    };
-    std::env::split_paths(&paths)
-        .flat_map(|dir| candidates(&dir))
-        .any(|p| p.is_file())
-}
-
-/// Escape a string for embedding inside a JS double-quoted literal. The baked
-/// binary path can contain backslashes (Windows) or, in principle, quotes.
-fn js_string_escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"")
-}
-
-/// Write (or overwrite) the opencode plugin with this binary's absolute path and
-/// version baked in, but only when opencode is detected. Idempotent: the
-/// unconditional overwrite is also the version-skew fix — every `clawlight
-/// install` re-syncs the plugin to the current binary. Best-effort: a failure
-/// to write the plugin never blocks hook registration.
-fn install_opencode_plugin() -> anyhow::Result<()> {
-    if !opencode_detected() {
-        return Ok(());
-    }
-    let exe = std::env::current_exe().context("Resolving current executable path")?;
-    let contents = OPENCODE_PLUGIN_TEMPLATE
-        .replace("{{VERSION}}", env!("CARGO_PKG_VERSION"))
-        .replace("{{BIN}}", &js_string_escape(&exe.display().to_string()));
-
-    let path = opencode_plugin_path();
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).context("Creating opencode plugin dir")?;
-    }
-    std::fs::write(&path, contents).context("Writing opencode plugin")?;
-    println!("Wrote opencode plugin to {}", path.display());
-    println!("  (restart any running opencode sessions to pick it up)");
-    Ok(())
-}
-
-/// Remove the clawlight opencode plugin — but only if it still carries our
-/// managed-by header, so a user's own file at that path is left untouched.
-fn uninstall_opencode_plugin() {
-    let path = opencode_plugin_path();
-    let Ok(contents) = std::fs::read_to_string(&path) else {
-        return;
-    };
-    if !contents.contains(OPENCODE_PLUGIN_MARKER) {
-        return;
-    }
-    if std::fs::remove_file(&path).is_ok() {
-        println!("Removed {}", path.display());
-    }
-}
-
 /// Register clawlight's native hook backend in ~/.claude/settings.json for every
 /// lifecycle event, and ensure the state/log dir exists. Idempotent. Does *not*
 /// touch autostart — `install_hooks` layers that on top; the menu-bar daemon's
@@ -307,15 +204,13 @@ fn register_hooks() -> anyhow::Result<()> {
 
     println!("Updated {}", settings_file.display());
 
-    // If opencode is present, drop in the plugin that mirrors its sessions the
-    // same way. Best-effort and detection-gated: a failure here never breaks
-    // Claude hook registration, and machines without opencode see nothing. Sits
-    // in register_hooks (not install_hooks) so both first-run paths — the TUI's
-    // full install and the daemon's hooks-only bootstrap — write it; it touches
-    // no autostart, so it's safe from the daemon path.
-    if let Err(e) = install_opencode_plugin() {
-        eprintln!("clawlight: could not write the opencode plugin: {e:#}");
-    }
+    // Set up every detected non-Claude harness (opencode today). Best-effort and
+    // detection-gated per adapter: a failure never breaks Claude hook
+    // registration, and machines without those agents see nothing. Sits in
+    // register_hooks (not install_hooks) so both first-run paths — the TUI's full
+    // install and the daemon's hooks-only bootstrap — set them up; adapters
+    // touch no autostart, so this is safe from the daemon path.
+    harness::install_all();
 
     Ok(())
 }
@@ -446,8 +341,9 @@ fn uninstall_hooks() -> anyhow::Result<()> {
     // Remove autostart first (best-effort).
     let _ = uninstall_autostart();
 
-    // Remove the opencode plugin (best-effort; only ours, by header).
-    uninstall_opencode_plugin();
+    // Remove every harness's wiring (best-effort; each is marker-guarded so a
+    // hand-rolled file is never deleted).
+    harness::uninstall_all();
 
     // Remove hooks from settings.json
     let settings_file = settings_path();

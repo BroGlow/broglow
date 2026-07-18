@@ -315,7 +315,7 @@ fn build_payload(state: &HookState) -> String {
             project: project_label(s),
             status: &s.status,
             last_updated: &s.last_updated,
-            badge: s.harness.as_deref().map(crate::session::harness_badge),
+            badge: s.harness.as_deref().map(crate::harness::badge),
         })
         .collect();
     let payload = StatePayload {

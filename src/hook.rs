@@ -188,7 +188,13 @@ pub fn run_event() -> anyhow::Result<()> {
             .map(str::to_string)
             .filter(|s| !s.is_empty())
     };
-    let harness = field("harness").unwrap_or_else(|| "opencode".to_string());
+    // `harness` is required and never defaulted: a generic ingestion path must
+    // not silently attribute a mislabeled event to one specific harness (which
+    // would give it the wrong badge and expose it to that harness's sweeps). A
+    // missing harness — a buggy adapter, or a bare `reconnected` — is dropped.
+    let Some(harness) = field("harness") else {
+        return Ok(());
+    };
     let event = field("event").unwrap_or_default();
     let session_id = field("session_id");
     let title = field("title");
@@ -235,6 +241,14 @@ pub fn run_event() -> anyhow::Result<()> {
     update_state(|state| {
         let existing = state.sessions.get(&session_id);
 
+        // `ended` for a session we never saw is a no-op: creating a fresh `Done`
+        // row (and paying a `terminal::capture` `ps` to do it) would only add a
+        // ghost. The plugin's exit handler can emit `ended` for ids whose first
+        // event was dropped.
+        if event == "ended" && existing.is_none() {
+            return false;
+        }
+
         // `working` is chatty (fires on every message/tool step). Skip the write
         // when nothing would change — the same suppression as the Claude
         // PreToolUse path — so the file watchers don't thrash. A title still
@@ -247,16 +261,24 @@ pub fn run_event() -> anyhow::Result<()> {
             }
         }
 
-        // opencode owns its titles: a provided title becomes the name; otherwise
-        // keep whatever name we already have.
+        // The harness owns its titles: a provided title becomes the name;
+        // otherwise keep whatever name we already have.
         let name = title
             .clone()
             .or_else(|| existing.and_then(|s| s.name.clone()));
 
+        // `directory` is optional in the contract, so preserve the existing
+        // project path when an event omits it (as `name`/`terminal` are) — a
+        // thin-payload adapter must not blank the project label on every status
+        // flip.
+        let project_path = directory
+            .clone()
+            .or_else(|| existing.and_then(|s| s.project_path.clone()));
+
         // Capture the host terminal once, on first sighting (the `created`
         // event), and carry it forward afterward so chatty events don't each
-        // spawn a `ps`. The captured owner PID is what lets the reader reap an
-        // opencode session whose process exited without an `ended` event.
+        // spawn a `ps`. The captured owner PID is what lets the reader reap a
+        // harness session whose process exited without an `ended` event.
         let terminal = match existing.and_then(|s| s.terminal.clone()) {
             Some(t) => Some(t),
             None => Some(crate::terminal::capture()),
@@ -267,7 +289,7 @@ pub fn run_event() -> anyhow::Result<()> {
             SessionStatus {
                 status: status.clone(),
                 last_updated: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-                project_path: directory.clone(),
+                project_path,
                 notification_type: None,
                 name,
                 terminal,
@@ -288,6 +310,14 @@ pub fn run_event() -> anyhow::Result<()> {
 /// captured — e.g. `opencode serve` with no controlling tty): a live server's
 /// sessions keep a live PID and are left alone. This is the backstop for the
 /// plugin's own best-effort exit handler.
+///
+/// Note: the "spare a live second server" guard relies on `owner_pid`, which is
+/// only captured on unix (`terminal::capture_tty_owner`). On a platform that
+/// can't identify the owner PID, every same-harness session is treated as stale
+/// on reconnect — fine for the common single-instance case, but a concurrent
+/// second server's idle sessions would be swept (they self-heal on their next
+/// event). A future adapter relying on this must not assume the guard holds off
+/// unix.
 fn sweep_reconnected(harness: &str) -> anyhow::Result<()> {
     update_state(|state| {
         let mut changed = false;

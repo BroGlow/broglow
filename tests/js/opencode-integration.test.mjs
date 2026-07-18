@@ -184,6 +184,22 @@ test("server.connected sweeps this harness's stale sessions to done", {
   assert.equal(s.sessions.ses_old.status, "done");
 });
 
+test("the plugin registers only an exit handler, never signal handlers", {
+  skip: isWindows && "unix-only",
+}, async () => {
+  // A signal handler that calls process.exit() would pre-empt opencode's own
+  // Ctrl+C cleanup — the one place the "can't hurt the host" rule could break.
+  const before = {
+    exit: process.listenerCount("exit"),
+    sigint: process.listenerCount("SIGINT"),
+    sigterm: process.listenerCount("SIGTERM"),
+  };
+  await plugin.clawlight({ directory: "/tmp/x" });
+  assert.equal(process.listenerCount("exit") - before.exit, 1, "one exit handler");
+  assert.equal(process.listenerCount("SIGINT") - before.sigint, 0, "no SIGINT handler");
+  assert.equal(process.listenerCount("SIGTERM") - before.sigterm, 0, "no SIGTERM handler");
+});
+
 test("the plugin flips its live sessions to done on process exit", {
   skip: isWindows && "unix-only",
 }, async () => {

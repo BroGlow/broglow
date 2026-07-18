@@ -118,6 +118,31 @@ fn install_skips_the_plugin_when_opencode_is_absent() {
 }
 
 #[test]
+fn reinstall_overwrites_a_stale_managed_plugin() {
+    let home = TempDir::new().unwrap();
+    let plugin_dir = home.path().join(".config/opencode/plugins");
+    std::fs::create_dir_all(&plugin_dir).unwrap();
+    let plugin = plugin_dir.join("clawlight.js");
+    // A plugin from an older build: our marker (so it's ours to replace), an
+    // un-substituted binary placeholder, and a sentinel that must not survive.
+    std::fs::write(
+        &plugin,
+        "// managed by clawlight v0.0.1\nconst CLAWLIGHT_BIN = \"{{BIN}}\";\n// STALE_SENTINEL\n",
+    )
+    .unwrap();
+
+    run(&home, "install");
+
+    let contents = std::fs::read_to_string(&plugin).unwrap();
+    assert!(
+        !contents.contains("STALE_SENTINEL"),
+        "reinstall must overwrite the stale plugin (version-skew fix)"
+    );
+    assert!(!contents.contains("{{BIN}}"), "binary path re-substituted");
+    assert!(contents.contains("managed by clawlight"), "still managed");
+}
+
+#[test]
 fn uninstall_leaves_a_foreign_opencode_plugin_alone() {
     let home = TempDir::new().unwrap();
     let plugin_dir = home.path().join(".config/opencode/plugins");

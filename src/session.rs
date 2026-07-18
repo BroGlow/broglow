@@ -96,17 +96,6 @@ fn char_prefix(s: &str, n: usize) -> String {
     s.chars().take(n).collect()
 }
 
-/// Compact per-harness badge label shown in both the TUI table and the tray
-/// popover (single source of truth so the two never drift). Claude sessions
-/// carry no harness and never reach here; known harnesses get a short code, and
-/// any future one falls back to its first two chars so nothing renders blank.
-pub fn harness_badge(harness: &str) -> String {
-    match harness {
-        "opencode" => "oc".to_string(),
-        other => other.chars().take(2).collect(),
-    }
-}
-
 pub fn load_all_sessions(hook_state: &HookState) -> Vec<DisplaySession> {
     let projects = discover_projects().unwrap_or_default();
     let mut all_entries: Vec<(String, SessionEntry)> = Vec::new();

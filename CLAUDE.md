@@ -122,12 +122,22 @@ thin:
   | `title` | name-only update, never changes status (an idle session must not flip green on a rename) |
   | `reconnected` | restart sweep: this harness's `Active`/`Inactive` sessions whose owner process is gone (or was never captured) → `Done` |
 
-  Unknown verbs and (except `reconnected`) missing session ids are dropped, never errors.
+  Unknown verbs, a missing `harness`, and (except `reconnected`) missing session ids are
+  dropped, never errors. `harness` is **required** — never defaulted to a specific agent, or a
+  mislabeled event would masquerade as it. `directory` is optional and, like `name`/`terminal`,
+  preserved when an event omits it.
 - **`SessionStatus.harness`** tags the origin (`#[serde(default, skip_serializing_if)]`;
   absent = Claude). Backward/forward compatible in both directions.
 - **`update_state`** in hook.rs is the one locked RMW helper shared by `run` (Claude hooks),
   `run_event`, and `run_namer` — never reimplement the lock / atomic-write / never-write-on-
   unreadable rules.
+- **`harness.rs` is the registry.** Everything agent-specific — detection, plugin/hook
+  install + uninstall, and the UI badge — lives in one `const ADAPTERS: &[Adapter]` table.
+  `install_all`/`uninstall_all` (called from `register_hooks`/`uninstall_hooks`) and
+  `badge(name)` (used by the TUI and popover) iterate it, so **adding Codex/Copilot is one
+  `Adapter` entry + its embedded asset**, not edits across main.rs/session.rs/ui.rs. Each new
+  harness needs a **unique** `badge` (a test enforces it — the `codex`/`copilot` → `"co"`
+  collision is the trap the two-char fallback would otherwise hide).
 - **`assets/opencode-plugin.js`** is embedded via `include_str!` and written to opencode's
   global `~/.config/opencode/plugins/clawlight.js` at install time, with this binary's absolute
   path and version baked in (so it runs even when clawlight isn't on opencode's PATH; the

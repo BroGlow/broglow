@@ -60,7 +60,9 @@ export const clawlight = async ({ directory, worktree, project }) => {
           directory: dir,
         }),
         stdio: ["pipe", "ignore", "ignore"],
-        timeout: 2000,
+        // Runs in the exit path × one per live session, so keep it short — a
+        // wedged clawlight must not hold up the host's shutdown.
+        timeout: 500,
       });
     } catch (_) {
       // never throw out of an exit handler
@@ -71,9 +73,12 @@ export const clawlight = async ({ directory, worktree, project }) => {
     live.clear();
   };
   try {
+    // Only the `exit` event — deliberately NOT SIGINT/SIGTERM. Calling
+    // process.exit() from our own signal listener would run alongside (and
+    // could pre-empt) opencode's own signal cleanup, turning a cancel into a
+    // kill. A signal that ends the process still fires `exit`; anything that
+    // skips `exit` (SIGKILL) is caught by clawlight's owner-PID reap instead.
     process.once("exit", markEnded);
-    process.once("SIGINT", () => process.exit(0));
-    process.once("SIGTERM", () => process.exit(0));
   } catch (_) {
     // process may be sandboxed; the owner-PID reap still covers shutdown
   }
@@ -105,6 +110,9 @@ export const clawlight = async ({ directory, worktree, project }) => {
             break;
           case "message.updated":
           case "tool.execute.before":
+            // Not role-filtered: in a real session the last event before the
+            // turn ends is `session.idle`, so a trailing assistant
+            // `message.updated` doesn't arrive after it to flicker green.
             if (sid) send("working", sid);
             break;
           case "session.idle":
