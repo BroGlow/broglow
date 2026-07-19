@@ -163,6 +163,26 @@ test("session.updated passes the new title through without changing status", {
   assert.equal(s.sessions[id].status, "inactive");
 });
 
+test("a burst of working before idle still settles on idle (write ordering)", {
+  skip: isWindows && "unix-only",
+}, async () => {
+  const home = sandbox();
+  const emit = newSession();
+  const id = "ses_burst";
+  await emit("session.created", info(id));
+  // The end-of-turn cadence: several `working` events then `idle`, with no gaps.
+  // Detached, unordered writes used to let a stray `working` land after `idle`
+  // and leave the light stuck green; the plugin serializes sends to prevent it.
+  for (let i = 0; i < 8; i++) await emit("message.updated", info(id));
+  await emit("session.idle", { sessionID: id });
+
+  const s = await waitFor(home, (st) => st.sessions[id]?.status === "inactive");
+  assert.equal(s.sessions[id].status, "inactive");
+  // Must STAY inactive once the whole queue has drained (no late working write).
+  await sleep(500);
+  assert.equal(readState(home).sessions[id].status, "inactive");
+});
+
 test("server.connected sweeps this harness's stale sessions to done", {
   skip: isWindows && "unix-only",
 }, async () => {

@@ -22,25 +22,49 @@ export const clawlight = async ({ directory, worktree, project }) => {
   const dir =
     worktree || directory || (project && (project.worktree || project.path)) || "";
 
-  // Fire-and-forget: write one normalized event to `clawlight event` on stdin
-  // and never await the child. Every failure (binary gone, spawn error, broken
-  // pipe) is swallowed — the host must never notice clawlight.
+  // Spawn one `clawlight event` and resolve when it exits (or after a short
+  // timeout, so a wedged clawlight can't stall the queue). Detached + unref so
+  // the write still completes if opencode exits right after; failures swallowed.
+  const spawnEvent = (event, sessionID, title) =>
+    new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (!done) {
+          done = true;
+          resolve();
+        }
+      };
+      try {
+        const child = spawn(CLAWLIGHT_BIN, ["event"], {
+          stdio: ["pipe", "ignore", "ignore"],
+          detached: true,
+        });
+        child.on("error", finish);
+        child.on("exit", finish);
+        child.stdin.on("error", () => {});
+        const payload = { harness: "opencode", event, directory: dir };
+        if (sessionID) payload.session_id = sessionID;
+        if (title) payload.title = title;
+        child.stdin.end(JSON.stringify(payload));
+        child.unref();
+        const t = setTimeout(finish, 3000);
+        if (t.unref) t.unref();
+      } catch (_) {
+        finish();
+      }
+    });
+
+  // Serialize the sends so `state.json` writes land in the exact order opencode
+  // emits events. This is the whole reason the queue exists: the spawns are
+  // otherwise concurrent detached processes that the state lock serializes in an
+  // arbitrary order, so a `working` write from just before a turn ends could
+  // land after `idle`/`ended` and wrongly flip the light back to green. The
+  // event handler still returns immediately — the chain drains in the
+  // background — so the host is never blocked. Errors are swallowed so one bad
+  // spawn can't wedge the queue.
+  let queue = Promise.resolve();
   const send = (event, sessionID, title) => {
-    try {
-      const child = spawn(CLAWLIGHT_BIN, ["event"], {
-        stdio: ["pipe", "ignore", "ignore"],
-        detached: true,
-      });
-      child.on("error", () => {});
-      child.stdin.on("error", () => {});
-      const payload = { harness: "opencode", event, directory: dir };
-      if (sessionID) payload.session_id = sessionID;
-      if (title) payload.title = title;
-      child.stdin.end(JSON.stringify(payload));
-      child.unref();
-    } catch (_) {
-      // never throw into the host
-    }
+    queue = queue.then(() => spawnEvent(event, sessionID, title)).catch(() => {});
   };
 
   // Shutdown layer (a): when this opencode process exits, mark every session it
