@@ -40,6 +40,14 @@ pub struct SessionStatus {
     /// state files written before this field existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terminal: Option<TerminalInfo>,
+    /// Which coding agent produced this session: absent for Claude Code (the
+    /// original harness and the default), `"opencode"` for opencode, etc.
+    /// Written by `clawlight event` from the normalized-event `harness` field;
+    /// Claude hooks leave it `None`. Lets later UI badge sessions per harness
+    /// and keeps the reconnect sweep able to target one harness's sessions.
+    /// Absent in state files written before this field existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub harness: Option<String>,
 }
 
 /// Identity of the terminal window / host app running a session, recorded at
@@ -273,6 +281,7 @@ mod tests {
                     notification_type: None,
                     name: None,
                     terminal: None,
+                    harness: None,
                 },
             );
         }
@@ -340,6 +349,7 @@ mod tests {
                     owner_pid,
                     ..Default::default()
                 }),
+                harness: None,
             },
         );
         state

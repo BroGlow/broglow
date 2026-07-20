@@ -28,6 +28,30 @@ enum LoadedState {
     Unreadable,
 }
 
+/// Locked read-modify-write of `state.json`, shared by every ingestion path:
+/// the Claude hook backend ([`run`]), the auto-namer ([`run_namer`]), and the
+/// normalized harness-event backend ([`run_event`]).
+///
+/// Acquires the same `.state.lock` all writers hold — so a concurrent hook from
+/// another session can't read a stale snapshot between our read and our rename —
+/// loads the current state, and, unless the file is [`LoadedState::Unreadable`]
+/// (where writing would wipe every other session's status), hands it to
+/// `mutate`. Writes the result back atomically only when `mutate` returns
+/// `true`. The lock is held for the whole span and released when this returns.
+/// Best-effort locking: if the lock can't be taken we proceed unlocked rather
+/// than break ingestion.
+fn update_state(mutate: impl FnOnce(&mut HookState) -> bool) -> anyhow::Result<()> {
+    let _lock = acquire_state_lock();
+    let mut state = match read_state_raw() {
+        LoadedState::Fresh(s) | LoadedState::Ok(s) => s,
+        LoadedState::Unreadable => return Ok(()),
+    };
+    if mutate(&mut state) {
+        write_state_atomic(&state)?;
+    }
+    Ok(())
+}
+
 /// `clawlight hook`: read one hook event as JSON on stdin and update
 /// `state.json`. Mirrors the semantics of the previous `hook.sh` exactly.
 pub fn run() -> anyhow::Result<()> {
@@ -73,63 +97,262 @@ pub fn run() -> anyhow::Result<()> {
         _ => return Ok(()),
     };
 
-    // Hold the lock across the whole read-modify-write span so a concurrent
-    // hook from another session can't read a stale snapshot between our read
-    // and our rename. Best-effort: if locking fails, proceed unlocked rather
-    // than break the hook.
-    let _lock = acquire_state_lock();
+    // Whether to kick off auto-naming after the write. Decided inside the RMW
+    // span (it depends on the pre-existing name) and acted on afterward, off the
+    // lock, so the detached spawn never blocks other writers.
+    let mut spawn_naming = false;
 
-    let mut state = match read_state_raw() {
-        LoadedState::Fresh(s) | LoadedState::Ok(s) => s,
-        LoadedState::Unreadable => return Ok(()),
-    };
-
-    // PreToolUse fires very frequently; skip the write if already active.
-    if hook_event == "PreToolUse" {
-        if let Some(s) = state.sessions.get(&session_id) {
-            if s.status == Status::Active {
-                return Ok(());
+    update_state(|state| {
+        // PreToolUse fires very frequently; skip the write if already active.
+        if hook_event == "PreToolUse" {
+            if let Some(s) = state.sessions.get(&session_id) {
+                if s.status == Status::Active {
+                    return false;
+                }
             }
         }
-    }
 
-    // Preserve an existing name across status updates.
-    let existing = state.sessions.get(&session_id);
-    let existing_name = existing.and_then(|s| s.name.clone());
+        // Preserve an existing name across status updates.
+        let existing = state.sessions.get(&session_id);
+        let existing_name = existing.and_then(|s| s.name.clone());
 
-    // Where the session runs, for click-to-focus. Captured on SessionStart
-    // (a resumed session may live in a new window) and backfilled for
-    // sessions first seen mid-flight; otherwise carried over unchanged so
-    // routine updates skip the capture's `ps` spawn.
-    let terminal = match existing.and_then(|s| s.terminal.clone()) {
-        Some(t) if hook_event != "SessionStart" => Some(t),
-        _ => Some(crate::terminal::capture()),
-    };
+        // Where the session runs, for click-to-focus. Captured on SessionStart
+        // (a resumed session may live in a new window) and backfilled for
+        // sessions first seen mid-flight; otherwise carried over unchanged so
+        // routine updates skip the capture's `ps` spawn.
+        let terminal = match existing.and_then(|s| s.terminal.clone()) {
+            Some(t) if hook_event != "SessionStart" => Some(t),
+            _ => Some(crate::terminal::capture()),
+        };
 
-    let timestamp = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        let timestamp = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
-    state.sessions.insert(
-        session_id.clone(),
-        SessionStatus {
-            status,
-            last_updated: timestamp,
-            project_path: cwd,
-            notification_type,
-            name: existing_name.clone(),
-            terminal,
-        },
-    );
+        state.sessions.insert(
+            session_id.clone(),
+            SessionStatus {
+                status: status.clone(),
+                last_updated: timestamp,
+                project_path: cwd.clone(),
+                notification_type: notification_type.clone(),
+                name: existing_name.clone(),
+                terminal,
+                // Claude Code sessions carry no harness tag (absent = claude).
+                harness: None,
+            },
+        );
 
-    write_state_atomic(&state)?;
-    drop(_lock);
+        // On the first Stop with no name yet, kick off auto-naming below.
+        spawn_naming =
+            hook_event == "Stop" && existing_name.is_none() && !transcript_path.is_empty();
+        true
+    })?;
 
-    // On the first Stop with no name yet, kick off auto-naming in a detached
-    // process so the hook returns immediately instead of blocking on the CLI.
-    if hook_event == "Stop" && existing_name.is_none() && !transcript_path.is_empty() {
+    // In a detached process so the hook returns immediately instead of blocking
+    // on the CLI.
+    if spawn_naming {
         spawn_namer(&session_id, &transcript_path);
     }
 
     Ok(())
+}
+
+/// `clawlight event`: read one normalized harness event as JSON on stdin and
+/// update `state.json`. This is the ingestion path for non-Claude harnesses
+/// (opencode today; Codex/Copilot adapters later emit the same shape). The
+/// on-disk schema and every reader (TUI, tray, LED) are shared with the Claude
+/// hook path, so a harness session written here shows up everywhere a Claude
+/// session does with no reader changes.
+///
+/// Input shape:
+/// ```json
+/// {
+///   "harness": "opencode",
+///   "event": "working | idle | needs_input | resumed | ended | title | reconnected",
+///   "session_id": "ses_...",          // required except for `reconnected`
+///   "title": "current session title", // optional
+///   "directory": "/path/to/project"   // optional
+/// }
+/// ```
+///
+/// The five status verbs (`working`/`idle`/`needs_input`/`resumed`/`ended`) are
+/// deliberately harness-agnostic; `title` updates the name only, and
+/// `reconnected` triggers the restart sweep ([`sweep_reconnected`]).
+pub fn run_event() -> anyhow::Result<()> {
+    let mut input = String::new();
+    let _ = std::io::stdin().read_to_string(&mut input);
+    let v: Value = serde_json::from_str(&input).unwrap_or(Value::Null);
+
+    let field = |k: &str| -> Option<String> {
+        v.get(k)
+            .and_then(|x| x.as_str())
+            .map(str::to_string)
+            .filter(|s| !s.is_empty())
+    };
+    // `harness` is required and never defaulted: a generic ingestion path must
+    // not silently attribute a mislabeled event to one specific harness (which
+    // would give it the wrong badge and expose it to that harness's sweeps). A
+    // missing harness — a buggy adapter, or a bare `reconnected` — is dropped.
+    let Some(harness) = field("harness") else {
+        return Ok(());
+    };
+    let event = field("event").unwrap_or_default();
+    let session_id = field("session_id");
+    let title = field("title");
+    let directory = field("directory");
+
+    // `reconnected` is a maintenance sweep, not a per-session status — it
+    // carries no session id.
+    if event == "reconnected" {
+        return sweep_reconnected(&harness);
+    }
+
+    let session_id = match session_id {
+        Some(id) => id,
+        None => return Ok(()),
+    };
+
+    // A pure title change updates the name and nothing else: an idle session
+    // must not flip green just because opencode renamed it. No-op if we haven't
+    // seen the session yet — its `created` (working) event will arrive.
+    if event == "title" {
+        let Some(title) = title else { return Ok(()) };
+        return update_state(|state| match state.sessions.get_mut(&session_id) {
+            // opencode re-emits `session.updated` several times per turn with an
+            // unchanged title; skip the write unless the name actually changed.
+            Some(s) if s.name.as_deref() != Some(title.as_str()) => {
+                s.name = Some(title.clone());
+                s.last_updated = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+                true
+            }
+            _ => false,
+        });
+    }
+
+    let status = match event.as_str() {
+        "working" | "resumed" => Status::Active,
+        "idle" => Status::Inactive,
+        "needs_input" => Status::NeedsHelp,
+        "ended" => Status::Done,
+        // Unknown verb (an opencode event we don't map, or a future harness
+        // sending something new): drop it rather than guess.
+        _ => return Ok(()),
+    };
+
+    update_state(|state| {
+        let existing = state.sessions.get(&session_id);
+
+        // `ended` for a session we never saw is a no-op: creating a fresh `Done`
+        // row (and paying a `terminal::capture` `ps` to do it) would only add a
+        // ghost. The plugin's exit handler can emit `ended` for ids whose first
+        // event was dropped.
+        if event == "ended" && existing.is_none() {
+            return false;
+        }
+
+        // A pending permission (`NeedsHelp`) is the product's core red signal.
+        // A bare `working` — e.g. a `session.status: busy` re-broadcast when a
+        // client attaches to the server — must not silently clear it; only an
+        // explicit `resumed` (permission.replied) does. So keep red until then.
+        if event == "working" {
+            if let Some(s) = existing {
+                if s.status == Status::NeedsHelp {
+                    return false;
+                }
+            }
+        }
+
+        // `working` is chatty (fires on every message/tool step). Skip the write
+        // when nothing would change — the same suppression as the Claude
+        // PreToolUse path — so the file watchers don't thrash. A title still
+        // forces a write.
+        if event == "working" && title.is_none() {
+            if let Some(s) = existing {
+                if s.status == Status::Active {
+                    return false;
+                }
+            }
+        }
+
+        // The harness owns its titles: a provided title becomes the name;
+        // otherwise keep whatever name we already have.
+        let name = title
+            .clone()
+            .or_else(|| existing.and_then(|s| s.name.clone()));
+
+        // `directory` is optional in the contract, so preserve the existing
+        // project path when an event omits it (as `name`/`terminal` are) — a
+        // thin-payload adapter must not blank the project label on every status
+        // flip.
+        let project_path = directory
+            .clone()
+            .or_else(|| existing.and_then(|s| s.project_path.clone()));
+
+        // Capture the host terminal once, on first sighting (the `created`
+        // event), and carry it forward afterward so chatty events don't each
+        // spawn a `ps`. The captured owner PID is what lets the reader reap a
+        // harness session whose process exited without an `ended` event.
+        let terminal = match existing.and_then(|s| s.terminal.clone()) {
+            Some(t) => Some(t),
+            None => Some(crate::terminal::capture()),
+        };
+
+        state.sessions.insert(
+            session_id.clone(),
+            SessionStatus {
+                status: status.clone(),
+                last_updated: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                project_path,
+                notification_type: None,
+                name,
+                terminal,
+                harness: Some(harness.clone()),
+            },
+        );
+        true
+    })
+}
+
+/// Sweep one harness's still-live sessions to `Done` on a harness restart.
+///
+/// opencode fires no per-session shutdown event when its process just exits, so
+/// a `server.connected` (a fresh opencode server coming up) is our signal that
+/// any `Active`/`Inactive` session left over from a previous run is stale. To
+/// stay safe when a *second* opencode server is genuinely running at the same
+/// time, only sweep sessions whose captured owner process is gone (or was never
+/// captured — e.g. `opencode serve` with no controlling tty): a live server's
+/// sessions keep a live PID and are left alone. This is the backstop for the
+/// plugin's own best-effort exit handler.
+///
+/// Note: the "spare a live second server" guard relies on `owner_pid`, which is
+/// only captured on unix (`terminal::capture_tty_owner`). On a platform that
+/// can't identify the owner PID, every same-harness session is treated as stale
+/// on reconnect — fine for the common single-instance case, but a concurrent
+/// second server's idle sessions would be swept (they self-heal on their next
+/// event). A future adapter relying on this must not assume the guard holds off
+/// unix.
+fn sweep_reconnected(harness: &str) -> anyhow::Result<()> {
+    update_state(|state| {
+        let mut changed = false;
+        for s in state.sessions.values_mut() {
+            if s.harness.as_deref() != Some(harness) {
+                continue;
+            }
+            if !matches!(s.status, Status::Active | Status::Inactive) {
+                continue;
+            }
+            let host_gone = s
+                .terminal
+                .as_ref()
+                .and_then(|t| t.owner_pid)
+                .map(|pid| !crate::terminal::is_alive(pid))
+                .unwrap_or(true);
+            if host_gone {
+                s.status = Status::Done;
+                changed = true;
+            }
+        }
+        changed
+    })
 }
 
 /// `clawlight name <session_id> <transcript_path>`: generate a concise session
@@ -157,17 +380,13 @@ pub fn run_namer(session_id: &str, transcript_path: &str) -> anyhow::Result<()> 
         return Ok(());
     }
 
-    let _lock = acquire_state_lock();
-
-    let mut state = match read_state_raw() {
-        LoadedState::Fresh(s) | LoadedState::Ok(s) => s,
-        LoadedState::Unreadable => return Ok(()),
-    };
-    if let Some(s) = state.sessions.get_mut(session_id) {
-        s.name = Some(name);
-        write_state_atomic(&state)?;
-    }
-    Ok(())
+    update_state(|state| match state.sessions.get_mut(session_id) {
+        Some(s) => {
+            s.name = Some(name);
+            true
+        }
+        None => false,
+    })
 }
 
 /// Build and run the naming prompt through the `claude` CLI.

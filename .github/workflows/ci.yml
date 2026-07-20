@@ -59,3 +59,36 @@ jobs:
       # CLI smoke tests (all platforms).
       - name: Test
         run: cargo test --locked
+
+  # opencode↔clawlight integration: drive the REAL embedded plugin
+  # (assets/opencode-plugin.js) with opencode's actual event shapes and assert
+  # the state.json the built binary writes — the boundary the Rust suite can't
+  # cover. A dedicated job so it's a distinct, required PR check. Linux only: it
+  # sandboxes state via $HOME like the Rust suite.
+  js-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Building the binary links tao/tray-icon (gtk + appindicator) and
+      # serialport (libudev), same as the test job.
+      - name: Install Linux system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libudev-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build clawlight binary
+        run: cargo build --locked
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: opencode plugin integration tests
+        run: node --test tests/js/*.test.mjs

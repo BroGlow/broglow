@@ -87,6 +87,11 @@ struct SessionPayload<'a> {
     status: &'a Status,
     #[serde(rename = "lastUpdated")]
     last_updated: &'a str,
+    /// Short per-harness badge label (e.g. `"oc"`); omitted for Claude Code so
+    /// the page renders a badge only for non-Claude sessions. Same label the TUI
+    /// shows (`session::harness_badge`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    badge: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -455,6 +460,7 @@ fn build_payload(state: &HookState) -> String {
             project: project_label(s),
             status: &s.status,
             last_updated: &s.last_updated,
+            badge: s.harness.as_deref().map(crate::harness::badge),
         })
         .collect();
     let payload = StatePayload {

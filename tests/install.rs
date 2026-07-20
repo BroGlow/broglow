@@ -75,3 +75,107 @@ fn install_registers_hooks_and_uninstall_reverts_them() {
     assert!(!autostart.exists(), "autostart entry removed");
     assert!(!claude_dir.join("clawlight").exists(), "state dir removed");
 }
+
+#[test]
+fn install_writes_the_opencode_plugin_when_detected_and_uninstall_removes_it() {
+    let home = TempDir::new().unwrap();
+    // opencode "present": its global config dir exists (one of the two detection
+    // signals — the other is an `opencode` binary on PATH).
+    std::fs::create_dir_all(home.path().join(".config/opencode")).unwrap();
+
+    run(&home, "install");
+
+    let plugin = home.path().join(".config/opencode/plugins/clawlight.js");
+    assert!(plugin.exists(), "plugin written when opencode is detected");
+
+    let contents = std::fs::read_to_string(&plugin).unwrap();
+    assert!(
+        contents.contains("managed by clawlight"),
+        "carries the managed-by header"
+    );
+    // The version and absolute binary path are baked in — no placeholders left.
+    assert!(!contents.contains("{{BIN}}"), "binary path substituted");
+    assert!(!contents.contains("{{VERSION}}"), "version substituted");
+    assert!(
+        contents.contains("\"event\""),
+        "plugin drives the `clawlight event` backend"
+    );
+
+    run(&home, "uninstall");
+    assert!(!plugin.exists(), "uninstall removes our plugin");
+}
+
+#[test]
+fn install_skips_the_plugin_when_opencode_is_absent() {
+    let home = TempDir::new().unwrap();
+    // No ~/.config/opencode and (assumed) no opencode on PATH → detection fails.
+    run(&home, "install");
+    let plugin = home.path().join(".config/opencode/plugins/clawlight.js");
+    assert!(
+        !plugin.exists(),
+        "no plugin written on a machine without opencode"
+    );
+}
+
+#[test]
+fn reinstall_overwrites_a_stale_managed_plugin() {
+    let home = TempDir::new().unwrap();
+    let plugin_dir = home.path().join(".config/opencode/plugins");
+    std::fs::create_dir_all(&plugin_dir).unwrap();
+    let plugin = plugin_dir.join("clawlight.js");
+    // A plugin from an older build: our marker (so it's ours to replace), an
+    // un-substituted binary placeholder, and a sentinel that must not survive.
+    std::fs::write(
+        &plugin,
+        "// managed by clawlight v0.0.1\nconst CLAWLIGHT_BIN = \"{{BIN}}\";\n// STALE_SENTINEL\n",
+    )
+    .unwrap();
+
+    run(&home, "install");
+
+    let contents = std::fs::read_to_string(&plugin).unwrap();
+    assert!(
+        !contents.contains("STALE_SENTINEL"),
+        "reinstall must overwrite the stale plugin (version-skew fix)"
+    );
+    assert!(!contents.contains("{{BIN}}"), "binary path re-substituted");
+    assert!(contents.contains("managed by clawlight"), "still managed");
+}
+
+#[test]
+fn install_leaves_a_foreign_opencode_plugin_alone() {
+    let home = TempDir::new().unwrap();
+    let plugin_dir = home.path().join(".config/opencode/plugins");
+    std::fs::create_dir_all(&plugin_dir).unwrap();
+    let plugin = plugin_dir.join("clawlight.js");
+    // A hand-rolled file at our path (no managed-by header) is the user's own
+    // opencode↔clawlight integration; install must warn and skip, not clobber
+    // it — the same guard uninstall applies before deleting.
+    let hand_rolled = "// my own hand-rolled plugin\n";
+    std::fs::write(&plugin, hand_rolled).unwrap();
+
+    run(&home, "install");
+
+    assert_eq!(
+        std::fs::read_to_string(&plugin).unwrap(),
+        hand_rolled,
+        "install must never overwrite a file without our header"
+    );
+}
+
+#[test]
+fn uninstall_leaves_a_foreign_opencode_plugin_alone() {
+    let home = TempDir::new().unwrap();
+    let plugin_dir = home.path().join(".config/opencode/plugins");
+    std::fs::create_dir_all(&plugin_dir).unwrap();
+    let plugin = plugin_dir.join("clawlight.js");
+    // A file at our path that isn't ours (no managed-by header).
+    std::fs::write(&plugin, "// my own hand-rolled plugin\n").unwrap();
+
+    run(&home, "uninstall");
+
+    assert!(
+        plugin.exists(),
+        "a file without our header must never be deleted"
+    );
+}

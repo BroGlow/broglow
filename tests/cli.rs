@@ -41,3 +41,54 @@ fn the_hook_exits_cleanly_under_the_naming_guard() {
         .assert()
         .success();
 }
+
+#[test]
+fn the_event_backend_exits_cleanly_on_junk_input() {
+    // Malformed stdin must be a safe no-op, like the hook backend. Uses a
+    // nonexistent HOME override on unix so nothing real is written; on Windows
+    // the parse fails before any state path is touched.
+    let mut cmd = clawlight();
+    cmd.arg("event").write_stdin("not an event {{{");
+    #[cfg(unix)]
+    cmd.env("HOME", "/nonexistent-clawlight-test-home");
+    cmd.assert().success();
+}
+
+#[test]
+fn the_opencode_plugin_parses_as_a_js_module() {
+    // Optional parse check: runs only where `node` is on PATH (the plugin's
+    // real coverage is the manual matrix). Skips cleanly otherwise — including
+    // on Windows, where `on_path` doesn't probe the `.exe` suffix. `node
+    // --check` is the portable syntax-only check; `bun` has no equivalent flag,
+    // so it's not probed.
+    if !on_path("node") {
+        eprintln!("skipping plugin parse check: no node on PATH");
+        return;
+    }
+    let node = "node";
+
+    let asset = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/opencode-plugin.js");
+    let contents = std::fs::read_to_string(asset).expect("read plugin asset");
+    // ES-module syntax parses only with an .mjs extension, so copy it out.
+    let dir = tempfile::TempDir::new().unwrap();
+    let mjs = dir.path().join("clawlight.mjs");
+    std::fs::write(&mjs, contents).unwrap();
+
+    let output = std::process::Command::new(node)
+        .arg("--check")
+        .arg(&mjs)
+        .output()
+        .expect("run the JS engine");
+    assert!(
+        output.status.success(),
+        "the embedded plugin must be valid JS:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// Whether `program` resolves to a file on PATH. Deliberately simple — it only
+/// gates the optional parse check above, so a false negative just skips it.
+fn on_path(program: &str) -> bool {
+    std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+        .any(|d| d.join(program).is_file())
+}

@@ -23,6 +23,11 @@ const HELP_BG: Color = Color::Rgb(0x30, 0x23, 0x2c);
 const FOOT_BG: Color = Color::Rgb(0x1d, 0x20, 0x29);
 const FOOT_FG: Color = Color::Rgb(0x8a, 0x8d, 0x98);
 const KBD_BG: Color = Color::Rgb(0x2a, 0x2e, 0x3a);
+// Per-harness badge (One Dark purple on a muted fill) — only non-Claude
+// sessions carry one, so Claude rows stay unadorned. The label comes from the
+// shared `harness::badge` so the TUI and popover can't diverge.
+const BADGE_FG: Color = Color::Rgb(0xc6, 0x78, 0xdd);
+const BADGE_BG: Color = Color::Rgb(0x30, 0x28, 0x3a);
 
 pub fn render(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
@@ -147,13 +152,25 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
                 .map(|b| format!("⎇ {b}"))
                 .unwrap_or_else(|| "—".to_string());
 
+            // A subtle harness tag ahead of the name for non-Claude sessions;
+            // Claude rows (no harness) show just the name.
+            let mut name_spans = Vec::new();
+            if let Some(h) = &s.harness {
+                name_spans.push(Span::styled(
+                    format!(" {} ", crate::harness::badge(h)),
+                    Style::default().fg(BADGE_FG).bg(BADGE_BG),
+                ));
+                name_spans.push(Span::raw(" "));
+            }
+            name_spans.push(Span::styled(s.name.clone(), name_style));
+
             let dim = Style::default().fg(DIM);
             let mut row = Row::new(vec![
                 Cell::from(Line::from(vec![
                     bar,
                     Span::styled(dot, Style::default().fg(dot_color)),
                 ])),
-                Cell::from(Span::styled(s.name.clone(), name_style)),
+                Cell::from(Line::from(name_spans)),
                 Cell::from(Span::styled(s.project_name.clone(), dim)),
                 Cell::from(Span::styled(branch, dim)),
                 Cell::from(

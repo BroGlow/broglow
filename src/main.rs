@@ -1,5 +1,6 @@
 mod app;
 mod config;
+mod harness;
 mod hook;
 mod led;
 mod menubar;
@@ -63,6 +64,9 @@ enum Commands {
     /// (internal) Hook backend invoked by Claude Code over stdin
     #[command(hide = true)]
     Hook,
+    /// (internal) Normalized-event backend for non-Claude harnesses (opencode)
+    #[command(hide = true)]
+    Event,
     /// (internal) Generate a session name from a transcript
     #[command(hide = true)]
     Name {
@@ -82,6 +86,7 @@ fn main() -> anyhow::Result<()> {
         Some(Commands::Update { firmware, port }) => ota::run(firmware, port),
         Some(Commands::Usage) => usage::run_once(),
         Some(Commands::Hook) => hook::run(),
+        Some(Commands::Event) => hook::run_event(),
         Some(Commands::Name {
             session_id,
             transcript_path,
@@ -198,6 +203,15 @@ fn register_hooks() -> anyhow::Result<()> {
     std::fs::write(&settings_file, settings_str)?;
 
     println!("Updated {}", settings_file.display());
+
+    // Set up every detected non-Claude harness (opencode today). Best-effort and
+    // detection-gated per adapter: a failure never breaks Claude hook
+    // registration, and machines without those agents see nothing. Sits in
+    // register_hooks (not install_hooks) so both first-run paths — the TUI's full
+    // install and the daemon's hooks-only bootstrap — set them up; adapters
+    // touch no autostart, so this is safe from the daemon path.
+    harness::install_all();
+
     Ok(())
 }
 
@@ -326,6 +340,10 @@ pub fn first_run_setup_daemon() {
 fn uninstall_hooks() -> anyhow::Result<()> {
     // Remove autostart first (best-effort).
     let _ = uninstall_autostart();
+
+    // Remove every harness's wiring (best-effort; each is marker-guarded so a
+    // hand-rolled file is never deleted).
+    harness::uninstall_all();
 
     // Remove hooks from settings.json
     let settings_file = settings_path();
