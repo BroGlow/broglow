@@ -104,6 +104,20 @@ fn js_string_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+/// Whether a file exists at `path` that clawlight does not own (no
+/// [`MANAGED_MARKER`]). `install` must refuse to overwrite such a file — it's
+/// the user's hand-rolled version, mirroring how `uninstall` refuses to delete
+/// it. An unreadable file counts as foreign: if the marker can't be verified,
+/// overwriting isn't safe. Shared install guard.
+fn is_foreign(path: &std::path::Path) -> bool {
+    if !path.exists() {
+        return false;
+    }
+    std::fs::read_to_string(path)
+        .map(|c| !c.contains(MANAGED_MARKER))
+        .unwrap_or(true)
+}
+
 /// Delete a clawlight-managed file iff it still carries our marker (so a
 /// hand-rolled file at the path is left alone). Shared uninstall helper.
 fn remove_if_managed(path: &std::path::Path) {
@@ -160,10 +174,20 @@ pub mod opencode {
     }
 
     /// Write (or overwrite) the plugin with this binary's absolute path and
-    /// version baked in. Idempotent: the unconditional overwrite is also the
-    /// version-skew fix — every `clawlight install` re-syncs the plugin to the
-    /// current binary.
+    /// version baked in. Idempotent: the unconditional overwrite of a *managed*
+    /// plugin is also the version-skew fix — every `clawlight install` re-syncs
+    /// it to the current binary. A file at the path *without* our marker is the
+    /// user's own and is never touched, matching `uninstall`.
     fn install() -> anyhow::Result<()> {
+        let path = plugin_path();
+        if super::is_foreign(&path) {
+            eprintln!(
+                "clawlight: {} exists but isn't clawlight-managed; leaving it alone",
+                path.display()
+            );
+            return Ok(());
+        }
+
         let exe = std::env::current_exe().context("Resolving current executable path")?;
         let contents = PLUGIN_TEMPLATE
             .replace("{{VERSION}}", env!("CARGO_PKG_VERSION"))
@@ -172,7 +196,6 @@ pub mod opencode {
                 &super::js_string_escape(&exe.display().to_string()),
             );
 
-        let path = plugin_path();
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).context("Creating opencode plugin dir")?;
         }

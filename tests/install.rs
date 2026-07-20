@@ -143,6 +143,27 @@ fn reinstall_overwrites_a_stale_managed_plugin() {
 }
 
 #[test]
+fn install_leaves_a_foreign_opencode_plugin_alone() {
+    let home = TempDir::new().unwrap();
+    let plugin_dir = home.path().join(".config/opencode/plugins");
+    std::fs::create_dir_all(&plugin_dir).unwrap();
+    let plugin = plugin_dir.join("clawlight.js");
+    // A hand-rolled file at our path (no managed-by header) is the user's own
+    // opencode↔clawlight integration; install must warn and skip, not clobber
+    // it — the same guard uninstall applies before deleting.
+    let hand_rolled = "// my own hand-rolled plugin\n";
+    std::fs::write(&plugin, hand_rolled).unwrap();
+
+    run(&home, "install");
+
+    assert_eq!(
+        std::fs::read_to_string(&plugin).unwrap(),
+        hand_rolled,
+        "install must never overwrite a file without our header"
+    );
+}
+
+#[test]
 fn uninstall_leaves_a_foreign_opencode_plugin_alone() {
     let home = TempDir::new().unwrap();
     let plugin_dir = home.path().join(".config/opencode/plugins");
