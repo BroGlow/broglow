@@ -71,6 +71,12 @@ fn render_header(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
         (false, false) => ("LED ○ off", Style::default().fg(DIM)),
     };
 
+    let (tray_text, tray_style) = if app.tray_running {
+        ("tray ● on", Style::default().fg(GREEN))
+    } else {
+        ("tray ○ off (t)", Style::default().fg(YELLOW))
+    };
+
     let left = vec![
         Span::raw(" "),
         Span::styled(
@@ -89,6 +95,8 @@ fn render_header(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
         chip(paused, "paused", YELLOW, false),
         Span::raw("  "),
         chip(help, "needs help", RED, true),
+        Span::styled(" │ ", Style::default().fg(DIM)),
+        Span::styled(tray_text, tray_style),
         Span::styled(" │ ", Style::default().fg(DIM)),
         Span::styled(led_text, led_style),
         Span::raw(" "),
@@ -230,6 +238,7 @@ fn render_hint_bar(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
             ("j/k", "move"),
             ("x", "clear"),
             ("r", "reload"),
+            ("t", "tray"),
             ("l", "led"),
             ("q", "quit"),
         ] {

@@ -8,6 +8,7 @@ use ratatui::{backend::CrosstermBackend, widgets::TableState, Terminal};
 
 use crate::config;
 use crate::led;
+use crate::menubar;
 use crate::notification::send_notification;
 use crate::session::{load_all_sessions, DisplaySession};
 use crate::state::{self, read_hook_state, Status};
@@ -25,6 +26,9 @@ pub struct App {
     pub led_enabled: bool,
     /// Whether a known ESP32 board is currently attached (refreshed on a timer).
     pub led_detected: bool,
+    /// Whether the tray daemon is running (refreshed on the same timer);
+    /// `t` starts it.
+    pub tray_running: bool,
     /// Transient one-line feedback shown in the status bar (message + when set).
     pub status_message: Option<(String, Instant)>,
     previous_statuses: HashMap<String, Status>,
@@ -50,6 +54,7 @@ impl App {
             should_quit: false,
             led_enabled: config::read_config().led_enabled,
             led_detected: led::detect_board().is_some(),
+            tray_running: menubar::is_running(),
             status_message: None,
             previous_statuses,
         }
@@ -83,6 +88,16 @@ impl App {
                 );
             }
         }
+    }
+
+    /// `t`: start the tray daemon if it isn't running (launchd on macOS,
+    /// detached spawn elsewhere — see `menubar::ensure_running`).
+    fn start_tray(&mut self) {
+        let msg = menubar::ensure_running();
+        // The process can take a beat to appear; the periodic check below
+        // corrects the chip either way.
+        self.tray_running = menubar::is_running();
+        self.set_status(msg);
     }
 
     fn set_status(&mut self, msg: String) {
@@ -244,6 +259,7 @@ impl App {
             // ports every frame would be wasteful.
             if last_led_check.elapsed() >= led_check_interval {
                 self.led_detected = led::detect_board().is_some();
+                self.tray_running = menubar::is_running();
                 last_led_check = Instant::now();
             }
 
@@ -261,6 +277,7 @@ impl App {
                             KeyCode::Char('r') => self.reload_data(),
                             KeyCode::Char('x') => self.clear_selected(),
                             KeyCode::Char('l') => self.toggle_led(),
+                            KeyCode::Char('t') => self.start_tray(),
                             _ => {}
                         }
                     }
