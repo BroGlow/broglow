@@ -164,6 +164,30 @@ test("session.updated passes the new title through without changing status", {
   assert.equal(s.sessions[id].status, "inactive");
 });
 
+test("a closed session stays done despite trailing events", {
+  skip: isWindows && "unix-only",
+}, async () => {
+  const home = sandbox();
+  const emit = newSession();
+  const id = "ses_closed";
+  // A session runs, then is closed (session.deleted -> done). opencode can still
+  // emit trailing events after the delete — a final message.updated persisting
+  // the message, a title update. None may resurrect the closed session: the
+  // light must not flip back to green/yellow once it's gone. Same trailing-event
+  // class as the stuck-green-when-idle bug, at the end of a session's life.
+  await emit("session.created", info(id, { title: "Quick task" }));
+  await emit("session.status", status(id, "busy"));
+  await emit("session.deleted", { sessionID: id });
+  await waitFor(home, (st) => st.sessions[id]?.status === "done");
+
+  // Trailing events opencode really emits after a delete — a final
+  // message.updated and a title update — must not revive the session.
+  await emit("message.updated", info(id));
+  await emit("session.updated", info(id, { title: "After close" }));
+  await sleep(400);
+  assert.equal(readState(home).sessions[id].status, "done", "closed session stays done");
+});
+
 test("a trailing message.updated after idle does not flip back to green", {
   skip: isWindows && "unix-only",
 }, async () => {
@@ -186,12 +210,13 @@ test("a trailing message.updated after idle does not flip back to green", {
   await emit("session.updated", info(id, { title: "Turn done" })); // title only
   await emit("message.updated", info(id)); // trailing — the bug trigger
 
-  const s = await waitFor(home, (st) => st.sessions[id]?.status === "inactive");
-  assert.equal(s.sessions[id].status, "inactive");
-  assert.equal(s.sessions[id].name, "Turn done", "the trailing title still applied");
-  // Must STAY inactive once the whole queue has drained (no late flip).
+  await waitFor(home, (st) => st.sessions[id]?.status === "inactive");
+  // Assert only after the whole queue has drained, so the trailing title has
+  // landed and any late flip would have happened.
   await sleep(400);
-  assert.equal(readState(home).sessions[id].status, "inactive");
+  const s = readState(home);
+  assert.equal(s.sessions[id].status, "inactive", "stays inactive after the trailing event");
+  assert.equal(s.sessions[id].name, "Turn done", "the trailing title still applied");
 });
 
 test("a burst of busy before idle still settles on idle (write ordering)", {
