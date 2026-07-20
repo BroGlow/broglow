@@ -162,9 +162,30 @@ struct FilePos {
     len: u64,
 }
 
+/// Codex `token_count` events carry **cumulative** session totals, so the
+/// per-file scan state must remember the last cumulative reading (usage per
+/// event is the delta) and the current model from the latest `turn_context`.
+#[derive(Debug, Default, Clone)]
+struct CodexFilePos {
+    offset: u64,
+    len: u64,
+    prev: CodexCumulative,
+    model: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+struct CodexCumulative {
+    input: u64,
+    cached: u64,
+    output: u64,
+    total: u64,
+}
+
 struct Tracker {
     day: NaiveDate,
     files: HashMap<PathBuf, FilePos>,
+    /// Codex rollout files (`$CODEX_HOME/sessions/YYYY/MM/DD/*.jsonl`).
+    codex_files: HashMap<PathBuf, CodexFilePos>,
     /// message id / request id already counted today, across all files.
     seen: HashSet<String>,
     /// model id → today's tokens.
@@ -216,11 +237,30 @@ fn projects_dir() -> Option<PathBuf> {
     Some(dirs::home_dir()?.join(".claude").join("projects"))
 }
 
+/// Recursively collect `*.jsonl` under `dir`, bounded to `depth` levels —
+/// Codex's fixed `YYYY/MM/DD` layout needs no walkdir dependency.
+fn collect_jsonl(dir: &std::path::Path, depth: u32, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if depth > 0 {
+                collect_jsonl(&path, depth - 1, out);
+            }
+        } else if path.extension().is_some_and(|e| e == "jsonl") {
+            out.push(path);
+        }
+    }
+}
+
 impl Tracker {
     fn new() -> Self {
         Self {
             day: Local::now().date_naive(),
             files: HashMap::new(),
+            codex_files: HashMap::new(),
             seen: HashSet::new(),
             tallies: HashMap::new(),
         }
@@ -233,6 +273,7 @@ impl Tracker {
             // Day rolled over: everything counted so far belongs to yesterday.
             self.day = today;
             self.files.clear();
+            self.codex_files.clear();
             self.seen.clear();
             self.tallies.clear();
         }
@@ -264,6 +305,147 @@ impl Tracker {
                 }
                 self.scan_file(path, meta.len());
             }
+        }
+
+        self.scan_codex(midnight);
+    }
+
+    /// Fold new Codex rollout lines into today's tallies. Same incremental
+    /// per-file scan as the Claude side; the layout is a fixed
+    /// `sessions/YYYY/MM/DD/rollout-*.jsonl` tree, walked with the same
+    /// before-midnight mtime skip.
+    fn scan_codex(&mut self, midnight: Option<DateTime<Local>>) {
+        let Some(root) = crate::codex::codex_home().map(|h| h.join("sessions")) else {
+            return;
+        };
+        let mut files = Vec::new();
+        collect_jsonl(&root, 4, &mut files);
+        for path in files {
+            let Ok(meta) = std::fs::metadata(&path) else {
+                continue;
+            };
+            if let (Some(midnight), Ok(mtime)) = (midnight, meta.modified()) {
+                if DateTime::<Local>::from(mtime) < midnight {
+                    continue;
+                }
+            }
+            self.scan_codex_file(path, meta.len());
+        }
+    }
+
+    fn scan_codex_file(&mut self, path: PathBuf, len: u64) {
+        let pos = self.codex_files.entry(path.clone()).or_default();
+        if len == pos.len {
+            return;
+        }
+        if len < pos.offset {
+            // Truncated/rewritten: start over with fresh counters.
+            *pos = CodexFilePos::default();
+        }
+        // Work on locals across the read loop; written back at the end (the
+        // borrow checker won't allow holding the map entry across ingest).
+        let mut offset = pos.offset;
+        let mut prev = pos.prev;
+        let mut model = pos.model.clone();
+        let Ok(mut file) = std::fs::File::open(&path) else {
+            return;
+        };
+        if file.seek(SeekFrom::Start(offset)).is_err() {
+            return;
+        }
+        let mut reader = BufReader::new(file);
+        let mut buf = Vec::new();
+        loop {
+            buf.clear();
+            let Ok(n) = reader.read_until(b'\n', &mut buf) else {
+                break;
+            };
+            if n == 0 || buf.last() != Some(&b'\n') {
+                break; // EOF or a line still being appended
+            }
+            offset += n as u64;
+            if let Ok(text) = std::str::from_utf8(&buf) {
+                self.ingest_codex_line(text, &mut prev, &mut model);
+            }
+        }
+        let pos = self.codex_files.entry(path).or_default();
+        pos.offset = offset;
+        pos.len = len;
+        pos.prev = prev;
+        pos.model = model;
+    }
+
+    /// Fold one rollout line into the tallies. `token_count` events carry
+    /// cumulative totals: usage per event is the delta from the previous one,
+    /// and a decrease means the counter reset (the current value is the new
+    /// delta). `cached_input_tokens` is a subset of `input_tokens`;
+    /// `output_tokens` already includes reasoning tokens.
+    fn ingest_codex_line(
+        &mut self,
+        text: &str,
+        prev: &mut CodexCumulative,
+        model: &mut Option<String>,
+    ) {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(text) else {
+            return;
+        };
+        let Some(payload) = v.get("payload") else {
+            return;
+        };
+        match v.get("type").and_then(|t| t.as_str()) {
+            Some("turn_context") => {
+                if let Some(m) = payload.get("model").and_then(|m| m.as_str()) {
+                    *model = Some(m.to_string());
+                }
+            }
+            Some("event_msg")
+                if payload.get("type").and_then(|t| t.as_str()) == Some("token_count") =>
+            {
+                let Some(total) = payload.get("info").and_then(|i| i.get("total_token_usage"))
+                else {
+                    return;
+                };
+                let n = |k: &str| total.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
+                let cur = CodexCumulative {
+                    input: n("input_tokens"),
+                    cached: n("cached_input_tokens"),
+                    output: n("output_tokens"),
+                    total: n("total_tokens"),
+                };
+                let delta = if cur.total < prev.total {
+                    cur // counter reset: current value is the fresh delta
+                } else {
+                    CodexCumulative {
+                        input: cur.input.saturating_sub(prev.input),
+                        cached: cur.cached.saturating_sub(prev.cached),
+                        output: cur.output.saturating_sub(prev.output),
+                        total: cur.total.saturating_sub(prev.total),
+                    }
+                };
+                *prev = cur;
+
+                // Old lines must still advance `prev` (above) even when they
+                // don't count toward today.
+                let today = v
+                    .get("timestamp")
+                    .and_then(|t| t.as_str())
+                    .and_then(|t| DateTime::parse_from_rfc3339(t).ok())
+                    .is_some_and(|t| t.with_timezone(&Local).date_naive() == self.day);
+                if !today {
+                    return;
+                }
+                // No turn_context yet (shouldn't happen mid-rollout): skip
+                // rather than misattribute to a guessed model.
+                let Some(model) = model.clone() else { return };
+                self.tallies.entry(model).or_default().add(&Tokens {
+                    input: delta.input.saturating_sub(delta.cached),
+                    output: delta.output,
+                    cache_5m: 0,
+                    cache_1h: 0,
+                    cache_read: delta.cached,
+                });
+            }
+            _ => {}
         }
     }
 
@@ -437,6 +619,28 @@ const HAIKU_3: Rates = Rates {
     output: 1.25,
     cache_read: 0.03,
 };
+// OpenAI (Codex) — GPT-5.6 GA pricing; cached input is 10% of input, and
+// Codex reports no separate cache-write figure (those fields stay 0).
+const GPT56_SOL: Rates = Rates {
+    input: 5.0,
+    output: 30.0,
+    cache_read: 0.50,
+};
+const GPT56_TERRA: Rates = Rates {
+    input: 2.5,
+    output: 15.0,
+    cache_read: 0.25,
+};
+const GPT56_LUNA: Rates = Rates {
+    input: 1.0,
+    output: 6.0,
+    cache_read: 0.10,
+};
+const GPT5: Rates = Rates {
+    input: 1.25,
+    output: 10.0,
+    cache_read: 0.125,
+};
 
 /// Best-effort list-price lookup by model id. Unknown ids fall back to their
 /// family's latest rates (or Sonnet's) — the readout is an estimate either
@@ -467,6 +671,17 @@ fn rates_for(model: &str) -> Rates {
         // Claude 5 tier — no published transcript pricing pinned here yet;
         // price at the top Opus tier so the estimate errs recognizably.
         OPUS_45
+    } else if m.contains("gpt") {
+        // Codex models. Unknown GPT ids estimate at the older flagship rate.
+        if m.contains("5.6-sol") {
+            GPT56_SOL
+        } else if m.contains("5.6-terra") {
+            GPT56_TERRA
+        } else if m.contains("5.6-luna") {
+            GPT56_LUNA
+        } else {
+            GPT5
+        }
     } else {
         SONNET
     }
@@ -502,6 +717,24 @@ fn model_family(model: &str) -> &'static str {
 /// alphabetic segment, the version is the numeric segments around it, and an
 /// 8-digit date segment ends the id.
 fn model_display_name(model: &str) -> String {
+    // OpenAI ids don't follow the claude segment grammar: "gpt-5.6-sol" →
+    // "GPT-5.6 Sol", "gpt-5.1" → "GPT-5.1".
+    if let Some(rest) = model.strip_prefix("gpt-") {
+        let mut parts = rest.splitn(2, '-');
+        let version = parts.next().unwrap_or(rest);
+        let variant = parts.next().map(|v| {
+            let mut chars = v.chars();
+            match chars.next() {
+                Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+                None => String::new(),
+            }
+        });
+        return match variant {
+            Some(v) if !v.is_empty() => format!("GPT-{version} {v}"),
+            _ => format!("GPT-{version}"),
+        };
+    }
+
     let mut family: Option<&str> = None;
     let mut version: Vec<&str> = Vec::new();
     for seg in model.split('-') {
@@ -771,6 +1004,74 @@ mod tests {
         // Unknown ids estimate rather than zero out.
         assert_eq!(rates_for("claude-fable-5").input, 5.0);
         assert_eq!(rates_for("some-future-model").input, 3.0);
+    }
+
+    #[test]
+    fn codex_rollouts_count_as_cumulative_deltas() {
+        let mut t = Tracker::new();
+        let ts = today_ts(&t);
+        let count = |input: u64, cached: u64, output: u64, total: u64, ts: &str| {
+            format!(
+                r#"{{"timestamp":"{ts}","type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":{input},"cached_input_tokens":{cached},"output_tokens":{output},"total_tokens":{total}}}}}}}}}"#
+            )
+        };
+        let mut prev = CodexCumulative::default();
+        let mut model = None;
+
+        // A token_count before any turn_context is skipped, but still
+        // advances the cumulative baseline.
+        t.ingest_codex_line(&count(100, 0, 1, 101, &ts), &mut prev, &mut model);
+        assert!(t.tallies.is_empty());
+
+        t.ingest_codex_line(
+            r#"{"type":"turn_context","payload":{"turn_id":"t1","model":"gpt-5.6-sol"}}"#,
+            &mut prev,
+            &mut model,
+        );
+        // Cumulative counters: each event contributes its delta.
+        t.ingest_codex_line(&count(14300, 9984, 5, 14305, &ts), &mut prev, &mut model);
+        t.ingest_codex_line(&count(20300, 14984, 505, 20805, &ts), &mut prev, &mut model);
+        // Yesterday's line advances the baseline without counting.
+        t.ingest_codex_line(
+            &count(30300, 14984, 505, 30805, "2020-01-01T12:00:00Z"),
+            &mut prev,
+            &mut model,
+        );
+        // A reset (smaller cumulative) becomes a fresh delta, never underflow.
+        t.ingest_codex_line(&count(50, 0, 10, 60, &ts), &mut prev, &mut model);
+
+        let snap = t.snapshot(None);
+        assert_eq!(snap.models.len(), 1);
+        assert_eq!(snap.models[0].name, "GPT-5.6 Sol");
+        assert_eq!(snap.models[0].family, "other");
+        // Event 1: 14305 (delta from 101 baseline: 14204 in + 4 out… the
+        // baseline event itself contributed 101 to prev, so deltas are
+        // (14300-100)+(5-1) then 6000+500, then the reset's 60.
+        let expected_tokens = (14300 - 100) + (5 - 1) + (6000 + 500) + 60;
+        assert_eq!(snap.today_tokens, expected_tokens as u64);
+        // Cost at Sol rates: uncached input ×$5, cached ×$0.50, output ×$30.
+        let uncached = (14200 - 9984) as f64 + 1000.0 + 50.0;
+        let cached = 9984.0 + 5000.0;
+        let output = 4.0 + 500.0 + 10.0;
+        let expected = (uncached * 5.0 + cached * 0.5 + output * 30.0) / 1e6;
+        assert!(
+            (snap.today_cost - expected).abs() < 1e-9,
+            "cost {} != {expected}",
+            snap.today_cost
+        );
+    }
+
+    #[test]
+    fn gpt_display_names_and_rates() {
+        assert_eq!(model_display_name("gpt-5.6-sol"), "GPT-5.6 Sol");
+        assert_eq!(model_display_name("gpt-5.6-terra"), "GPT-5.6 Terra");
+        assert_eq!(model_display_name("gpt-5.1"), "GPT-5.1");
+        assert_eq!(model_family("gpt-5.6-sol"), "other");
+        assert_eq!(rates_for("gpt-5.6-sol").input, 5.0);
+        assert_eq!(rates_for("gpt-5.6-sol").output, 30.0);
+        assert_eq!(rates_for("gpt-5.6-luna").input, 1.0);
+        // Unknown GPT ids estimate at the older flagship rate, not Sonnet's.
+        assert_eq!(rates_for("gpt-5.2-codex").input, 1.25);
     }
 
     #[test]
