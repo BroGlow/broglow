@@ -249,6 +249,18 @@ pub fn run_event() -> anyhow::Result<()> {
             return false;
         }
 
+        // A pending permission (`NeedsHelp`) is the product's core red signal.
+        // A bare `working` — e.g. a `session.status: busy` re-broadcast when a
+        // client attaches to the server — must not silently clear it; only an
+        // explicit `resumed` (permission.replied) does. So keep red until then.
+        if event == "working" {
+            if let Some(s) = existing {
+                if s.status == Status::NeedsHelp {
+                    return false;
+                }
+            }
+        }
+
         // `working` is chatty (fires on every message/tool step). Skip the write
         // when nothing would change — the same suppression as the Claude
         // PreToolUse path — so the file watchers don't thrash. A title still

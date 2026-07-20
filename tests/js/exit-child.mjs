@@ -7,7 +7,10 @@
 // for the async "working" write to land, then exits. The plugin's exit handler
 // must then synchronously flip that session to "done" (via spawnSync).
 //
-// Env in: PLUGIN_FILE (substituted plugin path), SESSION_ID, HOME (sandbox).
+// Env in: PLUGIN_FILE (substituted plugin path), SESSION_ID, HOME (sandbox),
+// FIRST_EVENT (optional; the event type that first introduces the session —
+// defaults to session.created, but a resumed/attached session may be first seen
+// via e.g. session.status).
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -15,17 +18,19 @@ import { pathToFileURL } from "node:url";
 
 const pluginFile = process.env.PLUGIN_FILE;
 const sessionId = process.env.SESSION_ID;
+const firstEvent = process.env.FIRST_EVENT || "session.created";
 const statePath = join(process.env.HOME, ".claude", "clawlight", "state.json");
 
 const mod = await import(pathToFileURL(pluginFile));
 const hooks = await mod.clawlight({ directory: "/tmp/exit-proj" });
 
-await hooks.event({
-  event: {
-    type: "session.created",
-    properties: { sessionID: sessionId, info: { id: sessionId, title: "Exit test" } },
-  },
-});
+// Build the event that first introduces this session, matching how opencode
+// shapes each type's properties.
+const properties =
+  firstEvent === "session.status"
+    ? { sessionID: sessionId, status: { type: "busy" } }
+    : { sessionID: sessionId, info: { id: sessionId, title: "Exit test" } };
+await hooks.event({ event: { type: firstEvent, properties } });
 
 // Ensure the "working" write has landed before exiting, so the exit handler's
 // "ended" write is unambiguously the last writer (deterministic final state).

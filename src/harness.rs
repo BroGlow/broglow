@@ -155,6 +155,11 @@ pub mod opencode {
     /// opencode's global config directory (`~/.config/opencode`). Its existence
     /// is one of the two opencode-present signals (the other is the binary on
     /// PATH).
+    ///
+    /// Note: `~/.config/opencode` is assumed on every platform. opencode's
+    /// Windows config location (`%APPDATA%`?) is unconfirmed, so detection and
+    /// the plugin path are effectively untested there — verify against a real
+    /// Windows opencode before trusting it (the tests are unix-gated).
     fn config_dir() -> PathBuf {
         dirs::home_dir()
             .expect("Home directory must exist")

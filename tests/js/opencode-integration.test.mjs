@@ -293,3 +293,20 @@ test("the plugin flips its live sessions to done on process exit", {
   assert.equal(s.sessions[id].status, "done");
   assert.equal(s.sessions[id].harness, "opencode");
 });
+
+test("a session first seen without session.created is still marked done on exit", {
+  skip: isWindows && "unix-only",
+}, async () => {
+  const home = mkdtempSync(join(tmpdir(), "clw-home-"));
+  const id = "ses_resumed";
+  // A session resumed/attached in a new opencode process may never re-fire
+  // `session.created` there — the plugin first sees it via e.g. `session.status`.
+  // It must still be tracked and flipped to done at exit (the plugin tracks
+  // `live` on every per-session event, not just `created`).
+  execFileSync(process.execPath, [join(HERE, "exit-child.mjs")], {
+    env: { ...process.env, HOME: home, PLUGIN_FILE, SESSION_ID: id, FIRST_EVENT: "session.status" },
+    stdio: "inherit",
+  });
+  const s = await waitFor(home, (st) => st.sessions[id]?.status === "done");
+  assert.equal(s.sessions[id].status, "done");
+});

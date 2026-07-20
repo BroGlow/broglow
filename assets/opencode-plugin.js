@@ -47,6 +47,10 @@ export const clawlight = async ({ directory, worktree, project }) => {
         if (title) payload.title = title;
         child.stdin.end(JSON.stringify(payload));
         child.unref();
+        // Watchdog so a wedged clawlight can't stall the queue forever. Note the
+        // tradeoff with the ordering guarantee below: if a spawn takes >3s the
+        // next event's write can race it. clawlight event is a fast lock+rename,
+        // so this is a safety valve, not an expected path.
         const t = setTimeout(finish, 3000);
         if (t.unref) t.unref();
       } catch (_) {
@@ -73,6 +77,12 @@ export const clawlight = async ({ directory, worktree, project }) => {
   // an async spawn would be cut off — so it uses spawnSync. Layer (b), the
   // owner-PID reap on the clawlight side, still covers a hard SIGKILL that skips
   // this entirely.
+  //
+  // Accepted gap: a `working` child already spawned by the queue is detached, so
+  // it can survive exit and its write can land *after* this synchronous `ended`,
+  // leaving a ghost green session. For terminal-hosted sessions the owner-PID
+  // reap clears it on the next read (dead PID -> Done); `opencode serve` (no
+  // owner_pid) leans on the reconnect sweep / 24h staleness backstop.
   const live = new Set();
   const sendSync = (event, sessionID) => {
     try {
@@ -120,12 +130,15 @@ export const clawlight = async ({ directory, worktree, project }) => {
           (p.info && p.info.id) ||
           (p.session && p.session.id);
 
+        // Track every session we see, on ANY per-session event — not just
+        // `session.created`. A session resumed/attached in a new opencode
+        // process never re-fires `created` there, so keying only off `created`
+        // would leave it unmarked at exit. (`session.deleted` removes it below.)
+        if (sid) live.add(sid);
+
         switch (type) {
           case "session.created":
-            if (sid) {
-              live.add(sid);
-              send("working", sid, (p.info && p.info.title) || p.title);
-            }
+            if (sid) send("working", sid, (p.info && p.info.title) || p.title);
             break;
           case "session.updated":
             // Title passthrough only — the Rust side updates the name without

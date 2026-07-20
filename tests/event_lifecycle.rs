@@ -120,6 +120,28 @@ fn permission_ask_flips_red_and_reply_clears_it() {
 }
 
 #[test]
+fn a_working_event_does_not_clear_a_pending_permission() {
+    let home = temp_home();
+    run_event(&home, &ev("working", "ses-p")).success();
+    run_event(&home, &ev("needs_input", "ses-p")).success();
+    assert_eq!(session_status(&read_state(&home), "ses-p"), "needs_help");
+
+    // A bare `working` (e.g. a `session.status: busy` re-broadcast when another
+    // client attaches to the server) must NOT silently clear the red — the
+    // product's core signal. Only `resumed` (permission.replied) clears it.
+    run_event(&home, &ev("working", "ses-p")).success();
+    assert_eq!(
+        session_status(&read_state(&home), "ses-p"),
+        "needs_help",
+        "working must not clear a pending permission"
+    );
+
+    // `resumed` still clears it.
+    run_event(&home, &ev("resumed", "ses-p")).success();
+    assert_eq!(session_status(&read_state(&home), "ses-p"), "active");
+}
+
+#[test]
 fn a_title_sets_the_name_without_changing_status() {
     let home = temp_home();
     run_event(&home, &ev("working", "ses-title")).success();
