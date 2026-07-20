@@ -170,19 +170,26 @@ test("a trailing message.updated after idle does not flip back to green", {
   const home = sandbox();
   const emit = newSession();
   const id = "ses_trail";
-  // opencode's real end-of-turn cadence: it goes idle, then emits a trailing
-  // `message.updated` (persisting the finished message). `message.updated` must
-  // NOT be treated as working, or the session flips back to green after idle —
-  // the "stuck green when idle" bug.
-  await emit("session.created", info(id));
+  // Faithful replay of the end-of-turn sequence captured from a real long-lived
+  // opencode session (`session.status` drives busy/idle; `message.updated`
+  // fires throughout AND once more *after* idle to persist the finished
+  // message). If `message.updated` were treated as working, that trailing event
+  // would flip the just-idled session back to green — the "stuck green when
+  // idle" bug. session.status must be the only working/idle driver.
+  await emit("session.created", info(id, { title: "Turn" }));
+  await emit("session.status", status(id, "busy"));
+  await emit("message.updated", info(id)); // during work — ignored
+  await emit("message.updated", info(id));
   await emit("session.status", status(id, "busy"));
   await emit("session.status", status(id, "idle"));
   await emit("session.idle", { sessionID: id });
-  await emit("session.updated", info(id, { title: "done" })); // title, no status
-  await emit("message.updated", info(id)); // trailing — must be ignored
+  await emit("session.updated", info(id, { title: "Turn done" })); // title only
+  await emit("message.updated", info(id)); // trailing — the bug trigger
 
   const s = await waitFor(home, (st) => st.sessions[id]?.status === "inactive");
   assert.equal(s.sessions[id].status, "inactive");
+  assert.equal(s.sessions[id].name, "Turn done", "the trailing title still applied");
+  // Must STAY inactive once the whole queue has drained (no late flip).
   await sleep(400);
   assert.equal(readState(home).sessions[id].status, "inactive");
 });
