@@ -114,8 +114,9 @@ function newSession(ctx = { directory: "/tmp/oc-proj" }) {
 }
 
 const info = (id, extra = {}) => ({ sessionID: id, info: { id, ...extra } });
+const status = (id, type) => ({ sessionID: id, status: { type } });
 
-test("full lifecycle: created → message → permission → reply → idle → deleted", {
+test("full lifecycle: created → permission → reply → idle → deleted", {
   skip: isWindows && "unix-only (HOME can't sandbox state on Windows)",
 }, async () => {
   const home = sandbox();
@@ -163,17 +164,41 @@ test("session.updated passes the new title through without changing status", {
   assert.equal(s.sessions[id].status, "inactive");
 });
 
-test("a burst of working before idle still settles on idle (write ordering)", {
+test("a trailing message.updated after idle does not flip back to green", {
+  skip: isWindows && "unix-only",
+}, async () => {
+  const home = sandbox();
+  const emit = newSession();
+  const id = "ses_trail";
+  // opencode's real end-of-turn cadence: it goes idle, then emits a trailing
+  // `message.updated` (persisting the finished message). `message.updated` must
+  // NOT be treated as working, or the session flips back to green after idle —
+  // the "stuck green when idle" bug.
+  await emit("session.created", info(id));
+  await emit("session.status", status(id, "busy"));
+  await emit("session.status", status(id, "idle"));
+  await emit("session.idle", { sessionID: id });
+  await emit("session.updated", info(id, { title: "done" })); // title, no status
+  await emit("message.updated", info(id)); // trailing — must be ignored
+
+  const s = await waitFor(home, (st) => st.sessions[id]?.status === "inactive");
+  assert.equal(s.sessions[id].status, "inactive");
+  await sleep(400);
+  assert.equal(readState(home).sessions[id].status, "inactive");
+});
+
+test("a burst of busy before idle still settles on idle (write ordering)", {
   skip: isWindows && "unix-only",
 }, async () => {
   const home = sandbox();
   const emit = newSession();
   const id = "ses_burst";
   await emit("session.created", info(id));
-  // The end-of-turn cadence: several `working` events then `idle`, with no gaps.
-  // Detached, unordered writes used to let a stray `working` land after `idle`
-  // and leave the light stuck green; the plugin serializes sends to prevent it.
-  for (let i = 0; i < 8; i++) await emit("message.updated", info(id));
+  // The end-of-turn cadence: several `busy` status events then `idle`, with no
+  // gaps. Detached, unordered writes used to let a stray `working` land after
+  // `idle` and leave the light stuck green; the plugin serializes sends.
+  for (let i = 0; i < 8; i++) await emit("session.status", status(id, "busy"));
+  await emit("session.status", status(id, "idle"));
   await emit("session.idle", { sessionID: id });
 
   const s = await waitFor(home, (st) => st.sessions[id]?.status === "inactive");

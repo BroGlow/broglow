@@ -132,14 +132,19 @@ export const clawlight = async ({ directory, worktree, project }) => {
             // touching status.
             if (sid) send("title", sid, (p.info && p.info.title) || p.title);
             break;
-          case "message.updated":
-          case "tool.execute.before":
-            // Not role-filtered: in a real session the last event before the
-            // turn ends is `session.idle`, so a trailing assistant
-            // `message.updated` doesn't arrive after it to flicker green.
-            if (sid) send("working", sid);
+          case "session.status":
+            // The authoritative working/idle signal. We deliberately do NOT map
+            // `message.updated`/`tool.execute.before` to working: opencode emits
+            // a trailing `message.updated` (persisting the finished message)
+            // *after* it goes idle, which would flip the light back to green.
+            // `session.status` is the clean edge — busy while the agent works,
+            // idle exactly once when it's done and waiting.
+            if (sid && p.status && p.status.type === "busy") send("working", sid);
+            else if (sid && p.status && p.status.type === "idle") send("idle", sid);
             break;
           case "session.idle":
+            // Belt-and-suspenders alongside `session.status` idle (and the
+            // signal `opencode run` emits on completion).
             if (sid) send("idle", sid);
             break;
           case "permission.asked":
