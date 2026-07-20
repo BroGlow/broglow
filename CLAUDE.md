@@ -51,17 +51,24 @@ serial port. Redeploy the installed one instead.
 | `update <firmware> [--port]` | Serial-OTA push of new board firmware |
 | `hook` *(hidden)* | Claude Code hook backend; reads one event as JSON on stdin |
 | `event` *(hidden)* | Normalized-event backend for non-Claude harnesses (opencode); reads one event as JSON on stdin |
+| `codex-hook` *(hidden)* | Codex shim: reads one Claude-dialect hook payload on stdin, maps it to a normalized event |
 | `name <id> <transcript>` *(hidden)* | Detached auto-namer; titles a session via the `claude` CLI |
 
 ## Module map (src/)
 
 - **main.rs** — CLI parsing, TUI setup/teardown (panic hook restores the terminal),
   and all install/uninstall + per-platform autostart logic.
-- **hook.rs** — the `hook`, `event`, and `name` backends. Maps Claude hook events (and
-  the harness-agnostic normalized verbs from `event`) → `Status`, does the locked
-  read-modify-write of `state.json` via the shared `update_state` helper, spawns the
-  detached auto-namer on first `Stop`. `run_event` is the multi-harness ingestion path
-  (opencode today) — see "Multi-harness adapters" below.
+- **hook.rs** — the `hook`, `event`, `codex-hook`, and `name` backends. Maps Claude hook
+  events (and the harness-agnostic normalized verbs from `event`) → `Status`, does the
+  locked read-modify-write of `state.json` via the shared `update_state` helper, spawns
+  the detached auto-namer on first `Stop`. `run_event` is the multi-harness ingestion
+  path; `run_codex_hook` translates Codex's Claude-dialect payloads onto the same verbs
+  in-process — see "Multi-harness adapters" below.
+- **codex.rs** — everything Codex-specific behind the `codex` adapter: `$CODEX_HOME`
+  paths, the position-preserving hooks.json merge (Codex trusts hooks by content hash +
+  position — never reorder foreign groups, never write Codex's config.toml), thread
+  names from `session_index.jsonl`, exec-vs-interactive from rollout `session_meta`,
+  and first-typed-prompt extraction for fallback naming.
 - **state.rs** — `HookState`/`SessionStatus`/`Status` types (incl. the optional
   `harness` tag: absent = Claude, `"opencode"` = opencode), `state.json` read/write
   (atomic temp-file + rename), the shared `.state.lock` (`acquire_state_lock`), the
@@ -110,12 +117,12 @@ thin:
 
 - **`clawlight event`** (`hook::run_event`) is the ingestion path. It reads one *normalized*
   event as JSON on stdin: `{ harness, event, session_id, title?, directory? }`. The status
-  verbs are harness-agnostic — a future Codex/Copilot adapter emits the same shape and needs
-  no new Rust:
+  verbs are harness-agnostic — adapters emit the same shape (opencode via its JS plugin,
+  Codex via the in-binary `codex-hook` shim):
 
   | verb | `Status` |
   |---|---|
-  | `working` / `resumed` | `Active` (chatty `working` is write-suppressed when already active, unless a title rides along) |
+  | `working` / `resumed` | `Active` (chatty `working`/`resumed` are write-suppressed when already active, unless a title rides along) |
   | `idle` | `Inactive` |
   | `needs_input` | `NeedsHelp` |
   | `ended` | `Done` |
@@ -147,6 +154,18 @@ thin:
   (opencode config dir exists *or* `opencode` on PATH); uninstall removes the file only if it
   still carries the `managed by clawlight` header. opencode loads plugins at startup, so
   already-running sessions need a restart to appear.
+- **Codex needs no plugin.** Codex (>= 0.144) fires Claude-dialect hooks itself, so its
+  adapter registers `clawlight codex-hook` matcher groups in `$CODEX_HOME/hooks.json` and
+  the shim maps events in-process: `PermissionRequest` → `needs_input` (Codex has no
+  `Notification`), `PostToolUse`/`UserPromptSubmit` → `resumed` (what clears the red after
+  an approval), `Stop` → `idle` — or `ended` for one-shot `codex exec` rollouts (detected
+  from the rollout's `session_meta`; Codex has no `SessionEnd`, so interactive quits are
+  left to the owner-pid reap). Titles come from Codex's own `session_index.jsonl` thread
+  names at turn boundaries, with the first typed prompt as a one-time fallback — never an
+  LLM call. Two Codex-side rules: its hooks.json merge must preserve foreign matcher
+  groups *in place* (Codex trusts hooks by content hash + position; the user approves new
+  clawlight entries once via `/hooks` in Codex), and clawlight must never write Codex's
+  config.toml (Codex rewrites it while running).
 - **Shutdown** (opencode has no per-session exit event) is handled in three layers: the
   plugin's `process.on("exit")` emits `ended`; the `reconnected` sweep is the backstop; and,
   because `run_event` captures the host terminal's `owner_pid` on first sighting, the existing
@@ -190,7 +209,10 @@ thin:
   and none (a "Get a lamp" link → `GetLamp` opens clawlight.dev). Presence is read via
   `led::board_present_cached` (short-TTL cache, since the page asks on every state push).
 - **Usage/spend tracking is strictly opt-in** (`usage_enabled`, set in the popover's
-  Settings view; off by default). While off, `usage::spawn_refresher` does *no* work —
+  Settings view; off by default). It covers both harness families: Claude transcripts
+  (per-message `usage` blocks) and Codex rollouts (cumulative `token_count` events,
+  folded as per-event deltas with reset detection). While off, `usage::spawn_refresher`
+  does *no* work —
   it never scans the transcript JSONLs, reads Claude Code's credentials, or contacts the
   OAuth usage endpoint — and both the tray readout (`apply_readout`) and the popover's
   usage section stay empty regardless of any cached snapshot. Enabling it is what
