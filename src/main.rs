@@ -1,5 +1,6 @@
 mod app;
 mod config;
+mod copilot;
 mod harness;
 mod hook;
 mod led;
@@ -67,6 +68,13 @@ enum Commands {
     /// (internal) Normalized-event backend for non-Claude harnesses (opencode)
     #[command(hide = true)]
     Event,
+    /// (internal) Copilot hook shim: per-event payload → normalized event
+    #[command(hide = true)]
+    CopilotHook {
+        /// Copilot lifecycle event this registration fires for (the payload
+        /// itself doesn't name it)
+        event: String,
+    },
     /// (internal) Generate a session name from a transcript
     #[command(hide = true)]
     Name {
@@ -87,6 +95,7 @@ fn main() -> anyhow::Result<()> {
         Some(Commands::Usage) => usage::run_once(),
         Some(Commands::Hook) => hook::run(),
         Some(Commands::Event) => hook::run_event(),
+        Some(Commands::CopilotHook { event }) => hook::run_copilot_hook(&event),
         Some(Commands::Name {
             session_id,
             transcript_path,

@@ -179,3 +179,78 @@ fn uninstall_leaves_a_foreign_opencode_plugin_alone() {
         "a file without our header must never be deleted"
     );
 }
+
+#[test]
+fn install_writes_copilot_hooks_and_uninstall_reverts_them() {
+    let home = TempDir::new().unwrap();
+    // The `.copilot` dir is the detection signal (no `copilot` binary on CI).
+    let hooks_file = home.path().join(".copilot/hooks/clawlight.json");
+    std::fs::create_dir_all(home.path().join(".copilot")).unwrap();
+
+    run(&home, "install");
+
+    let hooks: Value =
+        serde_json::from_str(&std::fs::read_to_string(&hooks_file).unwrap()).unwrap();
+    assert_eq!(hooks["version"], 1);
+    for event in [
+        "sessionStart",
+        "userPromptSubmitted",
+        "preToolUse",
+        "postToolUse",
+        "permissionRequest",
+        "agentStop",
+        "sessionEnd",
+    ] {
+        let command = hooks["hooks"][event][0]["command"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{event} registered in copilot hooks"));
+        assert!(
+            command.ends_with(&format!("\" copilot-hook {event}")),
+            "{event} invokes the shim with its name on argv: {command}"
+        );
+        assert_eq!(hooks["hooks"][event][0]["type"], "command");
+    }
+
+    // Idempotent: a second install just refreshes the same file.
+    run(&home, "install");
+    let again: Value =
+        serde_json::from_str(&std::fs::read_to_string(&hooks_file).unwrap()).unwrap();
+    assert_eq!(again["hooks"]["agentStop"].as_array().unwrap().len(), 1);
+
+    run(&home, "uninstall");
+    assert!(!hooks_file.exists(), "our hooks file is removed");
+    assert!(
+        home.path().join(".copilot").exists(),
+        "copilot's own directory is left alone"
+    );
+}
+
+#[test]
+fn copilot_hook_files_that_are_not_ours_are_left_alone() {
+    let home = TempDir::new().unwrap();
+    let hooks_dir = home.path().join(".copilot/hooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    let ours_path = hooks_dir.join("clawlight.json");
+    // A hand-rolled file at our path (nothing in it invokes `copilot-hook`)
+    // is the user's own configuration; both operations must skip it.
+    let hand_rolled =
+        r#"{"version":1,"hooks":{"preToolUse":[{"type":"command","command":"./guard.sh"}]}}"#;
+    std::fs::write(&ours_path, hand_rolled).unwrap();
+    // A sibling hooks file is never clawlight's business at all.
+    let sibling = hooks_dir.join("policy.json");
+    std::fs::write(&sibling, r#"{"version":1,"hooks":{}}"#).unwrap();
+
+    run(&home, "install");
+    assert_eq!(
+        std::fs::read_to_string(&ours_path).unwrap(),
+        hand_rolled,
+        "install must never overwrite a file that isn't ours"
+    );
+
+    run(&home, "uninstall");
+    assert!(
+        ours_path.exists(),
+        "a file that isn't ours is never deleted"
+    );
+    assert!(sibling.exists(), "sibling hook files are untouched");
+}

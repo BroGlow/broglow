@@ -181,7 +181,14 @@ pub fn run_event() -> anyhow::Result<()> {
     let mut input = String::new();
     let _ = std::io::stdin().read_to_string(&mut input);
     let v: Value = serde_json::from_str(&input).unwrap_or(Value::Null);
+    ingest_event(&v)
+}
 
+/// Apply one normalized harness event (see [`run_event`] for the shape).
+/// Shared by the stdin backend and the in-process Copilot shim
+/// ([`run_copilot_hook`]), which builds the same shape after translating
+/// Copilot's per-event hook payloads.
+fn ingest_event(v: &Value) -> anyhow::Result<()> {
     let field = |k: &str| -> Option<String> {
         v.get(k)
             .and_then(|x| x.as_str())
@@ -261,11 +268,14 @@ pub fn run_event() -> anyhow::Result<()> {
             }
         }
 
-        // `working` is chatty (fires on every message/tool step). Skip the write
+        // `working` is chatty (fires on every message/tool step), and the
+        // Copilot shim emits `resumed` on every postToolUse. Skip the write
         // when nothing would change — the same suppression as the Claude
         // PreToolUse path — so the file watchers don't thrash. A title still
-        // forces a write.
-        if event == "working" && title.is_none() {
+        // forces a write. (The needs-help guard above already ran, so a
+        // `resumed` that actually clears red always gets here with a
+        // non-Active status and writes.)
+        if matches!(event.as_str(), "working" | "resumed") && title.is_none() {
             if let Some(s) = existing {
                 if s.status == Status::Active {
                     return false;
@@ -310,6 +320,100 @@ pub fn run_event() -> anyhow::Result<()> {
         );
         true
     })
+}
+
+/// `clawlight copilot-hook <event>`: the GitHub Copilot CLI shim. The copilot
+/// adapter (see copilot.rs) registers this command per lifecycle event in
+/// `$COPILOT_HOME/hooks/clawlight.json`; Copilot pipes one JSON payload on
+/// stdin. The payload does not name its event — that arrives as `event` from
+/// argv — so this reads the payload, maps the pair onto the normalized verbs,
+/// and feeds [`ingest_event`], giving Copilot sessions the shared semantics
+/// (sticky red, owner-pid reaping, badges) without a plugin.
+///
+/// Mapping notes:
+/// - `permissionRequest` is Copilot's waiting-on-approval signal →
+///   `needs_input` (its `notification` event is unregistered: an undocumented
+///   type vocabulary that could flip the icon red on informational nudges).
+/// - `postToolUse` → `resumed`: the first tool completion after an approval
+///   is what clears the red; a plain `working` deliberately would not.
+/// - `userPromptSubmitted` → `resumed`: the user typing is also them dealing
+///   with a pending request (e.g. rejecting the tool and redirecting).
+/// - `agentStop` → `idle`, `sessionEnd` → `ended`: Copilot has a real
+///   session-end event (unlike Codex), so one-shot `copilot -p` runs and
+///   interactive quits both end cleanly with no rollout sniffing.
+/// - Titles: Copilot's own AI-generated session names live in its SQLite
+///   session store, which we don't read; instead the first typed prompt —
+///   carried right in the payload (`prompt` / `initialPrompt`) — becomes the
+///   name, once, while the session is still unnamed.
+pub fn run_copilot_hook(event_name: &str) -> anyhow::Result<()> {
+    let mut input = String::new();
+    let _ = std::io::stdin().read_to_string(&mut input);
+    let v: Value = serde_json::from_str(&input).unwrap_or(Value::Null);
+
+    let field = |k: &str| -> Option<String> {
+        v.get(k)
+            .and_then(|x| x.as_str())
+            .map(str::to_string)
+            .filter(|s| !s.is_empty())
+    };
+    // camelCase-registered events get camelCase payloads; tolerate the
+    // snake_case spelling too in case the registration is ever hand-edited to
+    // the PascalCase aliases (whose payloads come snake_cased).
+    let Some(session_id) = field("sessionId").or_else(|| field("session_id")) else {
+        return Ok(());
+    };
+    let cwd = field("cwd");
+
+    let Some(event) = copilot_event_verb(event_name) else {
+        return Ok(());
+    };
+
+    let mut ev = serde_json::json!({
+        "harness": "copilot",
+        "event": event,
+        "session_id": session_id,
+    });
+    if let Some(c) = &cwd {
+        ev["directory"] = Value::String(c.clone());
+    }
+    ingest_event(&ev)?;
+
+    // Fallback naming: the prompt rides in the payload itself, so the first
+    // one we see names a still-unnamed session (a later prompt never renames).
+    let prompt = match event_name {
+        "userPromptSubmitted" => field("prompt"),
+        "sessionStart" => field("initialPrompt").or_else(|| field("initial_prompt")),
+        _ => None,
+    };
+    if let Some(prompt) = prompt {
+        let first_line = prompt.trim().lines().next().unwrap_or("").to_string();
+        if !first_line.is_empty() {
+            let name = crate::session::truncate(&first_line, 50);
+            update_state(|state| match state.sessions.get_mut(&session_id) {
+                Some(s) if s.name.is_none() => {
+                    s.name = Some(name.clone());
+                    true
+                }
+                _ => false,
+            })?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Normalized verb for one Copilot lifecycle event (as registered in
+/// copilot.rs, camelCase); `None` for events that must not touch state
+/// (subagent/compaction events, future additions).
+fn copilot_event_verb(event_name: &str) -> Option<&'static str> {
+    match event_name {
+        "sessionStart" | "preToolUse" => Some("working"),
+        "userPromptSubmitted" | "postToolUse" => Some("resumed"),
+        "permissionRequest" => Some("needs_input"),
+        "agentStop" => Some("idle"),
+        "sessionEnd" => Some("ended"),
+        _ => None,
+    }
 }
 
 /// Sweep one harness's still-live sessions to `Done` on a harness restart.

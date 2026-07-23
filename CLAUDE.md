@@ -51,17 +51,24 @@ serial port. Redeploy the installed one instead.
 | `update <firmware> [--port]` | Serial-OTA push of new board firmware |
 | `hook` *(hidden)* | Claude Code hook backend; reads one event as JSON on stdin |
 | `event` *(hidden)* | Normalized-event backend for non-Claude harnesses (opencode); reads one event as JSON on stdin |
+| `copilot-hook <event>` *(hidden)* | Copilot shim: reads one per-event payload on stdin (the event name rides on argv), maps it to a normalized event |
 | `name <id> <transcript>` *(hidden)* | Detached auto-namer; titles a session via the `claude` CLI |
 
 ## Module map (src/)
 
 - **main.rs** — CLI parsing, TUI setup/teardown (panic hook restores the terminal),
   and all install/uninstall + per-platform autostart logic.
-- **hook.rs** — the `hook`, `event`, and `name` backends. Maps Claude hook events (and
-  the harness-agnostic normalized verbs from `event`) → `Status`, does the locked
-  read-modify-write of `state.json` via the shared `update_state` helper, spawns the
-  detached auto-namer on first `Stop`. `run_event` is the multi-harness ingestion path
-  (opencode today) — see "Multi-harness adapters" below.
+- **hook.rs** — the `hook`, `event`, `copilot-hook`, and `name` backends. Maps Claude
+  hook events (and the harness-agnostic normalized verbs from `event`) → `Status`, does
+  the locked read-modify-write of `state.json` via the shared `update_state` helper,
+  spawns the detached auto-namer on first `Stop`. `run_event` is the multi-harness
+  ingestion path; `run_copilot_hook` translates Copilot's per-event payloads onto the
+  same verbs in-process — see "Multi-harness adapters" below.
+- **copilot.rs** — everything Copilot-specific behind the `copilot` adapter:
+  `$COPILOT_HOME` paths and the wholly-owned `hooks/clawlight.json` registration file
+  (one command group per lifecycle event, the event name baked into argv because
+  Copilot payloads don't carry it; ownership proven by the `copilot-hook` command
+  string — JSON has no comments for the managed-by marker).
 - **state.rs** — `HookState`/`SessionStatus`/`Status` types (incl. the optional
   `harness` tag: absent = Claude, `"opencode"` = opencode), `state.json` read/write
   (atomic temp-file + rename), the shared `.state.lock` (`acquire_state_lock`), the
@@ -110,12 +117,12 @@ thin:
 
 - **`clawlight event`** (`hook::run_event`) is the ingestion path. It reads one *normalized*
   event as JSON on stdin: `{ harness, event, session_id, title?, directory? }`. The status
-  verbs are harness-agnostic — a future Codex/Copilot adapter emits the same shape and needs
-  no new Rust:
+  verbs are harness-agnostic — adapters emit the same shape (opencode via its JS plugin,
+  Copilot via the in-binary `copilot-hook` shim):
 
   | verb | `Status` |
   |---|---|
-  | `working` / `resumed` | `Active` (chatty `working` is write-suppressed when already active, unless a title rides along) |
+  | `working` / `resumed` | `Active` (chatty `working`/`resumed` are write-suppressed when already active, unless a title rides along) |
   | `idle` | `Inactive` |
   | `needs_input` | `NeedsHelp` |
   | `ended` | `Done` |
@@ -147,6 +154,22 @@ thin:
   (opencode config dir exists *or* `opencode` on PATH); uninstall removes the file only if it
   still carries the `managed by clawlight` header. opencode loads plugins at startup, so
   already-running sessions need a restart to appear.
+- **Copilot needs no plugin.** GitHub Copilot CLI fires user-level lifecycle hooks
+  itself: any `*.json` in `$COPILOT_HOME/hooks/` (default `~/.copilot/hooks/`) may
+  register commands per event, so the adapter writes a file clawlight wholly owns —
+  `hooks/clawlight.json` — and never merges into anyone else's configuration. Copilot
+  payloads don't name their event, so each registration is `clawlight copilot-hook
+  <event>` and the shim maps the argv/payload pair in-process: `permissionRequest` →
+  `needs_input` (its `notification` types are an undocumented vocabulary — left
+  unregistered rather than risk false reds), `postToolUse`/`userPromptSubmitted` →
+  `resumed` (what clears the red after an approval), `agentStop` → `idle`, and — unlike
+  Codex — a real `sessionEnd` → `ended`, covering one-shot `copilot -p` runs and
+  interactive quits with no rollout sniffing. Titles: Copilot's own AI-generated
+  session names live in its SQLite session store (not worth a dependency), so the
+  first typed prompt — carried in the hook payload itself (`prompt`/`initialPrompt`) —
+  names the session once; never an LLM call, never a file read. Ownership of
+  `clawlight.json` is the `copilot-hook` command string inside it (JSON has no
+  comments), guarding both the install overwrite and the uninstall delete.
 - **Shutdown** (opencode has no per-session exit event) is handled in three layers: the
   plugin's `process.on("exit")` emits `ended`; the `reconnected` sweep is the backstop; and,
   because `run_event` captures the host terminal's `owner_pid` on first sighting, the existing
@@ -216,7 +239,9 @@ suite drives the *compiled binary* end-to-end: Claude hook events on stdin →
 `state.json` assertions, the auto-namer against a fake `claude` on PATH
 (hook_lifecycle.rs, unix-only — `$HOME` can't be redirected on Windows),
 normalized harness events → `state.json` (event_lifecycle.rs, unix-only, same
-reason), install/uninstall round-trip incl. the opencode plugin (install.rs,
+reason), Copilot per-event payloads through the shim (copilot_lifecycle.rs,
+unix-only, same reason), install/uninstall round-trip incl. the opencode
+plugin and the Copilot hooks file (install.rs,
 Linux-only — on macOS it would `launchctl bootout` the dev machine's real
 daemon), and CLI smoke tests incl. a `node --check` parse of the embedded
 opencode plugin when node is present (cli.rs, all platforms). Prefer extending
