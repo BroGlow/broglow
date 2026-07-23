@@ -51,6 +51,112 @@ fn icon_for(agg: Aggregate) -> anyhow::Result<Icon> {
     Icon::from_rgba(rgba.into_raw(), w, h).context("Building tray icon")
 }
 
+// ---------------------------------------------------------------------------
+// Daemon liveness / start — used by the TUI's `t` key and tray status chip
+// ---------------------------------------------------------------------------
+
+/// Whether a tray daemon is already running (launchd-managed or foreground).
+/// Matched on the command line (`… clawlight menubar`) so the TUI process
+/// itself never counts.
+#[cfg(unix)]
+pub fn is_running() -> bool {
+    let Ok(out) = std::process::Command::new("ps")
+        .args(["-axo", "command="])
+        .output()
+    else {
+        return false;
+    };
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .any(is_menubar_cmdline)
+}
+
+#[cfg(unix)]
+fn is_menubar_cmdline(line: &str) -> bool {
+    let mut parts = line.split_whitespace();
+    let Some(bin) = parts.next() else {
+        return false;
+    };
+    (bin == "clawlight" || bin.ends_with("/clawlight")) && parts.next() == Some("menubar")
+}
+
+/// Windows: the daemon holds a named mutex for its lifetime (see
+/// `acquire_single_instance_lock`); probing it is the liveness check.
+#[cfg(windows)]
+pub fn is_running() -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::OpenMutexW;
+    const SYNCHRONIZE: u32 = 0x0010_0000;
+
+    let name: Vec<u16> = "Local\\clawlight-menubar"
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    unsafe {
+        let handle = OpenMutexW(SYNCHRONIZE, 0, name.as_ptr());
+        if handle.is_null() {
+            false
+        } else {
+            CloseHandle(handle);
+            true
+        }
+    }
+}
+
+/// Start the tray daemon if it isn't running; returns a status-bar message.
+/// macOS prefers launchd (restarts the installed LaunchAgent, so there is
+/// never a second instance); elsewhere — or when no agent is installed — the
+/// daemon is spawned detached, guarded by [`is_running`] (and by the named
+/// mutex on Windows).
+pub fn ensure_running() -> String {
+    if is_running() {
+        return "Tray daemon is already running.".to_string();
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if crate::launch_agent_path().exists() {
+            if let Ok(uid) = crate::current_uid() {
+                let service = format!("gui/{uid}/{}", crate::LAUNCH_AGENT_LABEL);
+                let started = std::process::Command::new("launchctl")
+                    .args(["kickstart", &service])
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false);
+                // Not loaded (e.g. booted out): load the agent, which starts
+                // it via RunAtLoad.
+                if !started {
+                    let _ = std::process::Command::new("launchctl")
+                        .args(["bootstrap", &format!("gui/{uid}")])
+                        .arg(crate::launch_agent_path())
+                        .output();
+                    let _ = std::process::Command::new("launchctl")
+                        .args(["kickstart", &service])
+                        .output();
+                }
+                return "Started the menu bar daemon.".to_string();
+            }
+        }
+    }
+
+    // No launchd agent (never installed) or non-macOS: spawn directly.
+    let Ok(exe) = std::env::current_exe() else {
+        return "Couldn't locate the clawlight binary.".to_string();
+    };
+    let mut cmd = std::process::Command::new(exe);
+    cmd.arg("menubar")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    crate::spawn::configure_detached(&mut cmd);
+    match cmd.spawn() {
+        Ok(_) => {
+            "Started the tray daemon (run `clawlight install` for login autostart).".to_string()
+        }
+        Err(e) => format!("Couldn't start the tray daemon: {e}"),
+    }
+}
+
 /// Session display name: the auto-namer's title when present, else a
 /// truncated session id. Char-based truncation — ids are ours, but keep the
 /// repo-wide rule of never byte-slicing.

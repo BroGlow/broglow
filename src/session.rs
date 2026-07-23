@@ -77,7 +77,7 @@ fn project_short_name(project_path: &str) -> String {
         .unwrap_or_else(|| project_path.to_string())
 }
 
-fn truncate(s: &str, max: usize) -> String {
+pub(crate) fn truncate(s: &str, max: usize) -> String {
     // Count by chars, not bytes: byte-slicing a multibyte UTF-8 sequence (emoji,
     // CJK, accented text, curly quotes) at a non-boundary index panics, which
     // would take the whole TUI down on the next refresh.

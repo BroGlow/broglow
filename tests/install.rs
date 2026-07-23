@@ -179,3 +179,83 @@ fn uninstall_leaves_a_foreign_opencode_plugin_alone() {
         "a file without our header must never be deleted"
     );
 }
+
+#[test]
+fn install_registers_codex_hooks_and_uninstall_reverts_them() {
+    let home = TempDir::new().unwrap();
+    let codex_home = home.path().join("codex-home");
+    std::fs::create_dir_all(&codex_home).unwrap();
+
+    // A foreign hook (the user's own) that must survive both operations at
+    // its original position — Codex keys hook trust by position in the file.
+    let foreign = json!({
+        "hooks": [{ "type": "command",
+                    "command": "~/scripts/permission-hook.sh",
+                    "timeout": 600 }]
+    });
+    std::fs::write(
+        codex_home.join("hooks.json"),
+        json!({ "hooks": { "PermissionRequest": [foreign.clone()] } }).to_string(),
+    )
+    .unwrap();
+
+    let run = |subcommand: &str| {
+        Command::cargo_bin("clawlight")
+            .expect("binary built")
+            .arg(subcommand)
+            .env("HOME", home.path())
+            .env("CODEX_HOME", &codex_home)
+            .assert()
+            .success();
+    };
+    let read_hooks = || -> Value {
+        serde_json::from_str(&std::fs::read_to_string(codex_home.join("hooks.json")).unwrap())
+            .unwrap()
+    };
+
+    run("install");
+
+    let hooks = read_hooks();
+    for event in [
+        "SessionStart",
+        "UserPromptSubmit",
+        "Stop",
+        "PreToolUse",
+        "PostToolUse",
+        "PermissionRequest",
+    ] {
+        let groups = hooks["hooks"][event].as_array().unwrap_or_else(|| {
+            panic!("{event} registered in codex hooks.json");
+        });
+        let ours = groups
+            .iter()
+            .filter_map(|g| g["hooks"][0]["command"].as_str())
+            .find(|c| c.ends_with("\" codex-hook"));
+        assert!(ours.is_some(), "{event} has a clawlight codex-hook group");
+    }
+    // The user's hook kept its position at index 0.
+    assert_eq!(
+        hooks["hooks"]["PermissionRequest"][0], foreign,
+        "foreign PermissionRequest group preserved in place"
+    );
+
+    // Idempotent: a second install must not duplicate our groups.
+    run("install");
+    assert_eq!(
+        read_hooks()["hooks"]["Stop"].as_array().unwrap().len(),
+        1,
+        "no duplicate group after reinstall"
+    );
+
+    run("uninstall");
+    let hooks = read_hooks();
+    assert!(
+        hooks["hooks"].get("Stop").is_none(),
+        "clawlight-only events removed"
+    );
+    assert_eq!(
+        hooks["hooks"]["PermissionRequest"],
+        json!([foreign]),
+        "foreign hook survives uninstall"
+    );
+}

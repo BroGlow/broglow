@@ -181,7 +181,14 @@ pub fn run_event() -> anyhow::Result<()> {
     let mut input = String::new();
     let _ = std::io::stdin().read_to_string(&mut input);
     let v: Value = serde_json::from_str(&input).unwrap_or(Value::Null);
+    ingest_event(&v)
+}
 
+/// Apply one normalized harness event (see [`run_event`] for the shape).
+/// Shared by the stdin backend and the in-process Codex shim
+/// ([`run_codex_hook`]), which builds the same shape after translating
+/// Codex's Claude-dialect hook payloads.
+fn ingest_event(v: &Value) -> anyhow::Result<()> {
     let field = |k: &str| -> Option<String> {
         v.get(k)
             .and_then(|x| x.as_str())
@@ -261,11 +268,14 @@ pub fn run_event() -> anyhow::Result<()> {
             }
         }
 
-        // `working` is chatty (fires on every message/tool step). Skip the write
+        // `working` is chatty (fires on every message/tool step), and the
+        // Codex shim emits `resumed` on every PostToolUse. Skip the write
         // when nothing would change — the same suppression as the Claude
         // PreToolUse path — so the file watchers don't thrash. A title still
-        // forces a write.
-        if event == "working" && title.is_none() {
+        // forces a write. (The needs-help guard above already ran, so a
+        // `resumed` that actually clears red always gets here with a
+        // non-Active status and writes.)
+        if matches!(event.as_str(), "working" | "resumed") && title.is_none() {
             if let Some(s) = existing {
                 if s.status == Status::Active {
                     return false;
@@ -310,6 +320,100 @@ pub fn run_event() -> anyhow::Result<()> {
         );
         true
     })
+}
+
+/// `clawlight codex-hook`: the Codex shim. Codex (>= 0.144) fires hooks in
+/// Claude Code's dialect — same stdin JSON shape — from the entries the codex
+/// adapter registers in `$CODEX_HOME/hooks.json`. This reads one such event,
+/// maps it onto the normalized verbs, and feeds [`ingest_event`], so Codex
+/// sessions get the shared semantics (sticky red, owner-pid reaping, badges)
+/// without a JS plugin.
+///
+/// Mapping notes:
+/// - `PermissionRequest` is Codex's waiting-on-approval signal → `needs_input`
+///   (Codex has no `Notification`).
+/// - `PostToolUse` → `resumed`: the first tool completion after an approval is
+///   what clears the red; a plain `working` deliberately would not.
+/// - `UserPromptSubmit` → `resumed`: the user typing is also them dealing
+///   with a pending request (e.g. rejecting the tool and redirecting).
+/// - `Stop` → `idle`, except for one-shot `codex exec` rollouts → `ended`
+///   (nobody resumes those; Codex has no `SessionEnd`).
+/// - Titles: Codex names its own threads (`session_index.jsonl`); the thread
+///   name rides along as the event title. A session that has no thread name
+///   by its first `Stop` gets the first typed prompt as a fallback.
+pub fn run_codex_hook() -> anyhow::Result<()> {
+    let mut input = String::new();
+    let _ = std::io::stdin().read_to_string(&mut input);
+    let v: Value = serde_json::from_str(&input).unwrap_or(Value::Null);
+
+    let field = |k: &str| -> Option<String> {
+        v.get(k)
+            .and_then(|x| x.as_str())
+            .map(str::to_string)
+            .filter(|s| !s.is_empty())
+    };
+    let hook_event = field("hook_event_name").unwrap_or_default();
+    let Some(session_id) = field("session_id") else {
+        return Ok(());
+    };
+    let cwd = field("cwd");
+    let transcript_path = field("transcript_path").unwrap_or_default();
+
+    let exec = hook_event == "Stop"
+        && !transcript_path.is_empty()
+        && crate::codex::rollout_is_exec(&transcript_path);
+    let Some(event) = codex_event_verb(&hook_event, exec) else {
+        return Ok(());
+    };
+
+    // Codex's own thread title, when it has one — resolved at turn boundaries
+    // only (the index is tiny, but Pre/PostToolUse fire constantly).
+    let title = matches!(hook_event.as_str(), "SessionStart" | "Stop")
+        .then(|| crate::codex::thread_names().remove(&session_id))
+        .flatten();
+
+    let mut ev = serde_json::json!({
+        "harness": "codex",
+        "event": event,
+        "session_id": session_id,
+    });
+    if let Some(t) = &title {
+        ev["title"] = Value::String(t.clone());
+    }
+    if let Some(c) = &cwd {
+        ev["directory"] = Value::String(c.clone());
+    }
+    ingest_event(&ev)?;
+
+    // Fallback naming: no thread name by the end of a turn → first typed
+    // prompt from the rollout, only while the session is still unnamed (a
+    // later thread name overwrites it via the title path above).
+    if hook_event == "Stop" && title.is_none() && !transcript_path.is_empty() {
+        if let Some(prompt) = crate::codex::first_user_message(&transcript_path) {
+            let name = crate::session::truncate(&prompt, 50);
+            update_state(|state| match state.sessions.get_mut(&session_id) {
+                Some(s) if s.name.is_none() => {
+                    s.name = Some(name.clone());
+                    true
+                }
+                _ => false,
+            })?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Normalized verb for one Codex hook event; `None` for events that must not
+/// touch state (subagent/compaction events, future additions).
+fn codex_event_verb(hook_event: &str, exec: bool) -> Option<&'static str> {
+    match hook_event {
+        "SessionStart" | "PreToolUse" => Some("working"),
+        "UserPromptSubmit" | "PostToolUse" => Some("resumed"),
+        "PermissionRequest" => Some("needs_input"),
+        "Stop" => Some(if exec { "ended" } else { "idle" }),
+        _ => None,
+    }
 }
 
 /// Sweep one harness's still-live sessions to `Done` on a harness restart.
