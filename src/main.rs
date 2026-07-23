@@ -1,4 +1,5 @@
 mod app;
+mod codex;
 mod config;
 mod copilot;
 mod harness;
@@ -68,6 +69,9 @@ enum Commands {
     /// (internal) Normalized-event backend for non-Claude harnesses (opencode)
     #[command(hide = true)]
     Event,
+    /// (internal) Codex hook shim: Claude-dialect payload → normalized event
+    #[command(hide = true)]
+    CodexHook,
     /// (internal) Copilot hook shim: per-event payload → normalized event
     #[command(hide = true)]
     CopilotHook {
@@ -95,6 +99,7 @@ fn main() -> anyhow::Result<()> {
         Some(Commands::Usage) => usage::run_once(),
         Some(Commands::Hook) => hook::run(),
         Some(Commands::Event) => hook::run_event(),
+        Some(Commands::CodexHook) => hook::run_codex_hook(),
         Some(Commands::CopilotHook { event }) => hook::run_copilot_hook(&event),
         Some(Commands::Name {
             session_id,
@@ -488,7 +493,7 @@ fn uninstall_run_key() -> anyhow::Result<()> {
 // ----------------------------------------------------------------------------
 
 #[cfg(target_os = "macos")]
-const LAUNCH_AGENT_LABEL: &str = "io.roush.clawlight.menubar";
+pub(crate) const LAUNCH_AGENT_LABEL: &str = "io.roush.clawlight.menubar";
 
 #[cfg(target_os = "macos")]
 const LAUNCH_AGENT_PLIST: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -513,7 +518,7 @@ const LAUNCH_AGENT_PLIST: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 "#;
 
 #[cfg(target_os = "macos")]
-fn launch_agent_path() -> PathBuf {
+pub(crate) fn launch_agent_path() -> PathBuf {
     dirs::home_dir()
         .expect("Home directory must exist")
         .join("Library")
@@ -522,7 +527,7 @@ fn launch_agent_path() -> PathBuf {
 }
 
 #[cfg(target_os = "macos")]
-fn current_uid() -> anyhow::Result<String> {
+pub(crate) fn current_uid() -> anyhow::Result<String> {
     let out = std::process::Command::new("id")
         .arg("-u")
         .output()

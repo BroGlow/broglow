@@ -51,6 +51,7 @@ serial port. Redeploy the installed one instead.
 | `update <firmware> [--port]` | Serial-OTA push of new board firmware |
 | `hook` *(hidden)* | Claude Code hook backend; reads one event as JSON on stdin |
 | `event` *(hidden)* | Normalized-event backend for non-Claude harnesses (opencode); reads one event as JSON on stdin |
+| `codex-hook` *(hidden)* | Codex shim: reads one Claude-dialect hook payload on stdin, maps it to a normalized event |
 | `copilot-hook <event>` *(hidden)* | Copilot shim: reads one per-event payload on stdin (the event name rides on argv), maps it to a normalized event |
 | `name <id> <transcript>` *(hidden)* | Detached auto-namer; titles a session via the `claude` CLI |
 
@@ -58,12 +59,18 @@ serial port. Redeploy the installed one instead.
 
 - **main.rs** — CLI parsing, TUI setup/teardown (panic hook restores the terminal),
   and all install/uninstall + per-platform autostart logic.
-- **hook.rs** — the `hook`, `event`, `copilot-hook`, and `name` backends. Maps Claude
-  hook events (and the harness-agnostic normalized verbs from `event`) → `Status`, does
-  the locked read-modify-write of `state.json` via the shared `update_state` helper,
-  spawns the detached auto-namer on first `Stop`. `run_event` is the multi-harness
-  ingestion path; `run_copilot_hook` translates Copilot's per-event payloads onto the
-  same verbs in-process — see "Multi-harness adapters" below.
+- **hook.rs** — the `hook`, `event`, `codex-hook`, `copilot-hook`, and `name` backends.
+  Maps Claude hook events (and the harness-agnostic normalized verbs from `event`) →
+  `Status`, does the locked read-modify-write of `state.json` via the shared
+  `update_state` helper, spawns the detached auto-namer on first `Stop`. `run_event` is
+  the multi-harness ingestion path; `run_codex_hook` and `run_copilot_hook` translate
+  Codex's Claude-dialect / Copilot's per-event payloads onto the same verbs in-process —
+  see "Multi-harness adapters" below.
+- **codex.rs** — everything Codex-specific behind the `codex` adapter: `$CODEX_HOME`
+  paths, the position-preserving hooks.json merge (Codex trusts hooks by content hash +
+  position — never reorder foreign groups, never write Codex's config.toml), thread
+  names from `session_index.jsonl`, exec-vs-interactive from rollout `session_meta`,
+  and first-typed-prompt extraction for fallback naming.
 - **copilot.rs** — everything Copilot-specific behind the `copilot` adapter:
   `$COPILOT_HOME` paths and the wholly-owned `hooks/clawlight.json` registration file
   (one command group per lifecycle event, the event name baked into argv because
@@ -118,7 +125,7 @@ thin:
 - **`clawlight event`** (`hook::run_event`) is the ingestion path. It reads one *normalized*
   event as JSON on stdin: `{ harness, event, session_id, title?, directory? }`. The status
   verbs are harness-agnostic — adapters emit the same shape (opencode via its JS plugin,
-  Copilot via the in-binary `copilot-hook` shim):
+  Codex and Copilot via the in-binary `codex-hook` / `copilot-hook` shims):
 
   | verb | `Status` |
   |---|---|
@@ -154,6 +161,18 @@ thin:
   (opencode config dir exists *or* `opencode` on PATH); uninstall removes the file only if it
   still carries the `managed by clawlight` header. opencode loads plugins at startup, so
   already-running sessions need a restart to appear.
+- **Codex needs no plugin.** Codex (>= 0.144) fires Claude-dialect hooks itself, so its
+  adapter registers `clawlight codex-hook` matcher groups in `$CODEX_HOME/hooks.json` and
+  the shim maps events in-process: `PermissionRequest` → `needs_input` (Codex has no
+  `Notification`), `PostToolUse`/`UserPromptSubmit` → `resumed` (what clears the red after
+  an approval), `Stop` → `idle` — or `ended` for one-shot `codex exec` rollouts (detected
+  from the rollout's `session_meta`; Codex has no `SessionEnd`, so interactive quits are
+  left to the owner-pid reap). Titles come from Codex's own `session_index.jsonl` thread
+  names at turn boundaries, with the first typed prompt as a one-time fallback — never an
+  LLM call. Two Codex-side rules: its hooks.json merge must preserve foreign matcher
+  groups *in place* (Codex trusts hooks by content hash + position; the user approves new
+  clawlight entries once via `/hooks` in Codex), and clawlight must never write Codex's
+  config.toml (Codex rewrites it while running).
 - **Copilot needs no plugin.** GitHub Copilot CLI fires user-level lifecycle hooks
   itself: any `*.json` in `$COPILOT_HOME/hooks/` (default `~/.copilot/hooks/`) may
   register commands per event, so the adapter writes a file clawlight wholly owns —
@@ -213,7 +232,10 @@ thin:
   and none (a "Get a lamp" link → `GetLamp` opens clawlight.dev). Presence is read via
   `led::board_present_cached` (short-TTL cache, since the page asks on every state push).
 - **Usage/spend tracking is strictly opt-in** (`usage_enabled`, set in the popover's
-  Settings view; off by default). While off, `usage::spawn_refresher` does *no* work —
+  Settings view; off by default). It covers both harness families: Claude transcripts
+  (per-message `usage` blocks) and Codex rollouts (cumulative `token_count` events,
+  folded as per-event deltas with reset detection). While off, `usage::spawn_refresher`
+  does *no* work —
   it never scans the transcript JSONLs, reads Claude Code's credentials, or contacts the
   OAuth usage endpoint — and both the tray readout (`apply_readout`) and the popover's
   usage section stay empty regardless of any cached snapshot. Enabling it is what

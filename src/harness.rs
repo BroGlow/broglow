@@ -34,7 +34,7 @@ pub struct Adapter {
 
 /// Every non-Claude harness clawlight supports. Add an entry (and its asset) to
 /// support a new one — nothing else in the codebase needs to change.
-pub const ADAPTERS: &[Adapter] = &[opencode::ADAPTER, copilot::ADAPTER];
+pub const ADAPTERS: &[Adapter] = &[opencode::ADAPTER, codex::ADAPTER, copilot::ADAPTER];
 
 /// Set up every *detected* harness's wiring. Best-effort per adapter: a failure
 /// to write one never blocks the others or the Claude hook registration.
@@ -216,6 +216,41 @@ pub mod opencode {
 }
 
 // ---------------------------------------------------------------------------
+// codex
+// ---------------------------------------------------------------------------
+
+pub mod codex {
+    use std::path::PathBuf;
+
+    pub const ADAPTER: super::Adapter = super::Adapter {
+        name: "codex",
+        badge: "cx", // not "co": reserved against the codex/copilot collision
+        detected,
+        install,
+        uninstall,
+    };
+
+    fn detected() -> bool {
+        crate::codex::codex_home().is_some_and(|p: PathBuf| p.exists())
+            || super::is_on_path("codex")
+    }
+
+    /// Codex speaks a Claude-compatible hooks dialect, so its wiring is JSON
+    /// matcher groups merged into `$CODEX_HOME/hooks.json` (a file shared
+    /// with other tools — not a marker-owned file like the opencode plugin;
+    /// the command-string predicate in codex.rs is the ownership marker).
+    /// The registered command is `clawlight codex-hook`, the shim that maps
+    /// Codex's hook events onto the normalized verbs.
+    fn install() -> anyhow::Result<()> {
+        crate::codex::install_hooks()
+    }
+
+    fn uninstall() {
+        crate::codex::uninstall_hooks();
+    }
+}
+
+// ---------------------------------------------------------------------------
 // copilot
 // ---------------------------------------------------------------------------
 
@@ -256,6 +291,7 @@ mod tests {
     #[test]
     fn badge_returns_registered_tags_and_a_fallback() {
         assert_eq!(badge("opencode"), "oc");
+        assert_eq!(badge("codex"), "cx");
         assert_eq!(badge("copilot"), "co");
         // An unknown/future harness (e.g. a session written by a newer build)
         // still renders a non-empty tag rather than blank.
