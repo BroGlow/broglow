@@ -16,9 +16,11 @@
 //!   `codex exec` runs, from `Stop` (→ `ended`, see [`rollout_is_exec`]).
 //! - **Codex trusts hooks by content hash + position** (`[hooks.state]` in
 //!   its config.toml, keys like `hooks.json:<event>:<group>:<hook>`). New or
-//!   changed entries need a one-time `/hooks` approval inside Codex, and the
-//!   merge below must never reorder or drop another tool's matcher groups —
-//!   that would invalidate *their* trust. Never write Codex's config.toml:
+//!   changed entries need a one-time `/hooks` approval inside Codex, and
+//!   neither the merge nor the removal below may shift another tool's
+//!   matcher group — that would invalidate *their* trust. Removal therefore
+//!   neutralizes our groups into hookless placeholders wherever a foreign
+//!   group sits after ours. Never write Codex's config.toml:
 //!   Codex rewrites it while running, and the trust grant is the user's.
 
 use std::collections::HashMap;
@@ -64,7 +66,8 @@ const HOOK_EVENTS: [&str; 6] = [
 /// preserving every foreign matcher group *in place* — Codex keys its
 /// hook-trust state by position in the file, so reordering another tool's
 /// group would flag it for re-review. Our own group is replaced in place
-/// (refreshing a stale binary path) or appended. Idempotent.
+/// (refreshing a stale binary path), else fills a placeholder slot left by a
+/// prior removal, else appends. Idempotent.
 pub fn install_hooks() -> anyhow::Result<()> {
     let path = hooks_json_path().context("No home directory")?;
 
@@ -100,11 +103,7 @@ pub fn install_hooks() -> anyhow::Result<()> {
             .entry(event.to_string())
             .or_insert_with(|| serde_json::json!([]));
         if let Some(groups) = entry.as_array_mut() {
-            if let Some(ours) = groups.iter_mut().find(|g| group_is_clawlight(g)) {
-                *ours = group.clone();
-            } else {
-                groups.push(group.clone());
-            }
+            upsert_clawlight_group(groups, &group);
         }
     }
 
@@ -123,7 +122,7 @@ fn prune_stale_clawlight_groups(hooks_obj: &mut serde_json::Map<String, Value>, 
             continue;
         }
         if let Some(groups) = hooks_obj.get_mut(&event).and_then(|v| v.as_array_mut()) {
-            groups.retain(|g| !group_is_clawlight(g));
+            remove_clawlight_groups(groups);
             if groups.is_empty() {
                 hooks_obj.remove(&event);
             }
@@ -132,8 +131,11 @@ fn prune_stale_clawlight_groups(hooks_obj: &mut serde_json::Map<String, Value>, 
 }
 
 /// Strip clawlight's matcher groups from every event, leaving all other
-/// hooks untouched. The adapter's `uninstall`: best-effort, and the file
-/// itself stays (other tools register hooks there too).
+/// hooks untouched — and *in place*: a group of ours sitting in front of a
+/// foreign group is neutralized into a hookless placeholder rather than
+/// removed, so the foreign group's trust-by-position survives (see
+/// [`remove_clawlight_groups`]). The adapter's `uninstall`: best-effort, and
+/// the file itself stays (other tools register hooks there too).
 pub fn uninstall_hooks() {
     let Some(path) = hooks_json_path().filter(|p| p.exists()) else {
         return;
@@ -152,9 +154,7 @@ pub fn uninstall_hooks() {
     let events: Vec<String> = hooks_obj.keys().cloned().collect();
     for event in events {
         if let Some(groups) = hooks_obj.get_mut(&event).and_then(|v| v.as_array_mut()) {
-            let before = groups.len();
-            groups.retain(|g| !group_is_clawlight(g));
-            changed |= groups.len() != before;
+            changed |= remove_clawlight_groups(groups);
             if groups.is_empty() {
                 hooks_obj.remove(&event);
             }
@@ -168,7 +168,11 @@ pub fn uninstall_hooks() {
 /// Whether a hook command string invokes clawlight's Codex shim (or the plain
 /// hook backend an older build registered) — any install path, quoted or not,
 /// with or without `.exe`. This predicate is the "managed by clawlight"
-/// marker for hooks.json entries, which live inside a shared file.
+/// marker for hooks.json entries, which live inside a shared file — so it
+/// must be tight: the binary name must be exactly `clawlight`, i.e. preceded
+/// by a path separator, an opening quote, or nothing. A bare suffix match
+/// would also claim a foreign `my-clawlight`, stripping someone else's hook
+/// on uninstall.
 fn command_is_clawlight(cmd: &str) -> bool {
     let cmd = cmd.trim();
     [
@@ -182,7 +186,10 @@ fn command_is_clawlight(cmd: &str) -> bool {
         "clawlight.exe hook",
     ]
     .iter()
-    .any(|suffix| cmd.ends_with(suffix))
+    .any(|suffix| {
+        cmd.strip_suffix(suffix)
+            .is_some_and(|prefix| prefix.is_empty() || prefix.ends_with(['/', '\\', '"']))
+    })
 }
 
 /// A matcher group is ours only when *every* hook in it is clawlight's — a
@@ -197,6 +204,65 @@ fn group_is_clawlight(group: &Value) -> bool {
                 .and_then(|c| c.as_str())
                 .is_some_and(command_is_clawlight)
         })
+}
+
+/// The inert group left behind when one of ours must vanish from *in front
+/// of* a foreign group: hookless, so Codex runs nothing, while every later
+/// group keeps its index (Codex trusts hooks by content hash + position — a
+/// plain `retain` would shift the foreign group down and invalidate its
+/// trust).
+fn placeholder_group() -> Value {
+    serde_json::json!({ "hooks": [] })
+}
+
+/// A hookless group with nothing else in it — either our own placeholder or
+/// a semantically inert group someone left behind. Safe to reuse as a slot.
+fn group_is_placeholder(group: &Value) -> bool {
+    group
+        .as_object()
+        .is_some_and(|o| o.keys().all(|k| k == "hooks"))
+        && group
+            .get("hooks")
+            .and_then(|h| h.as_array())
+            .is_some_and(|h| h.is_empty())
+}
+
+/// Remove clawlight's groups from one event's array without shifting any
+/// foreign group's index: everything past the last foreign group (ours and
+/// stale placeholders) is truncated off the tail, and one of ours *followed
+/// by* a foreign group is neutralized into a [`placeholder_group`] in place.
+/// Returns whether anything changed.
+fn remove_clawlight_groups(groups: &mut Vec<Value>) -> bool {
+    let mut changed = false;
+    let last_foreign = groups
+        .iter()
+        .rposition(|g| !group_is_clawlight(g) && !group_is_placeholder(g));
+    let keep = last_foreign.map_or(0, |f| f + 1);
+    for g in groups.iter_mut().take(keep) {
+        if group_is_clawlight(g) {
+            *g = placeholder_group();
+            changed = true;
+        }
+    }
+    if groups.len() > keep {
+        groups.truncate(keep);
+        changed = true;
+    }
+    changed
+}
+
+/// Put our matcher group into an event's array: refresh our existing group in
+/// place, else fill a placeholder slot (left by [`remove_clawlight_groups`] —
+/// reusing it keeps foreign positions stable across install/uninstall
+/// cycles), else append.
+fn upsert_clawlight_group(groups: &mut Vec<Value>, group: &Value) {
+    if let Some(ours) = groups.iter_mut().find(|g| group_is_clawlight(g)) {
+        ours.clone_from(group);
+    } else if let Some(slot) = groups.iter_mut().find(|g| group_is_placeholder(g)) {
+        slot.clone_from(group);
+    } else {
+        groups.push(group.clone());
+    }
 }
 
 /// Atomic JSON write (sibling temp file + rename): a crash mid-write must
@@ -448,12 +514,7 @@ mod tests {
             let entry = obj
                 .entry(event.to_string())
                 .or_insert_with(|| serde_json::json!([]));
-            let groups = entry.as_array_mut().unwrap();
-            if let Some(ours) = groups.iter_mut().find(|g| group_is_clawlight(g)) {
-                *ours = group.clone();
-            } else {
-                groups.push(group.clone());
-            }
+            upsert_clawlight_group(entry.as_array_mut().unwrap(), &group);
         }
 
         let pr = obj["PermissionRequest"].as_array().unwrap();
@@ -484,5 +545,49 @@ mod tests {
             "~/.claude/scripts/permission-hook.sh"
         ));
         assert!(!command_is_clawlight("\"/usr/bin/clawlight\" led"));
+        // A foreign binary whose name merely *ends* in "clawlight" is not
+        // ours — a bare suffix match would strip someone else's hook.
+        assert!(!command_is_clawlight("/usr/bin/my-clawlight codex-hook"));
+        assert!(!command_is_clawlight("\"/opt/not-clawlight\" hook"));
+        assert!(!command_is_clawlight("notclawlight codex-hook"));
+    }
+
+    #[test]
+    fn removal_never_shifts_a_foreign_groups_position() {
+        let foreign = serde_json::json!({
+            "hooks": [{ "type": "command", "command": "./their-hook.sh" }]
+        });
+        let ours = serde_json::json!({
+            "hooks": [{ "type": "command", "command": "\"/x/clawlight\" codex-hook" }]
+        });
+
+        // Ours in front of a foreign group: neutralized in place, so the
+        // foreign group keeps index 1 (its trust key encodes the position).
+        let mut groups = vec![ours.clone(), foreign.clone()];
+        assert!(remove_clawlight_groups(&mut groups));
+        assert_eq!(groups.len(), 2);
+        assert!(group_is_placeholder(&groups[0]));
+        assert_eq!(groups[1], foreign);
+
+        // A later reinstall fills the placeholder slot instead of appending,
+        // so the foreign group *still* hasn't moved.
+        upsert_clawlight_group(&mut groups, &ours);
+        assert_eq!(groups[0], ours);
+        assert_eq!(groups[1], foreign);
+
+        // Ours on the tail: plain removal, nothing shifts.
+        let mut groups = vec![foreign.clone(), ours.clone()];
+        assert!(remove_clawlight_groups(&mut groups));
+        assert_eq!(groups, vec![foreign.clone()]);
+
+        // Only ours: the array empties (the caller then drops the event key).
+        let mut groups = vec![ours.clone()];
+        assert!(remove_clawlight_groups(&mut groups));
+        assert!(groups.is_empty());
+
+        // Nothing of ours: untouched, and reported as such.
+        let mut groups = vec![foreign.clone()];
+        assert!(!remove_clawlight_groups(&mut groups));
+        assert_eq!(groups, vec![foreign]);
     }
 }
