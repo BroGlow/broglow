@@ -244,7 +244,7 @@ fn install_hooks() -> anyhow::Result<()> {
     install_autostart()?;
 
     println!(
-        "\nInstallation complete! Hooks are now active for new Claude Code sessions, plus opencode, Codex CLI, and GitHub Copilot CLI wherever detected."
+        "\nInstallation complete! Hooks are now active for Claude Code and every detected coding agent (opencode, Codex, Copilot)."
     );
     println!("Run `clawlight` to launch the TUI dashboard.");
     if !lamp_enabled {
@@ -334,7 +334,7 @@ fn first_run_setup_tui() {
         return;
     }
     println!(
-        "First run — registering hooks for Claude Code and any other detected coding agents, and starting the menu bar daemon…\n"
+        "First run: registering hooks for Claude Code and every detected coding agent (opencode, Codex, Copilot), then starting the menu bar daemon…\n"
     );
     if let Err(e) = install_hooks() {
         eprintln!(

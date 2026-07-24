@@ -2,25 +2,25 @@
 
 <img width="1164" height="655" alt="claw-light-gif" src="https://github.com/user-attachments/assets/3e148527-169f-4f36-b2cd-0bcc3160527b" />
 
-**The simple way to manage your Claude Code sessions — and every other agent
-you run.**
+**The simple way to manage your Claude Code, opencode, Codex, and Copilot
+sessions.**
 
 clawlight is a TUI dashboard and menu bar / system tray indicator for
-monitoring [Claude Code](https://claude.ai/code) sessions in real time — and
-[opencode](https://opencode.ai), [Codex CLI](https://github.com/openai/codex),
-and [GitHub Copilot CLI](https://github.com/github/copilot-cli) sessions too,
-side by side in the same dashboard.
+monitoring [Claude Code](https://claude.ai/code), [opencode](https://opencode.ai),
+[Codex CLI](https://github.com/openai/codex), and
+[GitHub Copilot CLI](https://github.com/github/copilot-cli) sessions in real
+time, all in the same dashboard.
 
 
 ## Works with
 
 One `clawlight install` sets up every coding agent it detects. Each adapter is
-detection-gated — clawlight only wires up an agent it finds installed — and
+detection-gated: clawlight only wires up an agent it finds installed, and
 `clawlight uninstall` cleanly reverses all of it.
 
 | Agent | Setup (automatic via `clawlight install`) | Badge | Notes |
 |---|---|---|---|
-| [Claude Code](https://claude.ai/code) | hooks in `~/.claude/settings.json` | *(none — the default)* | just works |
+| [Claude Code](https://claude.ai/code) | hooks in `~/.claude/settings.json` | *(none, the default)* | just works |
 | [opencode](https://opencode.ai) | plugin written to `~/.config/opencode/plugins/` | `oc` | restart running sessions after install |
 | [Codex CLI](https://github.com/openai/codex) | hooks in `$CODEX_HOME/hooks.json` | `cx` | needs Codex >= 0.144; one-time approval via `/hooks` inside Codex |
 | [GitHub Copilot CLI](https://github.com/github/copilot-cli) | owned file at `~/.copilot/hooks/clawlight.json` | `co` | sessions appear on first prompt; restart sessions open during install |
@@ -107,7 +107,8 @@ cargo install --path .
 ## Quick Start
 
 ```bash
-# Install hooks into every coding agent it detects and start the tray daemon
+# Install hooks for Claude Code and every detected coding agent (opencode,
+# Codex, Copilot), then start the tray daemon
 clawlight install
 
 # Launch the TUI dashboard

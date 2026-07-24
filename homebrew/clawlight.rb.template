@@ -22,8 +22,8 @@ class Clawlight < Formula
 
         clawlight
 
-      The first launch registers hooks for every coding agent it detects
-      (Claude Code, opencode, Codex CLI, GitHub Copilot CLI) and starts the
+      The first launch registers hooks for Claude Code and every detected
+      coding agent (opencode, Codex CLI, GitHub Copilot CLI) and starts the
       menu bar daemon (a LaunchAgent that runs at login) automatically.
       Prefer to set it up without opening the dashboard? Run:
 
