@@ -43,16 +43,32 @@ pub fn capture() -> TerminalInfo {
 /// own a tty — that is the `claude` process itself. Its tty identifies the
 /// window for click-to-focus; its PID lets the readers tell later whether the
 /// session is still alive (see [`is_alive`]).
+///
+/// Not every harness detaches its hooks, though: Copilot runs them through a
+/// tty-inheriting `sh -c`, so the first tty-having process is the hook itself.
+/// The owner must outlive the hook — recording the hook (or its wrapper
+/// shell) hands the reap a pid that is dead milliseconds later, and the live
+/// session gets downgraded to Done. So the walk takes the tty from the first
+/// tty-having process but keeps climbing past ourselves and wrapper shells to
+/// the harness process for the owner pid.
 #[cfg(unix)]
 fn capture_tty_owner() -> (Option<String>, Option<u32>) {
     let out = match Command::new("ps")
-        .args(["-axo", "pid=,ppid=,tty="])
+        .args(["-axo", "pid=,ppid=,tty=,comm="])
         .output()
     {
         Ok(o) => o,
         Err(_) => return (None, None),
     };
-    let stdout = String::from_utf8_lossy(&out.stdout);
+    let table = parse_ps_table(&String::from_utf8_lossy(&out.stdout));
+    tty_owner_from(&table, std::process::id())
+}
+
+/// Parse `ps -axo pid=,ppid=,tty=,comm=` into pid → (ppid, tty, comm). Only
+/// comm's first token is kept — enough to recognize a shell, and shells never
+/// have spaces in their names.
+#[cfg(unix)]
+fn parse_ps_table(stdout: &str) -> std::collections::HashMap<u32, (u32, String, String)> {
     let mut table = std::collections::HashMap::new();
     for line in stdout.lines() {
         let mut cols = line.split_whitespace();
@@ -62,29 +78,53 @@ fn capture_tty_owner() -> (Option<String>, Option<u32>) {
         let (Ok(pid), Ok(ppid)) = (pid.parse::<u32>(), ppid.parse::<u32>()) else {
             continue;
         };
-        table.insert(pid, (ppid, tty.to_string()));
+        let comm = cols.next().unwrap_or("").to_string();
+        table.insert(pid, (ppid, tty.to_string(), comm));
     }
+    table
+}
 
-    let mut pid = std::process::id();
+#[cfg(unix)]
+fn tty_owner_from(
+    table: &std::collections::HashMap<u32, (u32, String, String)>,
+    self_pid: u32,
+) -> (Option<String>, Option<u32>) {
+    // A wrapper shell (`sh -c` between the harness and us) dies with the hook,
+    // so it can never be the owner. Matched by basename, minus the login-shell
+    // dash ("-zsh").
+    let is_wrapper_shell = |comm: &str| {
+        let base = comm.rsplit('/').next().unwrap_or(comm);
+        matches!(
+            base.trim_start_matches('-'),
+            "sh" | "bash" | "zsh" | "dash" | "ksh" | "fish"
+        )
+    };
+
+    let mut tty_dev = None;
+    let mut pid = self_pid;
     for _ in 0..16 {
-        let Some((ppid, tty)) = table.get(&pid) else {
-            return (None, None);
+        let Some((ppid, tty, comm)) = table.get(&pid) else {
+            return (tty_dev, None);
         };
         // ps prints "??" (macOS) / "?" (Linux) when there is no controlling tty.
         if !tty.is_empty() && !tty.starts_with('?') && tty != "-" {
-            let dev = if tty.starts_with("/dev/") {
-                tty.clone()
-            } else {
-                format!("/dev/{tty}")
-            };
-            return (Some(dev), Some(pid));
+            if tty_dev.is_none() {
+                tty_dev = Some(if tty.starts_with("/dev/") {
+                    tty.clone()
+                } else {
+                    format!("/dev/{tty}")
+                });
+            }
+            if pid != self_pid && !is_wrapper_shell(comm) {
+                return (tty_dev, Some(pid));
+            }
         }
         if *ppid <= 1 || *ppid == pid {
-            return (None, None);
+            return (tty_dev, None);
         }
         pid = *ppid;
     }
-    (None, None)
+    (tty_dev, None)
 }
 
 #[cfg(not(unix))]
@@ -586,4 +626,67 @@ pub fn focus(info: Option<&TerminalInfo>, _project_path: Option<&str>) -> bool {
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 pub fn focus(_info: Option<&TerminalInfo>, _project_path: Option<&str>) -> bool {
     false
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    fn table(
+        rows: &[(u32, u32, &str, &str)],
+    ) -> std::collections::HashMap<u32, (u32, String, String)> {
+        rows.iter()
+            .map(|&(pid, ppid, tty, comm)| (pid, (ppid, tty.to_string(), comm.to_string())))
+            .collect()
+    }
+
+    #[test]
+    fn detached_hook_owner_is_the_harness() {
+        // Claude Code detaches its hooks from the tty; the first tty-having
+        // ancestor is the claude process itself.
+        let t = table(&[
+            (500, 400, "??", "clawlight"),
+            (400, 300, "ttys009", "claude"),
+            (300, 200, "ttys009", "-zsh"),
+            (200, 1, "??", "Terminal"),
+        ]);
+        assert_eq!(
+            tty_owner_from(&t, 500),
+            (Some("/dev/ttys009".into()), Some(400))
+        );
+    }
+
+    #[test]
+    fn tty_inheriting_hook_skips_itself_and_the_wrapper_shell() {
+        // Copilot runs hooks through a tty-inheriting `sh -c`: recording the
+        // hook or the sh as owner would reap the live session within seconds.
+        let t = table(&[
+            (500, 450, "ttys007", "clawlight"),
+            (450, 400, "ttys007", "sh"),
+            (400, 300, "ttys007", "copilot"),
+            (300, 200, "ttys007", "/bin/zsh"),
+            (200, 1, "??", "Terminal"),
+        ]);
+        assert_eq!(
+            tty_owner_from(&t, 500),
+            (Some("/dev/ttys007".into()), Some(400))
+        );
+    }
+
+    #[test]
+    fn shell_only_chain_keeps_the_tty_but_names_no_owner() {
+        // A hand-run hook straight under an interactive shell: better no owner
+        // (24h staleness backstop) than a pid whose death is meaningless.
+        let t = table(&[
+            (500, 300, "ttys002", "clawlight"),
+            (300, 1, "ttys002", "-zsh"),
+        ]);
+        assert_eq!(tty_owner_from(&t, 500), (Some("/dev/ttys002".into()), None));
+    }
+
+    #[test]
+    fn no_tty_anywhere_captures_nothing() {
+        let t = table(&[(500, 400, "??", "clawlight"), (400, 1, "??", "launchd")]);
+        assert_eq!(tty_owner_from(&t, 500), (None, None));
+    }
 }
