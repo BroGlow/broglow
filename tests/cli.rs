@@ -55,6 +55,19 @@ fn the_event_backend_exits_cleanly_on_junk_input() {
 }
 
 #[test]
+fn the_copilot_shim_exits_cleanly_on_junk_input() {
+    // Same contract as the other stdin backends: malformed payloads are a
+    // safe no-op. The event name is argv, so an unknown one must no-op too.
+    for (event, stdin) in [("agentStop", "not json {{{"), ("someFutureEvent", "{}")] {
+        let mut cmd = clawlight();
+        cmd.args(["copilot-hook", event]).write_stdin(stdin);
+        #[cfg(unix)]
+        cmd.env("HOME", "/nonexistent-clawlight-test-home");
+        cmd.assert().success();
+    }
+}
+
+#[test]
 fn the_opencode_plugin_parses_as_a_js_module() {
     // Optional parse check: runs only where `node` is on PATH (the plugin's
     // real coverage is the manual matrix). Skips cleanly otherwise — including

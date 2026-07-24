@@ -1,6 +1,7 @@
 mod app;
 mod codex;
 mod config;
+mod copilot;
 mod harness;
 mod hook;
 mod led;
@@ -71,6 +72,13 @@ enum Commands {
     /// (internal) Codex hook shim: Claude-dialect payload → normalized event
     #[command(hide = true)]
     CodexHook,
+    /// (internal) Copilot hook shim: per-event payload → normalized event
+    #[command(hide = true)]
+    CopilotHook {
+        /// Copilot lifecycle event this registration fires for (the payload
+        /// itself doesn't name it)
+        event: String,
+    },
     /// (internal) Generate a session name from a transcript
     #[command(hide = true)]
     Name {
@@ -92,6 +100,7 @@ fn main() -> anyhow::Result<()> {
         Some(Commands::Hook) => hook::run(),
         Some(Commands::Event) => hook::run_event(),
         Some(Commands::CodexHook) => hook::run_codex_hook(),
+        Some(Commands::CopilotHook { event }) => hook::run_copilot_hook(&event),
         Some(Commands::Name {
             session_id,
             transcript_path,
