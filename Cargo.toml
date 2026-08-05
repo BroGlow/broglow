@@ -2,11 +2,11 @@
 name = "clawlight"
 version = "0.13.0"
 edition = "2021"
-description = "TUI dashboard and menu bar / system tray indicator for monitoring Claude Code sessions"
+description = "TUI dashboard and menu bar / system tray indicator for monitoring Claude Code, opencode, Codex, and Copilot sessions"
 license = "MIT"
 repository = "https://github.com/clawlight/clawlight-cli"
 homepage = "https://github.com/clawlight/clawlight-cli"
-keywords = ["claude", "cli", "sessions", "tui"]
+keywords = ["claude", "agents", "cli", "sessions", "tui"]
 categories = ["command-line-utilities"]
 
 [[bin]]

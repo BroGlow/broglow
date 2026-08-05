@@ -32,7 +32,10 @@ use ratatui::Terminal;
 use crate::app::App;
 
 #[derive(Parser)]
-#[command(name = "clawlight", about = "TUI dashboard for Claude Code sessions")]
+#[command(
+    name = "clawlight",
+    about = "TUI dashboard for Claude Code, opencode, Codex CLI, and GitHub Copilot CLI sessions"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -240,7 +243,9 @@ fn install_hooks() -> anyhow::Result<()> {
     // 4. Install autostart for the tray daemon (platform-specific).
     install_autostart()?;
 
-    println!("\nInstallation complete! Hooks are now active for new Claude Code sessions.");
+    println!(
+        "\nInstallation complete! Hooks are now active for Claude Code and every detected coding agent (opencode, Codex, Copilot)."
+    );
     println!("Run `clawlight` to launch the TUI dashboard.");
     if !lamp_enabled {
         println!("Optional: plug in a Seeed XIAO ESP32-C6 status board and press `l` in the dashboard to enable status LEDs.");
@@ -328,7 +333,9 @@ fn first_run_setup_tui() {
     if hooks_registered() {
         return;
     }
-    println!("First run — registering Claude Code hooks and starting the menu bar daemon…\n");
+    println!(
+        "First run: registering hooks for Claude Code and every detected coding agent (opencode, Codex, Copilot), then starting the menu bar daemon…\n"
+    );
     if let Err(e) = install_hooks() {
         eprintln!(
             "clawlight: first-run setup failed: {e:#}\nRun `clawlight install` to finish setup."

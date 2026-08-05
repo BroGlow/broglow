@@ -1,5 +1,5 @@
 class Clawlight < Formula
-  desc "TUI dashboard and macOS menu bar indicator for Claude Code sessions"
+  desc "TUI dashboard and macOS menu bar indicator for Claude Code, opencode, Codex, and Copilot sessions"
   homepage "https://github.com/clawlight/clawlight-cli"
   version "VERSION"
   license "MIT"
@@ -22,7 +22,8 @@ class Clawlight < Formula
 
         clawlight
 
-      The first launch registers the Claude Code hooks and starts the
+      The first launch registers hooks for Claude Code and every detected
+      coding agent (opencode, Codex CLI, GitHub Copilot CLI) and starts the
       menu bar daemon (a LaunchAgent that runs at login) automatically.
       Prefer to set it up without opening the dashboard? Run:
 
