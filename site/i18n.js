@@ -22,6 +22,7 @@
     }
     document.documentElement.lang = language;
     picker.value = language;
+    for (const feedback of document.querySelectorAll(".copy-feedback")) feedback.hidden = true;
   }
 
   let saved;
@@ -45,4 +46,23 @@
       // Switching still works for this page when preferences cannot be saved.
     }
   });
+
+  for (const button of document.querySelectorAll("[data-copy]")) {
+    const prompt = document.getElementById(button.dataset.copy);
+    const success = button.parentElement.querySelector("[data-copy-success]");
+    const error = button.parentElement.querySelector("[data-copy-error]");
+    button.hidden = false;
+    button.addEventListener("click", async () => {
+      success.hidden = error.hidden = true;
+      button.disabled = true;
+      try {
+        await navigator.clipboard.writeText(prompt.textContent.trim());
+        success.hidden = false;
+      } catch {
+        error.hidden = false;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
 })();

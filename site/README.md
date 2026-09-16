@@ -31,7 +31,15 @@ setup and troubleshooting use native expandable sections. Full technical procedu
 remain in `docs/hardware-setup.md` and in the downloadable package; the site does not
 navigate visitors to raw Markdown.
 
-Run the localization and link checks from the repository root (Node.js and Python 3,
+The parts table recommends ESP32-C3 without imposing its memory size on other
+Bluetooth LE SuperMini boards. The included firmware and GPIO example are specific
+to C3; other chips require suitable firmware/pins and an enclosure fit check.
+Setup and troubleshooting prompts have copy buttons that copy the currently selected
+language. Copy feedback is announced to screen readers. If browser clipboard access
+is unavailable, the page explains how to copy the selectable text manually. No prompts
+are sent to an agent automatically. Without JavaScript, the prompts remain readable.
+
+Run the localization, copy-button and link checks from the repository root (Node.js and Python 3,
 no packages required):
 
 ```bash

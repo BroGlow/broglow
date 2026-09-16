@@ -32,7 +32,7 @@ a {
 button,input,select {
   font:inherit;
 }
-a:focus-visible,input:focus-visible,select:focus-visible {
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible {
   outline:2px solid var(--accent);
   outline-offset:6px;
 }
@@ -496,6 +496,34 @@ h2 {
   color:var(--muted);
   margin-block:12px;
 }
+.parts-table {
+  width:100%;
+  border-collapse:collapse;
+  text-align:left;
+  margin-block:16px;
+}
+.parts-table caption {
+  text-align:left;
+  color:var(--muted);
+  margin-bottom:10px;
+  font-size:14px;
+}
+.parts-table th,.parts-table td {
+  padding:12px 10px;
+  vertical-align:top;
+  border-bottom:1px solid var(--line);
+}
+.parts-table th {
+  font-weight:500;
+}
+.parts-table th:first-child {
+  width:32%;
+  padding-left:0;
+}
+.parts-table td {
+  color:var(--muted);
+  padding-right:0;
+}
 .wiring {
   list-style:none;
   padding:0;
@@ -542,6 +570,38 @@ h2 {
   margin:20px 0 4px;
   padding-left:16px;
   border-left:2px solid var(--accent);
+}
+.agent-prompt {
+  user-select:all;
+}
+.prompt-actions {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:12px;
+  margin-top:18px;
+}
+.copy-prompt {
+  cursor:pointer;
+  border:1px solid var(--line);
+  border-radius:6px;
+  background:var(--ink);
+  color:var(--bg);
+  padding:10px 14px;
+  min-height:44px;
+  font-size:14px;
+  font-weight:500;
+}
+.copy-prompt:hover {
+  background:var(--accent);
+}
+.copy-prompt:disabled {
+  cursor:wait;
+  opacity:.7;
+}
+.copy-feedback {
+  font-size:14px;
+  color:var(--accent);
 }
 .setup pre {
   background:var(--surface);

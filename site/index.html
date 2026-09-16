@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#181a19">
-  <meta name="description" content="ClawLight DIY — настольный светофор для coding-агентов. Три цвета, ESP32-C3, Bluetooth и корпус для 3D-печати." data-en-content="ClawLight DIY — a desk traffic light for coding agents. Three colors, ESP32-C3, Bluetooth, and a 3D-printable enclosure.">
+  <meta name="description" content="ClawLight DIY — настольный светофор для coding-агентов. Три цвета, SuperMini, Bluetooth и корпус для 3D-печати." data-en-content="ClawLight DIY — a desk traffic light for coding agents. Three colors, SuperMini, Bluetooth, and a 3D-printable enclosure.">
   <title data-en="ClawLight DIY — your agent’s status at a glance">ClawLight DIY — статус агента одним взглядом</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23181a19'/%3E%3Ccircle cx='16' cy='8' r='3' fill='%23f07c6b'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23e9c665'/%3E%3Ccircle cx='16' cy='24' r='3' fill='%239ccb8e'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
@@ -103,9 +103,9 @@
       </figure>
       <div class="build-copy">
         <h2 id="build-title"><span data-en="A small project.">Небольшой проект.</span><br><span data-en="Something real.">Настоящая вещь.</span></h2>
-        <p data-en="An ESP32-C3 SuperMini, three LEDs, and one 330 Ω resistor per LED. You can 3D-print the enclosure.">ESP32-C3 SuperMini, три светодиода и по одному резистору 330 Ω. Корпус можно напечатать на 3D-принтере.</p>
+        <p data-en="A SuperMini board with Bluetooth LE, three LEDs, and one 330 Ω resistor per LED. We recommend the ESP32-C3 SuperMini. You can 3D-print the enclosure.">Плата SuperMini с Bluetooth LE, три светодиода и по одному резистору 330 Ω. Рекомендуем ESP32-C3 SuperMini. Корпус можно напечатать на 3D-принтере.</p>
         <ol class="build-steps">
-          <li><span>01</span><div><strong data-en="Gather the parts">Подготовьте детали</strong><p data-en="Enclosure models and printing notes are included in the project.">Модели корпуса и рекомендации по печати уже в проекте.</p></div></li>
+          <li><span>01</span><div><strong data-en="Choose your parts">Выберите детали</strong><p data-en="Enclosure models and printing notes are included in the project.">Модели корпуса и рекомендации по печати уже в проекте.</p></div></li>
           <li><span>02</span><div><strong data-en="Wire it up">Соберите электронику</strong><p data-en="Follow the setup guide for wiring and firmware.">Схема подключения и прошивка — в пошаговой инструкции.</p></div></li>
           <li><span>03</span><div><strong data-en="Select your lamp on your Mac">Выберите лампу на Mac</strong><p data-en="ClawLight remembers your device and sends it session updates.">ClawLight запомнит устройство и будет отправлять статусы.</p></div></li>
         </ol>
@@ -124,12 +124,26 @@
       </div>
       <ol class="setup-steps">
         <li>
-          <h3 data-en="Gather the parts">Подготовьте детали</h3>
-          <p data-en="An ESP32-C3 SuperMini (4 MB), three separate LEDs, three 330 Ω resistors, wires, and a USB-C data cable. The enclosure models are in the ZIP above; start with the fit-test pieces before printing the full enclosure.">ESP32-C3 SuperMini (4 МБ), три отдельных светодиода, три резистора 330 Ω, провода и USB-C кабель с передачей данных. Модели корпуса в ZIP выше; сначала напечатайте детали для проверки посадки.</p>
+          <h3 data-en="Choose your parts">Выберите детали</h3>
+          <table class="parts-table">
+            <caption data-en="Parts for one lamp">Детали для одной лампы</caption>
+            <thead><tr><th scope="col" data-en="Part">Деталь</th><th scope="col" data-en="What to look for">Что выбрать</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" data-en="Board · 1">Плата · 1</th><td data-en="SuperMini form factor with Bluetooth LE. ESP32-C3 SuperMini recommended.">Формфактор SuperMini с Bluetooth LE. Рекомендуем ESP32-C3 SuperMini.</td></tr>
+              <tr><th scope="row" data-en="LEDs · 3">Светодиоды · 3</th><td data-en="One red, one yellow, one green.">По одному красному, жёлтому и зелёному.</td></tr>
+              <tr><th scope="row" data-en="Resistors · 3">Резисторы · 3</th><td data-en="330 Ω, one for each LED.">330 Ω, по одному на каждый светодиод.</td></tr>
+              <tr><th scope="row" data-en="Wires">Провода</th><td data-en="For the LEDs and a shared ground.">Для светодиодов и общего GND.</td></tr>
+              <tr><th scope="row" data-en="USB cable · 1">USB-кабель · 1</th><td data-en="A data cable that fits your board, for initial setup.">С передачей данных и разъёмом вашей платы, для первой настройки.</td></tr>
+              <tr><th scope="row" data-en="USB power adapter · 1">USB-блок питания · 1</th><td data-en="For powering the lamp on your desk.">Для питания лампы на столе.</td></tr>
+              <tr><th scope="row" data-en="Enclosure · 1 set">Корпус · 1 комплект</th><td data-en="Print the models from the ZIP above. Try the fit-test pieces first.">Напечатайте модели из ZIP выше. Начните с деталей для проверки посадки.</td></tr>
+            </tbody>
+          </table>
+          <p data-en="Another SuperMini with Bluetooth LE can be used too. Match the firmware and pin assignments to its chip, and check that the board fits the enclosure.">Подойдёт и другая SuperMini с Bluetooth LE. Подберите прошивку и назначение выводов под её чип и проверьте, что плата помещается в корпус.</p>
         </li>
         <li>
           <h3 data-en="Wire up the LEDs">Подключите светодиоды</h3>
           <p data-en="Disconnect USB power. Connect each pin through its own 330 Ω resistor to the LED’s anode (+). All cathodes (−) go to GND; do not connect the LEDs to 5V.">Отключите USB-питание. Каждый вывод подключите через свой резистор 330 Ω к аноду (+) светодиода. Все катоды (−) соедините с GND; к 5V светодиоды не подключайте.</p>
+          <p class="wiring-note" data-en="Wiring for the recommended ESP32-C3 build. Check the pin assignments for other boards.">Схема для рекомендуемой ESP32-C3. Для другой платы проверьте назначение выводов.</p>
           <ul class="wiring">
             <li><span class="signal-dot red" aria-hidden="true"></span><span data-en="Red: GPIO4 → 330 Ω → LED (+)">Красный: GPIO4 → 330 Ω → LED (+)</span></li>
             <li><span class="signal-dot yellow" aria-hidden="true"></span><span data-en="Yellow: GPIO5 → 330 Ω → LED (+)">Жёлтый: GPIO5 → 330 Ω → LED (+)</span></li>
@@ -146,7 +160,12 @@
           <details class="setup-details">
             <summary data-en="Set it up with your coding agent">Настройте с помощью coding-агента</summary>
             <p data-en="Unpack the archive, open that folder in Codex or another coding agent, and paste this request. Keep the checksum file nearby. Detailed manual steps are also included in the package.">Распакуйте архив, откройте эту папку в Codex или другом coding-агенте и вставьте запрос ниже. Файл контрольной суммы сохраните рядом. Подробные шаги для ручной установки тоже есть в пакете.</p>
-            <blockquote data-en="Set up ClawLight from this package following docs/hardware-setup.md. Verify the archive checksum and SHA256SUMS, back up existing settings, and keep one menu bar service. Identify the connected board; flash the included C3 firmware only if it is not already installed. Preserve existing bonds. Tell me when to approve the macOS dialogs, and verify the background service’s connection.">Настрой ClawLight из этого пакета по docs/hardware-setup.md. Проверь контрольную сумму архива и SHA256SUMS, сохрани резервную копию настроек и одну службу в строке меню. Определи подключённую плату; установи комплектную прошивку C3, только если её ещё нет. Сохрани существующие сопряжения. Скажи, когда подтвердить диалоги macOS, и проверь соединение фоновой службы.</blockquote>
+            <blockquote class="agent-prompt" id="setup-prompt" data-en="Help me set up ClawLight from this package using docs/hardware-setup.md. Verify the checksums, back up existing settings, and keep one menu bar service. Identify my actual board before hardware commands. The included firmware is for ESP32-C3; another Bluetooth LE SuperMini needs matching firmware and pins. If the package does not support my board, explain what is needed before flashing. Flash only if needed and keep existing pairings. Tell me when to connect the cable or approve a macOS dialog, then check that the background service reaches my lamp.">Помоги настроить ClawLight из этого пакета по docs/hardware-setup.md. Проверь контрольные суммы, сохрани резервную копию настроек и одну службу в строке меню. Определи мою плату перед аппаратными командами. Комплектная прошивка рассчитана на ESP32-C3; другой SuperMini с Bluetooth LE нужны подходящие прошивка и выводы. Если пакет не поддерживает мою плату, объясни, что потребуется, до прошивки. Прошивай только при необходимости и сохрани сопряжения. Скажи, когда подключить кабель или подтвердить диалог macOS, затем проверь соединение фоновой службы с лампой.</blockquote>
+            <div class="prompt-actions">
+              <button type="button" class="copy-prompt" data-copy="setup-prompt" aria-controls="setup-prompt" data-en="Copy setup prompt" hidden>Скопировать запрос для настройки</button>
+              <span class="copy-feedback" data-copy-success role="status" data-en="Copied!" hidden>Скопировано!</span>
+              <span class="copy-feedback" data-copy-error role="status" data-en="Couldn’t copy automatically. Select the prompt and copy it manually." hidden>Не удалось скопировать автоматически. Выделите запрос и скопируйте вручную.</span>
+            </div>
           </details>
         </li>
         <li>
@@ -159,8 +178,15 @@
       </ol>
       <details class="setup-details setup-help">
         <summary data-en="If the lamp stays dark">Если лампа не светится</summary>
-        <p data-en="All LEDs being off is normal when there are no active sessions. Start a task in your agent. After installation, restart open agent sessions and approve ClawLight hooks in Codex via /hooks if asked.">Когда активных сессий нет, все светодиоды выключены. Запустите задачу в агенте. После установки перезапустите открытые сессии; в Codex подтвердите hooks ClawLight через /hooks, если он попросит.</p>
+        <p data-en="All LEDs being off is normal when there are no open agent sessions. Start a task in your agent. After installation, restart open agent sessions and approve ClawLight hooks in Codex via /hooks if asked.">Когда открытых сессий агента нет, все светодиоды выключены. Запустите задачу в агенте. После установки перезапустите открытые сессии; в Codex подтвердите hooks ClawLight через /hooks, если он попросит.</p>
         <p data-en="If status is not “connected”, check the data cable and ClawLight’s Bluetooth permission in System Settings → Privacy &amp; Security → Bluetooth, then retry pairing and promptly approve the system dialog. If it is connected but a color never lights up, disconnect power and check that LED’s polarity and wiring.">Если статус не «connected», проверьте кабель и разрешение ClawLight в «Системные настройки → Конфиденциальность и безопасность → Bluetooth». Повторите сопряжение и сразу подтвердите системный диалог. Если соединение есть, а один цвет не горит, отключите питание и проверьте полярность и подключение этого светодиода.</p>
+        <p data-en="Want a hand? Open the project or unpacked package in your coding agent and paste this prompt.">Нужна помощь? Откройте проект или распакованный пакет в coding-агенте и вставьте этот запрос.</p>
+            <blockquote class="agent-prompt" id="dark-prompt" data-en="Help me find out why my ClawLight stays dark using docs/hardware-setup.md in this project or package. Start with agent sessions, hooks, the background service, and Bluetooth status. Identify my actual board before hardware commands and check its firmware and pin assignments. Do not reflash it or clear pairings as a troubleshooting shortcut. If wiring needs checking, guide me with USB power disconnected. Explain what you verified and what still needs a physical LED check.">Помоги понять, почему мой ClawLight не светится, по docs/hardware-setup.md в этом проекте или пакете. Начни с сессий агента, hooks, фоновой службы и статуса Bluetooth. Определи мою плату перед аппаратными командами, проверь соответствие прошивки и выводов. Не перепрошивай плату и не удаляй сопряжения ради диагностики. Если нужно проверить проводку, помоги сделать это при отключённом USB-питании. Объясни, что проверено, а что ещё нужно проверить на реальных светодиодах.</blockquote>
+            <div class="prompt-actions">
+              <button type="button" class="copy-prompt" data-copy="dark-prompt" aria-controls="dark-prompt" data-en="Copy troubleshooting prompt" hidden>Скопировать запрос для диагностики</button>
+              <span class="copy-feedback" data-copy-success role="status" data-en="Copied!" hidden>Скопировано!</span>
+              <span class="copy-feedback" data-copy-error role="status" data-en="Couldn’t copy automatically. Select the prompt and copy it manually." hidden>Не удалось скопировать автоматически. Выделите запрос и скопируйте вручную.</span>
+            </div>
       </details>
     </section>
   </main>
