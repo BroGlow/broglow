@@ -1,0 +1,52 @@
+site_name: ClawLight DIY
+docs_dir: guide
+# Only this generated subtree is cleaned; the landing stays in site/index.html.
+site_dir: docs
+theme:
+  name: material
+  custom_dir: overrides
+  font: false
+  favicon: assets/favicon.svg
+  palette:
+    scheme: slate
+    primary: custom
+    accent: deep orange
+  features:
+    - content.code.copy
+    - navigation.footer
+    - toc.integrate
+plugins:
+  - search
+  - i18n:
+      docs_structure: folder
+      languages:
+        - locale: en
+          name: English
+          default: true
+          fixed_link: .
+        - locale: ru
+          name: Русский
+          fixed_link: ru/
+          nav_translations:
+            Build: Сборка
+            Install and connect: Установка и подключение
+            Codex: Codex
+            Troubleshooting: Диагностика
+nav:
+  - Build: index.md
+  - Install and connect: installation.md
+  - Codex: codex.md
+  - Troubleshooting: troubleshooting.md
+markdown_extensions:
+  - attr_list
+  - pymdownx.superfences
+extra_css:
+  - assets/guide.css
+extra_javascript:
+  - assets/language.js
+  - assets/copy.js
+# Downloads and the landing are intentionally outside the docs source tree.
+# check-links.py verifies these paths in the built site.
+validation:
+  links:
+    not_found: ignore

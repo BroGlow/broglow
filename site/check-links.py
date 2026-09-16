@@ -1,5 +1,6 @@
-"""Check landing links locally; optionally verify files served by the preview."""
+"""Check links across the site; optionally verify files served by the preview."""
 import argparse
+import os
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit, urlunsplit
@@ -26,31 +27,39 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--base-url", help="Preview page URL, e.g. http://127.0.0.1:8080/site/")
 args = parser.parse_args()
 site = Path(__file__).resolve().parent
-page = Links()
-page.feed((site / "index.html").read_text())
-files = {"": site / "index.html"}
+assert (site / "docs/index.html").is_file(), "Build the guide first: .venv/bin/mkdocs build --strict -f mkdocs.yml"
+pages = {}
+for path in [site / "index.html", *sorted((site / "docs").rglob("*.html"))]:
+    page = Links()
+    page.feed(path.read_text())
+    pages[path] = page
+files = set(pages)
 external = set()
-for href, download in page.links:
-    url = urlsplit(href)
-    if url.scheme == "data":
-        continue
-    if url.scheme in ("http", "https"):
-        external.add(href)
-        continue
-    assert not url.scheme and not url.netloc, f"Unsupported link: {href}"
-    assert not url.path.endswith(".md"), f"Raw Markdown navigation: {href}"
-    if not url.path:
-        assert not url.fragment or unquote(url.fragment) in page.ids, f"Missing anchor: {href}"
-        continue
-    target = (site / unquote(url.path)).resolve()
-    assert target.is_relative_to(site.parent), f"Link leaves the project: {href}"
-    assert target.is_file(), f"Missing file: {href}"
-    if target.name.endswith((".zip", ".tar.gz", ".sha256")):
-        assert download, f"File must download instead of navigating away: {href}"
-    files[url.path] = target
+for path, page in pages.items():
+    page_url = path.relative_to(site).as_posix()
+    for href, download in page.links:
+        url = urlsplit(href)
+        if url.scheme == "data":
+            continue
+        if url.scheme in ("http", "https"):
+            external.add(href)
+            continue
+        assert not url.scheme and not url.netloc, f"Unsupported link: {href}"
+        assert not url.path.endswith(".md"), f"Raw Markdown navigation: {href}"
+        target = (path.parent / unquote(url.path)).resolve() if url.path else path
+        if target.is_dir():
+            target /= "index.html"
+        assert target.is_relative_to(site.parent), f"Link leaves the project: {href}"
+        assert target.is_file(), f"Missing file from {page_url}: {href}"
+        if url.fragment:
+            assert target in pages and unquote(url.fragment) in pages[target].ids, f"Missing anchor from {page_url}: {href}"
+        if target.name.endswith((".zip", ".tar.gz", ".sha256")):
+            assert download, f"File must download instead of navigating away: {href}"
+        files.add(target)
 
 if args.base_url:
-    for href, target in files.items():
+    for target in sorted(files):
+        href = os.path.relpath(target, site)
         url = urlsplit(urljoin(args.base_url, href))
         request_url = urlunsplit(url._replace(fragment=""))
         with urlopen(request_url, timeout=15) as response:
@@ -58,6 +67,6 @@ if args.base_url:
             assert response.read() == target.read_bytes(), f"Stale or incorrect response: {request_url}"
         print(f"HTTP 200: {href or 'index.html'}")
 
-print(f"PASS: {len(page.links)} references, {len(files)} local files, valid anchors, no Markdown navigation")
+print(f"PASS: {len(pages)} pages, {sum(len(page.links) for page in pages.values())} references, valid files and anchors, no Markdown navigation")
 for url in sorted(external):
     print(f"External link (check separately): {url}")

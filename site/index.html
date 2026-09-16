@@ -17,7 +17,7 @@
       <nav aria-label="Основная навигация" data-en-aria-label="Main navigation">
         <a href="#signals" data-en="Signals">Сигналы</a>
         <a href="#build" data-en="Build yours">Собрать свою</a>
-        <a href="#setup"><span data-en="Setup guide">Инструкция</span></a>
+        <a href="docs/"><span data-en="Docs">Инструкция</span></a>
       </nav>
       <select id="language" class="language-picker" aria-label="Язык" data-en-aria-label="Language" hidden>
         <option value="ru" lang="ru" aria-label="Русский">RU</option>
@@ -109,98 +109,13 @@
           <li><span>02</span><div><strong data-en="Wire it up">Соберите электронику</strong><p data-en="Follow the setup guide for wiring and firmware.">Схема подключения и прошивка — в пошаговой инструкции.</p></div></li>
           <li><span>03</span><div><strong data-en="Select your lamp on your Mac">Выберите лампу на Mac</strong><p data-en="ClawLight remembers your device and sends it session updates.">ClawLight запомнит устройство и будет отправлять статусы.</p></div></li>
         </ol>
-        <div class="build-links">
-          <a class="text-link" href="#setup"><span data-en="Open the setup guide">Открыть инструкцию</span> <span aria-hidden="true">↓</span></a>
-          <a class="secondary-link" href="../models/clawlight-print-pack.zip" download><span data-en="Download models · ZIP">Скачать модели · ZIP</span> <span aria-hidden="true">↓</span></a>
+        <div class="build-links" id="setup">
+          <a class="text-link" href="docs/"><span data-en="Open the setup guide">Открыть инструкцию</span> <span aria-hidden="true">→</span></a>
         </div>
         <p class="project-note" data-en="Images are renders. BLE and GPIO control have been checked with one Mac and ESP32-C3. Enclosure fit and physical LED operation remain unverified.">На странице рендеры. BLE и управление выводами проверены на одной связке Mac и ESP32-C3. Посадка корпуса и работа внешних светодиодов ещё не проверены.</p>
       </div>
     </section>
 
-    <section class="setup wrap" id="setup" aria-labelledby="setup-title" tabindex="-1">
-      <div class="section-heading">
-        <h2 id="setup-title" data-en="From parts to your desk.">От деталей до рабочего стола.</h2>
-        <p data-en="Four steps for the first setup.">Четыре шага для первой настройки.</p>
-      </div>
-      <ol class="setup-steps">
-        <li>
-          <h3 data-en="Choose your parts">Выберите детали</h3>
-          <table class="parts-table">
-            <caption data-en="Parts for one lamp">Детали для одной лампы</caption>
-            <thead><tr><th scope="col" data-en="Part">Деталь</th><th scope="col" data-en="What to look for">Что выбрать</th></tr></thead>
-            <tbody>
-              <tr><th scope="row" data-en="Board · 1">Плата · 1</th><td data-en="SuperMini form factor with Bluetooth LE. ESP32-C3 SuperMini recommended.">Формфактор SuperMini с Bluetooth LE. Рекомендуем ESP32-C3 SuperMini.</td></tr>
-              <tr><th scope="row" data-en="LEDs · 3">Светодиоды · 3</th><td data-en="One red, one yellow, one green. The supplied enclosure is designed for 5 mm LEDs.">По одному красному, жёлтому и зелёному. Готовая модель корпуса рассчитана на светодиоды 5 мм.</td></tr>
-              <tr><th scope="row" data-en="Resistors · 3">Резисторы · 3</th><td data-en="330 Ω, one for each LED.">330 Ω, по одному на каждый светодиод.</td></tr>
-              <tr><th scope="row" data-en="Wires">Провода</th><td data-en="For the LEDs and a shared ground.">Для светодиодов и общего GND.</td></tr>
-              <tr><th scope="row" data-en="USB cable · 1">USB-кабель · 1</th><td data-en="A data cable that fits your board, for initial setup and power from your Mac.">С передачей данных и разъёмом вашей платы. Для первой настройки и питания от Mac.</td></tr>
-              <tr><th scope="row" data-en="USB adapter · optional">USB-блок · необязательно</th><td data-en="For placing the lamp away from your Mac. You can keep using the Mac’s USB port instead.">Если хотите поставить лампу отдельно. Можно оставить питание от USB-порта Mac.</td></tr>
-              <tr><th scope="row" data-en="Enclosure · optional">Корпус · необязательно</th><td data-en="Print the models from the ZIP above. Try the fit-test pieces first.">Напечатайте модели из ZIP выше. Начните с деталей для проверки посадки.</td></tr>
-              <tr><th scope="row" data-en="Case hardware">Крепёж корпуса</th><td data-en="For the supplied enclosure: 5 DIN 7982 ST2.2 × 6.5 mm countersunk screws, 2 cable ties (2.5 mm wide, at most 1 mm thick), and plastic-compatible glue.">Для готового корпуса: 5 потайных саморезов DIN 7982 ST2.2 × 6,5 мм, 2 стяжки шириной 2,5 мм и толщиной не более 1 мм, клей для пластика.</td></tr>
-            </tbody>
-          </table>
-          <p data-en="Using another SuperMini with Bluetooth LE? Adapt the firmware and pin assignments for its chip, and check the enclosure fit. The included firmware targets ESP32-C3.">Выбрали другую SuperMini с Bluetooth LE? Адаптируйте прошивку и назначение выводов под её чип и проверьте посадку в корпус. Комплектная прошивка рассчитана на ESP32-C3.</p>
-        </li>
-        <li>
-          <h3 data-en="Wire up the LEDs">Подключите светодиоды</h3>
-          <p data-en="Disconnect USB power. Connect each pin through its own 330 Ω resistor to the LED’s anode (+). All cathodes (−) go to GND; do not connect the LEDs to 5V.">Отключите USB-питание. Каждый вывод подключите через свой резистор 330 Ω к аноду (+) светодиода. Все катоды (−) соедините с GND; к 5V светодиоды не подключайте.</p>
-          <p class="wiring-note" data-en="Wiring for the recommended ESP32-C3 build. Check the pin assignments for other boards.">Схема для рекомендуемой ESP32-C3. Для другой платы проверьте назначение выводов.</p>
-          <ul class="wiring">
-            <li><span class="signal-dot red" aria-hidden="true"></span><span data-en="Red: GPIO4 → 330 Ω → LED (+)">Красный: GPIO4 → 330 Ω → LED (+)</span></li>
-            <li><span class="signal-dot yellow" aria-hidden="true"></span><span data-en="Yellow: GPIO5 → 330 Ω → LED (+)">Жёлтый: GPIO5 → 330 Ω → LED (+)</span></li>
-            <li><span class="signal-dot green" aria-hidden="true"></span><span data-en="Green: GPIO6 → 330 Ω → LED (+)">Зелёный: GPIO6 → 330 Ω → LED (+)</span></li>
-          </ul>
-        </li>
-        <li>
-          <h3 data-en="Install ClawLight and the firmware">Установите ClawLight и прошивку</h3>
-          <p data-en="Download the BLE package for a Mac with Apple Silicon (M1 or newer). It includes the app and C3 firmware. Intel Macs need a separate build; the upstream Homebrew package does not include this BLE version.">Скачайте BLE-пакет для Mac с Apple Silicon (M1 и новее). Внутри приложение и прошивка C3. Для Intel нужна отдельная сборка; в оригинальном Homebrew-пакете этой BLE-версии нет.</p>
-          <div class="setup-downloads">
-            <a class="text-link" href="../dist/clawlight-v0.13.0-aarch64-apple-darwin-20260916T190746942081Z.tar.gz" download><span data-en="Download for Mac · Apple Silicon">Скачать для Mac · Apple Silicon</span> <span aria-hidden="true">↓</span></a>
-            <a class="secondary-link" href="../dist/clawlight-v0.13.0-aarch64-apple-darwin-20260916T190746942081Z.tar.gz.sha256" download data-en="Download checksum">Скачать контрольную сумму</a>
-          </div>
-          <details class="setup-details">
-            <summary data-en="Set it up with your coding agent">Настройте с помощью coding-агента</summary>
-            <p data-en="Unpack the archive, open that folder in Codex or another coding agent, and paste this request. Keep the checksum file nearby. Detailed manual steps are also included in the package.">Распакуйте архив, откройте эту папку в Codex или другом coding-агенте и вставьте запрос ниже. Файл контрольной суммы сохраните рядом. Подробные шаги для ручной установки тоже есть в пакете.</p>
-            <blockquote class="agent-prompt" id="setup-prompt" data-en="Help me set up ClawLight from this package using docs/hardware-setup.md. Verify the checksums, back up existing settings, and keep one menu bar service. Identify my actual board before hardware commands. The included firmware is for ESP32-C3; another Bluetooth LE SuperMini needs matching firmware and pins. If the package does not support my board, explain what is needed before flashing. Flash only if needed and keep existing pairings. Tell me when to connect the cable or approve a macOS dialog, then check that the background service reaches my lamp. For Codex, guide me through reviewing and trusting the six ClawLight hooks via /hooks in the CLI with the same CODEX_HOME as the app; leave approval to me. Verify a real local task in the CLI or desktop app changes from Working to Idle/Paused in ClawLight; BLE status alone is not enough. For desktop use, validate in the desktop app.">Помоги настроить ClawLight из этого пакета по docs/hardware-setup.md. Проверь контрольные суммы, сохрани резервную копию настроек и одну службу в строке меню. Определи мою плату перед аппаратными командами. Комплектная прошивка рассчитана на ESP32-C3; другой SuperMini с Bluetooth LE нужны подходящие прошивка и выводы. Если пакет не поддерживает мою плату, объясни, что потребуется, до прошивки. Прошивай только при необходимости и сохрани сопряжения. Скажи, когда подключить кабель или подтвердить диалог macOS, затем проверь соединение фоновой службы с лампой. Для Codex помоги мне проверить и разрешить шесть hooks ClawLight через /hooks в CLI с тем же CODEX_HOME, что у приложения; разрешение дам я. Проверь смену Working на Idle/Paused в ClawLight для реальной локальной задачи в CLI или приложении: одного статуса BLE недостаточно. Для работы через приложение проведи проверку именно в нём.</blockquote>
-            <div class="prompt-actions">
-              <button type="button" class="copy-prompt" data-copy="setup-prompt" aria-controls="setup-prompt" data-en="Copy setup prompt" hidden>Скопировать запрос для настройки</button>
-              <span class="copy-feedback" data-copy-success role="status" data-en="Copied!" hidden>Скопировано!</span>
-              <span class="copy-feedback" data-copy-error role="status" data-en="Couldn’t copy automatically. Select the prompt and copy it manually." hidden>Не удалось скопировать автоматически. Выделите запрос и скопируйте вручную.</span>
-            </div>
-          </details>
-        </li>
-        <li>
-          <h3 data-en="Pair once, then place it on your desk">Подключите один раз и поставьте на стол</h3>
-          <p data-en="Connect the flashed lamp to your Mac with a USB data cable. Run these commands in Terminal, allow ClawLight to use Bluetooth, and approve the macOS pairing prompt.">Соедините прошитую лампу с Mac кабелем USB с передачей данных. Выполните команды в Терминале, разрешите ClawLight доступ к Bluetooth и подтвердите сопряжение в окне macOS.</p>
-          <pre><code>~/.cargo/bin/clawlight ble pair
-~/.cargo/bin/clawlight ble status</code></pre>
-          <p data-en="Check “connected” for your intended lamp: the background service has sent it a status update. This does not test the LEDs themselves. Keep it powered from your Mac or use a USB adapter. ClawLight retries connections while its service is running, lamp control and Bluetooth are enabled, and the powered lamp is nearby.">Проверьте «connected» у нужной лампы: фоновой службе удалось передать ей статус. Это ещё не проверка самих светодиодов. Оставьте питание от Mac или подключите отдельный USB-блок. ClawLight автоматически повторяет подключение, пока служба работает, управление лампой и Bluetooth включены, а лампа рядом и получает питание.</p>
-        </li>
-      </ol>
-      <details class="setup-details setup-help" id="codex-setup">
-        <summary data-en="Connect Codex: CLI or local desktop tasks">Подключите Codex: CLI или локальные задачи в приложении</summary>
-        <p data-en="Installing ClawLight adds hooks, but Codex still needs your approval before running them.">Установка ClawLight добавляет hooks, но для их запуска Codex нужно ваше разрешение.</p>
-        <ol>
-          <li data-en="Open Codex CLI (0.144+) in Terminal. For desktop tasks, use the same user and CODEX_HOME as the app — either its bundled CLI or an installed codex command.">Откройте Codex CLI (0.144+) в Терминале. Для задач в приложении используйте того же пользователя и CODEX_HOME: подойдёт встроенный CLI приложения или установленная команда codex.</li>
-          <li data-en="Enter /hooks. Review and trust the six ClawLight entries running clawlight codex-hook. Leave other hooks unchanged. Changed hook definitions may need approval again.">Введите /hooks. Проверьте и разрешите шесть записей ClawLight с командой clawlight codex-hook. Остальные hooks оставьте без изменений. После изменения обработчиков разрешение может потребоваться снова.</li>
-          <li data-en="Send a prompt in a new local Codex task, in the CLI or desktop app. In ClawLight’s session list, check that this task changes from Working to Idle/Paused after the response. Needs you/Needs help appears for a permission request. Other live sessions also affect the lamp’s color.">Отправьте запрос в новой локальной задаче Codex — в CLI или приложении. В списке сессий ClawLight проверьте смену статуса этой задачи: Working во время работы, затем Idle/Paused после ответа. Needs you/Needs help появляется при запросе разрешения. На цвет лампы также влияют другие живые сессии.</li>
-        </ol>
-        <p data-en="Existing sidebar chats need a new prompt. If no session appears, finish active work, restart Codex, and try again. Bluetooth “connected” alone does not verify hooks; desktop delivery remains unverified until a desktop task passes this check.">Старым чатам в боковой панели нужен новый запрос. Если сессия не появилась, завершите активную работу, перезапустите Codex и попробуйте снова. Одного статуса Bluetooth «connected» недостаточно: передача событий из приложения не подтверждена, пока проверку не пройдёт задача именно в приложении.</p>
-        <p data-en="This setup covers tasks running on this Mac. Ordinary ChatGPT chats and cloud or remote tasks do not send events to this Mac’s local ClawLight service.">Эта настройка рассчитана на задачи, выполняемые на этом Mac. Обычные чаты ChatGPT и облачные или удалённые задачи не передают события локальной службе ClawLight на Mac.</p>
-      </details>
-      <details class="setup-details setup-help">
-        <summary data-en="If the lamp stays dark">Если лампа не светится</summary>
-        <p data-en="The lamp stays off when there are no live sessions. Start a new local task in a supported agent. For Codex, follow the setup section above and check that the task appears in ClawLight. An ordinary conversational question from Codex does not itself turn the light red.">Без живых сессий лампа не светится. Откройте новую локальную задачу в поддерживаемом агенте. Для Codex выполните шаги из раздела выше и проверьте, что задача появилась в ClawLight. Обычный вопрос Codex в чате сам по себе не включает красный свет.</p>
-        <p data-en="Check power, that lamp control is enabled in ClawLight, and Bluetooth. Allow ClawLight under System Settings → Privacy &amp; Security → Bluetooth. The lamp turns off after 10 seconds without updates. It needs an awake Mac running ClawLight. If an expected color does not light during a task, disconnect power before checking wiring and polarity.">Проверьте питание, включённое управление лампой в ClawLight и Bluetooth. Разрешение для ClawLight находится в «Системные настройки → Конфиденциальность и безопасность → Bluetooth». Без обновлений лампа гаснет через 10 секунд. ClawLight должен работать, а Mac не должен быть в режиме сна. Если при задаче нужный цвет не загорается, отключите питание перед проверкой проводки и полярности.</p>
-        <p data-en="Want a hand? Open the project or unpacked package in your coding agent and paste this prompt.">Нужна помощь? Откройте проект или распакованный пакет в coding-агенте и вставьте этот запрос.</p>
-            <blockquote class="agent-prompt" id="dark-prompt" data-en="Help me find out why my ClawLight stays dark using docs/hardware-setup.md in this project or package. Start with agent sessions, hooks, the background service, and Bluetooth status. For Codex, check hook trust with the same CODEX_HOME as the app and verify that a real local task appears in ClawLight. Guide me through /hooks approval if needed; leave approval to me. Distinguish local Codex tasks from ordinary ChatGPT chats and cloud or remote tasks. Identify my actual board before hardware commands and check its firmware and pin assignments. Do not reflash it or clear pairings as a troubleshooting shortcut. If wiring needs checking, guide me with USB power disconnected. Explain what you verified and what still needs a physical LED check.">Помоги понять, почему мой ClawLight не светится, по docs/hardware-setup.md в этом проекте или пакете. Начни с сессий агента, hooks, фоновой службы и статуса Bluetooth. Для Codex проверь разрешения hooks с тем же CODEX_HOME, что у приложения, и появление реальной локальной задачи в ClawLight. При необходимости помоги пройти /hooks; разрешение дам я. Отличай локальные задачи Codex от обычных чатов ChatGPT и облачных или удалённых задач. Определи мою плату перед аппаратными командами, проверь соответствие прошивки и выводов. Не перепрошивай плату и не удаляй сопряжения ради диагностики. Если нужно проверить проводку, помоги сделать это при отключённом USB-питании. Объясни, что проверено, а что ещё нужно проверить на реальных светодиодах.</blockquote>
-            <div class="prompt-actions">
-              <button type="button" class="copy-prompt" data-copy="dark-prompt" aria-controls="dark-prompt" data-en="Copy troubleshooting prompt" hidden>Скопировать запрос для диагностики</button>
-              <span class="copy-feedback" data-copy-success role="status" data-en="Copied!" hidden>Скопировано!</span>
-              <span class="copy-feedback" data-copy-error role="status" data-en="Couldn’t copy automatically. Select the prompt and copy it manually." hidden>Не удалось скопировать автоматически. Выделите запрос и скопируйте вручную.</span>
-            </div>
-      </details>
-    </section>
   </main>
 
   <footer class="footer wrap">

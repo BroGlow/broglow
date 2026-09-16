@@ -1,0 +1,16 @@
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #181a19;
+  --md-default-bg-color: #181a19;
+  --md-default-fg-color: #f1f2e9;
+  --md-accent-fg-color: #eea277;
+  --md-typeset-a-color: #eea277;
+}
+.md-typeset pre > code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.copy-feedback {
+  display: block;
+  font-size: .7rem;
+  margin-block: .5em;
+}
