@@ -2,6 +2,8 @@ site_name: ClawLight DIY
 docs_dir: guide
 # Only this generated subtree is cleaned; the landing stays in site/index.html.
 site_dir: docs
+hooks:
+  - pages.py
 theme:
   name: material
   custom_dir: overrides

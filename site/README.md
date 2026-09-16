@@ -68,6 +68,7 @@ Fonts are local system fonts; no external font service or analytics is configure
 node site/i18n.test.cjs
 node site/docs-language.test.cjs
 node site/docs-copy.test.cjs
+site/.venv/bin/python site/pages.test.py
 site/.venv/bin/mkdocs build --strict -f site/mkdocs.yml
 python3 site/check-links.py
 python3 site/check-links.py --base-url http://127.0.0.1:8080/site/
@@ -76,9 +77,9 @@ python3 site/check-links.py --base-url http://127.0.0.1:8080/site/
 The link check covers the landing and every generated guide page, including
 anchors, language links and downloads. Human navigation never opens raw Markdown.
 
-## Downloads and factual limits
+## Local downloads and factual limits
 
-Downloads reference the authoritative files in `models/` and `dist/`; they are not
+Local preview downloads reference the authoritative files in `models/` and `dist/`; they are not
 copied into the website. Update both package and checksum links in **both**
 `guide/en/installation.md` and `guide/ru/installation.md` when replacing a package.
 Relative download paths follow the generated URL depth, including the extra `ru/`.
@@ -103,9 +104,75 @@ Images are the project's own CAD previews, copied into `assets/`:
 - `clawlight.png`: `models/clawlight/preview/finished_20260916T173845Z.png`
 - `assembly.png`: `models/clawlight/preview/exploded_20260916T173845Z.png`
 
-## Future publishing
+## Publish to GitHub Pages
 
-Build the guide before publishing, then include the landing, generated `docs/`,
-models ZIP and Mac package/checksum in the same relative structure. `dist/` is
-ignored build output; a Git clone alone does not supply the downloads. Run the
-link check against the assembled files. This task does not publish or push anything.
+The prepared [Website workflow](../.github/workflows/pages.yml) publishes the
+landing at `https://OWNER.github.io/REPOSITORY/` and the guide at `docs/` beneath it.
+RU lives at `docs/ru/`. Relative navigation also works with a custom domain.
+No `gh-pages` branch, committed generated HTML, or custom token is needed.
+
+When you are ready:
+
+1. Push the project to **your fork**, including the firmware, models and
+   `docs/hardware-setup.md` from their separate workstream. The source-download
+   fallback needs those files in the fork's default branch.
+2. In **Settings → Pages → Build and deployment → Source**, choose **GitHub Actions**.
+   Enable Actions in the fork if GitHub prompts you to do so.
+3. Open **Actions → Website → Run workflow** and select the default branch.
+   Later changes under `site/` on `main` publish automatically. If your default
+   branch has another name, update the workflow's `push.branches` entry.
+4. Open the URL reported by the `deploy` job. If your `github-pages` environment
+   requires approval, approve that deployment in GitHub. Allow the default branch
+   in that environment's deployment rules.
+
+Pull requests build and check the website without deployment permissions or a
+public preview. Only the default branch can deploy. The workflow uses GitHub's
+[standard Pages actions](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
+
+### Downloads live in GitHub Releases
+
+The public guide links to **your fork's Releases**, taken from the workflow's
+repository context. It never advertises the upstream CLI-only archive as the BLE
+package. Until a BLE package is available, it offers the fork's source ZIP and an
+agent prompt that supports building from source.
+
+When you have verified a BLE package, publish a release in your fork and attach:
+
+- The full `dist/clawlight-…-aarch64-apple-darwin-….tar.gz` package and its matching
+  `.tar.gz.sha256` from the packaging workflow in `docs/hardware-setup.md`.
+- `models/clawlight-print-pack.zip` for the enclosure download.
+
+Keep the original package filename so its checksum file still names the correct
+archive. Explain the supported Mac/board and remaining hardware checks in the
+release notes. The website links to the release list, so publishing a newer
+package does not require a website edit. See GitHub's
+[release-link documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/linking-to-releases).
+
+The existing upstream `release.yml` produces CLI-only archives and also updates
+the upstream Homebrew tap; it is **not** the full BLE packaging workflow. For a
+manual BLE release, create a release tag outside its `v*` trigger (for example,
+`ble-2026-09-16`) unless you have separately adapted that workflow for your fork.
+This website preparation does not change or run the app release workflow.
+
+### Check the exact Pages artifact locally
+
+Replace `OWNER/REPOSITORY` with your future fork. No GitHub access is needed to build:
+
+```bash
+site/.venv/bin/python site/pages.py --repository OWNER/REPOSITORY
+python3 site/check-links.py --site-dir site/_pages
+python3 -m http.server 8081 --bind 127.0.0.1 --directory site/_pages
+```
+
+Open http://127.0.0.1:8081/. The ignored `site/_pages/` folder contains only the
+landing, generated docs and their assets. The Pages workflow uploads this folder;
+it does not publish repository files, the Python environment, or local binaries.
+`pages.py` also supplies a small MkDocs hook: public builds rewrite local download
+links to Releases and add the source fallback, while ordinary local previews keep
+their direct local downloads. Models and packages are not copied into the Pages
+artifact. You can edit the same Markdown pages for both previews.
+
+Local Pages builds from a site-only checkout, HTTP links at both root and
+repository-prefixed URLs, and language/copy tests are verified. GitHub Actions,
+the public Pages URL and release downloads need verification after you publish.
+No repository, release or public site was created by this preparation.

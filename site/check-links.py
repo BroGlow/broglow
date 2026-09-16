@@ -25,8 +25,10 @@ class Links(HTMLParser):
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--base-url", help="Preview page URL, e.g. http://127.0.0.1:8080/site/")
+parser.add_argument("--site-dir", type=Path, help="Check a standalone Pages artifact instead of the local preview")
 args = parser.parse_args()
-site = Path(__file__).resolve().parent
+site = args.site_dir.resolve() if args.site_dir else Path(__file__).resolve().parent
+boundary = site if args.site_dir else site.parent
 assert (site / "docs/index.html").is_file(), "Build the guide first: .venv/bin/mkdocs build --strict -f mkdocs.yml"
 pages = {}
 for path in [site / "index.html", *sorted((site / "docs").rglob("*.html"))]:
@@ -45,11 +47,12 @@ for path, page in pages.items():
             external.add(href)
             continue
         assert not url.scheme and not url.netloc, f"Unsupported link: {href}"
+        assert not url.path.startswith("/"), f"Root-relative link breaks project Pages: {href}"
         assert not url.path.endswith(".md"), f"Raw Markdown navigation: {href}"
         target = (path.parent / unquote(url.path)).resolve() if url.path else path
         if target.is_dir():
             target /= "index.html"
-        assert target.is_relative_to(site.parent), f"Link leaves the project: {href}"
+        assert target.is_relative_to(boundary), f"Link leaves the published tree: {href}"
         assert target.is_file(), f"Missing file from {page_url}: {href}"
         if url.fragment:
             assert target in pages and unquote(url.fragment) in pages[target].ids, f"Missing anchor from {page_url}: {href}"

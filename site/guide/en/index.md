@@ -16,7 +16,7 @@ Already assembled? [Install ClawLight and connect the lamp](installation.md).
 | Wires | For the LEDs and a shared ground. |
 | USB cable · 1 | A data cable that fits your board, for initial setup and power from your Mac. |
 | USB adapter · optional | For placing the lamp away from your Mac. You can keep using the Mac’s USB port instead. |
-| Enclosure · optional | Print the models from the ZIP above. Try the fit-test pieces first. |
+| Enclosure · optional | Use `clawlight-print-pack.zip`. Try the fit-test pieces first. |
 | Case hardware | For the supplied enclosure: 5 DIN 7982 ST2.2 × 6.5 mm countersunk screws, 2 cable ties (2.5 mm wide, at most 1 mm thick), and plastic-compatible glue. |
 
 Using another SuperMini with Bluetooth LE? Adapt the firmware and pin assignments for its chip,

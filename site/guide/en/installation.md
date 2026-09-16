@@ -14,13 +14,15 @@ BLE version.
 
 ## Set it up with your coding agent { #agent-setup }
 
-Unpack the archive, open that folder in Codex or another coding agent, and paste this request.
-Keep the checksum file nearby. Detailed manual steps are also included in the package.
+Unpack the package or source archive, open that folder in Codex or another coding agent, and
+paste this request. For a prebuilt package, keep its checksum file nearby. Detailed manual
+steps are in `docs/hardware-setup.md` inside the folder.
 
 ```text
-Help me set up ClawLight from this package using docs/hardware-setup.md. Verify the checksums,
-back up existing settings, and keep one menu bar service. Identify my actual board before
-hardware commands. The included firmware is for ESP32-C3; another Bluetooth LE SuperMini needs
+Help me set up ClawLight using docs/hardware-setup.md. If this is a prebuilt package, verify its
+checksums; if it is a source checkout, follow the source build instructions. Back up existing
+settings and keep one menu bar service. Identify my actual board before hardware commands.
+This project's firmware targets ESP32-C3; another Bluetooth LE SuperMini needs
 matching firmware and pins. If the package does not support my board, explain what is needed
 before flashing. Flash only if needed and keep existing pairings. Tell me when to connect the
 cable or approve a macOS dialog, then check that the background service reaches my lamp. For
