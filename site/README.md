@@ -3,7 +3,7 @@
 Static Russian/English landing page. No dependencies, build step, analytics or
 backend. All work is scoped to `site/`; the application and firmware are separate.
 
-Run from the **clawlight repository root** so the guide and model links resolve:
+Run from the **clawlight repository root** so model and Mac package downloads resolve:
 
 ```bash
 python3 -m http.server 8080 --bind 127.0.0.1
@@ -22,14 +22,35 @@ language preferences (`ru` or `en`, including regional variants), falling back t
 English. A manual choice takes priority on later visits and is saved in localStorage
 under `clawlight-language`. Clearing that key restores browser-language detection.
 If storage is blocked, switching still works for the current page. Without JavaScript,
-the Russian page and signal demo remain usable. Linked project documents keep their
-original language. Switching languages does not reset the selected demo signal.
+the Russian page and signal demo remain usable. Switching languages does not reset
+the selected demo signal or open setup sections.
 
-Run the localization check from the repository root (Node.js, no packages required):
+Both setup links lead to the bilingual `#setup` section on this page. It covers
+parts, wiring, installation and USB-assisted pairing in four steps. Optional agent
+setup and troubleshooting use native expandable sections. Full technical procedures
+remain in `docs/hardware-setup.md` and in the downloadable package; the site does not
+navigate visitors to raw Markdown.
+
+Run the localization and link checks from the repository root (Node.js and Python 3,
+no packages required):
 
 ```bash
 node site/i18n.test.cjs
+python3 site/check-links.py
 ```
+
+To also check that every local file is served correctly by the preview:
+
+```bash
+python3 site/check-links.py --base-url http://127.0.0.1:8080/site/
+```
+
+Downloads use the authoritative files in `models/` and `dist/`, without duplicating
+them in `site/`. The Mac package is an existing Apple Silicon build with C3 firmware;
+it is not a universal Mac binary or an upstream release. Keep its `.tar.gz` and
+`.sha256` together. When replacing the package, update both links in `index.html`
+and rerun the link check. The instructions delegate checksum verification and safe
+installation to the included agent runbook, with manual steps in the same package.
 
 Images are copies of the project's own CAD previews:
 - `assets/clawlight.png`: `models/clawlight/preview/finished_20260916T150307Z.png`
@@ -40,6 +61,8 @@ https://clawlight.dev/ and credits the original project in the footer. Product
 photographs, store pricing and claims of verified hardware are not reused.
 The build guide is authoritative; landing copy does not replace it.
 
-If publishing later, include the linked docs/models under the same directory
-structure or update their two link targets to actual hosted artifacts. Do not
+If publishing later, include the linked model archive and Mac package/checksum
+under the same directory structure or update their links to actual hosted artifacts.
+`dist/` is ignored build output: a Git clone alone does not supply the Mac download.
+The link check must pass against the deployment files before publishing. Do not
 point local BLE setup to upstream releases: they do not contain this extension.
