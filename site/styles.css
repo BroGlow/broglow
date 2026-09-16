@@ -616,6 +616,9 @@ h2 {
   max-width:780px;
   margin-inline:auto;
 }
+.setup-help + .setup-help {
+  margin-top:16px;
+}
 .footer {
   border-top:1px solid var(--line);
   padding-block:36px 42px;

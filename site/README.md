@@ -27,7 +27,7 @@ the selected demo signal or open setup sections.
 
 Both setup links lead to the bilingual `#setup` section on this page. It covers
 parts, wiring, installation and USB-assisted pairing in four steps. Optional agent
-setup and troubleshooting use native expandable sections. Full technical procedures
+setup, Codex integration and troubleshooting use native expandable sections. Full technical procedures
 remain in `docs/hardware-setup.md` and in the downloadable package; the site does not
 navigate visitors to raw Markdown.
 
@@ -59,6 +59,10 @@ it is not a universal Mac binary or an upstream release. Keep its `.tar.gz` and
 `.sha256` together. When replacing the package, update both links in `index.html`
 and rerun the link check. The instructions delegate checksum verification and safe
 installation to the included agent runbook, with manual steps in the same package.
+The currently linked package predates the hardware guide's “Connect local Codex
+sessions” section. Keep the site's Codex steps and agent prompts self-contained;
+they cover manual hook approval and a real local task check, including desktop tasks.
+Do not describe desktop hook delivery as verified until that check succeeds.
 
 Images are copies of the project's own CAD previews:
 - `assets/clawlight.png`: `models/clawlight/preview/finished_20260916T173845Z.png`
@@ -78,7 +82,7 @@ guide, print guide, packaged artifacts, and upstream README:
 | Parts and enclosure | C3 is recommended; another BLE SuperMini needs adapted firmware/pins and a fit check. The supplied case assumes 5 mm LEDs and needs five screws, two ties and glue; see `models/clawlight/PRINT_GUIDE.md`. |
 | Signals | `src/state.rs` defines aggregate priority; firmware also turns LEDs off when disabled or stale. Red reflects a reported attention event, not every conversational question. |
 | Connection | `connected` confirms a recent write to the indicated lamp, not visible LED operation. Reconnect requires enabled control, a running Mac service, Bluetooth and a powered nearby lamp. |
-| Supported agents | `src/harness.rs` and `src/hook.rs` implement local integrations. Codex requires trusted hooks; cloud tasks and ordinary ChatGPT conversations are not advertised. |
+| Supported agents | `src/harness.rs` and `src/hook.rs` implement local integrations. The hardware guide's Codex steps cover CLI and local desktop tasks with trusted hooks; desktop event delivery still needs a real task check. Cloud/remote tasks and ordinary ChatGPT conversations do not drive this local service. |
 | Verification | The hardware guide records BLE/GPIO checks on one Mac/C3. Physical LEDs, printed fit, brick-only power, sleep/wake recovery and two physical lamps remain unverified. |
 | Downloads and images | Current package checksum and model ZIP integrity checked. Preview images now match the print guide's current revision; download sizes are omitted to avoid stale labels. |
 
