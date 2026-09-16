@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#181a19">
+  <meta name="description" content="ClawLight DIY — настольный светофор для coding-агентов. Три цвета, ESP32-C3, Bluetooth и корпус для 3D-печати." data-en-content="ClawLight DIY — a desk traffic light for coding agents. Three colors, ESP32-C3, Bluetooth, and a 3D-printable enclosure.">
+  <title data-en="ClawLight DIY — your agent’s status at a glance">ClawLight DIY — статус агента одним взглядом</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23181a19'/%3E%3Ccircle cx='16' cy='8' r='3' fill='%23f07c6b'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23e9c665'/%3E%3Ccircle cx='16' cy='24' r='3' fill='%239ccb8e'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main" data-en="Skip to content">К содержимому</a>
+  <header class="header wrap">
+    <a class="brand" href="#" aria-label="ClawLight — в начало" data-en-aria-label="ClawLight — back to top">clawlight<span class="edition">DIY</span></a>
+    <div class="header-tools">
+      <nav aria-label="Основная навигация" data-en-aria-label="Main navigation">
+        <a href="#signals" data-en="Signals">Сигналы</a>
+        <a href="#build" data-en="Build yours">Собрать свою</a>
+        <a href="../docs/hardware-setup.md"><span data-en="Setup guide">Инструкция</span> <span aria-hidden="true">↗</span></a>
+      </nav>
+      <select id="language" class="language-picker" aria-label="Язык" data-en-aria-label="Language" hidden>
+        <option value="ru" lang="ru" aria-label="Русский">RU</option>
+        <option value="en" lang="en" aria-label="English">EN</option>
+      </select>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow" data-en="Your agent. At a glance.">Ваш агент. Один взгляд.</p>
+        <h1 id="hero-title"><span data-en="Fewer tabs.">Меньше вкладок.</span><br><span class="accent" data-en="More clarity.">Больше ясности.</span></h1>
+        <p class="intro" data-en="A small traffic light on your desk shows what your coding agent is doing: working, waiting, or asking for your attention.">Маленький светофор на столе показывает, чем занят ваш coding-агент. Работает, ждёт или зовёт вас.</p>
+        <a class="button" href="#build"><span data-en="Build your ClawLight">Собрать свой ClawLight</span> <span aria-hidden="true">↗</span></a>
+      </div>
+      <figure class="hero-visual">
+        <img src="assets/clawlight.png" width="1400" height="1000" alt="Рендер: оранжевый пиксельный персонаж держит чёрную стойку с красным, жёлтым и зелёным светодиодами" data-en-alt="Render: an orange pixel character holds a black stand with red, yellow, and green LEDs" fetchpriority="high">
+        <figcaption><span data-en="A little companion for the bigger picture.">Маленький напарник для большого контекста.</span><span class="mono" data-en="Enclosure render">3D-модель корпуса</span></figcaption>
+      </figure>
+    </section>
+
+    <div class="agents wrap" aria-label="Поддерживаемые coding-агенты" data-en-aria-label="Supported coding agents">
+      <span class="agents-label" data-en="One signal for all your sessions">Один сигнал для ваших сессий</span>
+      <ul><li>Claude Code</li><li>Codex CLI</li><li>opencode</li><li>Copilot CLI</li></ul>
+    </div>
+
+    <section class="signals wrap" id="signals" aria-labelledby="signals-title">
+      <div class="section-heading">
+        <h2 id="signals-title" data-en="Let the colors tell you.">Всё понятно по цвету.</h2>
+        <p data-en="One less window to keep checking.">Без ещё одного окна, которое нужно проверять.</p>
+      </div>
+      <fieldset class="signal-demo">
+        <legend data-en="Try the signals">Попробуйте сигналы</legend>
+        <div class="signal-options">
+          <label class="signal-option green">
+            <input type="radio" name="signal" value="working" checked>
+            <span class="signal-dot" aria-hidden="true"></span><span data-en="Working">Работает</span><span class="signal-key">G</span>
+          </label>
+          <label class="signal-option yellow">
+            <input type="radio" name="signal" value="idle">
+            <span class="signal-dot" aria-hidden="true"></span><span data-en="Idle">Ждёт</span><span class="signal-key">Y</span>
+          </label>
+          <label class="signal-option red">
+            <input type="radio" name="signal" value="needs-you">
+            <span class="signal-dot" aria-hidden="true"></span><span data-en="Needs you">Нужны вы</span><span class="signal-key">R</span>
+          </label>
+          <label class="signal-option off">
+            <input type="radio" name="signal" value="off">
+            <span class="signal-dot" aria-hidden="true"></span><span data-en="Off">Отдыхает</span><span class="signal-key">N</span>
+          </label>
+        </div>
+        <div class="signal-message">
+          <p class="message-working"><strong data-en="Work in progress.">Работа идёт.</strong> <span data-en="Your agent is handling a task. You can get on with yours.">Агент выполняет задачу. Можно заняться своей.</span></p>
+          <p class="message-idle"><strong data-en="Ready for the next task.">Пауза в работе.</strong> <span data-en="An open session is waiting for its next task.">Открытая сессия ждёт следующей задачи.</span></p>
+          <p class="message-needs-you"><strong data-en="Time to step in.">Пора подключиться.</strong> <span data-en="One of your sessions needs a response or approval.">Одной из сессий нужен ваш ответ или разрешение.</span></p>
+          <p class="message-off"><strong data-en="All quiet.">На сегодня всё.</strong> <span data-en="No live sessions — all LEDs are off.">Нет живых сессий — все светодиоды выключены.</span></p>
+          <span class="demo-note" data-en="Signal preview">Демонстрация состояний</span>
+        </div>
+      </fieldset>
+      <p class="priority-note" data-en="Red always takes priority. When some sessions are working and others are idle, you choose which takes priority in ClawLight settings.">Красный всегда важнее. Для одновременно работающих и ожидающих сессий приоритет выбирается в настройках ClawLight.</p>
+    </section>
+
+    <section class="connection" aria-labelledby="connection-title">
+      <div class="wrap connection-inner">
+        <div>
+          <p class="eyebrow" data-en="Power nearby. Status over the air.">Питание рядом. Статус по воздуху.</p>
+          <h2 id="connection-title"><span data-en="A lamp on your desk.">На столе — лампа.</span><br><span data-en="Your agents on your Mac.">На Mac — ваши агенты.</span></h2>
+          <p data-en="ClawLight combines session statuses into one signal over Bluetooth. The lamp just needs a USB power adapter.">ClawLight собирает статусы сессий и отправляет один сигнал по Bluetooth. Лампе нужен только USB-блок питания.</p>
+        </div>
+        <dl class="connection-facts">
+          <div><dt>Bluetooth LE</dt><dd data-en="Connects directly to your Mac">Прямое соединение с Mac</dd></div>
+          <div><dt>USB-C</dt><dd data-en="Powered by a standard adapter">Питание от обычного блока</dd></div>
+          <div><dt data-en="No Wi-Fi">Без Wi-Fi</dt><dd data-en="No network or cloud for the lamp">Ни сети, ни облака для лампы</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="build wrap" id="build" aria-labelledby="build-title">
+      <figure class="assembly-visual">
+        <img src="assets/assembly.png" width="1700" height="1100" alt="Разнесённая 3D-модель: корпус, крышка, стойка светофора и крепления для самостоятельной сборки" data-en-alt="Exploded 3D model: enclosure, lid, traffic light stand, and mounting parts for DIY assembly" loading="lazy">
+        <figcaption data-en="Print it. Build it. Make it yours.">Печатайте. Собирайте. Настраивайте под себя.</figcaption>
+      </figure>
+      <div class="build-copy">
+        <h2 id="build-title"><span data-en="A small project.">Небольшой проект.</span><br><span data-en="Something real.">Настоящая вещь.</span></h2>
+        <p data-en="An ESP32-C3 SuperMini, three LEDs, and one 330 Ω resistor per LED. You can 3D-print the enclosure.">ESP32-C3 SuperMini, три светодиода и по одному резистору 330 Ω. Корпус можно напечатать на 3D-принтере.</p>
+        <ol class="build-steps">
+          <li><span>01</span><div><strong data-en="Gather the parts">Подготовьте детали</strong><p data-en="Enclosure models and printing notes are included in the project.">Модели корпуса и рекомендации по печати уже в проекте.</p></div></li>
+          <li><span>02</span><div><strong data-en="Wire it up">Соберите электронику</strong><p data-en="Follow the setup guide for wiring and firmware.">Схема подключения и прошивка — в пошаговой инструкции.</p></div></li>
+          <li><span>03</span><div><strong data-en="Select your lamp on your Mac">Выберите лампу на Mac</strong><p data-en="ClawLight remembers your device and sends it session updates.">ClawLight запомнит устройство и будет отправлять статусы.</p></div></li>
+        </ol>
+        <div class="build-links">
+          <a class="text-link" href="../docs/hardware-setup.md"><span data-en="Open the setup guide">Открыть инструкцию</span> <span aria-hidden="true">↗</span></a>
+          <a class="secondary-link" href="../models/clawlight-print-pack.zip" download><span data-en="Download models .zip">Скачать модели .zip</span> <span aria-hidden="true">↓</span></a>
+        </div>
+        <p class="project-note" data-en="DIY edition in development. Images are renders; validation of the enclosure and BLE on physical hardware is still in progress.">DIY-версия в разработке. На странице — рендеры; корпус и BLE ещё проходят проверку на реальном устройстве.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer wrap">
+    <div><a class="brand" href="#">clawlight<span class="edition">DIY</span></a><p data-en="Your agent’s status, right on your desk.">Статус агента — часть вашего стола.</p></div>
+    <div class="footer-links"><a href="https://github.com/clawlight/clawlight-cli"><span data-en="Upstream ClawLight CLI">Исходный ClawLight CLI</span> <span aria-hidden="true">↗</span></a><a href="https://clawlight.dev/"><span data-en="Original project">Оригинальный проект</span> <span aria-hidden="true">↗</span></a><span data-en="DIY BLE edition · macOS">Самостоятельная BLE-версия · macOS</span></div>
+  </footer>
+  <script src="i18n.js"></script>
+</body>
+</html>
