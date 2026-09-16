@@ -61,13 +61,28 @@ and rerun the link check. The instructions delegate checksum verification and sa
 installation to the included agent runbook, with manual steps in the same package.
 
 Images are copies of the project's own CAD previews:
-- `assets/clawlight.png`: `models/clawlight/preview/finished_20260916T150307Z.png`
-- `assets/assembly.png`: `models/clawlight/preview/exploded_20260916T150307Z.png`
+- `assets/clawlight.png`: `models/clawlight/preview/finished_20260916T173845Z.png`
+- `assets/assembly.png`: `models/clawlight/preview/exploded_20260916T173845Z.png`
 
 Copy is based on the local hardware guide. The design references
 https://clawlight.dev/ and credits the original project in the footer. Product
 photographs, store pricing and claims of verified hardware are not reused.
 The build guide is authoritative; landing copy does not replace it.
+
+Fact-check completed on 2026-09-16 against the current implementation, hardware
+guide, print guide, packaged artifacts, and upstream README:
+
+| Claim | Basis and limit |
+| --- | --- |
+| USB power | The Mac can power the board while BLE controls it. A separate adapter is optional. |
+| Parts and enclosure | C3 is recommended; another BLE SuperMini needs adapted firmware/pins and a fit check. The supplied case assumes 5 mm LEDs and needs five screws, two ties and glue; see `models/clawlight/PRINT_GUIDE.md`. |
+| Signals | `src/state.rs` defines aggregate priority; firmware also turns LEDs off when disabled or stale. Red reflects a reported attention event, not every conversational question. |
+| Connection | `connected` confirms a recent write to the indicated lamp, not visible LED operation. Reconnect requires enabled control, a running Mac service, Bluetooth and a powered nearby lamp. |
+| Supported agents | `src/harness.rs` and `src/hook.rs` implement local integrations. Codex requires trusted hooks; cloud tasks and ordinary ChatGPT conversations are not advertised. |
+| Verification | The hardware guide records BLE/GPIO checks on one Mac/C3. Physical LEDs, printed fit, brick-only power, sleep/wake recovery and two physical lamps remain unverified. |
+| Downloads and images | Current package checksum and model ZIP integrity checked. Preview images now match the print guide's current revision; download sizes are omitted to avoid stale labels. |
+
+This was a content/artifact audit, not a new hardware or installed-service test.
 
 If publishing later, include the linked model archive and Mac package/checksum
 under the same directory structure or update their links to actual hosted artifacts.
