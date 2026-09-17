@@ -16,6 +16,19 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install platformio==6.1.19 clang-format==18.1.8
+      - name: Firmware formatting (Google)
+        run: clang-format --dry-run --Werror firmware/esp32-c3-supermini/src/*.cpp firmware/esp32-c3-supermini/tests/*.cpp
+      - run: python firmware/esp32-c3-supermini/tests/check.py
+      - run: pio run -d firmware/esp32-c3-supermini
+
   fmt:
     runs-on: ubuntu-latest
     steps:
