@@ -338,14 +338,23 @@ fn maybe_autoenable_led() -> bool {
     let Some(port) = led::detect_board() else {
         return false;
     };
-    let cfg = config::Config {
-        led_enabled: true,
-        ..cfg
-    };
-    match config::write_config(&cfg) {
-        Ok(()) => {
-            println!("Detected a Claw Light board at {port} — status LEDs enabled.");
-            true
+    let result = (|| -> anyhow::Result<(bool, bool)> {
+        let _lock = config::acquire_config_lock()?;
+        let mut cfg = config::read_config_strict()?;
+        // Another settings writer may have created the file during detection.
+        if config::config_file_path().exists() {
+            return Ok((cfg.led_enabled, false));
+        }
+        cfg.led_enabled = true;
+        config::write_config(&cfg)?;
+        Ok((true, true))
+    })();
+    match result {
+        Ok((enabled, created)) => {
+            if created {
+                println!("Detected a Claw Light board at {port} — status LEDs enabled.");
+            }
+            enabled
         }
         Err(e) => {
             eprintln!("clawlight: could not enable status LEDs: {e:#} (press `l` in the dashboard to enable them).");

@@ -45,75 +45,11 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
         }
         return Ok(());
     }
-    let mut cfg = read_setup_config()?;
     match command {
-        BleCommand::Scan => return scan(&cfg),
+        BleCommand::Scan => return scan(&read_setup_config()?),
         BleCommand::Pair { port } => return pair(port),
-        BleCommand::Add { id } | BleCommand::Select { id } => {
-            #[cfg(target_os = "macos")]
-            {
-                let id = uuid::Uuid::parse_str(&id)?.to_string();
-                remember(&mut cfg, id);
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                let _ = id;
-                anyhow::bail!("BLE control is supported on macOS only");
-            }
-        }
-        BleCommand::Remove { id } => {
-            #[cfg(target_os = "macos")]
-            let id = uuid::Uuid::parse_str(&id)?.to_string();
-            anyhow::ensure!(
-                cfg.ble_ids().contains(&id),
-                "This lamp is not remembered: {id}"
-            );
-            cfg.ble_peripherals = cfg
-                .ble_ids()
-                .into_iter()
-                .filter(|saved| saved != &id)
-                .collect();
-            cfg.ble_peripheral = None;
-            cfg.lamp_names.remove(&id);
-            cfg.lamp_brightness.remove(&id);
-            if cfg.ble_peripherals.is_empty() && cfg.led_transport == LedTransport::Ble {
-                cfg.led_enabled = false;
-            }
-        }
-        BleCommand::Rename { id, name } => {
-            #[cfg(target_os = "macos")]
-            let id = uuid::Uuid::parse_str(&id)?.to_string();
-            anyhow::ensure!(
-                cfg.ble_ids().contains(&id),
-                "This lamp is not remembered: {id}"
-            );
-            let name = name.trim();
-            anyhow::ensure!(
-                name.chars().count() <= 40 && !name.chars().any(char::is_control),
-                "Use a lamp name of at most 40 characters without control characters"
-            );
-            if name.is_empty() {
-                cfg.lamp_names.remove(&id);
-            } else {
-                cfg.lamp_names.insert(id, name.to_owned());
-            }
-        }
-        BleCommand::Brightness { percent, id } => {
-            anyhow::ensure!(percent <= 100, "Brightness must be between 0 and 100");
-            if let Some(id) = id {
-                #[cfg(target_os = "macos")]
-                let id = uuid::Uuid::parse_str(&id)?.to_string();
-                anyhow::ensure!(
-                    cfg.ble_ids().contains(&id),
-                    "This lamp is not remembered: {id}"
-                );
-                cfg.lamp_brightness.insert(id, percent);
-            } else {
-                cfg.led_brightness = percent;
-                cfg.lamp_brightness.clear();
-            }
-        }
         BleCommand::List => {
+            let cfg = read_setup_config()?;
             let status = crate::led::connection_status();
             for id in cfg.ble_ids() {
                 if let Some(device) = status.devices.iter().find(|d| d.id == id) {
@@ -124,14 +60,85 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
             }
             return Ok(());
         }
-        BleCommand::Usb => {
-            cfg.led_transport = LedTransport::Usb;
-            cfg.led_enabled = false;
-        }
-        BleCommand::Off => cfg.led_enabled = false,
-        BleCommand::Status => unreachable!(),
+        _ => {}
     }
-    config::write_config(&cfg)?;
+    config::update_config(|cfg| {
+        match command {
+            BleCommand::Add { id } | BleCommand::Select { id } => {
+                #[cfg(target_os = "macos")]
+                {
+                    let id = uuid::Uuid::parse_str(&id)?.to_string();
+                    remember(cfg, id);
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    let _ = id;
+                    anyhow::bail!("BLE control is supported on macOS only");
+                }
+            }
+            BleCommand::Remove { id } => {
+                #[cfg(target_os = "macos")]
+                let id = uuid::Uuid::parse_str(&id)?.to_string();
+                anyhow::ensure!(
+                    cfg.ble_ids().contains(&id),
+                    "This lamp is not remembered: {id}"
+                );
+                cfg.ble_peripherals = cfg
+                    .ble_ids()
+                    .into_iter()
+                    .filter(|saved| saved != &id)
+                    .collect();
+                cfg.ble_peripheral = None;
+                cfg.lamp_names.remove(&id);
+                cfg.lamp_brightness.remove(&id);
+                if cfg.ble_peripherals.is_empty() && cfg.led_transport == LedTransport::Ble {
+                    cfg.led_enabled = false;
+                }
+            }
+            BleCommand::Rename { id, name } => {
+                #[cfg(target_os = "macos")]
+                let id = uuid::Uuid::parse_str(&id)?.to_string();
+                anyhow::ensure!(
+                    cfg.ble_ids().contains(&id),
+                    "This lamp is not remembered: {id}"
+                );
+                let name = name.trim();
+                anyhow::ensure!(
+                    name.chars().count() <= 40 && !name.chars().any(char::is_control),
+                    "Use a lamp name of at most 40 characters without control characters"
+                );
+                if name.is_empty() {
+                    cfg.lamp_names.remove(&id);
+                } else {
+                    cfg.lamp_names.insert(id, name.to_owned());
+                }
+            }
+            BleCommand::Brightness { percent, id } => {
+                anyhow::ensure!(percent <= 100, "Brightness must be between 0 and 100");
+                if let Some(id) = id {
+                    #[cfg(target_os = "macos")]
+                    let id = uuid::Uuid::parse_str(&id)?.to_string();
+                    anyhow::ensure!(
+                        cfg.ble_ids().contains(&id),
+                        "This lamp is not remembered: {id}"
+                    );
+                    cfg.lamp_brightness.insert(id, percent);
+                } else {
+                    cfg.led_brightness = percent;
+                    cfg.lamp_brightness.clear();
+                }
+            }
+            BleCommand::Usb => {
+                cfg.led_transport = LedTransport::Usb;
+                cfg.led_enabled = false;
+            }
+            BleCommand::Off => cfg.led_enabled = false,
+            BleCommand::Status | BleCommand::List | BleCommand::Scan | BleCommand::Pair { .. } => {
+                unreachable!()
+            }
+        }
+        Ok(())
+    })?;
     println!("Saved lamp settings. The installed tray service applies them automatically.");
     Ok(())
 }
@@ -271,12 +278,15 @@ mod mac {
             cfg.led_enabled && cfg.led_transport == LedTransport::Ble,
             "Enable Bluetooth lamps before previewing brightness"
         );
+        let status = crate::led::connection_status();
+        let device = status
+            .devices
+            .iter()
+            .find(|device| device.id == id && device.state == "connected")
+            .context("This lamp is not connected; wait for it to reconnect")?;
         anyhow::ensure!(
-            crate::led::connection_status()
-                .devices
-                .iter()
-                .any(|device| { device.id == id && device.state == "connected" }),
-            "This lamp is not connected; wait for it to reconnect"
+            device.brightness_supported != Some(false),
+            "Update this lamp's C3 firmware to use Identify or brightness preview"
         );
         store_preview(Some(target), percent);
         Ok(())
@@ -544,19 +554,23 @@ mod mac {
             _setup.try_lock_exclusive()?,
             "Lamp setup is already running; wait for it to finish"
         );
-        let original_bytes = match std::fs::read(config::config_file_path()) {
-            Ok(bytes) => Some(bytes),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-            Err(e) => return Err(e.into()),
+        let (original_bytes, original, paused) = {
+            let _config_lock = config::acquire_config_lock()?;
+            let original_bytes = match std::fs::read(config::config_file_path()) {
+                Ok(bytes) => Some(bytes),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+                Err(e) => return Err(e.into()),
+            };
+            let original: Config = original_bytes
+                .as_deref()
+                .map(serde_json::from_slice)
+                .transpose()?
+                .unwrap_or_default();
+            let mut paused = original.clone();
+            paused.led_enabled = false;
+            config::write_config(&paused)?;
+            (original_bytes, original, paused)
         };
-        let original: Config = original_bytes
-            .as_deref()
-            .map(serde_json::from_slice)
-            .transpose()?
-            .unwrap_or_default();
-        let mut paused = original.clone();
-        paused.led_enabled = false;
-        config::write_config(&paused)?;
         let result = (|| {
             let deadline = std::time::Instant::now() + Duration::from_secs(8);
             let _worker = loop {
@@ -603,13 +617,15 @@ mod mac {
                 let _ = timeout(Duration::from_secs(1), adapter.stop_scan()).await;
                 found
             })?;
-            let mut latest = read_setup_config()?;
-            remember(&mut latest, id.clone());
-            config::write_config(&latest)?;
+            config::update_config(|latest| {
+                remember(latest, id.clone());
+                Ok(())
+            })?;
             println!("Remembered lamp {id}. The tray service will connect automatically; approve any macOS pairing request for this lamp. Existing saved lamps are retained.");
             Ok(())
         })();
         if result.is_err() {
+            let _config_lock = config::acquire_config_lock()?;
             let mut latest = read_setup_config()
                 .context("Pairing failed; cannot safely restore unreadable settings")?;
             if serde_json::to_value(&latest)? == serde_json::to_value(&paused)? {
@@ -652,10 +668,11 @@ mod mac {
                     })
                     .collect::<Vec<_>>(),
             );
-            let update = |id: &str, state: &str, detail: &str| {
+            let update = |id: &str, state: &str, detail: &str, brightness_supported| {
                 let mut devices = statuses.borrow_mut();
                 if let Some(device) = devices.iter_mut().find(|d| d.id == id) {
                     *device = crate::led::DeviceStatus::new(id, state, detail);
+                    device.brightness_supported = brightness_supported;
                 }
                 crate::led::publish_ble_status(cfg, devices.clone());
             };
@@ -737,9 +754,9 @@ mod mac {
         advertisements: &Advertisements,
         scan_error: &RefCell<Option<String>>,
         keep: &impl Fn() -> bool,
-        update: &impl Fn(&str, &str, &str),
+        update: &impl Fn(&str, &str, &str, Option<bool>),
     ) {
-        let publish = |state: &str, detail: &str| update(id, state, detail);
+        let publish = |state: &str, detail: &str| update(id, state, detail, None);
         while keep() {
             // Subscribe anew after each disconnect: cached/queued advertisements
             // cannot reconnect a stale native CoreBluetooth peripheral handle.
@@ -768,7 +785,10 @@ mod mac {
             match discovered {
                 Ok(peripheral) => {
                     publish("connecting", "Connecting to saved lamp");
-                    let result = drive(&peripheral, keep, &publish).await;
+                    let result = drive(&peripheral, keep, &|state, detail, supported| {
+                        update(id, state, detail, Some(supported));
+                    })
+                    .await;
                     // Cancelling a Rust future doesn't cancel a native pending connect.
                     let _ = timeout(Duration::from_secs(2), peripheral.disconnect()).await;
                     if let Err(error) = result {
@@ -800,7 +820,7 @@ mod mac {
     async fn drive(
         p: &Peripheral,
         keep: &impl Fn() -> bool,
-        publish: &impl Fn(&str, &str),
+        publish: &impl Fn(&str, &str, bool),
     ) -> Result<()> {
         let id = Uuid::parse_str(&p.id().to_string())?;
         let target = id.to_string();
@@ -845,7 +865,7 @@ mod mac {
                 tokio::select! {
                     result = &mut write => return Ok(result?),
                     _ = sleep(HEARTBEAT) => {
-                        publish("connecting", "Waiting for an encrypted write; approve any macOS pairing request for this lamp");
+                        publish("connecting", "Waiting for an encrypted write; approve any macOS pairing request for this lamp", brightness_characteristic.is_some());
                     }
                 }
             }
@@ -903,7 +923,7 @@ mod mac {
                 } else {
                     "Status acknowledged; brightness unavailable — update the C3 firmware".into()
                 };
-                publish("connected", &detail);
+                publish("connected", &detail, brightness_characteristic.is_some());
                 Ok(())
             },
             || {
@@ -1073,6 +1093,10 @@ mod mac {
             assert_eq!(current_preview(ids[1]).unwrap().percent, 50);
             assert_eq!(std::fs::read(&path).unwrap(), configured);
 
+            let mut devices = connected();
+            devices[1].brightness_supported = Some(false);
+            crate::led::publish_ble_status(&cfg, devices);
+            rejects(&names[1], 100);
             let mut devices = connected();
             devices[1].state = "searching".into();
             crate::led::publish_ble_status(&cfg, devices);

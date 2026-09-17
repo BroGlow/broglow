@@ -5,6 +5,7 @@
 
 use std::path::PathBuf;
 
+use fs4::fs_std::FileExt;
 use serde::{Deserialize, Serialize};
 
 /// How an `Inactive` (idle) session affects the aggregate light when other
@@ -179,13 +180,37 @@ pub fn read_config_strict() -> anyhow::Result<Config> {
 }
 
 pub fn set_dashboard_button(enabled: bool) -> anyhow::Result<()> {
+    update_config(|cfg| {
+        cfg.show_dashboard_button = enabled;
+        Ok(())
+    })
+}
+
+/// Serialize settings edits across the tray, CLI and setup subprocess. The lock
+/// releases when this file drops; never hold it across device I/O or prompts.
+pub fn acquire_config_lock() -> anyhow::Result<std::fs::File> {
+    let path = config_file_path().with_file_name(".config.lock");
+    std::fs::create_dir_all(path.parent().expect("config path must have a parent"))?;
+    let file = std::fs::File::options()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(path)?;
+    file.lock_exclusive()?;
+    Ok(file)
+}
+
+/// Read the latest valid settings and commit one edit while holding the shared lock.
+pub fn update_config(edit: impl FnOnce(&mut Config) -> anyhow::Result<()>) -> anyhow::Result<()> {
+    let _lock = acquire_config_lock()?;
     let mut cfg = read_config_strict()?;
-    cfg.show_dashboard_button = enabled;
+    edit(&mut cfg)?;
     write_config(&cfg)
 }
 
-/// Atomically write the config (temp file + rename), creating the directory if
-/// needed.
+/// Atomically write config (temp file + rename). Production callers must hold
+/// acquire_config_lock() across their read and write, or use update_config().
 pub fn write_config(cfg: &Config) -> anyhow::Result<()> {
     let path = config_file_path();
     let dir = path.parent().expect("config path must have a parent");

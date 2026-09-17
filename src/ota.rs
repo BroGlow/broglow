@@ -50,11 +50,10 @@ struct LedSettingGuard {
 
 impl Drop for LedSettingGuard {
     fn drop(&mut self) {
-        let mut cfg = config::read_config();
-        if cfg.led_enabled != self.restore_to {
+        let _ = config::update_config(|cfg| {
             cfg.led_enabled = self.restore_to;
-            let _ = config::write_config(&cfg);
-        }
+            Ok(())
+        });
     }
 }
 
@@ -78,7 +77,7 @@ pub fn run(firmware: String, port_override: Option<String>) -> anyhow::Result<()
 
     // Pick the serial device the same way the daemon does: explicit override,
     // then the configured port, then auto-detect by USB vendor ID.
-    let cfg = config::read_config();
+    let cfg = config::read_config_strict()?;
     let dev = port_override
         .or_else(|| cfg.led_port.clone())
         .or_else(led::detect_board)
@@ -89,14 +88,20 @@ pub fn run(firmware: String, port_override: Option<String>) -> anyhow::Result<()
 
     // If the daemon is currently driving LEDs it holds the port — flip the
     // setting off so it releases, and arm the guard to turn it back on.
-    let _guard = if cfg.led_enabled {
-        println!("Pausing LED daemon to free {dev}…");
-        let mut off = cfg.clone();
-        off.led_enabled = false;
-        config::write_config(&off).context("Disabling LEDs to free the serial port")?;
-        Some(LedSettingGuard { restore_to: true })
-    } else {
-        None
+    let _guard = {
+        let _lock = config::acquire_config_lock()?;
+        let mut latest = config::read_config_strict()?;
+        if latest.led_transport == config::LedTransport::Ble {
+            bail!("BLE/C3 firmware uses PlatformIO USB upload, not serial OTA; see docs/hardware-setup.md");
+        }
+        if latest.led_enabled {
+            println!("Pausing LED daemon to free {dev}…");
+            latest.led_enabled = false;
+            config::write_config(&latest).context("Disabling LEDs to free the serial port")?;
+            Some(LedSettingGuard { restore_to: true })
+        } else {
+            None
+        }
     };
 
     let mut port = open_when_free(&dev)?;

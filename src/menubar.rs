@@ -659,11 +659,12 @@ pub fn run() -> anyhow::Result<()> {
                 }
                 PopoverMsg::Hide => popover.hide(),
                 PopoverMsg::SetYellowMode { mode } => {
-                    let mut cfg = config::read_config();
-                    cfg.yellow_mode = mode;
-                    if let Err(e) = config::write_config(&cfg) {
-                        eprintln!("Failed to save settings: {e}");
-                    }
+                    let error = config::update_config(|cfg| {
+                        cfg.yellow_mode = mode;
+                        Ok(())
+                    })
+                    .err()
+                    .map(|error| format!("Could not save yellow mode: {error}"));
                     // The config write also lands in the watched directory and
                     // triggers StateChanged, but update directly so the icon
                     // and popover can't lag behind the click.
@@ -674,6 +675,7 @@ pub fn run() -> anyhow::Result<()> {
                         }
                     }
                     popover.push_state(&state);
+                    popover.config_action_result(error);
                 }
                 PopoverMsg::SetDashboardButton { enabled } => {
                     let error = config::set_dashboard_button(enabled)
@@ -683,12 +685,13 @@ pub fn run() -> anyhow::Result<()> {
                     popover.config_action_result(error);
                 }
                 PopoverMsg::SetUsage { enabled, mode } => {
-                    let mut cfg = config::read_config();
-                    cfg.usage_enabled = enabled;
-                    cfg.billing_mode = mode;
-                    if let Err(e) = config::write_config(&cfg) {
-                        eprintln!("Failed to save settings: {e}");
-                    }
+                    let error = config::update_config(|cfg| {
+                        cfg.usage_enabled = enabled;
+                        cfg.billing_mode = mode;
+                        Ok(())
+                    })
+                    .err()
+                    .map(|error| format!("Could not save usage settings: {error}"));
                     // Flip the tray readout and the popover's usage section
                     // immediately. When enabling, the readout stays blank until
                     // the first scan lands (seconds later); when disabling, it
@@ -697,17 +700,20 @@ pub fn run() -> anyhow::Result<()> {
                         apply_readout(tray);
                     }
                     popover.push_state(&read_hook_state());
+                    popover.config_action_result(error);
                 }
                 PopoverMsg::SetLed { enabled } => {
-                    let mut cfg = config::read_config();
-                    cfg.led_enabled = enabled;
-                    if let Err(e) = config::write_config(&cfg) {
-                        eprintln!("Failed to save settings: {e}");
-                    }
+                    let error = config::update_config(|cfg| {
+                        cfg.led_enabled = enabled;
+                        Ok(())
+                    })
+                    .err()
+                    .map(|error| format!("Could not save lamp setting: {error}"));
                     // The LED daemon thread re-reads config on its own poll and
                     // (dis)connects within a couple of seconds; refresh the
                     // popover now so the footer indicator flips immediately.
                     popover.push_state(&read_hook_state());
+                    popover.config_action_result(error);
                 }
                 PopoverMsg::ForgetLamp { id } => {
                     let error = crate::ble::command(crate::ble::BleCommand::Remove { id })

@@ -73,6 +73,78 @@ fn dashboard_visibility_persists_without_touching_other_settings_or_installing()
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "{corrupt");
 }
 
+#[cfg(unix)]
+#[test]
+fn concurrent_settings_commands_preserve_disjoint_edits() {
+    use fs4::fs_std::FileExt;
+    use std::process::Stdio;
+
+    let home = tempfile::tempdir().unwrap();
+    let dir = home.path().join(".claude/clawlight");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("config.json");
+    let first = "11111111-2222-3333-4444-555555555555";
+    let second = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    let original = serde_json::json!({
+        "ble_peripherals": [first, second], "led_enabled": false,
+        "led_brightness": 64, "custom": {"keep": true}
+    });
+    std::fs::write(&path, original.to_string()).unwrap();
+    let lock = std::fs::File::options()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(dir.join(".config.lock"))
+        .unwrap();
+    lock.lock_exclusive().unwrap();
+    let edits = [
+        vec!["ble", "rename", first, "Home"],
+        vec!["ble", "rename", second, "Office"],
+        vec!["ble", "brightness", "23", "--id", first],
+        vec!["ble", "brightness", "87", "--id", second],
+        vec!["dashboard-button", "show"],
+    ];
+    let mut children: Vec<_> = edits
+        .iter()
+        .map(|args| {
+            std::process::Command::new(clawlight().get_program())
+                .env("HOME", home.path())
+                .args(args)
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap()
+        })
+        .collect();
+    std::thread::sleep(std::time::Duration::from_millis(150));
+    let all_waited_for_lock = children
+        .iter_mut()
+        .all(|child| child.try_wait().unwrap().is_none());
+    drop(lock);
+    for child in children {
+        let output = child.wait_with_output().unwrap();
+        assert!(output.status.success(), "{:?}", output);
+    }
+    assert!(
+        all_waited_for_lock,
+        "every settings command must respect the shared lock"
+    );
+    let cfg: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert_eq!(
+        cfg["lamp_names"],
+        serde_json::json!({first: "Home", second: "Office"})
+    );
+    assert_eq!(
+        cfg["lamp_brightness"],
+        serde_json::json!({first: 23, second: 87})
+    );
+    assert_eq!(cfg["show_dashboard_button"], true);
+    for (key, value) in original.as_object().unwrap() {
+        assert_eq!(&cfg[key], value, "preserve unrelated {key}");
+    }
+}
+
 #[test]
 fn ble_help_documents_selection_without_accessing_the_radio() {
     let assert = clawlight().args(["ble", "--help"]).assert().success();
@@ -204,6 +276,62 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
         assert!(String::from_utf8_lossy(&failed.get_output().stderr)
             .contains("Lamp setup is already running"));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    }
+    {
+        use fs4::fs_std::FileExt;
+        use std::process::Stdio;
+        use std::time::{Duration, Instant};
+
+        // Keep setup waiting for its worker, then edit another setting through
+        // the real CLI. Setup must not hold the config lock across that wait.
+        let worker = std::fs::File::options()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(dir.join(".lamp.lock"))
+            .unwrap();
+        worker.lock_exclusive().unwrap();
+        let child = std::process::Command::new(clawlight().get_program())
+            .env("HOME", home.path())
+            .args(["ble", "pair", "--port"])
+            .arg(&missing_port)
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(3);
+        loop {
+            let cfg: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+            if cfg["led_enabled"] == false {
+                break;
+            }
+            assert!(Instant::now() < deadline, "setup did not pause its worker");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        clawlight()
+            .env("HOME", home.path())
+            .timeout(Duration::from_secs(3))
+            .args(["dashboard-button", "show"])
+            .assert()
+            .success();
+        drop(worker);
+        let output = child.wait_with_output().unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("Opening USB lamp"));
+        let cfg: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(
+            cfg["led_enabled"], true,
+            "rollback restores previous enablement"
+        );
+        assert_eq!(
+            cfg["show_dashboard_button"], true,
+            "rollback preserves the concurrent edit"
+        );
+        assert_eq!(cfg["ble_peripherals"], serde_json::json!(["keep"]));
+        assert_eq!(cfg["unrelated"], serde_json::json!({"retain": true}));
     }
     std::fs::remove_file(&path).unwrap();
     invoke();

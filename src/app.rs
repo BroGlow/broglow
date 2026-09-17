@@ -71,30 +71,30 @@ impl App {
 
     /// BLE selection is persistent and works without a USB data connection.
     fn toggle_led(&mut self) {
-        let mut cfg = config::read_config();
-        if !cfg.led_enabled {
-            match cfg.led_transport {
-                config::LedTransport::Ble if cfg.ble_ids().is_empty() => {
-                    self.set_status(
-                        "Add a lamp: hold its BOOT button 3s, clawlight ble scan, then clawlight ble add <ID>"
-                            .to_string(),
-                    );
-                    return;
+        let before = config::read_config();
+        let usb_present =
+            before.led_transport == config::LedTransport::Usb && led::detect_board().is_some();
+        let mut enabled = false;
+        let result = config::update_config(|cfg| {
+            if !cfg.led_enabled {
+                match cfg.led_transport {
+                    config::LedTransport::Ble if cfg.ble_ids().is_empty() => {
+                        anyhow::bail!("Add a lamp: hold its BOOT button 3s, clawlight ble scan, then clawlight ble add <ID>");
+                    }
+                    config::LedTransport::Usb if cfg.led_port.is_none() && !usb_present => {
+                        anyhow::bail!("No USB board detected — connect it, or select a lamp with clawlight ble scan / select <ID>.");
+                    }
+                    _ => {}
                 }
-                config::LedTransport::Usb
-                    if cfg.led_port.is_none() && led::detect_board().is_none() =>
-                {
-                    self.set_status("No USB board detected — connect it, or select a lamp with clawlight ble scan / select <ID>.".to_string());
-                    return;
-                }
-                _ => {}
             }
-        }
-        cfg.led_enabled = !cfg.led_enabled;
-        match config::write_config(&cfg) {
+            cfg.led_enabled = !cfg.led_enabled;
+            enabled = cfg.led_enabled;
+            Ok(())
+        });
+        match result {
             Ok(()) => {
                 self.refresh_led();
-                self.set_status(if cfg.led_enabled {
+                self.set_status(if enabled {
                     "LED enabled — waiting for the tray service to connect.".to_string()
                 } else {
                     "LED disabled.".to_string()
