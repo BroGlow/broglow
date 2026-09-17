@@ -21,7 +21,8 @@ steps are in `docs/hardware-setup.md` inside the folder.
 ```text
 Help me set up ClawLight using docs/hardware-setup.md. If this is a prebuilt package, verify its
 checksums; if it is a source checkout, follow the source build instructions. Back up existing
-settings and keep one menu bar service. Verify in a fresh terminal that clawlight resolves to
+settings in this folder's private .recovery/ directory and keep one menu bar service.
+Verify in a fresh terminal that clawlight resolves to
 the installed BLE version from outside the project; configure PATH only if needed, preserving
 shell settings and avoiding duplicate entries. Identify my actual board before hardware commands.
 This project's firmware targets ESP32-C3; another Bluetooth LE SuperMini needs

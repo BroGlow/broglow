@@ -9,6 +9,9 @@ For **source changes, builds, or tests**, also read [CLAUDE.md](CLAUDE.md). Work
 this repository's root; the parent directory is a separate workspace. Preserve
 existing user changes and the upstream Git history.
 
+For **backups or test evidence**, use the ignored `.recovery/` directory and follow
+the [local recovery policy](docs/hardware-setup.md#local-recovery-files).
+
 A prebuilt package has `BUILD.json` and `bin/clawlight`; a source checkout has
 `Cargo.toml` and `src/`. Select the matching installation path. A request to install
 or connect does not imply publishing a release or reflashing a working board.
