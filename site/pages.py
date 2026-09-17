@@ -107,7 +107,7 @@ def main():
     output = SITE / "_pages"
     if output.exists():
         shutil.rmtree(output)
-    config = load_config(str(SITE / "mkdocs.yml"), strict=True,
+    config = load_config(str(SITE / "mkdocs.yaml"), strict=True,
                          repo_url=f"https://github.com/{args.repository}",
                          site_dir=str(output / "docs"))
     build(config)

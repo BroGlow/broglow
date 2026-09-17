@@ -17,7 +17,7 @@ Edit ordinary Markdown files; generated HTML is never edited or committed.
 | Troubleshooting and agent prompt | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
 | Full hardware reference | `../docs/hardware-setup.md` | Same source, marked as English |
 
-Navigation and theme settings live in `mkdocs.yml`. To add a page, add the same
+Navigation and theme settings live in `mkdocs.yaml`. To add a page, add the same
 filename in both language folders and add its entry to `nav` (and its Russian
 label to `nav_translations`). Agent prompts are fenced `text` blocks; Material
 adds the copy button. Tables and links use normal Markdown.
@@ -61,7 +61,7 @@ Run these from the **clawlight repository root**. Python 3.10+ is required.
 ```bash
 python3 -m venv site/.venv
 site/.venv/bin/python -m pip install -r site/requirements-docs.txt
-site/.venv/bin/mkdocs build --strict -f site/mkdocs.yml
+site/.venv/bin/mkdocs build --strict -f site/mkdocs.yaml
 python3 -m http.server 8080 --bind 127.0.0.1
 ```
 
@@ -71,7 +71,7 @@ build command and refresh. The guide output is ignored under `site/docs/`; its
 build never cleans the landing. Dependencies are isolated in `site/.venv/` and
 pinned to compatible MkDocs 1.x / Material versions.
 
-For live documentation editing, `site/.venv/bin/mkdocs serve -f site/mkdocs.yml`
+For live documentation editing, `site/.venv/bin/mkdocs serve -f site/mkdocs.yaml`
 provides automatic refresh. That docs-only server does not serve the landing or
 the external downloads; use the repository-root preview above for the complete site.
 
@@ -98,7 +98,7 @@ node site/i18n.test.cjs
 node site/docs-language.test.cjs
 node site/docs-copy.test.cjs
 site/.venv/bin/python site/pages.test.py
-site/.venv/bin/mkdocs build --strict -f site/mkdocs.yml
+site/.venv/bin/mkdocs build --strict -f site/mkdocs.yaml
 python3 site/check-links.py
 python3 site/check-links.py --base-url http://127.0.0.1:8080/site/
 ```
@@ -135,7 +135,7 @@ Images are the project's own CAD previews, copied into `assets/`:
 
 ## Publish to GitHub Pages
 
-The prepared [Website workflow](../.github/workflows/pages.yml) publishes the
+The prepared [Website workflow](../.github/workflows/pages.yaml) publishes the
 landing at `https://OWNER.github.io/REPOSITORY/` and the guide at `docs/` beneath it.
 RU lives at `docs/ru/`. Relative navigation also works with a custom domain.
 No `gh-pages` branch, committed generated HTML, or custom token is needed.
@@ -177,7 +177,7 @@ release notes. The website links to the release list, so publishing a newer
 package does not require a website edit. See GitHub's
 [release-link documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/linking-to-releases).
 
-The existing upstream `release.yml` produces CLI-only archives and also updates
+The existing upstream `release.yaml` produces CLI-only archives and also updates
 the upstream Homebrew tap; it is **not** the full BLE packaging workflow. For a
 manual BLE release, create a release tag outside its `v*` trigger (for example,
 `ble-2026-09-16`) unless you have separately adapted that workflow for your fork.

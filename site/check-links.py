@@ -29,7 +29,7 @@ parser.add_argument("--site-dir", type=Path, help="Check a standalone Pages arti
 args = parser.parse_args()
 site = args.site_dir.resolve() if args.site_dir else Path(__file__).resolve().parent
 boundary = site if args.site_dir else site.parent
-assert (site / "docs/index.html").is_file(), "Build the guide first: .venv/bin/mkdocs build --strict -f mkdocs.yml"
+assert (site / "docs/index.html").is_file(), "Build the guide first: .venv/bin/mkdocs build --strict -f mkdocs.yaml"
 pages = {}
 for path in [site / "index.html", *sorted((site / "docs").rglob("*.html"))]:
     page = Links()

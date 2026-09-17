@@ -2,10 +2,19 @@ name: Website
 
 on:
   push:
-    branches: [main]
-    paths: ['site/**', 'docs/hardware-setup.md', 'assets/icons/**', '.github/workflows/pages.yml']
+    branches:
+      - main
+    paths:
+      - 'site/**'
+      - 'docs/hardware-setup.md'
+      - 'assets/icons/**'
+      - '.github/workflows/pages.yaml'
   pull_request:
-    paths: ['site/**', 'docs/hardware-setup.md', 'assets/icons/**', '.github/workflows/pages.yml']
+    paths:
+      - 'site/**'
+      - 'docs/hardware-setup.md'
+      - 'assets/icons/**'
+      - '.github/workflows/pages.yaml'
   workflow_dispatch:
 
 permissions:

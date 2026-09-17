@@ -315,7 +315,7 @@ in `ota.rs`. See the hardware guide for commands and the confirmed hardware stat
 
 ## CI
 
-`.github/workflows/ci.yml` runs on PRs and pushes to main: `cargo fmt --check`,
+`.github/workflows/ci.yaml` runs on PRs and pushes to main: `cargo fmt --check`,
 then clippy (`-D warnings`) + `cargo test` on ubuntu/macos/windows. The tests/
 suite drives the *compiled binary* end-to-end: Claude hook events on stdin →
 `state.json` assertions, the auto-namer against a fake `claude` on PATH
@@ -337,6 +337,6 @@ one boundary the Rust suite (which feeds `clawlight event` directly) can't cover
 `exit-child.mjs` is a helper process, not a test, so the plugin's
 `process.on("exit")` shutdown path can be exercised for real.
 
-`.github/workflows/release.yml` builds and packages release binaries per platform.
+`.github/workflows/release.yaml` builds and packages release binaries per platform.
 CI also builds the pinned C3 PlatformIO environment and runs its host mock checks.
 The JavaScript suite includes the popover's worker-driven lamp status regression.

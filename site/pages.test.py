@@ -23,7 +23,7 @@ for locale in ("en", "ru"):
 
 print("PASS: local downloads and public Releases/source fallback in both languages")
 
-config = on_config(load_config(str(SITE / "mkdocs.yml")))
+config = on_config(load_config(str(SITE / "mkdocs.yaml")))
 master = (SITE.parent / "docs/hardware-setup.md").read_text()
 for section, expected in (("lamp-wiring", "GPIO3"), ("path-check", "command -v clawlight"),
                           ("path-setup", 'export PATH=')):
