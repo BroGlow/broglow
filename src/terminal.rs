@@ -270,15 +270,39 @@ fn process_table() -> Option<std::collections::HashMap<u32, (u32, String)>> {
 /// window (or at least the hosting app) was raised. Blocking — can shell out
 /// for a few hundred ms.
 #[cfg(target_os = "macos")]
-pub fn focus(info: Option<&TerminalInfo>, project_path: Option<&str>) -> bool {
+pub fn focus(
+    session_id: &str,
+    harness: Option<&str>,
+    info: Option<&TerminalInfo>,
+    project_path: Option<&str>,
+) -> bool {
+    if harness == Some("codex")
+        && info.is_some_and(|t| t.bundle_id.as_deref() == Some("com.openai.codex"))
+    {
+        return open_codex_thread(session_id);
+    }
     if let Some(t) = info {
         if focus_macos(t, project_path) {
             return true;
         }
     }
+    // Desktop hooks can have no terminal identity at all. Use the task ID
+    // before the legacy Terminal lookup, which cannot find a desktop task.
+    if harness == Some("codex") {
+        return open_codex_thread(session_id);
+    }
     // Sessions recorded before terminal capture existed: fall back to
     // scanning Terminal.app window titles for the project directory name.
     project_path.is_some_and(focus_terminal_by_title)
+}
+
+#[cfg(target_os = "macos")]
+fn open_codex_thread(session_id: &str) -> bool {
+    let Ok(id) = uuid::Uuid::parse_str(session_id) else {
+        return false;
+    };
+    // The same bundle ID is used when the desktop app is named ChatGPT.app.
+    open_bundle("com.openai.codex", Some(&format!("codex://threads/{id}")))
 }
 
 /// IDE bundles that focus the window showing a folder when asked to "open"
@@ -519,7 +543,12 @@ fn open_bundle(bundle: &str, path: Option<&str>) -> bool {
 /// Windows: raise the nearest still-alive ancestor process that owns a
 /// visible top-level window (the shell's console, Windows Terminal, an IDE).
 #[cfg(target_os = "windows")]
-pub fn focus(info: Option<&TerminalInfo>, _project_path: Option<&str>) -> bool {
+pub fn focus(
+    _session_id: &str,
+    _harness: Option<&str>,
+    info: Option<&TerminalInfo>,
+    _project_path: Option<&str>,
+) -> bool {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         IsIconic, SetForegroundWindow, ShowWindow, SW_RESTORE,
     };
@@ -589,7 +618,12 @@ fn main_window_of(pid: u32) -> Option<windows_sys::Win32::Foundation::HWND> {
 /// Linux: activate a window owned by a still-alive ancestor process via
 /// xdotool (X11 only; silently a no-op on Wayland or without xdotool).
 #[cfg(target_os = "linux")]
-pub fn focus(info: Option<&TerminalInfo>, _project_path: Option<&str>) -> bool {
+pub fn focus(
+    _session_id: &str,
+    _harness: Option<&str>,
+    info: Option<&TerminalInfo>,
+    _project_path: Option<&str>,
+) -> bool {
     let Some(ancestors) = info.and_then(|t| t.ancestors.as_ref()) else {
         return false;
     };
@@ -624,13 +658,107 @@ pub fn focus(info: Option<&TerminalInfo>, _project_path: Option<&str>) -> bool {
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-pub fn focus(_info: Option<&TerminalInfo>, _project_path: Option<&str>) -> bool {
+pub fn focus(
+    _session_id: &str,
+    _harness: Option<&str>,
+    _info: Option<&TerminalInfo>,
+    _project_path: Option<&str>,
+) -> bool {
     false
 }
 
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn codex_desktop_focus_uses_thread_link() {
+        use std::os::unix::fs::PermissionsExt;
+
+        // A child test process isolates PATH from the parallel test suite;
+        // fake launchers record requests without opening any real windows.
+        if let Ok(dir) = std::env::var("CLAWLIGHT_FOCUS_TEST_DIR") {
+            let log = std::path::Path::new(&dir).join("calls");
+            let id = "00000000-0000-4000-8000-000000000001";
+            let empty = TerminalInfo::default();
+            let desktop = TerminalInfo {
+                bundle_id: Some("com.openai.codex".into()),
+                // Stale inherited terminal variables must not override an
+                // explicit desktop host.
+                term_program: Some("Apple_Terminal".into()),
+                tty: Some("/dev/ttys007".into()),
+                ..Default::default()
+            };
+            for info in [None, Some(&empty), Some(&desktop)] {
+                std::fs::write(&log, "").unwrap();
+                assert!(focus(id, Some("codex"), info, Some("/tmp/project")));
+                assert_eq!(
+                    std::fs::read_to_string(&log).unwrap(),
+                    format!("open\n-b\ncom.openai.codex\ncodex://threads/{id}\n")
+                );
+            }
+
+            let cli = TerminalInfo {
+                bundle_id: Some("com.apple.Terminal".into()),
+                ..desktop
+            };
+            std::fs::write(&log, "").unwrap();
+            assert!(focus(id, Some("codex"), Some(&cli), Some("/tmp/project")));
+            let calls = std::fs::read_to_string(&log).unwrap();
+            assert!(calls.starts_with("osascript\n"));
+            assert!(calls.contains("/dev/ttys007"));
+            assert!(!calls.contains("open\n"));
+
+            std::fs::write(&log, "").unwrap();
+            assert!(!focus(id, None, Some(&empty), Some("/tmp/project")));
+            assert!(!std::fs::read_to_string(&log).unwrap().contains("codex://"));
+
+            std::fs::write(&log, "").unwrap();
+            assert!(!focus("new?prompt=injected", Some("codex"), None, None));
+            assert!(std::fs::read_to_string(&log).unwrap().is_empty());
+
+            std::fs::write(std::path::Path::new(&dir).join("fail-open"), "").unwrap();
+            assert!(!focus(id, Some("codex"), None, Some("/tmp/project")));
+            assert!(!std::fs::read_to_string(&log).unwrap().contains("osascript"));
+            return;
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        for (name, result) in [
+            ("open", "[ ! -e \"$CLAWLIGHT_FOCUS_TEST_DIR/fail-open\" ]"),
+            (
+                "osascript",
+                "case \"$*\" in *'/dev/ttys007'*) echo found ;; *) echo missing ;; esac",
+            ),
+        ] {
+            let path = dir.path().join(name);
+            std::fs::write(
+                &path,
+                format!(
+                    "#!/bin/sh\nprintf '%s\\n' '{name}' \"$@\" >> \"$CLAWLIGHT_FOCUS_TEST_DIR/calls\"\n{result}\n"
+                ),
+            )
+            .unwrap();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "terminal::tests::codex_desktop_focus_uses_thread_link",
+                "--nocapture",
+            ])
+            .env("PATH", dir.path())
+            .env("CLAWLIGHT_FOCUS_TEST_DIR", dir.path())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 
     fn table(
         rows: &[(u32, u32, &str, &str)],

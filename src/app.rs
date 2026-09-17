@@ -126,8 +126,8 @@ impl App {
         self.status_message = Some((msg, Instant::now()));
     }
 
-    /// Best-effort focus of the selected session's terminal window, using
-    /// the terminal identity the hook backend captured (same logic as the
+    /// Best-effort focus of the selected session's terminal or desktop task,
+    /// using the identity the hook backend captured (same logic as the
     /// tray popover — see `terminal::focus`). Runs synchronously: the brief
     /// osascript pause is fine for a deliberate keypress.
     fn focus_selected(&mut self) {
@@ -146,15 +146,18 @@ impl App {
             )
         };
 
-        let terminal = read_hook_state()
-            .sessions
-            .get(&session_id)
-            .and_then(|s| s.terminal.clone());
+        let state = read_hook_state();
+        let session = state.sessions.get(&session_id);
         let path = (!project_path.is_empty()).then_some(project_path.as_str());
-        if crate::terminal::focus(terminal.as_ref(), path) {
-            self.set_status(format!("Focused the terminal window for \"{name}\"."));
+        if crate::terminal::focus(
+            &session_id,
+            session.and_then(|s| s.harness.as_deref()),
+            session.and_then(|s| s.terminal.as_ref()),
+            path,
+        ) {
+            self.set_status(format!("Opened the session for \"{name}\"."));
         } else {
-            self.set_status(format!("Couldn't find a terminal window for \"{name}\"."));
+            self.set_status(format!("Couldn't open the session for \"{name}\"."));
         }
     }
 

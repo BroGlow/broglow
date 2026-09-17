@@ -584,9 +584,12 @@ pub fn run() -> anyhow::Result<()> {
                     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
                     if let Some((_, sid)) = ids.sessions.iter().find(|(mid, _)| *mid == ev.id) {
                         let session = read_hook_state().sessions.get(sid).cloned();
+                        let sid = sid.clone();
                         thread::spawn(move || {
                             if let Some(s) = session {
                                 let _ = crate::terminal::focus(
+                                    &sid,
+                                    s.harness.as_deref(),
                                     s.terminal.as_ref(),
                                     s.project_path.as_deref(),
                                 );
@@ -647,7 +650,7 @@ pub fn run() -> anyhow::Result<()> {
                 PopoverMsg::Focus { id } => {
                     popover.hide();
                     let state = read_hook_state();
-                    focus_session(state.sessions.get(&id));
+                    focus_session(&id, state.sessions.get(&id));
                 }
                 PopoverMsg::Dashboard => {
                     popover.hide();
@@ -815,18 +818,24 @@ pub fn run() -> anyhow::Result<()> {
     })
 }
 
-/// Bring the terminal window hosting a session to the front, using the
+/// Bring the terminal window or desktop task hosting a session to the front, using the
 /// identity the hook captured (tty / terminal session ids / host app /
 /// ancestor processes — see `terminal::focus`). Falls back to opening the
 /// dashboard when enabled and the window can't be found.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-fn focus_session(session: Option<&state::SessionStatus>) {
+fn focus_session(session_id: &str, session: Option<&state::SessionStatus>) {
+    let session_id = session_id.to_owned();
     let session = session.cloned();
     // Focusing shells out (osascript/open can take a few hundred ms); keep it
     // off the event loop.
     thread::spawn(move || {
         let focused = session.as_ref().is_some_and(|s| {
-            crate::terminal::focus(s.terminal.as_ref(), s.project_path.as_deref())
+            crate::terminal::focus(
+                &session_id,
+                s.harness.as_deref(),
+                s.terminal.as_ref(),
+                s.project_path.as_deref(),
+            )
         });
         if !focused {
             open_dashboard();

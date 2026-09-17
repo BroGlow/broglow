@@ -14,3 +14,8 @@ remains unverified until a desktop task passes this check.
 
 This setup covers tasks running on this Mac. Ordinary ChatGPT chats and cloud or remote tasks
 do not send events to this Mac’s local ClawLight service.
+
+Click a local Codex session to return to it. On macOS, desktop tasks open directly
+in Codex (including the ChatGPT desktop app) using their task link. CLI sessions
+still focus their captured terminal; if no host can be focused, ClawLight tries
+the task link in the installed Codex app.
