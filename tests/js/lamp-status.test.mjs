@@ -196,10 +196,72 @@ test('opening details is read-only; lamp controls stay there and Escape returns'
   click('lampbtn');
   assert.equal(element('lamptransport').textContent, 'USB');
   assert.match(element('lamplist').innerHTML, /USB lamp/);
+  assert.ok(!element('lamplist').innerHTML.includes('lampforget'), 'USB has no remembered Bluetooth lamp to forget');
   assert.equal(element('brightnesscontrol').hidden, true);
   assert.equal(element('brightnesshint').textContent, 'Brightness control requires Bluetooth.');
   update(lamp({ transport: 'usb', present: false, enabled: false, devices: [] }));
   assert.equal(element('lampcontrol').dataset.cmd, 'get_lamp');
+});
+
+test('forget sends exactly the chosen saved ID, including absent and disabled lamps, and awaits the host', () => {
+  for (const enabled of [true, false]) {
+    const { context, element, click, update, commands } = popoverPage();
+    const devices = [
+      { id: 'home-id', state: 'connected' },
+      { id: 'away-"<>&', state: 'searching' },
+    ];
+    const refresh = saved => update(lamp({ enabled, selected_count: saved.length, devices: saved }));
+    refresh(devices);
+    click('lampbtn');
+    const list = element('lamplist'), groups = element('groups'), builds = groups.writes;
+    assert.equal((list.innerHTML.match(/>Forget lamp<\/button>/g) || []).length, 2);
+    assert.match(list.innerHTML, /Stops ClawLight reconnecting\. Pairing stays on the lamp and Mac\./);
+    assert.ok(!list.innerHTML.includes(devices[1].id), 'IDs are data, never markup');
+    click('lampforget-1');
+    assert.deepEqual(commands('forget_lamp'), [{ cmd: 'forget_lamp', id: devices[1].id }]);
+    assert.equal(element('lampforget-1').textContent, 'Forgetting…');
+    assert.equal(element('lampforget-0').disabled, true);
+    assert.equal(element('lampid-0').textContent, 'home-id');
+    assert.equal(element('lampid-1').textContent, devices[1].id, 'No optimistic removal before config succeeds');
+    click('lampforget-0');
+    assert.equal(commands('forget_lamp').length, 1, 'Only one action can be pending');
+    refresh(devices);
+    assert.equal(element('lampforget-1').disabled, true, 'Heartbeat does not finish the action');
+
+    const slider = element('brightness');
+    context.document.activeElement = slider;
+    slider.value = '23';
+    refresh(devices.slice(0, 1));
+    context.window.__lampActionResult(null);
+    assert.equal((list.innerHTML.match(/>Forget lamp<\/button>/g) || []).length, 1);
+    assert.equal(element('lampid-0').textContent, 'home-id', 'The other saved lamp remains');
+    assert.equal(element('lampforget-0').disabled, false);
+    assert.equal(element('lamperror').hidden, true);
+    assert.equal(groups.writes, builds, 'Membership changes preserve the brightness control');
+    assert.equal(slider.value, '23');
+    assert.equal(commands('set_led').length, 0);
+    assert.equal(commands('set_brightness').length, 0);
+  }
+});
+
+test('forget failure stays visible across refresh, preserves the row and allows retry', () => {
+  const { context, element, click, update, commands } = popoverPage();
+  update(lamp());
+  click('lampbtn');
+  click('lampforget-0');
+  const error = 'Cannot save <config>: permission denied';
+  context.window.__lampActionResult(error);
+  update(lamp());
+  assert.equal(element('lamperror').hidden, false);
+  assert.equal(element('lamperror').textContent, error);
+  assert.equal(element('lamperror').innerHTML, '', 'Host errors are rendered as text');
+  assert.match(element('groups').innerHTML, /id="lamperror"[^>]*role="alert"/);
+  assert.equal(element('lampid-0').textContent, 'saved-lamp');
+  assert.equal(element('lampforget-0').disabled, false);
+  click('lampforget-0');
+  assert.equal(element('lamperror').hidden, true);
+  assert.deepEqual(commands('forget_lamp').at(-1), { cmd: 'forget_lamp', id: 'saved-lamp' });
+  assert.equal(commands('forget_lamp').length, 2);
 });
 
 test('brightness saves while absent without enabling lamps and survives focused edits during refresh', () => {

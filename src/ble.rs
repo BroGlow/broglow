@@ -765,9 +765,12 @@ mod mac {
                         .get()
                         .filter(|(_, written)| written.elapsed() < PREVIEW_DURATION)
                     {
-                        format!("Status acknowledged; brightness preview {}% (LED wiring is not verified)", preview.percent)
+                        format!(
+                            "Status acknowledged; brightness preview {}%",
+                            preview.percent
+                        )
                     } else {
-                        format!("Status acknowledged; brightness {brightness}% applied (LED wiring is not verified)")
+                        format!("Status acknowledged; brightness {brightness}% applied")
                     }
                 } else {
                     "Status acknowledged; brightness unavailable — update the C3 firmware".into()

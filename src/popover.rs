@@ -74,6 +74,8 @@ pub enum PopoverMsg {
     /// The Lamp details control: connect (`enabled: true`) or disconnect the
     /// physical status lamp by toggling LED mirroring.
     SetLed { enabled: bool },
+    /// Stop remembering/reconnecting to one lamp; retain Bluetooth bonds.
+    ForgetLamp { id: String },
     /// A saved BLE brightness preference, separate from lamp enablement.
     SetBrightness {
         #[serde(deserialize_with = "deserialize_brightness_percent")]
@@ -279,6 +281,13 @@ impl Popover {
         let _ = self
             .webview
             .evaluate_script(&format!("window.__setState({payload})"));
+    }
+
+    pub fn lamp_action_result(&self, error: Option<String>) {
+        let error = serde_json::to_string(&error).expect("serialize lamp error");
+        let _ = self
+            .webview
+            .evaluate_script(&format!("window.__lampActionResult({error})"));
     }
 
     /// The page reported its rendered height: size the window to fit, keep it
@@ -628,6 +637,10 @@ mod tests {
         assert!(matches!(msg, PopoverMsg::SetLed { enabled: false }));
         let msg: PopoverMsg = serde_json::from_str(r#"{"cmd":"get_lamp"}"#).unwrap();
         assert!(matches!(msg, PopoverMsg::GetLamp));
+        let msg: PopoverMsg =
+            serde_json::from_str(r#"{"cmd":"forget_lamp","id":"saved-lamp"}"#).unwrap();
+        assert!(matches!(msg, PopoverMsg::ForgetLamp { id } if id == "saved-lamp"));
+        assert!(serde_json::from_str::<PopoverMsg>(r#"{"cmd":"forget_lamp"}"#).is_err());
     }
 
     #[test]

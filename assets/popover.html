@@ -190,6 +190,8 @@ summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outl
 .lampitem dt { color: rgba(255,255,255,.5); margin-top: 7px; }
 .lampitem dd { color: rgba(255,255,255,.8); overflow-wrap: anywhere; }
 .lampitem dd.lampid { font-family: ui-monospace, monospace; }
+.lampforget { padding: 0 10px 10px; }
+.lamperror { margin: 0 10px 12px; color: #ff8a80; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 .lamptechnical { margin: 0 10px 12px; font-size: 11px; color: rgba(255,255,255,.6); }
 .lamptechnical summary { cursor: pointer; padding: 5px 0; }
 .lampdetail { padding: 7px 10px 12px; color: rgba(255,255,255,.65); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-line; -webkit-user-select: text; user-select: text; }
@@ -197,7 +199,7 @@ summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outl
 .brightness { padding: 0 10px 12px; color: rgba(255,255,255,.8); font-size: 12px; }
 .brightness label { display: flex; justify-content: space-between; margin-bottom: 7px; }
 .brightness input { width: 100%; accent-color: #3577f6; }
-.brightness p { margin-top: 5px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.4; }
+.brightness p, .lampforget p { margin-top: 5px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.4; }
 body.win .brightness input { accent-color: #4cc2ff; }
 .pophead, .popfoot, .usec { flex-shrink: 0; }
 </style>
@@ -349,6 +351,12 @@ function lampState(status) {
   return ({ connected: 'Connected', connecting: 'Connecting', searching: 'Looking for lamp',
     error: 'Needs attention', unavailable: 'No recent response', disabled: 'Off' })[status] || 'No recent response';
 }
+let pendingForgetId = null, lampActionError = '';
+window.__lampActionResult = error => {
+  pendingForgetId = null;
+  lampActionError = error || '';
+  render();
+};
 
 let previewPointer = null, previewTimer = null, previewKeepAlive = null;
 let pendingPreview = null, lastPreviewAt = -Infinity;
@@ -433,7 +441,11 @@ function renderLamp() {
         `<span class="lampstate" id="lampstate-${i}"></span>` +
         `<span class="lampchevron" aria-hidden="true">›</span></summary>` +
         `<dl><dt>${wireless ? 'Device ID' : 'Connection'}</dt><dd class="lampid" id="lampid-${i}"></dd>` +
-        `<dt>Diagnostic</dt><dd id="lampdiagnostic-${i}"></dd></dl></details>`
+        `<dt>Diagnostic</dt><dd id="lampdiagnostic-${i}"></dd></dl>` +
+        (wireless ? `<div class="lampforget"><button class="pbtn pbtnghost" type="button" id="lampforget-${i}" ` +
+          `aria-label="Forget lamp ${i + 1}" aria-describedby="lampforgethelp-${i}">Forget lamp</button>` +
+          `<p id="lampforgethelp-${i}">Stops ClawLight reconnecting. Pairing stays on the lamp and Mac.</p></div>` : '') +
+        `</details>`
       ).join('');
       list.dataset.ids = ids;
     }
@@ -448,7 +460,17 @@ function renderLamp() {
       const identifier = wireless ? device.id : 'USB cable';
       if (id.textContent !== identifier) id.textContent = identifier;
       if (diagnostic.textContent !== (device.detail || '')) diagnostic.textContent = device.detail || '';
+      if (wireless) {
+        const forget = document.getElementById('lampforget-' + i);
+        forget.dataset.cmd = 'forget_lamp';
+        forget.dataset.id = device.id;
+        forget.disabled = pendingForgetId !== null;
+        forget.textContent = pendingForgetId === device.id ? 'Forgetting…' : 'Forget lamp';
+      }
     });
+    const error = document.getElementById('lamperror');
+    error.textContent = lampActionError;
+    error.hidden = !lampActionError;
     document.getElementById('lampdetail').textContent = wireless && !l.selected_count ?
       'Connect the lamp by USB, then run clawlight ble pair to set it up. For button setup, hold BOOT for 3 seconds after startup, then use clawlight ble scan and clawlight ble add <ID>.' : (l.detail || '');
     const control = document.getElementById('lampcontrol');
@@ -512,6 +534,7 @@ function render() {
       groupsEl.innerHTML = `<div class="grplabel">Lamps</div>` +
         `<div class="lamptop"><span id="lampsummary" role="status"></span><span id="lamptransport"></span></div>` +
         `<div class="lamplist" id="lamplist"></div>` +
+        `<p class="lamperror" id="lamperror" role="alert" hidden></p>` +
         `<div class="brightness" id="brightnesscontrol"><label for="brightness">Light brightness` +
         `<output id="brightnessvalue" for="brightness"></output></label>` +
         `<input id="brightness" type="range" min="0" max="100" step="1" value="100" aria-describedby="brightnesshint">` +
@@ -667,6 +690,12 @@ document.addEventListener('click', ev => {
   const msg = { cmd: btn.dataset.cmd };
   if (btn.dataset.id !== undefined) msg.id = btn.dataset.id;
   if (btn.dataset.enabled !== undefined) msg.enabled = btn.dataset.enabled === 'true';
+  if (msg.cmd === 'forget_lamp') {
+    if (pendingForgetId !== null || !msg.id) return;
+    pendingForgetId = msg.id;
+    lampActionError = '';
+    renderLamp();
+  }
   // Optimistic enable is pending, never a successful connection.
   if (msg.cmd === 'set_led') {
     state.lamp = state.lamp || {};

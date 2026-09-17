@@ -167,7 +167,7 @@ fn remembered_lamps_migrate_add_remove_and_list_without_radio() {
     let second = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
     std::fs::write(
         &path,
-        serde_json::json!({"ble_peripheral":first,"custom":42}).to_string(),
+        serde_json::json!({"ble_peripheral":first,"led_brightness":37,"custom":42}).to_string(),
     )
     .unwrap();
     let run = |args: &[&str]| {
@@ -193,15 +193,33 @@ fn remembered_lamps_migrate_add_remove_and_list_without_radio() {
     assert!(output.contains(first) && output.contains(second));
     assert_eq!(std::fs::read(&path).unwrap(), bytes, "list is read-only");
     run(&["ble", "remove", &second.to_uppercase()]);
+    let remaining = std::fs::read(&path).unwrap();
+    let cfg: serde_json::Value = serde_json::from_slice(&remaining).unwrap();
+    assert_eq!(cfg["ble_peripherals"], serde_json::json!([first]));
+    assert_eq!(cfg["led_enabled"], true);
+    assert_eq!(cfg["led_brightness"], 37);
+    assert_eq!(cfg["custom"], 42);
+    for id in [second, "invalid"] {
+        clawlight()
+            .env("HOME", home.path())
+            .args(["ble", "remove", id])
+            .assert()
+            .failure();
+        assert_eq!(std::fs::read(&path).unwrap(), remaining);
+    }
     run(&["ble", "remove", first]);
     let cfg: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     assert_eq!(cfg["ble_peripherals"], serde_json::json!([]));
     assert_eq!(cfg["led_enabled"], false);
+    assert_eq!(cfg["led_brightness"], 37);
+    assert_eq!(cfg["custom"], 42);
+    std::fs::write(&path, "{corrupt").unwrap();
     clawlight()
         .env("HOME", home.path())
-        .args(["ble", "remove", "invalid"])
+        .args(["ble", "remove", first])
         .assert()
         .failure();
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "{corrupt");
 }
 
 #[cfg(target_os = "macos")]

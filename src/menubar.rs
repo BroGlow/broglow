@@ -652,6 +652,13 @@ pub fn run() -> anyhow::Result<()> {
                     // popover now so the footer indicator flips immediately.
                     popover.push_state(&read_hook_state());
                 }
+                PopoverMsg::ForgetLamp { id } => {
+                    let error = crate::ble::command(crate::ble::BleCommand::Remove { id })
+                        .err()
+                        .map(|error| format!("Could not forget lamp: {error}"));
+                    popover.push_state(&read_hook_state());
+                    popover.lamp_action_result(error);
+                }
                 PopoverMsg::SetBrightness { percent } => {
                     // IPC deserialization rejects values outside 0..=100.
                     let mut cfg = config::read_config();
