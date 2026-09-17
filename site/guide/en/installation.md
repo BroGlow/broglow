@@ -27,7 +27,9 @@ shell settings and avoiding duplicate entries. Identify my actual board before h
 This project's firmware targets ESP32-C3; another Bluetooth LE SuperMini needs
 matching firmware and pins. If the package does not support my board, explain what is needed
 before flashing. Flash only if needed and keep existing pairings. Tell me when to connect the
-cable or approve a macOS dialog, then check that the background service reaches my lamp. For
+cable or approve a macOS dialog. Use Lamps → Add lamp with one USB-connected lamp, or the
+documented ble pair command; retain all saved lamps, names and brightness preferences.
+Check that the background service reaches the intended lamp. For
 Codex, guide me through reviewing and trusting the six ClawLight hooks via /hooks in the CLI
 with the same CODEX_HOME as the app; leave approval to me. Verify a real local task in the CLI
 or desktop app changes from Working to Idle/Paused in ClawLight; BLE status alone is not
@@ -59,15 +61,20 @@ an absolute executable path and does not depend on your terminal's `PATH`.
 
 ## Pair once, then place it on your desk { #pairing }
 
-Connect the flashed lamp to your Mac with a USB data cable. Run these commands in Terminal,
-allow ClawLight to use Bluetooth, and approve the macOS pairing prompt.
+Connect one flashed lamp to your Mac with a USB data cable. Click the lamp status at the
+bottom of the menu-bar popup, then **Lamps → Add lamp**. Allow ClawLight to use Bluetooth
+and approve any macOS pairing prompt. Add lamps one at a time; existing saved lamps remain
+in the list. No Bluetooth device ID needs to be entered.
+
+The Terminal alternative is:
 
 ```sh
 clawlight ble pair
 clawlight ble status
 ```
 
-Check “connected” for your intended lamp: the background service has sent it a status update.
+“Lamp added” means it was remembered; wait for **Connected** on the intended lamp's row.
+That means the background service has sent it a status update.
 This does not test the LEDs themselves. Keep it powered from your Mac or use a USB adapter.
 ClawLight retries connections while its service is running, lamp control and Bluetooth are
 enabled, and the powered lamp is nearby.
@@ -75,12 +82,25 @@ enabled, and the powered lamp is nearby.
 ## Adjust brightness and manage lamps { #controls }
 
 Click the lamp status at the bottom of the menu-bar popup to open **Lamps**.
-Use **Light brightness** (0–100%); connected Bluetooth lamps preview all three LEDs
-while you adjust it, then return to session status two seconds after the last preview.
-At 0% the controlled LEDs stay dark while Bluetooth remains connected.
+Expand a lamp's row to manage it:
 
-Expand a lamp's row to see its connection details or **Forget lamp**. The terminal
-dashboard is optional: show its shortcut under **Settings → Appearance → Show Dashboard button**.
+- Save a name of up to 40 characters, such as “Desk” or “Office”. Save a blank name to
+  restore its automatic label. Names are remembered on this Mac.
+- **Identify** lights all three LEDs on only that connected lamp for two seconds at
+  full brightness. It returns to the current session status without changing saved settings.
+- Use the row's **Light brightness** slider (0–100%) for that lamp. Use **All lamps**
+  to set one uniform brightness for every saved lamp, replacing individual levels.
+- **Forget lamp** removes that lamp from this Mac's saved list; other lamps and Bluetooth
+  bonds remain unchanged.
+
+Brightness changes preview all three LEDs on the affected connected lamps, then return to
+session status two seconds after the last preview. At 0% the controlled LEDs stay dark
+while Bluetooth remains connected; **Identify** can still briefly light the selected lamp.
+You can save brightness while a lamp is offline or control is disabled; it applies on the
+next connection without enabling lamp control by itself.
+
+The terminal dashboard is optional: show its shortcut under
+**Settings → Appearance → Show Dashboard button**.
 
 See the [hardware reference](hardware.md) for flashing, recovery and current
 [hardware test results](hardware.md#repeatable-checks-and-results).

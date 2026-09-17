@@ -16,6 +16,8 @@ enclosure models, and reference assets. Start with the complete
 [hardware setup and operating guide](docs/hardware-setup.md) for wiring,
 builds, flashing, USB-assisted Bluetooth pairing, multiple lamps, Mac service installation, and verification
 results. Upstream release binaries below do not include this local BLE extension.
+The desktop **Lamps** view can add a lamp over USB, save names such as Home/Office,
+identify a connected lamp, and set brightness separately for each lamp.
 
 For this BLE version: [install a ready package](docs/hardware-setup.md#install-a-prebuilt-package),
 [build from source](docs/hardware-setup.md#build-from-source), or
