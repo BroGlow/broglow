@@ -378,7 +378,7 @@ function canIdentifyLamp(id) {
   const lamp = state.lamp || {};
   return !lampSetupBusy() && !lampActionPending() && lamp.transport === 'ble' &&
     lamp.enabled && lamp.state === 'connected' &&
-    (lamp.devices || []).some(device => device.id === id && device.state === 'connected');
+    (lamp.devices || []).some(device => device.id === id && device.state === 'connected' && device.brightness_supported !== false);
 }
 window.__lampSetupResult = error => {
   lampSetupPending = false;
@@ -388,47 +388,75 @@ window.__lampSetupResult = error => {
   render();
 };
 
-let previewPointer = null, previewTimer = null, previewKeepAlive = null;
+let previewSlider = null, previewPointer = null, previewTimer = null, previewKeepAlive = null;
 let pendingPreview = null, lastPreviewAt = -Infinity;
 function brightnessPercent(value) {
   const percent = Number(value);
   return String(value).trim() !== '' && Number.isInteger(percent) && percent >= 0 && percent <= 100 ? percent : null;
 }
-function canPreviewBrightness() {
+function isBrightnessSlider(element) {
+  return element.id === 'brightness' || element.dataset.brightnessId !== undefined;
+}
+function canEditBrightness(slider) {
+  const id = slider.dataset.brightnessId, lamp = state.lamp || {};
+  return !lampSetupBusy() && !lampActionPending() && (id === undefined ||
+    lamp.transport === 'ble' && (lamp.devices || []).some(device => device.id === id));
+}
+function canPreviewBrightness(id) {
   const lamp = state.lamp || {};
-  return !lampSetupBusy() && view === 'lamp' && lamp.transport === 'ble' && lamp.enabled && lamp.state === 'connected' &&
-    (lamp.devices || []).some(device => device.state === 'connected');
+  return !lampSetupBusy() && !lampActionPending() && view === 'lamp' && lamp.transport === 'ble' && lamp.enabled && lamp.state === 'connected' &&
+    (lamp.devices || []).some(device => device.state === 'connected' && device.brightness_supported !== false && (id === undefined || device.id === id));
 }
 function flushBrightnessPreview() {
   clearTimeout(previewTimer);
   previewTimer = null;
-  const percent = pendingPreview;
+  const preview = pendingPreview;
   pendingPreview = null;
-  if (percent !== null && canPreviewBrightness()) {
-    post({ cmd: 'preview_brightness', percent });
+  if (preview !== null && canPreviewBrightness(preview.id)) {
+    post({ cmd: 'preview_brightness', ...preview });
     lastPreviewAt = Date.now();
   }
 }
-function previewBrightness(value, force = false) {
-  const percent = brightnessPercent(value);
+function previewBrightness(slider, force = false) {
+  const percent = brightnessPercent(slider.value), id = slider.dataset.brightnessId;
   if (percent === null) return;
-  if (!canPreviewBrightness()) {
+  previewSlider = slider;
+  if (!canPreviewBrightness(id)) {
     clearTimeout(previewTimer);
     previewTimer = pendingPreview = null;
     return;
   }
-  pendingPreview = percent;
+  pendingPreview = id === undefined ? { percent } : { percent, id };
   const wait = 80 - (Date.now() - lastPreviewAt);
   if (force || wait <= 0) flushBrightnessPreview();
   else if (previewTimer === null) previewTimer = setTimeout(flushBrightnessPreview, wait);
 }
 function stopBrightnessPreview() {
-  if (previewPointer !== null || pendingPreview !== null) {
-    previewBrightness(document.getElementById('brightness').value, true);
+  if (previewSlider && (previewPointer !== null || pendingPreview !== null)) {
+    previewBrightness(previewSlider, true);
   }
   clearTimeout(previewTimer);
   clearInterval(previewKeepAlive);
-  previewPointer = previewTimer = previewKeepAlive = pendingPreview = null;
+  previewSlider = previewPointer = previewTimer = previewKeepAlive = pendingPreview = null;
+}
+function renderBrightness(slider, outputId, hintId, percent) {
+  slider.dataset.brightnessOutput = outputId;
+  slider.disabled = !canEditBrightness(slider);
+  // Keep the exact native control being edited intact across host heartbeats.
+  if (!(previewPointer !== null && previewSlider === slider) &&
+      document.activeElement !== slider && !slider.matches(':active')) slider.value = String(percent);
+  document.getElementById(outputId).textContent = slider.value + '%';
+  const targeted = slider.dataset.brightnessId !== undefined;
+  const candidates = (state.lamp?.devices || []).filter(device => targeted ?
+    device.id === slider.dataset.brightnessId : device.state === 'connected');
+  const needsUpdate = candidates.length > 0 && candidates.every(device => device.brightness_supported === false);
+  document.getElementById(hintId).textContent = state.lamp?.transport !== 'ble' ? 'Brightness control requires Bluetooth.' :
+    lampSetupBusy() || lampActionPending() ? 'Brightness controls are paused while a lamp action finishes.' :
+    (needsUpdate ? 'Update lamp firmware to preview brightness. You can still save a setting.' :
+      canPreviewBrightness(slider.dataset.brightnessId) ?
+      'All three lights' + (targeted ? ' on this lamp' : '') + ' preview this level, then return to status after 2 seconds.' :
+      state.lamp.enabled ? (targeted ? 'Connect this lamp to preview.' : 'Connect a lamp to preview.') : 'Enable a lamp to preview.') +
+    (targeted ? ' Saved only for this lamp.' : ' Sets every lamp and replaces individual brightness settings.');
 }
 
 /* Connection comes from worker writes, never from a nearby advertisement or
@@ -436,7 +464,7 @@ function stopBrightnessPreview() {
 function renderLamp() {
   const l = state.lamp || {};
   const setupBusy = lampSetupBusy();
-  if (setupBusy) stopBrightnessPreview();
+  if (setupBusy || lampActionPending()) stopBrightnessPreview();
   const el = document.getElementById('lampbtn');
   const wireless = l.transport === 'ble';
   const status = l.enabled ? (l.state || 'unavailable') : 'disabled';
@@ -477,6 +505,7 @@ function renderLamp() {
     const ids = JSON.stringify([l.transport, ...rows.map(device => device.id)]);
     // Preserve native disclosure state, focus and text selection across heartbeats.
     if (list.dataset.ids !== ids) {
+      if (previewSlider?.dataset.brightnessId !== undefined) stopBrightnessPreview();
       list.innerHTML = rows.map((device, i) =>
         `<details class="lampitem"><summary class="lampheading">` +
         `<span class="lamptitle" id="lamplabel-${i}">${wireless ? 'Lamp ' + (i + 1) : 'USB lamp'}</span>` +
@@ -487,7 +516,10 @@ function renderLamp() {
           `<button class="pbtn" type="button" id="lampsave-${i}">Save</button></div>` +
           `<p id="lampnamehelp-${i}">Up to 40 characters. Leave blank for an automatic name.</p></div>` +
           `<div class="lampidentify"><button class="pbtn" type="button" id="lampidentify-${i}" aria-describedby="lampidentifyhelp-${i}">Identify</button>` +
-          `<p id="lampidentifyhelp-${i}">Lights this lamp for 2 seconds without changing its brightness setting.</p></div>` : '') +
+          `<p id="lampidentifyhelp-${i}">Lights this lamp for 2 seconds without changing its brightness setting.</p></div>` +
+          `<div class="brightness"><label for="lampbrightness-${i}">Light brightness<output id="lampbrightnessvalue-${i}" for="lampbrightness-${i}"></output></label>` +
+          `<input id="lampbrightness-${i}" type="range" min="0" max="100" step="1" value="100" aria-describedby="lampbrightnesshint-${i}">` +
+          `<p id="lampbrightnesshint-${i}"></p></div>` : '') +
         `<dl><dt>${wireless ? 'Device ID' : 'Connection'}</dt><dd class="lampid" id="lampid-${i}"></dd>` +
         `<dt>Diagnostic</dt><dd id="lampdiagnostic-${i}"></dd></dl>` +
         (wireless ? `<div class="lampforget"><button class="pbtn pbtnghost" type="button" id="lampforget-${i}" ` +
@@ -513,11 +545,17 @@ function renderLamp() {
       if (id.textContent !== identifier) id.textContent = identifier;
       if (diagnostic.textContent !== (device.detail || '')) diagnostic.textContent = device.detail || '';
       if (wireless) {
+        const brightness = document.getElementById('lampbrightness-' + i);
+        brightness.dataset.brightnessId = device.id;
+        renderBrightness(brightness, 'lampbrightnessvalue-' + i, 'lampbrightnesshint-' + i,
+          l.brightness_by_id?.[device.id] ?? l.brightness_percent ?? 100);
         const identify = document.getElementById('lampidentify-' + i);
         identify.dataset.cmd = 'identify_lamp';
         identify.dataset.id = device.id;
         identify.disabled = !canIdentifyLamp(device.id);
         identify.textContent = pendingIdentifyId === device.id ? 'Sending…' : 'Identify';
+        document.getElementById('lampidentifyhelp-' + i).textContent = device.brightness_supported === false ?
+          'Update this lamp’s firmware to use Identify.' : 'Lights this lamp for 2 seconds without changing its brightness setting.';
         const input = document.getElementById('lampname-' + i);
         input.dataset.lampNameId = device.id;
         input.disabled = setupBusy || lampActionPending();
@@ -548,17 +586,7 @@ function renderLamp() {
     else control.dataset.enabled = String(enabled);
     control.textContent = cmd === 'get_lamp' ? 'Get a lamp ↗' : (l.enabled ? 'Disable' : 'Enable') + (plural ? ' lamps' : ' lamp');
     document.getElementById('brightnesscontrol').hidden = !wireless;
-    document.getElementById('brightnesshint').textContent = !wireless ? 'Brightness control requires Bluetooth.' :
-      setupBusy ? 'Brightness controls are paused while adding a lamp.' :
-      canPreviewBrightness() ? 'All three lights preview this level while you adjust it, then return to status after 2 seconds. Saved for all lamps.' :
-      (l.enabled ? 'Connect a lamp to preview.' : 'Enable a lamp to preview.') + ' Your brightness setting is saved for all lamps.';
-    const slider = document.getElementById('brightness');
-    slider.disabled = setupBusy;
-    // Keep a native drag or keyboard edit intact when the service pushes state.
-    if (previewPointer === null && document.activeElement !== slider && !slider.matches(':active')) {
-      slider.value = String(l.brightness_percent ?? 100);
-    }
-    document.getElementById('brightnessvalue').textContent = slider.value + '%';
+    renderBrightness(document.getElementById('brightness'), 'brightnessvalue', 'brightnesshint', l.brightness_percent ?? 100);
   }
 }
 
@@ -610,7 +638,7 @@ function render() {
         `<div class="lamptop"><span id="lampsummary" role="status"></span><span id="lamptransport"></span></div>` +
         `<div class="lamplist" id="lamplist"></div>` +
         `<p class="lamperror" id="lamperror" role="alert" hidden></p>` +
-        `<div class="brightness" id="brightnesscontrol"><label for="brightness">Light brightness` +
+        `<div class="brightness" id="brightnesscontrol"><label for="brightness">All lamps` +
         `<output id="brightnessvalue" for="brightness"></output></label>` +
         `<input id="brightness" type="range" min="0" max="100" step="1" value="100" aria-describedby="brightnesshint">` +
         `<p id="brightnesshint"></p></div>` +
@@ -707,20 +735,20 @@ document.addEventListener('input', ev => {
     if (!lampSetupBusy() && !lampActionPending()) lampNameDrafts.set(ev.target.dataset.lampNameId, ev.target.value);
     return;
   }
-  if (ev.target.id === 'brightness') {
-    if (lampSetupBusy()) return;
+  if (isBrightnessSlider(ev.target)) {
+    if (!canEditBrightness(ev.target)) return;
     const percent = brightnessPercent(ev.target.value);
     if (percent === null) return;
-    document.getElementById('brightnessvalue').textContent = percent + '%';
-    previewBrightness(percent);
+    document.getElementById(ev.target.dataset.brightnessOutput).textContent = percent + '%';
+    previewBrightness(ev.target);
   }
 });
 document.addEventListener('pointerdown', ev => {
-  if (ev.target.id !== 'brightness' || lampSetupBusy() || (ev.button !== undefined && ev.button !== 0)) return;
+  if (!isBrightnessSlider(ev.target) || !canEditBrightness(ev.target) || (ev.button !== undefined && ev.button !== 0)) return;
   stopBrightnessPreview();
   previewPointer = ev.pointerId;
-  previewBrightness(ev.target.value, true);
-  previewKeepAlive = setInterval(() => previewBrightness(document.getElementById('brightness').value, true), 500);
+  previewBrightness(ev.target, true);
+  previewKeepAlive = setInterval(() => { if (previewSlider) previewBrightness(previewSlider, true); }, 500);
 });
 for (const event of ['pointerup', 'pointercancel']) {
   document.addEventListener(event, ev => {
@@ -736,17 +764,18 @@ document.addEventListener('change', ev => {
     post({ cmd: 'set_dashboard_button', enabled: ev.target.checked });
     return;
   }
-  if (ev.target.id !== 'brightness' || lampSetupBusy()) return;
+  if (!isBrightnessSlider(ev.target) || !canEditBrightness(ev.target)) return;
   const percent = brightnessPercent(ev.target.value);
   if (percent === null) return;
-  previewBrightness(percent, true);
-  state.lamp = state.lamp || {};
-  state.lamp.brightness_percent = percent;
-  post({ cmd: 'set_brightness', percent });
+  previewBrightness(ev.target, true);
+  configActionError = '';
+  document.getElementById('lamperror').hidden = true;
+  const id = ev.target.dataset.brightnessId;
+  post(id === undefined ? { cmd: 'set_brightness', percent } : { cmd: 'set_lamp_brightness', id, percent });
 });
 document.addEventListener('focusout', ev => {
-  if (ev.target.id === 'brightness' && view === 'lamp') {
-    if (previewPointer === null) stopBrightnessPreview();
+  if (isBrightnessSlider(ev.target) && view === 'lamp') {
+    if (previewPointer === null && previewSlider === ev.target) stopBrightnessPreview();
     renderLamp();
   }
 });

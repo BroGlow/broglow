@@ -64,6 +64,12 @@ pub struct Config {
     /// Saved brightness for BLE lamps, including when mirroring is disabled.
     #[serde(deserialize_with = "deserialize_led_brightness")]
     pub led_brightness: u8,
+    /// Per-lamp BLE brightness; lamps without an override use led_brightness.
+    #[serde(
+        deserialize_with = "deserialize_lamp_brightness",
+        skip_serializing_if = "std::collections::BTreeMap::is_empty"
+    )]
+    pub lamp_brightness: std::collections::BTreeMap<String, u8>,
     /// How idle sessions color the aggregate (tray icon / LED) — see
     /// [`YellowMode`]. Set from the tray popover's Settings view.
     pub yellow_mode: YellowMode,
@@ -93,6 +99,7 @@ impl Default for Config {
             ble_peripherals: Vec::new(),
             lamp_names: Default::default(),
             led_brightness: 100,
+            lamp_brightness: Default::default(),
             yellow_mode: YellowMode::default(),
             usage_enabled: false,
             billing_mode: BillingMode::default(),
@@ -109,9 +116,34 @@ fn deserialize_led_brightness<'de, D: serde::Deserializer<'de>>(
     Ok(value.as_f64().unwrap_or(100.0).clamp(0.0, 100.0) as u8)
 }
 
+fn deserialize_lamp_brightness<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<std::collections::BTreeMap<String, u8>, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    // Invalid overrides inherit the global preference without resetting other settings.
+    Ok(value
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter_map(|(id, value)| {
+            value
+                .as_f64()
+                .map(|percent| (id.clone(), percent.clamp(0.0, 100.0) as u8))
+        })
+        .collect())
+}
+
 impl Config {
     pub fn led_brightness_percent(&self) -> u8 {
         self.led_brightness.min(100)
+    }
+
+    pub fn lamp_brightness_percent(&self, id: &str) -> u8 {
+        self.lamp_brightness
+            .get(id)
+            .copied()
+            .unwrap_or_else(|| self.led_brightness_percent())
+            .min(100)
     }
 
     /// Include the old single-lamp setting and compare targets independent of order.
@@ -198,6 +230,7 @@ mod tests {
             usage_enabled: true,
             billing_mode: BillingMode::Api,
             led_brightness: 37,
+            lamp_brightness: [("home".into(), 0), ("office".into(), 80)].into(),
             ..Config::default()
         };
         let json = serde_json::to_string(&cfg).unwrap();
@@ -208,6 +241,9 @@ mod tests {
         assert!(back.usage_enabled);
         assert_eq!(back.billing_mode, BillingMode::Api);
         assert_eq!(back.led_brightness_percent(), 37);
+        assert_eq!(back.lamp_brightness_percent("home"), 0);
+        assert_eq!(back.lamp_brightness_percent("office"), 80);
+        assert_eq!(back.lamp_brightness_percent("new"), 37);
     }
 
     #[test]
@@ -218,6 +254,11 @@ mod tests {
             serde_json::from_str(r#"{"led_enabled":false,"ble_peripherals":["home"]}"#).unwrap(),
         ] {
             assert_eq!(cfg.led_brightness_percent(), 100);
+            assert_eq!(cfg.lamp_brightness_percent("home"), 100);
+            assert!(serde_json::to_value(&cfg)
+                .unwrap()
+                .get("lamp_brightness")
+                .is_none());
             assert!(!cfg.led_enabled);
         }
     }
@@ -252,6 +293,41 @@ mod tests {
             .led_brightness_percent(),
             100
         );
+    }
+
+    #[test]
+    fn edited_lamp_brightness_is_bounded_and_invalid_overrides_inherit() {
+        let cfg: Config = serde_json::from_value(serde_json::json!({
+            "led_brightness": 37, "usage_enabled": true, "custom": 42,
+            "lamp_brightness": {"dark": -5, "bright": 300, "half": 50, "bad": "invalid"}
+        }))
+        .unwrap();
+        for (id, expected) in [
+            ("dark", 0),
+            ("bright", 100),
+            ("half", 50),
+            ("bad", 37),
+            ("new", 37),
+        ] {
+            assert_eq!(cfg.lamp_brightness_percent(id), expected);
+        }
+        assert!(cfg.usage_enabled);
+        assert_eq!(cfg.extra["custom"], 42);
+        assert!(!cfg.led_enabled);
+        for invalid in [
+            serde_json::Value::Null,
+            serde_json::json!([25]),
+            serde_json::json!("invalid"),
+        ] {
+            let cfg: Config = serde_json::from_value(serde_json::json!({
+                "led_brightness": 37, "lamp_brightness": invalid,
+                "led_port": "keep", "custom": 42
+            }))
+            .unwrap();
+            assert_eq!(cfg.lamp_brightness_percent("home"), 37);
+            assert_eq!(cfg.led_port.as_deref(), Some("keep"));
+            assert_eq!(cfg.extra["custom"], 42);
+        }
     }
 
     #[test]

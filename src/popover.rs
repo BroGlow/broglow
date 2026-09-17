@@ -105,8 +105,14 @@ pub enum PopoverMsg {
         #[serde(deserialize_with = "deserialize_brightness_percent")]
         percent: u8,
     },
+    SetLampBrightness {
+        id: String,
+        #[serde(deserialize_with = "deserialize_brightness_percent")]
+        percent: u8,
+    },
     /// Temporary all-LED feedback while adjusting the brightness slider.
     PreviewBrightness {
+        id: Option<String>,
         #[serde(deserialize_with = "deserialize_brightness_percent")]
         percent: u8,
     },
@@ -172,6 +178,7 @@ struct LampPayload {
     detail: String,
     devices: Vec<crate::led::DeviceStatus>,
     brightness_percent: u8,
+    brightness_by_id: std::collections::BTreeMap<String, u8>,
 }
 
 #[derive(Serialize)]
@@ -565,6 +572,14 @@ fn build_payload(state: &HookState, setup_busy: bool) -> String {
             detail: connection.detail,
             devices: connection.devices,
             brightness_percent: cfg.led_brightness_percent(),
+            brightness_by_id: cfg
+                .ble_ids()
+                .into_iter()
+                .map(|id| {
+                    let percent = cfg.lamp_brightness_percent(&id);
+                    (id, percent)
+                })
+                .collect(),
         },
     };
     serde_json::to_string(&payload)
@@ -713,24 +728,41 @@ mod tests {
 
     #[test]
     fn brightness_ipc_accepts_only_integer_percentages() {
-        for command in ["set_brightness", "preview_brightness"] {
+        for command in [
+            "set_brightness",
+            "set_lamp_brightness",
+            "preview_brightness",
+        ] {
             for percent in [0, 37, 100] {
                 let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
-                    "cmd": command, "percent": percent
+                    "cmd": command, "percent": percent, "id": "saved-lamp"
                 }))
                 .unwrap();
                 assert!(matches!(msg,
                     PopoverMsg::SetBrightness { percent: value }
-                    | PopoverMsg::PreviewBrightness { percent: value } if value == percent
+                    | PopoverMsg::SetLampBrightness { percent: value, .. }
+                    | PopoverMsg::PreviewBrightness { percent: value, .. } if value == percent
                 ));
             }
             for invalid in ["-1", "101", "255", "256", "1.5", "null", "\"50\""] {
                 assert!(serde_json::from_str::<PopoverMsg>(&format!(
-                    r#"{{"cmd":"{command}","percent":{invalid}}}"#
+                    r#"{{"cmd":"{command}","percent":{invalid},"id":"saved-lamp"}}"#
                 ))
                 .is_err());
             }
         }
+        assert!(matches!(
+            serde_json::from_str::<PopoverMsg>(r#"{"cmd":"preview_brightness","percent":0}"#)
+                .unwrap(),
+            PopoverMsg::PreviewBrightness {
+                id: None,
+                percent: 0
+            }
+        ));
+        assert!(serde_json::from_str::<PopoverMsg>(
+            r#"{"cmd":"set_lamp_brightness","percent":50}"#
+        )
+        .is_err());
     }
 
     #[test]

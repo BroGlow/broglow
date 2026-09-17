@@ -639,6 +639,7 @@ pub fn run() -> anyhow::Result<()> {
                 | PopoverMsg::RenameLamp { .. }
                 | PopoverMsg::IdentifyLamp { .. }
                 | PopoverMsg::SetBrightness { .. }
+                | PopoverMsg::SetLampBrightness { .. }
                 | PopoverMsg::PreviewBrightness { .. }
                     if popover.setup_busy => {}
                 PopoverMsg::Ready => popover.push_state(&read_hook_state()),
@@ -729,16 +730,33 @@ pub fn run() -> anyhow::Result<()> {
                     popover.config_action_result(error);
                 }
                 PopoverMsg::SetBrightness { percent } => {
-                    // IPC deserialization rejects values outside 0..=100.
-                    let mut cfg = config::read_config();
-                    cfg.led_brightness = percent;
-                    if let Err(e) = config::write_config(&cfg) {
-                        eprintln!("Failed to save settings: {e}");
-                    }
+                    let error = crate::ble::command(crate::ble::BleCommand::Brightness {
+                        percent,
+                        id: None,
+                    })
+                    .err()
+                    .map(|error| format!("Could not save light brightness: {error}"));
                     popover.push_state(&read_hook_state());
+                    popover.config_action_result(error);
                 }
-                PopoverMsg::PreviewBrightness { percent } => {
-                    crate::ble::preview_brightness(percent);
+                PopoverMsg::SetLampBrightness { id, percent } => {
+                    let error = crate::ble::command(crate::ble::BleCommand::Brightness {
+                        percent,
+                        id: Some(id),
+                    })
+                    .err()
+                    .map(|error| format!("Could not save lamp brightness: {error}"));
+                    popover.push_state(&read_hook_state());
+                    popover.config_action_result(error);
+                }
+                PopoverMsg::PreviewBrightness { id, percent } => {
+                    if let Some(id) = id {
+                        if let Err(error) = crate::ble::preview_lamp_brightness(&id, percent) {
+                            eprintln!("Could not preview lamp brightness: {error}");
+                        }
+                    } else {
+                        crate::ble::preview_brightness(percent);
+                    }
                 }
                 PopoverMsg::GetLamp => {
                     popover.hide();

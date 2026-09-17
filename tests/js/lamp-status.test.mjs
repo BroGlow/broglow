@@ -300,7 +300,7 @@ test('host setup busy survives reopening and stops lamp mutations and active pre
   click('settingsbtn');
   click('lampbtn');
   assert.equal(element('lampadd').textContent, 'Adding…');
-  for (const id of ['lampadd', 'lampforget-0', 'lampname-0', 'lampsave-0', 'lampidentify-0', 'lampcontrol', 'brightness']) {
+  for (const id of ['lampadd', 'lampforget-0', 'lampname-0', 'lampsave-0', 'lampidentify-0', 'lampcontrol', 'brightness', 'lampbrightness-0']) {
     assert.equal(element(id).disabled, true, id);
   }
   for (const id of ['lampadd', 'lampforget-0', 'lampsave-0', 'lampidentify-0', 'lampcontrol']) click(id);
@@ -516,15 +516,117 @@ test('Identify requires that lamp to have a fresh enabled Bluetooth connection',
   for (const unavailable of [
     { enabled: false }, { state: 'unavailable' }, { state: 'searching' }, { setup_busy: true },
     { devices: [{ id: 'saved-lamp', state: 'searching' }, { id: 'other-lamp', state: 'connected' }], selected_count: 2 },
+    { devices: [{ id: 'saved-lamp', state: 'connected', brightness_supported: false }] },
   ]) {
     update(lamp(unavailable));
     assert.equal(element('lampidentify-0').disabled, true);
     click('lampidentify-0');
   }
+  assert.match(element('lampidentifyhelp-0').textContent, /Update.*firmware/);
   update(lamp({ transport: 'usb' }));
   assert.ok(!element('lamplist').innerHTML.includes('lampidentify'));
   click('lampidentify-0'); // A stale control cannot bypass the transport guard.
   assert.equal(commands('identify_lamp').length, 0);
+});
+
+test('per-lamp brightness targets one slider through throttle, heartbeat, stationary hold and release', () => {
+  const { context, element, update, click, listeners, commands, advance } = popoverPage();
+  const current = lamp({ selected_count: 2, brightness_percent: 100,
+    brightness_by_id: { home: 20, work: 80 },
+    devices: [{ id: 'home', state: 'connected' }, { id: 'work', state: 'connected' }] });
+  update(current);
+  click('lampbtn');
+  const slider = element('lampbrightness-1'), listBuilds = element('lamplist').writes;
+  assert.equal(element('lampbrightness-0').value, '20');
+  assert.equal(slider.value, '80');
+  listeners.pointerdown({ target: slider, pointerId: 8 });
+  for (const value of ['70', '60']) { slider.value = value; listeners.input({ target: slider }); }
+  advance(110);
+  assert.deepEqual(commands('preview_brightness').at(-1), { cmd: 'preview_brightness', id: 'work', percent: 60 });
+  assert.equal(element('lampbrightnessvalue-1').textContent, '60%');
+  context.document.activeElement = null;
+  listeners.focusout({ target: slider });
+  update(current);
+  assert.equal(slider.value, '60', 'The held target survives focus loss and host refresh');
+  assert.equal(element('lampbrightness-0').value, '20');
+  assert.equal(element('brightness').value, '100');
+  const before = commands('preview_brightness').length;
+  advance(1100);
+  assert.ok(commands('preview_brightness').length >= before + 2);
+  assert.ok(commands('preview_brightness').every(message => message.id === 'work'));
+  listeners.change({ target: slider });
+  assert.deepEqual(commands('set_lamp_brightness'), [{ cmd: 'set_lamp_brightness', id: 'work', percent: 60 }]);
+  listeners.pointerup({ pointerId: 8 });
+  const sent = commands('preview_brightness').length;
+  advance(3000);
+  assert.equal(commands('preview_brightness').length, sent);
+  assert.equal(element('lamplist').writes, listBuilds);
+  assert.equal(commands('set_brightness').length, 0);
+  assert.equal(commands('set_led').length, 0);
+  update({ ...current, devices: [current.devices[0], { ...current.devices[1], brightness_supported: false }] });
+  assert.equal(slider.disabled, false, 'Older firmware still accepts a saved preference for a later upgrade');
+  assert.match(element('lampbrightnesshint-1').textContent, /Update.*firmware/);
+  slider.value = '35';
+  listeners.input({ target: slider });
+  listeners.change({ target: slider });
+  assert.equal(commands('preview_brightness').length, sent, 'An unsupported target cannot preview through its connected neighbor');
+  assert.deepEqual(commands('set_lamp_brightness').at(-1), { cmd: 'set_lamp_brightness', id: 'work', percent: 35 });
+  update(current);
+  // Removing the active row must stop its timer, not retarget an index or broadcast.
+  listeners.pointerdown({ target: slider, pointerId: 9 });
+  update(lamp({ devices: [{ id: 'home', state: 'connected' }] }));
+  const afterRemoval = commands('preview_brightness').length;
+  listeners.change({ target: slider });
+  advance(3000);
+  assert.equal(commands('preview_brightness').length, afterRemoval);
+  assert.equal(commands('set_lamp_brightness').length, 2);
+});
+
+test('offline per-lamp saves never broadcast and All lamps resets effective values only from host state', () => {
+  for (const enabled of [true, false]) {
+    const { context, element, update, click, listeners, commands } = popoverPage();
+    const devices = [{ id: 'home', state: 'connected' }, { id: 'work', state: 'searching' }];
+    const refresh = (brightness_by_id, brightness_percent = 100) => update(lamp({ enabled,
+      selected_count: 2, devices, brightness_by_id, brightness_percent }));
+    refresh({ home: 20, work: 80 });
+    click('lampbtn');
+    const slider = element('lampbrightness-1');
+    for (const invalid of ['101', '-1', '0.5', '']) {
+      slider.value = invalid;
+      listeners.change({ target: slider });
+    }
+    assert.equal(commands('set_lamp_brightness').length, 0);
+    slider.value = '30';
+    context.document.activeElement = slider;
+    listeners.input({ target: slider });
+    refresh({ home: 20, work: 80 });
+    assert.equal(slider.value, '30', 'A focused per-lamp keyboard edit survives host refresh');
+    listeners.change({ target: slider });
+    assert.deepEqual(commands('set_lamp_brightness').at(-1), { cmd: 'set_lamp_brightness', id: 'work', percent: 30 });
+    assert.equal(commands('preview_brightness').length, 0, 'A connected neighbor is not the preview target');
+    context.window.__configActionResult('Could not save brightness');
+    assert.equal(element('lamperror').textContent, 'Could not save brightness');
+    assert.equal(slider.disabled, false, 'Failure leaves the control available for retry');
+    slider.value = '35';
+    listeners.change({ target: slider });
+    refresh({ home: 20, work: 35 });
+    context.window.__configActionResult(null);
+    assert.equal(element('lampbrightness-0').value, '20');
+    assert.equal(slider.value, '35');
+    context.document.activeElement = null;
+    const all = element('brightness');
+    assert.match(element('groups').innerHTML, /for="brightness">All lamps/);
+    assert.match(element('brightnesshint').textContent, /replaces individual brightness settings/);
+    all.value = '45';
+    listeners.change({ target: all });
+    assert.deepEqual(commands('set_brightness'), [{ cmd: 'set_brightness', percent: 45 }]);
+    assert.equal(element('lampbrightness-0').value, '20', 'No optimistic global reset');
+    refresh({}, 45);
+    context.window.__configActionResult(null);
+    assert.equal(element('lampbrightness-0').value, '45');
+    assert.equal(slider.value, '45');
+    assert.equal(commands('set_led').length, 0);
+  }
 });
 
 test('brightness saves while absent without enabling lamps and survives focused edits during refresh', () => {
@@ -639,24 +741,27 @@ test('stationary pointer renews preview and keeps its value when focus or host s
 });
 
 test('popup blur, hiding and leaving the lamp view end preview timers with the final value', () => {
-  for (const end of ['blur', 'hidden', 'Escape', 'Back']) {
-    const { context, element, listeners, windowListeners, click, update, commands, advance } = popoverPage();
-    update(lamp());
-    click('lampbtn');
-    const slider = element('brightness');
-    listeners.pointerdown({ target: slider, pointerId: 1 });
-    slider.value = '23';
-    listeners.input({ target: slider });
-    if (end === 'blur') windowListeners.blur();
-    else if (end === 'hidden') { context.document.hidden = true; listeners.visibilitychange(); }
-    else if (end === 'Escape') listeners.keydown({ key: 'Escape' });
-    else click('settingsbtn');
-    assert.equal(commands('preview_brightness').at(-1).percent, 23, end);
-    const sent = commands('preview_brightness').length;
-    advance(3000);
-    assert.equal(commands('preview_brightness').length, sent, end);
-    assert.equal(commands('set_brightness').length, 0);
-    assert.equal(commands('set_led').length, 0);
+  for (const sliderId of ['brightness', 'lampbrightness-0']) {
+    for (const end of ['blur', 'hidden', 'Escape', 'Back']) {
+      const { context, element, listeners, windowListeners, click, update, commands, advance } = popoverPage();
+      update(lamp());
+      click('lampbtn');
+      const slider = element(sliderId);
+      listeners.pointerdown({ target: slider, pointerId: 1 });
+      slider.value = '23';
+      listeners.input({ target: slider });
+      if (end === 'blur') windowListeners.blur();
+      else if (end === 'hidden') { context.document.hidden = true; listeners.visibilitychange(); }
+      else if (end === 'Escape') listeners.keydown({ key: 'Escape' });
+      else click('settingsbtn');
+      assert.equal(commands('preview_brightness').at(-1).percent, 23, end);
+      assert.equal(commands('preview_brightness').at(-1).id, sliderId === 'brightness' ? undefined : 'saved-lamp');
+      const sent = commands('preview_brightness').length;
+      advance(3000);
+      assert.equal(commands('preview_brightness').length, sent, end);
+      assert.equal(commands('set_brightness').length, 0);
+      assert.equal(commands('set_led').length, 0);
+    }
   }
 });
 
@@ -685,6 +790,7 @@ test('keyboard preview validates percentages and requires an enabled connected w
   for (const unavailable of [
     { enabled: false }, { state: 'searching' }, { state: 'connecting' }, { state: 'error' },
     { state: 'unavailable' }, { devices: [] },
+    { devices: [{ id: 'saved-lamp', state: 'connected', brightness_supported: false }] },
     { devices: [{ id: 'saved-lamp', state: 'searching' }] }, { transport: 'usb', present: true },
   ]) {
     update(lamp(unavailable));

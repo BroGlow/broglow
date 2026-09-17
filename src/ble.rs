@@ -19,6 +19,13 @@ pub enum BleCommand {
     Remove { id: String },
     /// Name a remembered lamp; an empty name restores its automatic label.
     Rename { id: String, name: String },
+    /// Save brightness (0–100); without --id, apply to all lamps and clear overrides.
+    Brightness {
+        percent: u8,
+        /// A remembered CoreBluetooth ID; omit to set all lamps.
+        #[arg(long)]
+        id: Option<String>,
+    },
     /// List remembered lamps and their current connection states.
     List,
     /// Return to USB (disabled until explicitly enabled).
@@ -68,6 +75,7 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
                 .collect();
             cfg.ble_peripheral = None;
             cfg.lamp_names.remove(&id);
+            cfg.lamp_brightness.remove(&id);
             if cfg.ble_peripherals.is_empty() && cfg.led_transport == LedTransport::Ble {
                 cfg.led_enabled = false;
             }
@@ -88,6 +96,21 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
                 cfg.lamp_names.remove(&id);
             } else {
                 cfg.lamp_names.insert(id, name.to_owned());
+            }
+        }
+        BleCommand::Brightness { percent, id } => {
+            anyhow::ensure!(percent <= 100, "Brightness must be between 0 and 100");
+            if let Some(id) = id {
+                #[cfg(target_os = "macos")]
+                let id = uuid::Uuid::parse_str(&id)?.to_string();
+                anyhow::ensure!(
+                    cfg.ble_ids().contains(&id),
+                    "This lamp is not remembered: {id}"
+                );
+                cfg.lamp_brightness.insert(id, percent);
+            } else {
+                cfg.led_brightness = percent;
+                cfg.lamp_brightness.clear();
             }
         }
         BleCommand::List => {
@@ -780,6 +803,7 @@ mod mac {
         publish: &impl Fn(&str, &str),
     ) -> Result<()> {
         let id = Uuid::parse_str(&p.id().to_string())?;
+        let target = id.to_string();
         wait(
             async {
                 p.connect().await?;
@@ -807,7 +831,7 @@ mod mac {
         // encrypted write may prompt for pairing; sample current settings again afterward.
         // Older firmware keeps working with the original one-byte status contract.
         let initial = [if brightness_characteristic.is_some() {
-            config::read_config().led_brightness_percent()
+            config::read_config().lamp_brightness_percent(&target)
         } else {
             b'N'
         }];
@@ -889,7 +913,7 @@ mod mac {
                         &crate::state::read_hook_state(),
                         cfg.yellow_mode,
                     )),
-                    cfg.led_brightness_percent(),
+                    cfg.lamp_brightness_percent(&target),
                     current_preview(id),
                 )
             },
@@ -1276,21 +1300,29 @@ mod mac {
         fn brightness_changes_send_without_color_change_and_resend_after_reconnect() {
             runtime().unwrap().block_on(async {
                 let active = Cell::new(true);
-                let brightness = Cell::new(100);
+                let first = "11111111-2222-3333-4444-555555555555";
+                let second = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+                let original = Config {
+                    led_enabled: true,
+                    led_transport: LedTransport::Ble,
+                    ble_peripherals: vec![first.into(), second.into()],
+                    ..Config::default()
+                };
+                let cfg = RefCell::new(original.clone());
                 let writes = RefCell::new(Vec::new());
                 let started = Instant::now();
                 let keep = || active.get();
                 send_updates(
-                    |value, first| {
-                        writes.borrow_mut().push((value, first));
+                    |value, is_first| {
+                        writes.borrow_mut().push((value, is_first));
                         if writes.borrow().len() == 1 {
-                            brightness.set(25);
+                            cfg.borrow_mut().lamp_brightness.insert(first.into(), 25);
                         } else {
                             active.set(false);
                         }
                         async { Ok(()) }
                     },
-                    || (b'G', brightness.get()),
+                    || (b'G', cfg.borrow().lamp_brightness_percent(first)),
                     &keep,
                 )
                 .await
@@ -1299,9 +1331,11 @@ mod mac {
                     *writes.borrow(),
                     vec![((b'G', 100), true), ((b'G', 25), false)]
                 );
+                assert_eq!(cfg.borrow().lamp_brightness_percent(second), 100);
+                assert!(crate::led::same_target(&original, &cfg.borrow()));
                 assert!(started.elapsed() < HEARTBEAT);
-                // A new connection starts with the saved value, even when the
-                // aggregate and preference have not changed since disconnect.
+                // Reconnection samples current per-lamp settings, including an offline edit.
+                cfg.borrow_mut().lamp_brightness.insert(first.into(), 50);
                 active.set(true);
                 send_updates(
                     |value, first| {
@@ -1309,12 +1343,12 @@ mod mac {
                         active.set(false);
                         async { Ok(()) }
                     },
-                    || (b'G', brightness.get()),
+                    || (b'G', cfg.borrow().lamp_brightness_percent(first)),
                     &keep,
                 )
                 .await
                 .unwrap();
-                assert_eq!(writes.borrow().last(), Some(&((b'G', 25), true)));
+                assert_eq!(writes.borrow().last(), Some(&((b'G', 50), true)));
                 assert!(!due(Some((b'G', 25)), (b'G', 25), Duration::ZERO));
                 assert!(due(Some((b'G', 25)), (b'G', 0), Duration::ZERO));
             });
