@@ -8,7 +8,28 @@
 # Local-only release runbook (not published with the CLI)
 /docs/RELEASE.md
 
-# Companion firmware and CAD Python caches
+# Companion firmware and local Python environments/caches
 .pio/
+.venv/
 __pycache__/
-/models/clawlight/.*.step.glb
+*.py[cod]
+
+# CAD viewer conversion caches
+/models/**/.*.step.glb
+
+# Disposable CAD render iterations. Keep the selected documentation images;
+# update these exceptions when promoting a new render into the guides.
+/models/clawlight/preview/*_20??????T??????Z.png
+!/models/clawlight/preview/finished_20260916T173845Z.png
+!/models/clawlight/preview/exploded_20260916T173845Z.png
+!/models/clawlight/preview/assembly_20260917T162054Z.png
+!/models/clawlight/preview/finished_20260917T162054Z.png
+!/models/clawlight/preview/front_20260917T162054Z.png
+!/models/clawlight/preview/service_20260917T162054Z.png
+!/models/clawlight/preview/exploded_20260917T162054Z.png
+!/models/clawlight/preview/rear_20260917T162054Z.png
+!/models/clawlight/preview/hand_pins_20260917T162054Z.png
+!/models/clawlight/preview/hand_joint_coupon_20260917T162054Z.png
+!/models/clawlight/preview/pcb_tray_20260917T154504Z.png
+!/models/clawlight/preview/cover_20260917T154504Z.png
+!/models/clawlight/preview/coupon_20260917T154504Z.png
