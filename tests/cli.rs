@@ -13,7 +13,7 @@ fn help_lists_the_public_subcommands() {
     let assert = clawlight().arg("--help").assert().success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
 
-    for subcommand in ["install", "uninstall", "menubar", "led", "update"] {
+    for subcommand in ["install", "uninstall", "menubar", "led", "ble", "update"] {
         assert!(stdout.contains(subcommand), "--help mentions {subcommand}");
     }
     // Internal backends stay hidden from users.
@@ -23,6 +23,22 @@ fn help_lists_the_public_subcommands() {
             "{hidden} is hidden"
         );
     }
+}
+
+#[test]
+fn ble_help_documents_selection_without_accessing_the_radio() {
+    let assert = clawlight().args(["ble", "--help"]).assert().success();
+    let help = String::from_utf8_lossy(&assert.get_output().stdout);
+    for command in [
+        "scan", "pair", "add", "select", "remove", "list", "usb", "off", "status",
+    ] {
+        assert!(help.contains(command));
+    }
+    clawlight().args(["ble", "select"]).assert().failure();
+    clawlight()
+        .args(["ble", "pair", "--help"])
+        .assert()
+        .success();
 }
 
 #[test]
@@ -104,4 +120,147 @@ fn the_opencode_plugin_parses_as_a_js_module() {
 fn on_path(program: &str) -> bool {
     std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
         .any(|d| d.join(program).is_file())
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
+    let home = tempfile::tempdir().unwrap();
+    let bundled = home
+        .path()
+        .join("Applications/ClawLight.app/Contents/MacOS/clawlight");
+    std::fs::create_dir_all(bundled.parent().unwrap()).unwrap();
+    std::fs::copy(clawlight().get_program(), &bundled).unwrap();
+    let dir = home.path().join(".claude/clawlight");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("config.json");
+    let original = r#"{"led_enabled":true,"ble_peripherals":["keep"],"unrelated":{"retain":true}}"#;
+    std::fs::write(&path, original).unwrap();
+    let missing_port = home.path().join("nonexistent-serial-port");
+    let invoke = || {
+        clawlight()
+            .env("HOME", home.path())
+            .args(["ble", "pair", "--port"])
+            .arg(&missing_port)
+            .assert()
+            .failure()
+    };
+    let failed = invoke();
+    assert!(String::from_utf8_lossy(&failed.get_output().stderr).contains("Opening USB lamp"));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    std::fs::remove_file(&path).unwrap();
+    invoke();
+    assert!(
+        !path.exists(),
+        "failed setup preserves a previously absent config"
+    );
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn remembered_lamps_migrate_add_remove_and_list_without_radio() {
+    let home = tempfile::tempdir().unwrap();
+    let dir = home.path().join(".claude/clawlight");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("config.json");
+    let first = "11111111-2222-3333-4444-555555555555";
+    let second = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    std::fs::write(
+        &path,
+        serde_json::json!({"ble_peripheral":first,"custom":42}).to_string(),
+    )
+    .unwrap();
+    let run = |args: &[&str]| {
+        clawlight()
+            .env("HOME", home.path())
+            .args(args)
+            .assert()
+            .success();
+    };
+    run(&["ble", "add", &second.to_uppercase()]);
+    run(&["ble", "select", first]);
+    let bytes = std::fs::read(&path).unwrap();
+    let cfg: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(cfg["ble_peripherals"], serde_json::json!([first, second]));
+    assert!(cfg.get("ble_peripheral").is_none());
+    assert_eq!(cfg["custom"], 42);
+    let listed = clawlight()
+        .env("HOME", home.path())
+        .args(["ble", "list"])
+        .assert()
+        .success();
+    let output = String::from_utf8_lossy(&listed.get_output().stdout);
+    assert!(output.contains(first) && output.contains(second));
+    assert_eq!(std::fs::read(&path).unwrap(), bytes, "list is read-only");
+    run(&["ble", "remove", &second.to_uppercase()]);
+    run(&["ble", "remove", first]);
+    let cfg: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert_eq!(cfg["ble_peripherals"], serde_json::json!([]));
+    assert_eq!(cfg["led_enabled"], false);
+    clawlight()
+        .env("HOME", home.path())
+        .args(["ble", "remove", "invalid"])
+        .assert()
+        .failure();
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn ble_selection_preserves_settings_and_blocks_c6_updates_without_radio() {
+    let home = tempfile::tempdir().unwrap();
+    let dir = home.path().join(".claude/clawlight");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("config.json");
+    std::fs::write(
+        &path,
+        r#"{"custom":42,"led_port":"keep","yellow_mode":"active_wins"}"#,
+    )
+    .unwrap();
+    let id = "11111111-2222-3333-4444-555555555555";
+    clawlight()
+        .env("HOME", home.path())
+        .args(["ble", "select", id])
+        .assert()
+        .success();
+    let selected = std::fs::read(&path).unwrap();
+    let cfg: serde_json::Value = serde_json::from_slice(&selected).unwrap();
+    assert_eq!(cfg["ble_peripherals"], serde_json::json!([id]));
+    assert_eq!(cfg["led_transport"], "ble");
+    assert_eq!(cfg["led_enabled"], true);
+    assert_eq!(cfg["custom"], 42);
+    assert_eq!(cfg["led_port"], "keep");
+    clawlight()
+        .env("HOME", home.path())
+        .args(["ble", "select", "invalid"])
+        .assert()
+        .failure();
+    assert_eq!(std::fs::read(&path).unwrap(), selected);
+    let ota = clawlight()
+        .env("HOME", home.path())
+        .args(["update", "not-an-image"])
+        .assert()
+        .failure();
+    assert!(String::from_utf8_lossy(&ota.get_output().stderr).contains("PlatformIO"));
+    let flash = std::process::Command::new("bash")
+        .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/scripts/flash.sh"))
+        .env("HOME", home.path())
+        .output()
+        .unwrap();
+    assert!(!flash.status.success());
+    assert!(String::from_utf8_lossy(&flash.stderr).contains("PlatformIO"));
+    clawlight()
+        .env("HOME", home.path())
+        .args(["ble", "off"])
+        .assert()
+        .success();
+    let cfg: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert_eq!(cfg["ble_peripherals"], serde_json::json!([id]));
+    assert_eq!(cfg["led_enabled"], false);
+    std::fs::write(&path, "{corrupt").unwrap();
+    clawlight()
+        .env("HOME", home.path())
+        .args(["ble", "usb"])
+        .assert()
+        .failure();
+    assert_eq!(std::fs::read_to_string(path).unwrap(), "{corrupt");
 }

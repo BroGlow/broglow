@@ -1,5 +1,8 @@
 # clawlight
 
+For installation from a package or source, connecting a board, and checking a
+running Mac service, start with the [agent runbook](docs/hardware-setup.md#agent-runbook).
+
 A single Rust binary that monitors [Claude Code](https://claude.ai/code) sessions
 in real time. It ships three faces of the same executable:
 
@@ -9,7 +12,10 @@ in real time. It ships three faces of the same executable:
 - **Hook backend** (`clawlight hook`) — invoked by Claude Code's lifecycle hooks to
   record per-session status. Replaces the old bash+jq hook script; no shell/`jq` dep.
 
-Optionally mirrors aggregate state to a Seeed XIAO ESP32-C6 status board over USB serial.
+Optionally mirrors aggregate state over USB serial, or from macOS over BLE to the
+ESP32-C3 SuperMini firmware in this repository. For hardware changes, flashing,
+Bluetooth setup, deployment, and acceptance results, read
+[docs/hardware-setup.md](docs/hardware-setup.md).
 
 Cross-platform: macOS, Windows, Linux. MIT licensed.
 
@@ -27,7 +33,9 @@ clawlight uninstall      # reverse install and delete ~/.claude/clawlight
 
 `clawlight install` is idempotent and also (re)starts the tray daemon, so re-run it
 after `cargo install` to make the running daemon pick up a new binary. On macOS it
-rewrites and reloads the LaunchAgent via `launchctl bootout`/`bootstrap`/`kickstart`.
+installs `~/Applications/ClawLight.app` and reloads the existing LaunchAgent
+(`io.roush.clawlight.menubar`) via `launchctl bootout`/`bootstrap`/`kickstart`.
+Inspect the installed service and preserve unrelated hooks/settings before deployment.
 
 **Always redeploy after code changes.** Whenever you change code in this repo, finish
 by updating the app that is already running on this machine so it can be tested live:
@@ -36,9 +44,10 @@ by updating the app that is already running on this machine so it can be tested 
 cargo install --path . && clawlight install
 ```
 
-Never test by launching a second daemon (e.g. `cargo run -- menubar`) — macOS has no
-single-instance lock, and two daemons mean two tray icons fighting over the same
-serial port. Redeploy the installed one instead.
+Redeploy the installed daemon for live tests. A process-lifetime lock rejects a
+second macOS tray instance; a separate BLE lock prevents discovery and the worker
+from using the radio concurrently. Builds do not prove permission grant or board
+operation: record those acceptance checks separately.
 
 ## Subcommands (src/main.rs)
 
@@ -48,6 +57,8 @@ serial port. Redeploy the installed one instead.
 | `install` / `uninstall` | Hooks + platform autostart (launchd / registry Run key / XDG autostart) |
 | `menubar` | Run the tray daemon in the foreground |
 | `led [--port]` | Foreground ESP32 LED mirror (debugging) |
+| `ble pair [--port]` | Identify ClawLight firmware over USB, open pairing and remember its matching BLE ID; actual tray handles encryption/macOS approval |
+| `ble scan/add/select/remove/list/off/usb/status` | Discover, remember/forget CoreBluetooth IDs, list per-lamp state, disable, restore USB, or inspect worker status; select is additive like add |
 | `update <firmware> [--port]` | Serial-OTA push of new board firmware |
 | `hook` *(hidden)* | Claude Code hook backend; reads one event as JSON on stdin |
 | `event` *(hidden)* | Normalized-event backend for non-Claude harnesses (opencode); reads one event as JSON on stdin |
@@ -83,12 +94,24 @@ serial port. Redeploy the installed one instead.
   plus the 24h staleness backstop), and `Aggregate` (Red/Yellow/Green/None) health rollup.
 - **session.rs** — discovers `~/.claude/projects/*/sessions-index.json`, merges those
   entries with hook state into `DisplaySession`s, resolves display names and sort order.
-- **config.rs** — `~/.claude/clawlight/config.json` (LED opt-in, optional `led_port`,
-  and `yellow_mode` — how idle sessions color the aggregate).
+- **config.rs** — `~/.claude/clawlight/config.json` (LED opt-in, `led_transport`
+  defaulting to USB, optional `led_port`, remembered `ble_peripherals`, and `yellow_mode`).
+  Use `ble_ids()` to include/deduplicate legacy `ble_peripheral` configurations.
+  Preserve unrelated and unknown settings when changing the lamp selection.
 - **app.rs** — TUI event loop: file watcher + 5s timer refresh, key handling, notifications.
 - **ui.rs** — ratatui rendering of the table and status bar.
 - **menubar.rs** — tray icon + menu (tao/tray-icon event loop), spawns the LED daemon thread.
-- **led.rs** — ESP32 detection by USB VID and the serial LED driver (`run` / `run_daemon`).
+- **led.rs** — USB detection/driver, aggregate-to-byte mapping, transport dispatch,
+  and fresh cross-process worker status in `lamp-status.json`.
+- **ble.rs** — explicit discovery/selection and the macOS BLE worker: service-filtered
+  scan, independent connections to every saved nearby lamp, acknowledged writes,
+  heartbeat and reconnect. An absent lamp must not block another lamp's updates.
+  USB-assisted `pair` requires exact INFO identity before PAIR and matches the
+  service plus full six-byte base MAC in manufacturer data (`0xffff`). No automatic
+  USB takeover, no name-only target selection, and no bypass of macOS consent.
+  Keep btleplug 0.13.0 locked: its macOS write-error propagation fixes dropped
+  CoreBluetooth NSError failures during pairing. A longer host timeout cannot
+  extend the macOS system pairing alert (about 30 seconds observed).
 - **ota.rs** — host side of the stop-and-wait serial firmware update protocol.
 - **notification.rs** — desktop notifications (macOS `osascript`; else `notify-rust`).
 - **spawn.rs** — Windows-only detached/windowless child-process flags (no-op elsewhere).
@@ -218,19 +241,32 @@ thin:
   must not write, or it would wipe every other session's status.
 - **The auto-namer runs detached** and sets `CLAWLIGHT_NAMING=1` so the nested `claude`
   CLI call's own hooks no-op instead of recursing.
-- **LEDs are opt-in, but a clean first install auto-enables them when a board is already
+- **LEDs are opt-in, but a clean first install auto-enables USB when a board is already
   plugged in** (`maybe_autoenable_led` in main.rs, called from `install_hooks`). It's gated
   on there being no `config.json` yet, so re-running install — or an existing user — never
   has the LEDs flipped back on against a deliberate opt-out. Otherwise the daemon never
-  opens a serial port until `led_enabled` is set — from the tray popover's footer lamp
-  control (macOS/Windows) or `l` in the TUI. Board detection matches only the XIAO's native
-  USB-Serial-JTAG vendor ID (`0x303A`), so a positive hit is unambiguously our board and
-  clawlight never writes to an unrelated serial device.
+  opens a transport until `led_enabled` is set — from the tray popover's Lamp details
+  enable/disable control (macOS/Windows) or `l` in the TUI. BLE must be explicitly
+  selected; UI rendering never initializes Bluetooth. USB VID `0x303A` identifies Espressif,
+  not an exact board model: identify the actual hardware before flashing or issuing
+  serial commands. Preserve the existing USB default and explicit-port behavior.
 - **The popover footer shows lamp connection status** (`renderLamp` in assets/popover.html,
-  fed by `LampPayload` in popover.rs). Four states from `{present, enabled}`: connected
-  (click disconnects), detected-but-off (click connects → `SetLed`), owned-but-unplugged,
-  and none (a "Get a lamp" link → `GetLamp` opens clawlight.dev). Presence is read via
-  `led::board_present_cached` (short-TTL cache, since the page asks on every state push).
+  fed by `LampPayload` in popover.rs). The footer opens Lamp details; it does not
+  toggle the lamp. Enable/disable is an explicit action in that scrollable view,
+  with Back/Escape returning to sessions. The TUI uses `d` for lamp details,
+  arrows or `j`/`k` to scroll, and Escape to return. Both main session views keep
+  status compact; full worker status and per-device diagnostics live in details.
+  Advertisement or USB presence never means connected. USB presence only controls
+  whether enabling USB is offered. BLE targets persist
+  across restarts and enable without USB. A healthy `1/2` is normal for home/office
+  lamps: one successful recent write makes the aggregate connected, with explicit
+  per-device states/count. Expiry is per device; another lamp cannot refresh it.
+- **macOS Bluetooth belongs to the installed app identity.** The LaunchAgent runs
+  `ClawLight.app/Contents/MacOS/clawlight menubar`; the app's Info.plist supplies
+  `NSBluetoothAlwaysUsageDescription`. Explicit `ble scan` re-execs the bundled
+  binary. Local installs use ad-hoc signing with a stable designated identifier;
+  `CLAWLIGHT_SIGNING_IDENTITY` supports a real signing identity. Terminal permission
+  alone does not establish that the login-started service has permission.
 - **Usage/spend tracking is strictly opt-in** (`usage_enabled`, set in the popover's
   Settings view; off by default). It covers both harness families: Claude transcripts
   (per-message `usage` blocks) and Codex rollouts (cumulative `token_count` events,
@@ -248,10 +284,33 @@ thin:
 
 ## ESP32 board (optional)
 
-Firmware lives in a separate repo, `clawlight/clawlight-firmware`. `scripts/flash.sh`
-does the first USB flash; afterward `clawlight update <image>` pushes new firmware over
-the same serial link. The OTA CRC-32 must match the firmware's implementation — pinned
-by the test in `ota.rs`.
+The local C3 companion firmware is in `firmware/esp32-c3-supermini/` (Arduino /
+PlatformIO). Its three independent LEDs use GPIO4/5/6 and one resistor each. BLE
+uses exactly one `R`, `Y`, `G`, or `N` byte with response; the host sends immediately,
+on changes, and every two seconds. The board clears session status ten seconds
+after its last valid update; a still-connected stale link stays dark, while a
+disconnected board resumes its setup/waiting indication. A connected BLE client owns LED control; serial commands work
+when BLE is disconnected. The C3 rejects serial `OTA:`; flash it with PlatformIO.
+BLE writes require encryption and LE Secure Connections Just Works bonding.
+After normal boot, BOOT/GPIO9 held three seconds opens a 60-second pairing window;
+ten seconds requests deletion of all board bonds. No bonds at startup also opens
+the window. Just Works is not MITM-authenticated. Indications use 2 kHz/eight-bit
+PWM: pairing chases red/yellow/green; unpaired blinks all three; bonded waiting
+pulses dimly every 30 seconds. The first valid encrypted write per connection
+causes one 250 ms confirmation flash, then fresh status (including `N`) wins;
+disconnect, lost authentication or stale expiry cancels the flash.
+GPIO8 defaults to an active-low single-color LED, using one/two/three pulses for
+green/yellow/red; build flags configure its pin/polarity/brightness, or disable it
+with `BUILTIN_LED_PIN=-1`. The user confirmed rapid blue pairing blinking;
+other visible patterns remain unverified. A `?` serial diagnostic reports stored
+state, commanded on/off and PWM duties, mode, pin and
+pairing/bonds; these are not pin readback or proof of visible light. `N` cannot
+distinguish disabled from absent Mac, so disconnected waiting pulses may resume;
+`WAIT_LED_BRIGHTNESS=0` silences them. The hardware guide owns pattern timing and setup.
+
+`scripts/flash.sh` and `clawlight update <image>` remain upstream C6 operations;
+they are not the C3 flash/update path. The existing serial OTA CRC-32 test remains
+in `ota.rs`. See the hardware guide for commands and the confirmed hardware state.
 
 ## CI
 
@@ -278,3 +337,5 @@ one boundary the Rust suite (which feeds `clawlight event` directly) can't cover
 `process.on("exit")` shutdown path can be exercised for real.
 
 `.github/workflows/release.yml` builds and packages release binaries per platform.
+CI also builds the pinned C3 PlatformIO environment and runs its host mock checks.
+The JavaScript suite includes the popover's worker-driven lamp status regression.

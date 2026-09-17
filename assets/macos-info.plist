@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key><string>io.roush.clawlight.menubar</string>
+    <key>CFBundleName</key><string>ClawLight</string>
+    <key>CFBundleDisplayName</key><string>ClawLight</string>
+    <key>CFBundleExecutable</key><string>clawlight</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleVersion</key><string>{{VERSION}}</string>
+    <key>CFBundleShortVersionString</key><string>{{VERSION}}</string>
+    <key>LSUIElement</key><true/>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>ClawLight sends your coding session status to your selected Bluetooth traffic light.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>ClawLight brings your terminal to the front when you choose a coding session.</string>
+    <key>ClawLightManaged</key><true/>
+</dict>
+</plist>

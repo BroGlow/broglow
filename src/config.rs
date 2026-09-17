@@ -31,7 +31,15 @@ pub enum BillingMode {
     Api,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum LedTransport {
+    #[default]
+    Usb,
+    Ble,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     /// Whether the menu bar daemon should mirror session state to an ESP32 over
@@ -42,6 +50,15 @@ pub struct Config {
     /// auto-detects a known ESP32 board by USB vendor ID on each scan, which
     /// survives the board being unplugged and replugged at a different path.
     pub led_port: Option<String>,
+    pub led_transport: LedTransport,
+    /// Legacy single-lamp selection. Read through ble_ids(); migrated on edits.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ble_peripheral: Option<String>,
+    /// Remembered CoreBluetooth UUIDs, never guessed MAC addresses/names.
+    pub ble_peripherals: Vec<String>,
+    /// Saved brightness for BLE lamps, including when mirroring is disabled.
+    #[serde(deserialize_with = "deserialize_led_brightness")]
+    pub led_brightness: u8,
     /// How idle sessions color the aggregate (tray icon / LED) — see
     /// [`YellowMode`]. Set from the tray popover's Settings view.
     pub yellow_mode: YellowMode,
@@ -55,6 +72,49 @@ pub struct Config {
     /// consulted when [`usage_enabled`](Self::usage_enabled) is set. Set from
     /// the tray popover's Settings view.
     pub billing_mode: BillingMode,
+    /// Preserve settings introduced by newer versions or local integrations.
+    #[serde(flatten)]
+    pub extra: std::collections::BTreeMap<String, serde_json::Value>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            led_enabled: false,
+            led_port: None,
+            led_transport: LedTransport::default(),
+            ble_peripheral: None,
+            ble_peripherals: Vec::new(),
+            led_brightness: 100,
+            yellow_mode: YellowMode::default(),
+            usage_enabled: false,
+            billing_mode: BillingMode::default(),
+            extra: Default::default(),
+        }
+    }
+}
+
+fn deserialize_led_brightness<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<u8, D::Error> {
+    // A hand-edited brightness must not make unrelated settings fall back to defaults.
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(value.as_f64().unwrap_or(100.0).clamp(0.0, 100.0) as u8)
+}
+
+impl Config {
+    pub fn led_brightness_percent(&self) -> u8 {
+        self.led_brightness.min(100)
+    }
+
+    /// Include the old single-lamp setting and compare targets independent of order.
+    pub fn ble_ids(&self) -> Vec<String> {
+        let mut ids = self.ble_peripherals.clone();
+        ids.extend(self.ble_peripheral.iter().cloned());
+        ids.sort();
+        ids.dedup();
+        ids
+    }
 }
 
 pub fn config_file_path() -> PathBuf {
@@ -95,6 +155,26 @@ mod tests {
     use super::{BillingMode, Config, YellowMode};
 
     #[test]
+    fn preserves_unrelated_settings_with_ble_selection() {
+        let mut cfg: Config = serde_json::from_str(
+            r#"{"custom_setting":{"keep":true},"led_port":"existing","yellow_mode":"active_wins"}"#,
+        )
+        .unwrap();
+        cfg.ble_peripheral = Some("selected-id".into());
+        cfg.led_transport = super::LedTransport::Ble;
+        let json = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(json["custom_setting"]["keep"], true);
+        let back: Config = serde_json::from_value(json).unwrap();
+        assert_eq!(back.ble_peripheral.as_deref(), Some("selected-id"));
+        assert_eq!(back.led_port.as_deref(), Some("existing"));
+        assert_eq!(back.yellow_mode, YellowMode::ActiveWins);
+        assert_eq!(back.ble_ids(), ["selected-id"]);
+        let mut multiple = back;
+        multiple.ble_peripherals = vec!["work".into(), "selected-id".into(), "home".into()];
+        assert_eq!(multiple.ble_ids(), ["home", "selected-id", "work"]);
+    }
+
+    #[test]
     fn roundtrips_through_json() {
         let cfg = Config {
             led_enabled: true,
@@ -102,6 +182,8 @@ mod tests {
             yellow_mode: YellowMode::ActiveWins,
             usage_enabled: true,
             billing_mode: BillingMode::Api,
+            led_brightness: 37,
+            ..Config::default()
         };
         let json = serde_json::to_string(&cfg).unwrap();
         let back: Config = serde_json::from_str(&json).unwrap();
@@ -110,6 +192,51 @@ mod tests {
         assert_eq!(back.yellow_mode, YellowMode::ActiveWins);
         assert!(back.usage_enabled);
         assert_eq!(back.billing_mode, BillingMode::Api);
+        assert_eq!(back.led_brightness_percent(), 37);
+    }
+
+    #[test]
+    fn brightness_defaults_to_full_without_enabling_lamps() {
+        for cfg in [
+            Config::default(),
+            serde_json::from_str("{}").unwrap(),
+            serde_json::from_str(r#"{"led_enabled":false,"ble_peripherals":["home"]}"#).unwrap(),
+        ] {
+            assert_eq!(cfg.led_brightness_percent(), 100);
+            assert!(!cfg.led_enabled);
+        }
+    }
+
+    #[test]
+    fn edited_brightness_bounds_preserve_other_settings() {
+        for (value, expected) in [(-300, 0), (0, 0), (37, 37), (100, 100), (900, 100)] {
+            let cfg: Config = serde_json::from_value(serde_json::json!({
+                "led_brightness": value, "led_enabled": true,
+                "ble_peripherals": ["home", "office"], "custom_setting": {"keep": true}
+            }))
+            .unwrap();
+            assert_eq!(cfg.led_brightness_percent(), expected);
+            let saved = serde_json::to_value(&cfg).unwrap();
+            assert_eq!(saved["led_brightness"], expected);
+            assert_eq!(saved["custom_setting"]["keep"], true);
+            assert!(cfg.led_enabled);
+            assert_eq!(cfg.ble_ids(), ["home", "office"]);
+        }
+        let cfg: Config = serde_json::from_str(
+            r#"{"led_brightness":"invalid","usage_enabled":true,"custom_setting":7}"#,
+        )
+        .unwrap();
+        assert_eq!(cfg.led_brightness_percent(), 100);
+        assert!(cfg.usage_enabled);
+        assert_eq!(cfg.extra["custom_setting"], 7);
+        assert_eq!(
+            Config {
+                led_brightness: 255,
+                ..Config::default()
+            }
+            .led_brightness_percent(),
+            100
+        );
     }
 
     #[test]
@@ -123,6 +250,8 @@ mod tests {
         assert!(!from_empty.usage_enabled);
         let old: Config = serde_json::from_str(r#"{"led_enabled": true}"#).unwrap();
         assert!(!old.usage_enabled);
+        assert_eq!(old.led_transport, super::LedTransport::Usb);
+        assert!(old.ble_peripheral.is_none());
     }
 
     #[test]

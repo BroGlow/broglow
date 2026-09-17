@@ -1,4 +1,5 @@
 mod app;
+mod ble;
 mod codex;
 mod config;
 mod copilot;
@@ -55,6 +56,11 @@ enum Commands {
         #[arg(long)]
         port: Option<String>,
     },
+    /// Select and control the Bluetooth traffic light (macOS)
+    Ble {
+        #[command(subcommand)]
+        command: ble::BleCommand,
+    },
     /// Push new firmware to the ESP32-C6 over serial — no cable reflash
     Update {
         /// espflash image to install (output of `espflash save-image`)
@@ -96,8 +102,48 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         Some(Commands::Install) => install_hooks(),
         Some(Commands::Uninstall) => uninstall_hooks(),
-        Some(Commands::Menubar) => menubar::run(),
+        Some(Commands::Menubar) => {
+            #[cfg(target_os = "macos")]
+            let _instance_lock = {
+                use fs4::fs_std::FileExt;
+                std::fs::create_dir_all(hook_dir())?;
+                let lock = std::fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(false)
+                    .read(true)
+                    .write(true)
+                    .open(hook_dir().join(".menubar.lock"))?;
+                anyhow::ensure!(
+                    lock.try_lock_exclusive()?,
+                    "A ClawLight tray service is already running"
+                );
+                lock
+            };
+            menubar::run()
+        }
         Some(Commands::Led { port }) => led::run(port),
+        Some(Commands::Ble { command }) => {
+            #[cfg(target_os = "macos")]
+            if matches!(
+                command,
+                ble::BleCommand::Scan | ble::BleCommand::Pair { .. }
+            ) {
+                // Discovery needs the same Info.plist/identity as the service.
+                let bundled = mac_bundle_executable()?;
+                if std::env::current_exe()? != bundled {
+                    use std::os::unix::process::CommandExt;
+                    anyhow::ensure!(
+                        bundled.is_file(),
+                        "Run `clawlight install` before Bluetooth discovery"
+                    );
+                    return Err(std::process::Command::new(bundled)
+                        .args(std::env::args_os().skip(1))
+                        .exec()
+                        .into());
+                }
+            }
+            ble::command(command)
+        }
         Some(Commands::Update { firmware, port }) => ota::run(firmware, port),
         Some(Commands::Usage) => usage::run_once(),
         Some(Commands::Hook) => hook::run(),
@@ -195,14 +241,14 @@ fn register_hooks() -> anyhow::Result<()> {
         serde_json::json!({})
     };
 
-    let hook_entry = serde_json::json!([
+    let hook_entry = serde_json::json!(
         {
             "hooks": [{
                 "type": "command",
                 "command": hook_cmd
             }]
         }
-    ]);
+    );
 
     let hooks = settings
         .as_object_mut()
@@ -213,11 +259,15 @@ fn register_hooks() -> anyhow::Result<()> {
     let hooks_obj = hooks.as_object_mut().context("hooks must be an object")?;
 
     for event in HOOK_EVENTS {
-        hooks_obj.insert(event.to_string(), hook_entry.clone());
+        let groups = hooks_obj
+            .entry(event)
+            .or_insert_with(|| serde_json::json!([]))
+            .as_array_mut()
+            .with_context(|| format!("hooks.{event} must be an array"))?;
+        codex::upsert_clawlight_group(groups, &hook_entry);
     }
 
-    let settings_str = serde_json::to_string_pretty(&settings)?;
-    std::fs::write(&settings_file, settings_str)?;
+    codex::write_json_atomic(&settings_file, &settings)?;
 
     println!("Updated {}", settings_file.display());
 
@@ -248,7 +298,7 @@ fn install_hooks() -> anyhow::Result<()> {
     );
     println!("Run `clawlight` to launch the TUI dashboard.");
     if !lamp_enabled {
-        println!("Optional: plug in a Seeed XIAO ESP32-C6 status board and press `l` in the dashboard to enable status LEDs.");
+        println!("Optional: enable a USB lamp with `l`, or use `clawlight ble scan` to select a BLE lamp. See docs/hardware-setup.md.");
     }
     Ok(())
 }
@@ -359,8 +409,8 @@ pub fn first_run_setup_daemon() {
 }
 
 fn uninstall_hooks() -> anyhow::Result<()> {
-    // Remove autostart first (best-effort).
-    let _ = uninstall_autostart();
+    // Stop the daemon before deleting its bundle/state.
+    uninstall_autostart()?;
 
     // Remove every harness's wiring (best-effort; each is marker-guarded so a
     // hand-rolled file is never deleted).
@@ -374,15 +424,19 @@ fn uninstall_hooks() -> anyhow::Result<()> {
 
         if let Some(hooks) = settings.get_mut("hooks").and_then(|h| h.as_object_mut()) {
             for event in HOOK_EVENTS {
-                hooks.remove(event);
+                if let Some(groups) = hooks.get_mut(event).and_then(|v| v.as_array_mut()) {
+                    codex::remove_clawlight_groups(groups);
+                    if groups.is_empty() {
+                        hooks.remove(event);
+                    }
+                }
             }
             if hooks.is_empty() {
                 settings.as_object_mut().unwrap().remove("hooks");
             }
         }
 
-        let settings_str = serde_json::to_string_pretty(&settings)?;
-        std::fs::write(&settings_file, settings_str)?;
+        codex::write_json_atomic(&settings_file, &settings)?;
         println!("Removed hooks from {}", settings_file.display());
     }
 
@@ -503,6 +557,92 @@ fn uninstall_run_key() -> anyhow::Result<()> {
 pub(crate) const LAUNCH_AGENT_LABEL: &str = "io.roush.clawlight.menubar";
 
 #[cfg(target_os = "macos")]
+const MAC_INFO_PLIST: &str = include_str!("../assets/macos-info.plist");
+
+#[cfg(target_os = "macos")]
+fn mac_bundle_path() -> anyhow::Result<PathBuf> {
+    Ok(dirs::home_dir()
+        .context("No home directory")?
+        .join("Applications/ClawLight.app"))
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn mac_bundle_executable() -> anyhow::Result<PathBuf> {
+    Ok(mac_bundle_path()?.join("Contents/MacOS/clawlight"))
+}
+
+#[cfg(target_os = "macos")]
+fn check_managed_bundle(bundle: &std::path::Path) -> anyhow::Result<()> {
+    if bundle.exists() {
+        let info = std::fs::read_to_string(bundle.join("Contents/Info.plist"))?;
+        anyhow::ensure!(
+            info.contains("<key>ClawLightManaged</key><true/>")
+                && info.contains(&format!("<string>{LAUNCH_AGENT_LABEL}</string>")),
+            "{} is not a ClawLight-managed bundle; leaving it alone",
+            bundle.display()
+        );
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn create_mac_bundle(
+    exe: &std::path::Path,
+    bundle: &std::path::Path,
+    identity: &str,
+) -> anyhow::Result<()> {
+    std::fs::create_dir(bundle)?;
+    std::fs::create_dir_all(bundle.join("Contents/MacOS"))?;
+    std::fs::copy(exe, bundle.join("Contents/MacOS/clawlight"))?;
+    std::fs::write(
+        bundle.join("Contents/Info.plist"),
+        MAC_INFO_PLIST.replace("{{VERSION}}", env!("CARGO_PKG_VERSION")),
+    )?;
+    let mut sign = std::process::Command::new("/usr/bin/codesign");
+    sign.args([
+        "--force",
+        "--sign",
+        identity,
+        "--identifier",
+        LAUNCH_AGENT_LABEL,
+    ]);
+    if identity == "-" {
+        // Local builds have no signing certificate. Keep their DR stable across
+        // rebuilds; this identifies the app, not a trusted publisher. Distribution
+        // should use CLAWLIGHT_SIGNING_IDENTITY and its signer-bound default DR.
+        sign.args([
+            "--requirements",
+            &format!("=designated => identifier \"{LAUNCH_AGENT_LABEL}\""),
+        ]);
+    }
+    let out = sign.arg(bundle).output().context("Signing ClawLight.app")?;
+    anyhow::ensure!(
+        out.status.success(),
+        "codesign failed: {}",
+        String::from_utf8_lossy(&out.stderr).trim()
+    );
+    let out = std::process::Command::new("/usr/bin/codesign")
+        .args(["--verify", "--strict"])
+        .arg(bundle)
+        .output()?;
+    anyhow::ensure!(
+        out.status.success(),
+        "ClawLight.app signature verification failed: {}",
+        String::from_utf8_lossy(&out.stderr).trim()
+    );
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn xml_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
+#[cfg(target_os = "macos")]
 const LAUNCH_AGENT_PLIST: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -549,48 +689,52 @@ pub(crate) fn current_uid() -> anyhow::Result<String> {
 fn install_launch_agent() -> anyhow::Result<()> {
     let exe = std::env::current_exe().context("Resolving current executable path")?;
     let home = dirs::home_dir().context("No home directory")?;
+    let bundle = mac_bundle_path()?;
+    check_managed_bundle(&bundle)?;
+    let applications = bundle.parent().context("Bundle must have a parent")?;
+    std::fs::create_dir_all(applications)?;
+    let staging = applications.join(format!(".ClawLight.{}.app", std::process::id()));
+    let previous = applications.join(format!(".ClawLight.previous.{}.app", std::process::id()));
+    anyhow::ensure!(
+        !previous.exists(),
+        "Recovery bundle already exists: {}",
+        previous.display()
+    );
+    create_mac_bundle(
+        &exe,
+        &staging,
+        &std::env::var("CLAWLIGHT_SIGNING_IDENTITY").unwrap_or_else(|_| "-".to_string()),
+    )?;
 
     let plist_content = LAUNCH_AGENT_PLIST
         .replace("{{LABEL}}", LAUNCH_AGENT_LABEL)
-        .replace("{{BIN}}", &exe.display().to_string())
-        .replace("{{HOME}}", &home.display().to_string());
+        .replace(
+            "{{BIN}}",
+            &xml_escape(&mac_bundle_executable()?.display().to_string()),
+        )
+        .replace("{{HOME}}", &xml_escape(&home.display().to_string()));
 
     let plist_path = launch_agent_path();
     if let Some(parent) = plist_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(&plist_path, plist_content)?;
-    println!("Wrote LaunchAgent plist to {}", plist_path.display());
-
-    // Ad-hoc code signing (best effort — silently skip if codesign isn't available)
-    let _ = std::process::Command::new("codesign")
-        .args(["--sign", "-", "--force"])
-        .arg(&exe)
-        .output();
-
     let uid = current_uid()?;
     let target = format!("gui/{uid}");
     let service = format!("gui/{uid}/{LAUNCH_AGENT_LABEL}");
 
-    // Bootout any existing instance (ignore failure — first install will have nothing to remove)
-    let _ = std::process::Command::new("launchctl")
-        .args(["bootout", &service])
-        .output();
+    stop_launch_agent(&service)?;
 
-    // bootout returns before the daemon process has actually exited.
-    // If we bootstrap too quickly, launchd returns "I/O error" because the
-    // service is mid-teardown. Poll up to ~5s for the service to fully unload.
-    for _ in 0..20 {
-        let still_loaded = std::process::Command::new("launchctl")
-            .args(["print", &service])
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false);
-        if !still_loaded {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(250));
+    if bundle.exists() {
+        std::fs::rename(&bundle, &previous)?;
     }
+    if let Err(error) = std::fs::rename(&staging, &bundle) {
+        if previous.exists() {
+            let _ = std::fs::rename(&previous, &bundle);
+        }
+        return Err(error).context("Installing ClawLight.app");
+    }
+    std::fs::write(&plist_path, plist_content)?;
+    println!("Wrote LaunchAgent plist to {}", plist_path.display());
 
     let bootstrap = std::process::Command::new("launchctl")
         .args(["bootstrap", &target])
@@ -602,28 +746,60 @@ fn install_launch_agent() -> anyhow::Result<()> {
         anyhow::bail!("launchctl bootstrap failed: {}", stderr.trim());
     }
 
-    // Force immediate start (RunAtLoad usually does this, but -k makes it deterministic)
-    let _ = std::process::Command::new("launchctl")
-        .args(["kickstart", "-k", &service])
-        .output();
+    // RunAtLoad usually starts it already; no -k/redundant restart is needed.
+    let start = std::process::Command::new("launchctl")
+        .args(["kickstart", &service])
+        .output()?;
+    anyhow::ensure!(
+        start.status.success(),
+        "launchctl kickstart failed: {}",
+        String::from_utf8_lossy(&start.stderr).trim()
+    );
 
-    println!("LaunchAgent loaded — menu bar icon should appear momentarily.");
+    if previous.exists() {
+        std::fs::remove_dir_all(previous)?;
+    }
+
+    println!("LaunchAgent loaded from {} — allow ClawLight in Privacy & Security → Bluetooth when selecting a lamp.", bundle.display());
     Ok(())
 }
 
 #[cfg(target_os = "macos")]
-fn uninstall_launch_agent() -> anyhow::Result<()> {
-    if let Ok(uid) = current_uid() {
-        let service = format!("gui/{uid}/{LAUNCH_AGENT_LABEL}");
-        let _ = std::process::Command::new("launchctl")
-            .args(["bootout", &service])
-            .output();
+fn stop_launch_agent(service: &str) -> anyhow::Result<()> {
+    // A missing agent on first install is normal. Wait for an existing one to
+    // unload before replacing its app or deleting the state directory.
+    let _ = std::process::Command::new("launchctl")
+        .args(["bootout", service])
+        .output();
+    for _ in 0..20 {
+        if !std::process::Command::new("launchctl")
+            .args(["print", service])
+            .output()?
+            .status
+            .success()
+        {
+            return Ok(());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
     }
+    anyhow::bail!("LaunchAgent did not stop: {service}; app and state were retained")
+}
+
+#[cfg(target_os = "macos")]
+fn uninstall_launch_agent() -> anyhow::Result<()> {
+    let service = format!("gui/{}/{LAUNCH_AGENT_LABEL}", current_uid()?);
+    stop_launch_agent(&service)?;
 
     let plist_path = launch_agent_path();
     if plist_path.exists() {
         std::fs::remove_file(&plist_path)?;
         println!("Removed {}", plist_path.display());
+    }
+    let bundle = mac_bundle_path()?;
+    check_managed_bundle(&bundle)?;
+    if bundle.exists() {
+        std::fs::remove_dir_all(&bundle)?;
+        println!("Removed {}", bundle.display());
     }
     Ok(())
 }
@@ -685,4 +861,52 @@ fn uninstall_xdg_autostart() -> anyhow::Result<()> {
         "Note: a running tray icon stays until you quit it (tray menu \u{2192} Quit) or log out."
     );
     Ok(())
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod mac_install_tests {
+    use super::*;
+
+    #[test]
+    fn bundle_metadata_and_local_identity_survive_changed_executables() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut requirements = Vec::new();
+        for (i, source) in ["/bin/echo", "/bin/sleep"].iter().enumerate() {
+            let bundle = dir.path().join(format!("ClawLight{i}.app"));
+            create_mac_bundle(std::path::Path::new(source), &bundle, "-").unwrap();
+            check_managed_bundle(&bundle).unwrap();
+            let info = bundle.join("Contents/Info.plist");
+            assert!(std::process::Command::new("/usr/bin/plutil")
+                .args(["-lint", "--"])
+                .arg(&info)
+                .output()
+                .unwrap()
+                .status
+                .success());
+            let info = std::fs::read_to_string(info).unwrap();
+            assert!(info.contains("NSBluetoothAlwaysUsageDescription"));
+            assert!(info.contains("<key>CFBundleExecutable</key><string>clawlight</string>"));
+            let output = std::process::Command::new("/usr/bin/codesign")
+                .args(["-d", "-r-"])
+                .arg(&bundle)
+                .output()
+                .unwrap();
+            let text = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            requirements.push(
+                text.lines()
+                    .find(|l| l.contains("designated =>"))
+                    .unwrap()
+                    .to_string(),
+            );
+        }
+        assert_eq!(requirements[0], requirements[1]);
+        assert!(requirements[0].contains(LAUNCH_AGENT_LABEL));
+        assert!(!requirements[0].contains("cdhash"));
+        assert_eq!(xml_escape("/a & b/<c>"), "/a &amp; b/&lt;c&gt;");
+        assert!(LAUNCH_AGENT_PLIST.contains("<string>{{BIN}}</string>"));
+    }
 }

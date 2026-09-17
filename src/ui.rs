@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Cell, Paragraph, Row, Table},
+    widgets::{Cell, Paragraph, Row, Table, Wrap},
     Frame,
 };
 
@@ -35,7 +35,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         .constraints([
             Constraint::Length(1), // Header: name/version + count chips
             Constraint::Length(1), // Rule
-            Constraint::Min(3),    // Table
+            Constraint::Min(3),    // Sessions or lamp details
             Constraint::Length(1), // Keycap hint bar
         ])
         .split(frame.area());
@@ -46,8 +46,34 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         Paragraph::new("─".repeat(chunks[1].width as usize)).style(Style::default().fg(RULE));
     frame.render_widget(rule, chunks[1]);
 
-    render_table(frame, app, chunks[2]);
+    if app.lamp_details {
+        render_lamp_details(frame, app, chunks[2]);
+    } else {
+        render_table(frame, app, chunks[2]);
+    }
     render_hint_bar(frame, app, chunks[3]);
+}
+
+fn render_lamp_details(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    let mut lines = vec![
+        Line::styled(
+            " Lamp details",
+            Style::default().fg(WHITE).add_modifier(Modifier::BOLD),
+        ),
+        Line::from(format!(" {}", app.led_status.detail)),
+    ];
+    for device in &app.led_status.devices {
+        lines.push(Line::from(""));
+        lines.push(Line::from(format!(" {} — {}", device.id, device.state)));
+        lines.push(Line::from(format!(" {}", device.detail)));
+    }
+    frame.render_widget(
+        Paragraph::new(lines)
+            .wrap(Wrap { trim: false })
+            .scroll((app.lamp_details_scroll, 0))
+            .style(Style::default().fg(FOOT_FG)),
+        area,
+    );
 }
 
 /// `clawlight v0.8.0` on the left; live count chips and LED state on the right.
@@ -64,11 +90,34 @@ fn render_header(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
         Span::styled(format!("● {n} {label}"), style)
     };
 
-    let (led_text, led_style) = match (app.led_enabled, app.led_detected) {
-        (true, true) => ("LED ● on", Style::default().fg(GREEN)),
-        (true, false) => ("LED ● no board", Style::default().fg(YELLOW)),
-        (false, true) => ("LED ○ off (l)", Style::default().fg(CYAN)),
-        (false, false) => ("LED ○ off", Style::default().fg(DIM)),
+    let transport = match app.led_transport {
+        crate::config::LedTransport::Usb => "USB",
+        crate::config::LedTransport::Ble => "BLE",
+    };
+    let led_state = if app.led_enabled {
+        app.led_status.state.as_str()
+    } else {
+        "disabled"
+    };
+    let led_style = Style::default().fg(match led_state {
+        "connected" => GREEN,
+        "disabled" => DIM,
+        "error" | "unavailable" => RED,
+        _ => YELLOW,
+    });
+    let led_text = if app.led_transport == crate::config::LedTransport::Ble && app.led_enabled {
+        let connected = app
+            .led_status
+            .devices
+            .iter()
+            .filter(|device| device.state == "connected")
+            .count();
+        format!(
+            "{transport} {connected}/{} {led_state}",
+            app.led_selected_count
+        )
+    } else {
+        format!("{transport} {led_state}")
     };
 
     let (tray_text, tray_style) = if app.tray_running {
@@ -233,26 +282,42 @@ fn render_hint_bar(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
         ])
     } else {
         let mut left = Vec::new();
-        for (key, label) in [
-            ("↵", "focus"),
-            ("j/k", "move"),
-            ("x", "clear"),
-            ("r", "reload"),
-            ("t", "tray"),
-            ("l", "led"),
-            ("q", "quit"),
-        ] {
+        let keys: &[(&str, &str)] = if app.lamp_details {
+            &[
+                ("d/Esc", "back"),
+                ("j/k", "scroll"),
+                ("r", "reload"),
+                ("l", "led"),
+                ("q", "quit"),
+            ]
+        } else {
+            &[
+                ("↵", "focus"),
+                ("j/k", "move"),
+                ("x", "clear"),
+                ("r", "reload"),
+                ("t", "tray"),
+                ("l", "led"),
+                ("d", "details"),
+                ("q", "quit"),
+            ]
+        };
+        for (key, label) in keys {
             left.push(Span::raw(" "));
             left.push(Span::styled(
                 format!(" {key} "),
                 Style::default().bg(KBD_BG).fg(YELLOW),
             ));
             left.push(Span::raw(" "));
-            left.push(Span::styled(label, Style::default().fg(FOOT_FG)));
+            left.push(Span::styled(*label, Style::default().fg(FOOT_FG)));
         }
         let right = vec![
             Span::styled(
-                "~/.claude/clawlight/state.json · live",
+                if app.lamp_details {
+                    "Lamp details · live"
+                } else {
+                    "~/.claude/clawlight/state.json · live"
+                },
                 Style::default().fg(DIM),
             ),
             Span::raw(" "),

@@ -15,7 +15,7 @@ use tao::window::{Window, WindowBuilder, WindowId};
 use tray_icon::Rect;
 use wry::WebView;
 
-use crate::config::{self, BillingMode, YellowMode};
+use crate::config::{self, BillingMode, LedTransport, YellowMode};
 use crate::menubar::{display_name, project_label, ICON_GREEN, ICON_NONE, ICON_RED, ICON_YELLOW};
 use crate::state::{aggregate, Aggregate, HookState, Status};
 use crate::usage::{self, UsageSnapshot};
@@ -71,12 +71,29 @@ pub enum PopoverMsg {
     /// usage at all (`enabled`) and, when on, which readout (`mode`). The page
     /// sends both together so "Off" and the Plan/API choice are one control.
     SetUsage { enabled: bool, mode: BillingMode },
-    /// The footer lamp control: connect (`enabled: true`) or disconnect the
+    /// The Lamp details control: connect (`enabled: true`) or disconnect the
     /// physical status lamp by toggling LED mirroring.
     SetLed { enabled: bool },
-    /// The footer lamp link shown when no board is attached — opens the store /
+    /// A saved BLE brightness preference, separate from lamp enablement.
+    SetBrightness {
+        #[serde(deserialize_with = "deserialize_brightness_percent")]
+        percent: u8,
+    },
+    /// The Lamp details link shown when no board is attached — opens the store /
     /// setup page so a lampless user can get one.
     GetLamp,
+}
+
+fn deserialize_brightness_percent<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<u8, D::Error> {
+    let percent = u8::deserialize(deserializer)?;
+    if percent > 100 {
+        return Err(serde::de::Error::custom(
+            "Brightness must be between 0 and 100",
+        ));
+    }
+    Ok(percent)
 }
 
 #[derive(Serialize)]
@@ -113,6 +130,12 @@ struct LampPayload {
     present: bool,
     /// LED mirroring is turned on in config (the daemon drives the board).
     enabled: bool,
+    transport: LedTransport,
+    selected_count: usize,
+    state: String,
+    detail: String,
+    devices: Vec<crate::led::DeviceStatus>,
+    brightness_percent: u8,
 }
 
 #[derive(Serialize)]
@@ -450,6 +473,7 @@ fn agg_str(agg: Aggregate) -> &'static str {
 /// relative-time formatting happen in the page.
 fn build_payload(state: &HookState) -> String {
     let cfg = config::read_config();
+    let connection = crate::led::connection_status();
     let sessions: Vec<SessionPayload> = state
         .sessions
         .iter()
@@ -475,8 +499,14 @@ fn build_payload(state: &HookState) -> String {
         // stays absent even if a stale snapshot is still cached.
         usage: cfg.usage_enabled.then(usage::latest).flatten(),
         lamp: LampPayload {
-            present: crate::led::board_present_cached(),
+            present: cfg.led_transport == LedTransport::Usb && crate::led::board_present_cached(),
             enabled: cfg.led_enabled,
+            transport: cfg.led_transport,
+            selected_count: cfg.ble_ids().len(),
+            state: connection.state,
+            detail: connection.detail,
+            devices: connection.devices,
+            brightness_percent: cfg.led_brightness_percent(),
         },
     };
     serde_json::to_string(&payload)
@@ -582,7 +612,7 @@ mod tests {
         ));
     }
 
-    /// Pins the IPC wire format the footer lamp control emits
+    /// Pins the IPC wire format the Lamp details control emits
     /// (`{cmd:'set_led', enabled:...}` and `{cmd:'get_lamp'}` in
     /// assets/popover.html): connect/disconnect the lamp, or open the store.
     #[test]
@@ -593,6 +623,25 @@ mod tests {
         assert!(matches!(msg, PopoverMsg::SetLed { enabled: false }));
         let msg: PopoverMsg = serde_json::from_str(r#"{"cmd":"get_lamp"}"#).unwrap();
         assert!(matches!(msg, PopoverMsg::GetLamp));
+    }
+
+    #[test]
+    fn brightness_ipc_accepts_only_integer_percentages() {
+        for percent in [0, 37, 100] {
+            let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
+                "cmd": "set_brightness", "percent": percent
+            }))
+            .unwrap();
+            assert!(
+                matches!(msg, PopoverMsg::SetBrightness { percent: value } if value == percent)
+            );
+        }
+        for invalid in ["-1", "101", "255", "256", "1.5", "null", "\"50\""] {
+            assert!(serde_json::from_str::<PopoverMsg>(&format!(
+                r#"{{"cmd":"set_brightness","percent":{invalid}}}"#
+            ))
+            .is_err());
+        }
     }
 
     #[test]

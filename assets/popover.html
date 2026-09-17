@@ -23,6 +23,9 @@ body.win { font-family: 'Segoe UI', system-ui, sans-serif; background: #202020; 
 
 .pop {
   width: 338px;
+  max-height: 720px;
+  display: flex;
+  flex-direction: column;
   /* The design's rgba+backdrop-blur can't blur the desktop behind a
      transparent window, so stay effectively opaque to avoid text bleed. */
   background: rgb(32,32,37);
@@ -54,7 +57,7 @@ body.win .pop {
 .dgreen { background: #34c759 } .dyellow { background: #ff9f0a }
 .dred { background: #ff453a } .dgray { background: #8e8e93 }
 
-.grp { padding: 2px 6px 6px 6px; max-height: 480px; overflow-y: auto; }
+.grp { padding: 2px 6px 6px 6px; min-height: 0; max-height: 480px; overflow-y: auto; }
 .grp::-webkit-scrollbar { width: 8px; }
 .grp::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 4px; }
 .grplabel {
@@ -112,6 +115,7 @@ body.win .radio.rsel { border-color: #4cc2ff; }
   padding: 9px 14px 11px 14px; border-top: 1px solid rgba(255,255,255,.1);
   display: flex; flex-direction: column; gap: 5px;
 }
+.usec[hidden] { display: none; }
 body.win .usec { border-top: 1px solid rgba(255,255,255,.08); }
 .ulhead {
   display: flex; align-items: baseline; gap: 5px;
@@ -163,10 +167,18 @@ body.win .pbtnpri:hover { background: #63cbff; }
 .pbtnghost:hover { background: rgba(255,255,255,.08); }
 .pbtn[disabled] { opacity: .55; pointer-events: none; }
 .f1 { flex: 1; }
-/* Footer lamp indicator: compact status + connect/store affordance. */
+/* Footer lamp indicator opens details without changing lamp control. */
 .lampbtn { gap: 6px; padding-left: 9px; padding-right: 9px; }
 .lampbtn .dot { width: 7px; height: 7px; }
 .lampbtn.lon { color: rgba(255,255,255,.8); }
+.lampdetail { padding: 7px 10px 12px; color: rgba(255,255,255,.65); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-line; -webkit-user-select: text; user-select: text; }
+.lampactions { padding: 0 10px 10px; }
+.brightness { padding: 0 10px 12px; color: rgba(255,255,255,.8); font-size: 12px; }
+.brightness label { display: flex; justify-content: space-between; margin-bottom: 7px; }
+.brightness input { width: 100%; accent-color: #3577f6; }
+.brightness p { margin-top: 5px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.4; }
+body.win .brightness input { accent-color: #4cc2ff; }
+.pophead, .popfoot, .usec { flex-shrink: 0; }
 </style>
 </head>
 <body class="__PLATFORM__">
@@ -185,7 +197,7 @@ body.win .pbtnpri:hover { background: #63cbff; }
     <button class="pbtn pbtnpri" data-cmd="dashboard">Dashboard</button>
     <button class="pbtn" id="settingsbtn" data-local="settings">Settings</button>
     <span class="f1"></span>
-    <button class="pbtn pbtnghost lampbtn" id="lampbtn"></button>
+    <button class="pbtn pbtnghost lampbtn" id="lampbtn" data-local="lamp"></button>
     <button class="pbtn pbtnghost" data-cmd="quit">Quit</button>
   </div>
 </div>
@@ -225,7 +237,7 @@ const USAGE_OPTIONS = [
 const FAMILY_CLASS = { opus: 'mopus', sonnet: 'msonnet', haiku: 'mhaiku' };
 
 let state = { aggregate: 'none', sessions: [], settings: { yellowMode: 'any_inactive' },
-              lamp: { present: false, enabled: false } };
+              lamp: { present: false, enabled: false, transport: 'usb', state: 'disabled' } };
 let view = 'sessions';
 
 function post(msg) { window.ipc.postMessage(JSON.stringify(msg)); }
@@ -254,7 +266,7 @@ function renderUsage() {
   const u = state.usage;
   const mode = (state.settings && state.settings.billingMode) || 'plan';
   const havePlan = u && u.fiveHourPct != null;
-  if (!u || (!havePlan && !u.todayTokens)) {
+  if (view !== 'sessions' || !u || (!havePlan && !u.todayTokens)) {
     el.hidden = true;
     el.innerHTML = '';
     return;
@@ -312,37 +324,49 @@ function renderUsage() {
   el.hidden = false;
 }
 
-/* Footer lamp indicator. Four states from {present, enabled}: connected (green,
-   click disconnects), detected-but-off (click connects), owned-but-unplugged,
-   and none (link to the store). Kept to one short word so the footer row's
-   footprint doesn't grow. */
+/* Connection comes from worker writes, never from a nearby advertisement or
+   enabled setting. Diagnostics and controls live in the Lamp details view. */
 function renderLamp() {
   const l = state.lamp || {};
   const el = document.getElementById('lampbtn');
-  // A colored dot only when there's an active lamp status to show (green =
-  // connected, yellow = detected). The gray "off"/"none" states are plain
-  // text links, so no leading circle.
-  let dot = null, label, cmd, enabled, title, on = false;
-  if (l.present && l.enabled) {
-    dot = 'dgreen'; label = 'Lamp'; cmd = 'set_led'; enabled = false; on = true;
-    title = 'Status lamp connected — click to turn off';
-  } else if (l.present) {
-    dot = 'dyellow'; label = 'Connect'; cmd = 'set_led'; enabled = true;
-    title = 'Status lamp detected — click to connect';
-  } else if (l.enabled) {
-    label = 'Lamp off'; cmd = 'get_lamp';
-    title = 'No lamp detected — setup help at clawlight.dev';
+  const transport = l.transport === 'ble' ? 'BLE' : 'USB';
+  const status = l.enabled ? (l.state || 'unavailable') : 'disabled';
+  const devices = l.devices || [];
+  const connectedCount = l.enabled && status === 'connected' ? devices.filter(device => device.state === 'connected').length : 0;
+  const connected = status === 'connected' && (l.transport !== 'ble' || connectedCount > 0);
+  let dot = null, label, cmd = 'set_led', enabled = !l.enabled;
+  if (l.enabled) {
+    dot = connected ? 'dgreen' : (status === 'error' || status === 'unavailable' ? 'dred' : 'dyellow');
+    label = l.transport === 'ble' ? `BLE ${connectedCount}/${l.selected_count || 0}` : transport + (connected ? ' on' : ' wait');
+  } else if (l.present || l.transport === 'ble') {
+    label = transport + ' off';
   } else {
-    label = 'Get a lamp'; cmd = 'get_lamp';
-    title = 'Get the Claw Light desk lamp';
+    label = 'Lamp off'; cmd = 'get_lamp'; enabled = undefined;
   }
-  el.className = 'pbtn pbtnghost lampbtn' + (on ? ' lon' : '');
-  el.dataset.cmd = cmd;
-  if (enabled === undefined) delete el.dataset.enabled;
-  else el.dataset.enabled = String(enabled);
-  el.title = title;
-  el.innerHTML = (dot ? `<span class="dot ${dot}"></span>` : '') + esc(label) +
-    (cmd === 'get_lamp' && !l.enabled ? ' ↗' : '');
+  let detail = `${transport}: ${status}. ${l.detail || ''}`.trim();
+  if (l.transport === 'ble' && !l.selected_count) {
+    detail += ' Add a lamp: hold its BOOT button 3s after startup, clawlight ble scan, then clawlight ble add <ID>.';
+  }
+  for (const device of devices) detail += `\n${device.id}: ${device.state}. ${device.detail || ''}`;
+  el.className = 'pbtn pbtnghost lampbtn' + (connected ? ' lon' : '');
+  el.title = `${label} — ${status}. View lamp details.`;
+  el.setAttribute('aria-label', el.title);
+  el.setAttribute('aria-expanded', String(view === 'lamp'));
+  el.innerHTML = (dot ? `<span class="dot ${dot}"></span>` : '') + esc(label);
+  if (view === 'lamp') {
+    document.getElementById('lampdetail').textContent = detail;
+    const control = document.getElementById('lampcontrol');
+    control.dataset.cmd = cmd;
+    if (enabled === undefined) delete control.dataset.enabled;
+    else control.dataset.enabled = String(enabled);
+    control.textContent = cmd === 'get_lamp' ? 'Get a lamp ↗' : (l.enabled ? 'Disable lamp' : 'Enable lamp');
+    const slider = document.getElementById('brightness');
+    // Keep a native drag or keyboard edit intact when the service pushes state.
+    if (document.activeElement !== slider && !slider.matches(':active')) {
+      slider.value = String(l.brightness_percent ?? 100);
+    }
+    document.getElementById('brightnessvalue').textContent = slider.value + '%';
+  }
 }
 
 function relTime(iso) {
@@ -377,11 +401,23 @@ function render() {
     .map(([dot, n]) => `<span class="chip"><span class="dot ${dot}"></span>${n}</span>`)
     .join('');
 
-  document.getElementById('settingsbtn').textContent =
-    view === 'settings' ? 'Back' : 'Settings';
+  const settingsBtn = document.getElementById('settingsbtn');
+  settingsBtn.textContent = view === 'sessions' ? 'Settings' : 'Back';
+  settingsBtn.dataset.local = view === 'sessions' ? 'settings' : 'sessions';
 
   const groupsEl = document.getElementById('groups');
-  if (view === 'settings') {
+  if (view === 'lamp') {
+    // Reuse the controls: replacing this subtree during a drag loses native focus.
+    if (groupsEl.dataset.view !== 'lamp') {
+      groupsEl.innerHTML = `<div class="grplabel">Lamp details</div>` +
+        `<div class="lampdetail" id="lampdetail" role="status"></div>` +
+        `<div class="brightness"><label for="brightness">Light brightness` +
+        `<output id="brightnessvalue" for="brightness"></output></label>` +
+        `<input id="brightness" type="range" min="0" max="100" step="1" value="100">` +
+        `<p>Saved for all BLE lamps, including while disconnected. Applies when connected; USB brightness is unchanged.</p></div>` +
+        `<div class="lampactions"><button class="pbtn" id="lampcontrol"></button></div>`;
+    }
+  } else if (view === 'settings') {
     const mode = (state.settings && state.settings.yellowMode) || 'any_inactive';
     // Off unless opted in; then reflect the chosen readout.
     const usage = (state.settings && state.settings.usageEnabled)
@@ -429,6 +465,7 @@ function render() {
     }
     groupsEl.innerHTML = html;
   }
+  groupsEl.dataset.view = view;
 
   renderUsage();
   renderLamp();
@@ -444,10 +481,27 @@ function render() {
 
 window.__setState = payload => { state = payload; render(); };
 
+document.addEventListener('input', ev => {
+  if (ev.target.id === 'brightness') {
+    document.getElementById('brightnessvalue').textContent = ev.target.value + '%';
+  }
+});
+document.addEventListener('change', ev => {
+  if (ev.target.id !== 'brightness') return;
+  const percent = Number(ev.target.value);
+  if (!Number.isInteger(percent) || percent < 0 || percent > 100) return;
+  state.lamp = state.lamp || {};
+  state.lamp.brightness_percent = percent;
+  post({ cmd: 'set_brightness', percent });
+});
+document.addEventListener('focusout', ev => {
+  if (ev.target.id === 'brightness' && view === 'lamp') renderLamp();
+});
+
 document.addEventListener('click', ev => {
   const local = ev.target.closest('[data-local]');
   if (local) {
-    view = view === 'settings' ? 'sessions' : 'settings';
+    view = view === local.dataset.local ? 'sessions' : local.dataset.local;
     render();
     return;
   }
@@ -480,18 +534,20 @@ document.addEventListener('click', ev => {
   const msg = { cmd: btn.dataset.cmd };
   if (btn.dataset.id !== undefined) msg.id = btn.dataset.id;
   if (btn.dataset.enabled !== undefined) msg.enabled = btn.dataset.enabled === 'true';
-  // Flip the lamp indicator optimistically; the host confirms with a fresh
-  // __setState once the config write lands and the daemon reconnects.
+  // Optimistic enable is pending, never a successful connection.
   if (msg.cmd === 'set_led') {
     state.lamp = state.lamp || {};
     state.lamp.enabled = msg.enabled;
+    state.lamp.state = msg.enabled ? 'connecting' : 'disabled';
+    state.lamp.devices = [];
+    state.lamp.detail = msg.enabled ? 'Waiting for the service.' : 'Stopping lamp updates.';
     renderLamp();
   }
   post(msg);
 });
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'Escape') return;
-  if (view === 'settings') { view = 'sessions'; render(); }
+  if (view !== 'sessions') { view = 'sessions'; render(); }
   else post({ cmd: 'hide' });
 });
 document.addEventListener('contextmenu', ev => ev.preventDefault());

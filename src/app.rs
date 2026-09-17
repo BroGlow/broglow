@@ -22,10 +22,14 @@ pub struct App {
     pub sessions: Vec<DisplaySession>,
     pub table_state: TableState,
     pub should_quit: bool,
+    pub lamp_details: bool,
+    pub lamp_details_scroll: u16,
     /// Whether ESP32 status LEDs are enabled (mirrors `config.json`).
     pub led_enabled: bool,
-    /// Whether a known ESP32 board is currently attached (refreshed on a timer).
-    pub led_detected: bool,
+    pub led_transport: config::LedTransport,
+    pub led_selected_count: usize,
+    /// Cached worker result; UI refresh never initializes Bluetooth.
+    pub led_status: led::ConnectionStatus,
     /// Whether the tray daemon is running (refreshed on the same timer);
     /// `t` starts it.
     pub tray_running: bool,
@@ -48,46 +52,64 @@ impl App {
             table_state.select(Some(0));
         }
 
+        let cfg = config::read_config();
         Self {
             sessions,
             table_state,
             should_quit: false,
-            led_enabled: config::read_config().led_enabled,
-            led_detected: led::detect_board().is_some(),
+            lamp_details: false,
+            lamp_details_scroll: 0,
+            led_enabled: cfg.led_enabled,
+            led_transport: cfg.led_transport,
+            led_selected_count: cfg.ble_ids().len(),
+            led_status: led::connection_status(),
             tray_running: menubar::is_running(),
             status_message: None,
             previous_statuses,
         }
     }
 
-    /// Toggle the ESP32 status-LED setting. Enabling requires a board to be
-    /// detected so the user gets clear feedback instead of silently arming a
-    /// feature that does nothing.
+    /// BLE selection is persistent and works without a USB data connection.
     fn toggle_led(&mut self) {
         let mut cfg = config::read_config();
-        if cfg.led_enabled {
-            cfg.led_enabled = false;
-            self.led_enabled = false;
-            let _ = config::write_config(&cfg);
-            self.set_status("LED disabled.".to_string());
-            return;
+        if !cfg.led_enabled {
+            match cfg.led_transport {
+                config::LedTransport::Ble if cfg.ble_ids().is_empty() => {
+                    self.set_status(
+                        "Add a lamp: hold its BOOT button 3s, clawlight ble scan, then clawlight ble add <ID>"
+                            .to_string(),
+                    );
+                    return;
+                }
+                config::LedTransport::Usb
+                    if cfg.led_port.is_none() && led::detect_board().is_none() =>
+                {
+                    self.set_status("No USB board detected — connect it, or select a lamp with clawlight ble scan / select <ID>.".to_string());
+                    return;
+                }
+                _ => {}
+            }
         }
+        cfg.led_enabled = !cfg.led_enabled;
+        match config::write_config(&cfg) {
+            Ok(()) => {
+                self.refresh_led();
+                self.set_status(if cfg.led_enabled {
+                    "LED enabled — waiting for the tray service to connect.".to_string()
+                } else {
+                    "LED disabled.".to_string()
+                });
+            }
+            Err(err) => self.set_status(format!("Could not save LED setting: {err}")),
+        }
+    }
 
-        match led::detect_board() {
-            Some(port) => {
-                cfg.led_enabled = true;
-                self.led_enabled = true;
-                self.led_detected = true;
-                let _ = config::write_config(&cfg);
-                self.set_status(format!("LED enabled — ESP32-C6 detected at {port}"));
-            }
-            None => {
-                self.led_detected = false;
-                self.set_status(
-                    "No ESP32-C6 detected — plug in the board and press l.".to_string(),
-                );
-            }
-        }
+    fn refresh_led(&mut self) {
+        let cfg = config::read_config();
+        self.led_enabled = cfg.led_enabled;
+        self.led_transport = cfg.led_transport;
+        self.led_selected_count = cfg.ble_ids().len();
+        self.led_status = led::connection_status();
     }
 
     /// `t`: start the tray daemon if it isn't running (launchd on macOS,
@@ -210,6 +232,35 @@ impl App {
         self.table_state.select(Some(i));
     }
 
+    fn handle_key(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Char('d') => {
+                self.lamp_details = !self.lamp_details;
+                self.lamp_details_scroll = 0;
+                self.status_message = None;
+            }
+            KeyCode::Esc if self.lamp_details => self.lamp_details = false,
+            KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
+            KeyCode::Down | KeyCode::Char('j') if self.lamp_details => {
+                self.lamp_details_scroll = self.lamp_details_scroll.saturating_add(1);
+            }
+            KeyCode::Up | KeyCode::Char('k') if self.lamp_details => {
+                self.lamp_details_scroll = self.lamp_details_scroll.saturating_sub(1);
+            }
+            KeyCode::Enter if !self.lamp_details => self.focus_selected(),
+            KeyCode::Down | KeyCode::Char('j') => self.next(),
+            KeyCode::Up | KeyCode::Char('k') => self.previous(),
+            KeyCode::Char('x') if !self.lamp_details => self.clear_selected(),
+            KeyCode::Char('r') => {
+                self.reload_data();
+                self.refresh_led();
+            }
+            KeyCode::Char('l') => self.toggle_led(),
+            KeyCode::Char('t') => self.start_tray(),
+            _ => {}
+        }
+    }
+
     pub fn run(
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
@@ -255,10 +306,9 @@ impl App {
         loop {
             terminal.draw(|f| ui::render(f, self))?;
 
-            // Refresh "is a board attached?" on a slow timer — enumerating USB
-            // ports every frame would be wasteful.
+            // Pick up CLI selections and the worker's actual connection result.
             if last_led_check.elapsed() >= led_check_interval {
-                self.led_detected = led::detect_board().is_some();
+                self.refresh_led();
                 self.tray_running = menubar::is_running();
                 last_led_check = Instant::now();
             }
@@ -267,19 +317,7 @@ impl App {
             if event::poll(Duration::from_millis(250))? {
                 if let Event::Key(key) = event::read()? {
                     if key.kind == KeyEventKind::Press {
-                        match key.code {
-                            KeyCode::Char('q') | KeyCode::Esc => {
-                                self.should_quit = true;
-                            }
-                            KeyCode::Enter => self.focus_selected(),
-                            KeyCode::Down | KeyCode::Char('j') => self.next(),
-                            KeyCode::Up | KeyCode::Char('k') => self.previous(),
-                            KeyCode::Char('r') => self.reload_data(),
-                            KeyCode::Char('x') => self.clear_selected(),
-                            KeyCode::Char('l') => self.toggle_led(),
-                            KeyCode::Char('t') => self.start_tray(),
-                            _ => {}
-                        }
+                        self.handle_key(key.code);
                     }
                 }
             }
@@ -305,5 +343,90 @@ impl App {
         // Keep watcher alive
         drop(watcher);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::backend::TestBackend;
+
+    fn app() -> App {
+        App {
+            sessions: vec![],
+            table_state: TableState::default().with_selected(Some(0)),
+            should_quit: false,
+            lamp_details: false,
+            lamp_details_scroll: 0,
+            led_enabled: true,
+            led_transport: config::LedTransport::Ble,
+            led_selected_count: 2,
+            led_status: led::ConnectionStatus {
+                state: "connected".into(),
+                detail: "One nearby lamp is responding".into(),
+                devices: vec![
+                    led::DeviceStatus::new("HOME-DEVICE-ID", "connected", "Write acknowledged"),
+                    led::DeviceStatus::new(
+                        "OFFICE-DEVICE-ID",
+                        "searching",
+                        "Waiting for advertisement",
+                    ),
+                ],
+            },
+            tray_running: true,
+            status_message: None,
+            previous_statuses: HashMap::new(),
+        }
+    }
+
+    fn screen(app: &mut App) -> String {
+        let mut terminal = Terminal::new(TestBackend::new(160, 18)).unwrap();
+        terminal.draw(|frame| ui::render(frame, app)).unwrap();
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect()
+    }
+
+    #[test]
+    fn lamp_details_are_separate_from_session_dashboard() {
+        let mut app = app();
+        let dashboard = screen(&mut app);
+        assert!(dashboard.contains("SESSION"));
+        assert!(dashboard.contains("BLE 1/2 connected"));
+        assert!(!dashboard.contains("HOME-DEVICE-ID"));
+        assert!(!dashboard.contains("One nearby lamp is responding"));
+        app.handle_key(KeyCode::Char('d'));
+        let details = screen(&mut app);
+        assert!(!details.contains("SESSION"));
+        assert!(details.contains("Lamp details"));
+        assert!(details.contains("HOME-DEVICE-ID — connected"));
+        assert!(details.contains("OFFICE-DEVICE-ID — searching"));
+        assert!(details.contains("Write acknowledged"));
+        assert!(details.contains("Waiting for advertisement"));
+        app.handle_key(KeyCode::Char('d'));
+        assert!(screen(&mut app).contains("SESSION"));
+        assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn lamp_details_scroll_and_escape_preserve_dashboard_selection() {
+        let mut app = app();
+        app.handle_key(KeyCode::Char('d'));
+        app.handle_key(KeyCode::Down);
+        app.handle_key(KeyCode::Char('j'));
+        assert_eq!(app.lamp_details_scroll, 2);
+        assert_eq!(app.table_state.selected(), Some(0));
+        app.handle_key(KeyCode::Up);
+        app.handle_key(KeyCode::Char('k'));
+        app.handle_key(KeyCode::Char('k'));
+        assert_eq!(app.lamp_details_scroll, 0);
+        app.handle_key(KeyCode::Esc);
+        assert!(!app.lamp_details && !app.should_quit);
+        app.handle_key(KeyCode::Esc);
+        assert!(app.should_quit);
     }
 }

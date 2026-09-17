@@ -37,7 +37,7 @@ const RESCAN_INTERVAL: Duration = Duration::from_secs(2);
 /// (an Arduino on a CH340/CP210x bridge, a GPS, a printer, ...).
 const SEEED_C6_VID: u16 = 0x303A;
 
-fn status_byte(agg: Aggregate) -> u8 {
+pub(crate) fn status_byte(agg: Aggregate) -> u8 {
     match agg {
         Aggregate::Red => b'R',
         Aggregate::Yellow => b'Y',
@@ -126,7 +126,7 @@ pub fn run(port_override: Option<String>) -> anyhow::Result<()> {
         {
             Ok(port) => {
                 println!("Connected to {path}");
-                if let Err(e) = drive(port, || true) {
+                if let Err(e) = drive(port, || true, None) {
                     eprintln!("Serial connection lost ({e}); rescanning...");
                 }
             }
@@ -150,6 +150,26 @@ pub fn run_daemon() -> ! {
             std::thread::sleep(RESCAN_INTERVAL);
             continue;
         }
+        // USB-assisted pairing pauses this same worker and waits for its lease,
+        // so it never opens the cable while the serial/BLE driver still owns it.
+        #[cfg(target_os = "macos")]
+        let _lease = match worker_lease() {
+            Ok(lease) => lease,
+            Err(_) => {
+                std::thread::sleep(RESCAN_INTERVAL);
+                continue;
+            }
+        };
+
+        if cfg.led_transport == config::LedTransport::Ble {
+            if let Err(e) = crate::ble::run(&cfg) {
+                publish_status(&cfg, "error", &format!("{e:#}"));
+            }
+            std::thread::sleep(RESCAN_INTERVAL);
+            continue;
+        }
+
+        publish_status(&cfg, "searching", "Looking for USB lamp");
 
         // An explicit pin wins; otherwise try every known board in turn so a
         // busy/unopenable port (e.g. one held by another app, or a non-board
@@ -168,7 +188,13 @@ pub fn run_daemon() -> ! {
                 Ok(port) => {
                     println!("LED: connected to {path}");
                     // Stay connected until the write fails (unplug) or LED is disabled.
-                    let _ = drive(port, || config::read_config().led_enabled);
+                    if let Err(e) = drive(
+                        port,
+                        || same_target(&cfg, &config::read_config()),
+                        Some(&cfg),
+                    ) {
+                        publish_status(&cfg, "error", &format!("USB: {e}"));
+                    }
                     break;
                 }
                 Err(_) => continue,
@@ -179,10 +205,32 @@ pub fn run_daemon() -> ! {
     }
 }
 
+#[cfg(target_os = "macos")]
+pub(crate) fn worker_lease() -> anyhow::Result<std::fs::File> {
+    use fs4::fs_std::FileExt;
+    let path = config::config_file_path().with_file_name(".lamp.lock");
+    std::fs::create_dir_all(path.parent().unwrap())?;
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(path)?;
+    anyhow::ensure!(
+        file.try_lock_exclusive()?,
+        "Lamp worker is still stopping; try again shortly"
+    );
+    Ok(file)
+}
+
 /// Stream state to a connected board until the serial write fails (typically
 /// because the board was unplugged) or `keep_running` returns false (the user
 /// disabled the LED), whichever comes first.
-fn drive(mut port: Box<dyn SerialPort>, keep_running: impl Fn() -> bool) -> anyhow::Result<()> {
+fn drive(
+    mut port: Box<dyn SerialPort>,
+    keep_running: impl Fn() -> bool,
+    status_config: Option<&config::Config>,
+) -> anyhow::Result<()> {
     // Native USB CDC stacks use DTR to learn that a host is listening.
     let _ = port.write_data_terminal_ready(true);
 
@@ -191,6 +239,8 @@ fn drive(mut port: Box<dyn SerialPort>, keep_running: impl Fn() -> bool) -> anyh
 
     loop {
         if !keep_running() {
+            let _ = port.write_all(b"N\n");
+            let _ = port.flush();
             return Ok(());
         }
 
@@ -205,6 +255,9 @@ fn drive(mut port: Box<dyn SerialPort>, keep_running: impl Fn() -> bool) -> anyh
         if changed || last_write.elapsed() >= HEARTBEAT {
             port.write_all(&[byte, b'\n'])?;
             port.flush()?;
+            if let Some(cfg) = status_config {
+                publish_status(cfg, "connected", "USB write succeeded");
+            }
             if changed {
                 println!("state -> {}", byte as char);
             }
@@ -213,5 +266,255 @@ fn drive(mut port: Box<dyn SerialPort>, keep_running: impl Fn() -> bool) -> anyh
         }
 
         std::thread::sleep(POLL_INTERVAL);
+    }
+}
+
+/// Target changes cancel the old transport before opening the new one.
+pub(crate) fn same_target(expected: &config::Config, current: &config::Config) -> bool {
+    current.led_enabled
+        && expected.led_transport == current.led_transport
+        && expected.ble_ids() == current.ble_ids()
+        && expected.led_port == current.led_port
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct DeviceStatus {
+    pub id: String,
+    pub state: String,
+    pub detail: String,
+    pub updated: u64,
+}
+
+impl DeviceStatus {
+    pub(crate) fn new(id: &str, state: &str, detail: &str) -> Self {
+        Self {
+            id: id.into(),
+            state: state.into(),
+            detail: detail.into(),
+            updated: now_secs(),
+        }
+    }
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct ConnectionStatus {
+    pub state: String,
+    pub detail: String,
+    #[serde(default)]
+    pub devices: Vec<DeviceStatus>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct StatusRecord {
+    status: ConnectionStatus,
+    updated: u64,
+    transport: config::LedTransport,
+    #[serde(default)]
+    peripherals: Vec<String>,
+    port: Option<String>,
+}
+
+fn status_path() -> std::path::PathBuf {
+    config::config_file_path().with_file_name("lamp-status.json")
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+pub(crate) fn publish_status(cfg: &config::Config, state: &str, detail: &str) {
+    publish(cfg, uniform_status(cfg, state, detail));
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn publish_ble_status(cfg: &config::Config, devices: Vec<DeviceStatus>) {
+    publish(cfg, summarize_devices(devices));
+}
+
+fn summarize_devices(devices: Vec<DeviceStatus>) -> ConnectionStatus {
+    let connected = devices.iter().filter(|d| d.state == "connected").count();
+    let state = if connected > 0 {
+        "connected"
+    } else if devices.iter().any(|d| d.state == "error") {
+        "error"
+    } else if devices.iter().any(|d| d.state == "connecting") {
+        "connecting"
+    } else if devices.iter().any(|d| d.state == "searching") {
+        "searching"
+    } else {
+        "unavailable"
+    };
+    ConnectionStatus {
+        state: state.into(),
+        detail: format!("{connected}/{} BLE lamps connected", devices.len()),
+        devices,
+    }
+}
+
+fn uniform_status(cfg: &config::Config, state: &str, detail: &str) -> ConnectionStatus {
+    ConnectionStatus {
+        state: state.into(),
+        detail: detail.into(),
+        devices: if cfg.led_transport == config::LedTransport::Ble {
+            cfg.ble_ids()
+                .iter()
+                .map(|id| DeviceStatus::new(id, state, detail))
+                .collect()
+        } else {
+            Vec::new()
+        },
+    }
+}
+
+fn publish(cfg: &config::Config, status: ConnectionStatus) {
+    let record = StatusRecord {
+        status,
+        updated: now_secs(),
+        transport: cfg.led_transport,
+        peripherals: cfg.ble_ids(),
+        port: cfg.led_port.clone(),
+    };
+    let path = status_path();
+    let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
+    if let Ok(json) = serde_json::to_vec(&record) {
+        if std::fs::write(&tmp, json).is_ok() {
+            let _ = std::fs::rename(tmp, path);
+        }
+    }
+}
+
+/// Shared by the tray and separate TUI process; stale daemon state is never green.
+pub fn connection_status() -> ConnectionStatus {
+    let cfg = config::read_config();
+    if !cfg.led_enabled {
+        return uniform_status(&cfg, "disabled", "Lamps disabled");
+    }
+    let record = std::fs::read(status_path())
+        .ok()
+        .and_then(|s| serde_json::from_slice::<StatusRecord>(&s).ok());
+    status_for(&cfg, record, now_secs())
+}
+
+fn status_for(cfg: &config::Config, record: Option<StatusRecord>, now: u64) -> ConnectionStatus {
+    if let Some(mut record) = record {
+        let ttl = if record.status.state == "connected" {
+            6
+        } else {
+            15
+        };
+        if record.transport == cfg.led_transport
+            && record.peripherals == cfg.ble_ids()
+            && record.port == cfg.led_port
+            && now >= record.updated
+            && now - record.updated <= ttl
+        {
+            if cfg.led_transport == config::LedTransport::Ble && !record.status.devices.is_empty() {
+                // Another healthy lamp must never keep a stalled lamp marked connected.
+                for device in &mut record.status.devices {
+                    let ttl = if device.state == "connected" { 6 } else { 15 };
+                    if now < device.updated || now - device.updated > ttl {
+                        device.state = "unavailable".into();
+                        device.detail = "No recent update from this lamp".into();
+                    }
+                }
+                return summarize_devices(record.status.devices);
+            }
+            return record.status;
+        }
+    }
+    uniform_status(
+        cfg,
+        "unavailable",
+        "No recent lamp-worker status; start/reinstall the tray service",
+    )
+}
+
+#[cfg(test)]
+mod transport_tests {
+    use super::*;
+
+    #[test]
+    fn healthy_lamp_does_not_keep_a_stalled_peer_connected() {
+        let cfg = config::Config {
+            led_transport: config::LedTransport::Ble,
+            ble_peripherals: vec!["home".into(), "work".into()],
+            ..Default::default()
+        };
+        let mut devices = vec![
+            DeviceStatus::new("home", "connected", "ACK"),
+            DeviceStatus::new("work", "connected", "ACK"),
+        ];
+        devices[0].updated = 100;
+        devices[1].updated = 107;
+        let record = StatusRecord {
+            status: summarize_devices(devices),
+            updated: 107,
+            transport: cfg.led_transport,
+            peripherals: cfg.ble_ids(),
+            port: None,
+        };
+        let status = status_for(&cfg, Some(record), 107);
+        assert_eq!(status.state, "connected");
+        assert_eq!(status.detail, "1/2 BLE lamps connected");
+        assert_eq!(status.devices[0].state, "unavailable");
+        assert_eq!(status.devices[1].state, "connected");
+    }
+
+    #[test]
+    fn stale_or_wrong_target_is_never_connected() {
+        let cfg = config::Config::default();
+        let record = || StatusRecord {
+            status: ConnectionStatus {
+                state: "connected".into(),
+                detail: "ACK".into(),
+                devices: Vec::new(),
+            },
+            updated: 100,
+            transport: config::LedTransport::Usb,
+            peripherals: Vec::new(),
+            port: None,
+        };
+        assert_eq!(status_for(&cfg, Some(record()), 102).state, "connected");
+        assert_eq!(status_for(&cfg, Some(record()), 107).state, "unavailable");
+        assert_eq!(status_for(&cfg, Some(record()), 99).state, "unavailable");
+        let next = config::Config {
+            led_transport: config::LedTransport::Ble,
+            ..cfg
+        };
+        assert_eq!(status_for(&next, Some(record()), 102).state, "unavailable");
+    }
+
+    #[test]
+    fn mapping_and_target_changes() {
+        assert_eq!(
+            [
+                Aggregate::Red,
+                Aggregate::Yellow,
+                Aggregate::Green,
+                Aggregate::None
+            ]
+            .map(status_byte),
+            *b"RYGN"
+        );
+        let cfg = config::Config {
+            led_enabled: true,
+            ..Default::default()
+        };
+        assert!(same_target(&cfg, &cfg));
+        let mut next = cfg.clone();
+        next.led_enabled = false;
+        assert!(!same_target(&cfg, &next));
+        next = cfg.clone();
+        next.led_transport = config::LedTransport::Ble;
+        assert!(!same_target(&cfg, &next));
+        next = cfg.clone();
+        next.ble_peripheral = Some("other".into());
+        assert!(!same_target(&cfg, &next));
+        next = cfg.clone();
+        next.led_port = Some("other".into());
+        assert!(!same_target(&cfg, &next));
     }
 }

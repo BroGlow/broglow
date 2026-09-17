@@ -11,6 +11,17 @@ monitoring [Claude Code](https://claude.ai/code), [opencode](https://opencode.ai
 [GitHub Copilot CLI](https://github.com/github/copilot-cli) sessions in real
 time, all in the same dashboard.
 
+This checkout also includes the ESP32-C3 SuperMini BLE traffic light firmware,
+enclosure models, and reference assets. Start with the complete
+[hardware setup and operating guide](docs/hardware-setup.md) for wiring,
+builds, flashing, USB-assisted Bluetooth pairing, multiple lamps, Mac service installation, and verification
+results. Upstream release binaries below do not include this local BLE extension.
+
+For this BLE version: [install a ready package](docs/hardware-setup.md#install-a-prebuilt-package),
+[build from source](docs/hardware-setup.md#build-from-source), or
+[ask an agent to install/connect it](docs/hardware-setup.md#agent-runbook).
+To find the existing tray icon or check the running service, use
+[menu bar and service validation](docs/hardware-setup.md#menu-bar-icon-and-service-validation).
 
 ## Works with
 
@@ -22,7 +33,7 @@ detection-gated: clawlight only wires up an agent it finds installed, and
 |---|---|---|---|
 | [Claude Code](https://claude.ai/code) | hooks in `~/.claude/settings.json` | *(none, the default)* | just works |
 | [opencode](https://opencode.ai) | plugin written to `~/.config/opencode/plugins/` | `oc` | restart running sessions after install |
-| [Codex CLI](https://github.com/openai/codex) | hooks in `$CODEX_HOME/hooks.json` | `cx` | needs Codex >= 0.144; one-time approval via `/hooks` inside Codex |
+| [Codex CLI](https://github.com/openai/codex) | hooks in `$CODEX_HOME/hooks.json` | `cx` | needs Codex >= 0.144; review hooks via `/hooks`; [local desktop-task setup](docs/hardware-setup.md#connect-local-codex-sessions) |
 | [GitHub Copilot CLI](https://github.com/github/copilot-cli) | owned file at `~/.copilot/hooks/clawlight.json` | `co` | sessions appear on first prompt; restart sessions open during install |
 
 <p align="center">
@@ -51,7 +62,8 @@ detection-gated: clawlight only wires up an agent it finds installed, and
 - **Auto-naming**: sessions are named from their first prompt using the
   Claude CLI, so the list reads "fix flaky auth test," not a UUID
 - **ESP32 status light (optional)**: mirror the aggregate state to a
-  physical desk light over USB serial ([clawlight.dev](https://clawlight.dev)).
+  physical desk light over USB serial ([clawlight.dev](https://clawlight.dev))
+  or directly over BLE to the [ESP32-C3 SuperMini](docs/hardware-setup.md).
   Plug it in before installing and it lights up automatically; otherwise
   connect it any time from the tray popover's footer (or `l` in the TUI)
 

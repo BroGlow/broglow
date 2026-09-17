@@ -217,6 +217,11 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# This script remains the upstream C6 path; the C3 companion uses PlatformIO.
+if [ -f "$CONFIG" ] && grep -Eq '"led_transport"[[:space:]]*:[[:space:]]*"ble"' "$CONFIG"; then
+    die "BLE/C3 firmware uses PlatformIO USB upload; see docs/hardware-setup.md"
+fi
+
 command -v espflash >/dev/null 2>&1 \
     || die "espflash not found. Install it with: cargo install espflash"
 

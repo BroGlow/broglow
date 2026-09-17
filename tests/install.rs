@@ -77,6 +77,39 @@ fn install_registers_hooks_and_uninstall_reverts_them() {
 }
 
 #[test]
+fn claude_foreign_hooks_survive_install_reinstall_and_uninstall() {
+    let home = TempDir::new().unwrap();
+    let dir = home.path().join(".claude");
+    std::fs::create_dir_all(&dir).unwrap();
+    let foreign = json!({"matcher":"*", "hooks":[{"type":"command","command":"guard.sh"}]});
+    let mixed = json!({"hooks":[
+        {"type":"command","command":"clawlight hook"},
+        {"type":"command","command":"other.sh"}
+    ]});
+    std::fs::write(
+        dir.join("settings.json"),
+        json!({
+            "model":"opus", "hooks":{"SessionStart":[foreign.clone(), mixed.clone()]}
+        })
+        .to_string(),
+    )
+    .unwrap();
+    run(&home, "install");
+    run(&home, "install");
+    let settings = read_settings(&home);
+    assert_eq!(
+        settings["hooks"]["SessionStart"].as_array().unwrap().len(),
+        3
+    );
+    assert_eq!(settings["hooks"]["SessionStart"][0], foreign);
+    assert_eq!(settings["hooks"]["SessionStart"][1], mixed);
+    run(&home, "uninstall");
+    let settings = read_settings(&home);
+    assert_eq!(settings["model"], "opus");
+    assert_eq!(settings["hooks"]["SessionStart"], json!([foreign, mixed]));
+}
+
+#[test]
 fn install_writes_the_opencode_plugin_when_detected_and_uninstall_removes_it() {
     let home = TempDir::new().unwrap();
     // opencode "present": its global config dir exists (one of the two detection

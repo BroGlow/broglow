@@ -66,3 +66,10 @@ windows-sys = { version = "0.59", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 winreg = "0.52"
+
+# BLE is opt-in on the Mac companion; other platforms keep USB support.
+[target.'cfg(target_os = "macos")'.dependencies]
+btleplug = "=0.13.0"
+futures-util = "0.3"
+tokio = { version = "1", features = ["rt", "time", "macros", "sync"] }
+uuid = "1"

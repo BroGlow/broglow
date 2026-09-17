@@ -59,6 +59,9 @@ impl Drop for LedSettingGuard {
 }
 
 pub fn run(firmware: String, port_override: Option<String>) -> anyhow::Result<()> {
+    if config::read_config().led_transport == config::LedTransport::Ble {
+        bail!("BLE/C3 firmware uses PlatformIO USB upload, not serial OTA; see docs/hardware-setup.md");
+    }
     let path = Path::new(&firmware);
     let image = std::fs::read(path)
         .with_context(|| format!("Reading firmware image {}", path.display()))?;

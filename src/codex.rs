@@ -232,7 +232,7 @@ fn group_is_placeholder(group: &Value) -> bool {
 /// stale placeholders) is truncated off the tail, and one of ours *followed
 /// by* a foreign group is neutralized into a [`placeholder_group`] in place.
 /// Returns whether anything changed.
-fn remove_clawlight_groups(groups: &mut Vec<Value>) -> bool {
+pub(crate) fn remove_clawlight_groups(groups: &mut Vec<Value>) -> bool {
     let mut changed = false;
     let last_foreign = groups
         .iter()
@@ -255,7 +255,7 @@ fn remove_clawlight_groups(groups: &mut Vec<Value>) -> bool {
 /// place, else fill a placeholder slot (left by [`remove_clawlight_groups`] —
 /// reusing it keeps foreign positions stable across install/uninstall
 /// cycles), else append.
-fn upsert_clawlight_group(groups: &mut Vec<Value>, group: &Value) {
+pub(crate) fn upsert_clawlight_group(groups: &mut Vec<Value>, group: &Value) {
     if let Some(ours) = groups.iter_mut().find(|g| group_is_clawlight(g)) {
         ours.clone_from(group);
     } else if let Some(slot) = groups.iter_mut().find(|g| group_is_placeholder(g)) {
@@ -267,7 +267,7 @@ fn upsert_clawlight_group(groups: &mut Vec<Value>, group: &Value) {
 
 /// Atomic JSON write (sibling temp file + rename): a crash mid-write must
 /// never leave Codex a half-written hooks file.
-fn write_json_atomic(path: &Path, value: &Value) -> anyhow::Result<()> {
+pub(crate) fn write_json_atomic(path: &Path, value: &Value) -> anyhow::Result<()> {
     let dir = path.parent().context("hooks.json must have a parent")?;
     std::fs::create_dir_all(dir)?;
     let tmp = dir.join(format!(".clawlight.{}.tmp", std::process::id()));

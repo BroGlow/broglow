@@ -1,0 +1,934 @@
+//! Opt-in BLE control. One existing LED worker drives every remembered nearby lamp.
+use crate::config::{self, Config, LedTransport};
+
+#[derive(clap::Subcommand)]
+pub enum BleCommand {
+    /// Discover lamps for 8 seconds (disable the lamp first).
+    Scan,
+    /// Remember a lamp via its USB cable, then pair it over Bluetooth (macOS).
+    Pair {
+        /// Explicit USB serial path; otherwise require exactly one ESP32 303a:1001.
+        #[arg(long)]
+        port: Option<String>,
+    },
+    /// Add a remembered CoreBluetooth ID and enable all saved BLE lamps.
+    Add { id: String },
+    /// Alias for add; existing remembered lamps are retained.
+    Select { id: String },
+    /// Forget a saved lamp (does not erase its Bluetooth bond).
+    Remove { id: String },
+    /// List remembered lamps and their current connection states.
+    List,
+    /// Return to USB (disabled until explicitly enabled).
+    Usb,
+    /// Disable either transport, retaining all remembered lamps.
+    Off,
+    /// Show the actual background worker's recent status.
+    Status,
+}
+
+pub fn command(command: BleCommand) -> anyhow::Result<()> {
+    if matches!(command, BleCommand::Status) {
+        let status = crate::led::connection_status();
+        println!("{}: {}", status.state, status.detail);
+        for device in status.devices {
+            println!("{}  {}: {}", device.id, device.state, device.detail);
+        }
+        return Ok(());
+    }
+    let mut cfg = read_setup_config()?;
+    match command {
+        BleCommand::Scan => return scan(&cfg),
+        BleCommand::Pair { port } => return pair(port),
+        BleCommand::Add { id } | BleCommand::Select { id } => {
+            #[cfg(target_os = "macos")]
+            {
+                let id = uuid::Uuid::parse_str(&id)?.to_string();
+                remember(&mut cfg, id);
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = id;
+                anyhow::bail!("BLE control is supported on macOS only");
+            }
+        }
+        BleCommand::Remove { id } => {
+            #[cfg(target_os = "macos")]
+            let id = uuid::Uuid::parse_str(&id)?.to_string();
+            anyhow::ensure!(
+                cfg.ble_ids().contains(&id),
+                "This lamp is not remembered: {id}"
+            );
+            cfg.ble_peripherals = cfg
+                .ble_ids()
+                .into_iter()
+                .filter(|saved| saved != &id)
+                .collect();
+            cfg.ble_peripheral = None;
+            if cfg.ble_peripherals.is_empty() && cfg.led_transport == LedTransport::Ble {
+                cfg.led_enabled = false;
+            }
+        }
+        BleCommand::List => {
+            let status = crate::led::connection_status();
+            for id in cfg.ble_ids() {
+                if let Some(device) = status.devices.iter().find(|d| d.id == id) {
+                    println!("{id}  {}: {}", device.state, device.detail);
+                } else {
+                    println!("{id}  {}: {}", status.state, status.detail);
+                }
+            }
+            return Ok(());
+        }
+        BleCommand::Usb => {
+            cfg.led_transport = LedTransport::Usb;
+            cfg.led_enabled = false;
+        }
+        BleCommand::Off => cfg.led_enabled = false,
+        BleCommand::Status => unreachable!(),
+    }
+    config::write_config(&cfg)?;
+    println!("Saved lamp settings. The installed tray service applies them automatically.");
+    Ok(())
+}
+
+fn read_setup_config() -> anyhow::Result<Config> {
+    // Setup must never replace unreadable configuration with defaults.
+    match std::fs::read(config::config_file_path()) {
+        Ok(bytes) => Ok(serde_json::from_slice(&bytes)?),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Config::default()),
+        Err(e) => Err(e.into()),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn remember(cfg: &mut Config, id: String) {
+    cfg.ble_peripherals = cfg.ble_ids();
+    cfg.ble_peripherals.push(id);
+    cfg.ble_peripherals.sort();
+    cfg.ble_peripherals.dedup();
+    cfg.ble_peripheral = None;
+    cfg.led_transport = LedTransport::Ble;
+    cfg.led_enabled = true;
+}
+
+#[cfg(not(target_os = "macos"))]
+fn scan(_: &Config) -> anyhow::Result<()> {
+    anyhow::bail!("BLE control is supported on macOS only")
+}
+#[cfg(not(target_os = "macos"))]
+fn pair(_: Option<String>) -> anyhow::Result<()> {
+    anyhow::bail!("BLE pairing is supported on macOS only")
+}
+#[cfg(not(target_os = "macos"))]
+pub fn run(_: &Config) -> anyhow::Result<()> {
+    anyhow::bail!("BLE control is supported on macOS only")
+}
+#[cfg(target_os = "macos")]
+pub(crate) use mac::run;
+#[cfg(target_os = "macos")]
+use mac::{pair, scan};
+
+#[cfg(target_os = "macos")]
+mod mac {
+    use super::*;
+    use anyhow::{bail, Context, Result};
+    use btleplug::api::{
+        Central, CentralEvent, CentralState, CharPropFlags, Manager as _, Peripheral as _,
+        ScanFilter, WriteType,
+    };
+    use btleplug::platform::{Adapter, Manager, Peripheral};
+    use fs4::fs_std::FileExt;
+    use futures_util::{future::LocalBoxFuture, stream::FuturesUnordered, FutureExt, StreamExt};
+    use std::cell::{Cell, RefCell};
+    use std::{future::Future, time::Duration};
+    use tokio::sync::broadcast;
+    use tokio::time::{sleep, timeout, Instant};
+    use uuid::Uuid;
+
+    const SERVICE: Uuid = Uuid::from_u128(0x7d2ea28a_f7bd_485a_bd9d_92ad6ecfe93e);
+    const STATUS: Uuid = Uuid::from_u128(0x7d2ea28b_f7bd_485a_bd9d_92ad6ecfe93e);
+    const BRIGHTNESS: Uuid = Uuid::from_u128(0x7d2ea28c_f7bd_485a_bd9d_92ad6ecfe93e);
+    const POLL: Duration = Duration::from_millis(250);
+    const HEARTBEAT: Duration = Duration::from_secs(2);
+    const OP_TIMEOUT: Duration = Duration::from_secs(10);
+
+    fn radio_lock() -> Result<std::fs::File> {
+        anyhow::ensure!(
+            std::env::current_exe()? == crate::mac_bundle_executable()?,
+            "Run clawlight install; Bluetooth requires the installed ClawLight.app identity"
+        );
+        let path = config::config_file_path().with_file_name(".ble.lock");
+        std::fs::create_dir_all(path.parent().unwrap())?;
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(path)?;
+        anyhow::ensure!(
+            file.try_lock_exclusive()?,
+            "Bluetooth is busy; disable the lamp and wait before scanning"
+        );
+        Ok(file)
+    }
+
+    fn runtime() -> Result<tokio::runtime::Runtime> {
+        Ok(tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()?)
+    }
+
+    // Every radio wait is both bounded and interruptible, including discovery/connect.
+    async fn wait<T>(
+        future: impl Future<Output = Result<T>>,
+        keep: &impl Fn() -> bool,
+    ) -> Result<T> {
+        wait_for(future, keep, OP_TIMEOUT).await
+    }
+
+    async fn wait_for<T>(
+        future: impl Future<Output = Result<T>>,
+        keep: &impl Fn() -> bool,
+        limit: Duration,
+    ) -> Result<T> {
+        tokio::pin!(future);
+        let deadline = sleep(limit);
+        tokio::pin!(deadline);
+        loop {
+            if !keep() {
+                bail!("Lamp settings changed");
+            }
+            tokio::select! {
+                result = &mut future => return result,
+                _ = &mut deadline => bail!("Bluetooth timed out; check power and Privacy & Security > Bluetooth > ClawLight"),
+                _ = sleep(POLL) => {},
+            }
+        }
+    }
+
+    async fn adapter(keep: &impl Fn() -> bool) -> Result<Adapter> {
+        wait(
+            async {
+                let manager = Manager::new().await?;
+                manager
+                    .adapters()
+                    .await?
+                    .into_iter()
+                    .next()
+                    .context("No Bluetooth adapter; check Bluetooth permission for ClawLight")
+            },
+            keep,
+        )
+        .await
+    }
+
+    async fn start(adapter: &Adapter, keep: &impl Fn() -> bool) -> Result<()> {
+        wait(
+            async {
+                match adapter.adapter_state().await? {
+                    CentralState::PoweredOn => {}
+                    CentralState::PoweredOff => {
+                        bail!("Bluetooth is off; turn it on in System Settings")
+                    }
+                    _ => bail!(
+                        "Bluetooth unavailable; allow ClawLight in Privacy & Security > Bluetooth"
+                    ),
+                }
+                adapter
+                    .start_scan(ScanFilter {
+                        services: vec![SERVICE],
+                    })
+                    .await?;
+                Ok(())
+            },
+            keep,
+        )
+        .await
+    }
+
+    pub(super) fn scan(cfg: &Config) -> Result<()> {
+        anyhow::ensure!(
+            !cfg.led_enabled,
+            "Run clawlight ble off, wait 3 seconds, then scan"
+        );
+        let _lock = radio_lock()?;
+        runtime()?.block_on(async {
+            let keep = || !config::read_config().led_enabled;
+            let adapter = adapter(&keep).await?;
+            let result = async {
+                start(&adapter, &keep).await?;
+                wait(async { sleep(Duration::from_secs(8)).await; Ok(()) }, &keep).await?;
+                let mut found = 0;
+                for p in adapter.peripherals().await? {
+                    if let Some(props) = p.properties().await? {
+                        if props.services.contains(&SERVICE) {
+                            println!("{}  {}", p.id(), props.local_name.unwrap_or_default());
+                            found += 1;
+                        }
+                    }
+                }
+                println!("{found} advertised lamp(s). Select the intended ID; the worker verifies its writable characteristic on connection.");
+                Ok(())
+            }.await;
+            let _ = timeout(Duration::from_secs(1), adapter.stop_scan()).await;
+            result
+        })
+    }
+
+    /// Only probe a unique native ESP32 USB candidate; INFO proves firmware identity.
+    fn pair_port(
+        override_path: Option<String>,
+        ports: &[serialport::SerialPortInfo],
+    ) -> Result<String> {
+        if let Some(path) = override_path {
+            return Ok(path);
+        }
+        let mut candidates: Vec<_> = ports
+            .iter()
+            .filter(|p| {
+                matches!(&p.port_type, serialport::SerialPortType::UsbPort(usb)
+                if usb.vid == 0x303a && usb.pid == 0x1001)
+            })
+            .map(|p| p.port_name.clone())
+            .collect();
+        let twins = candidates.clone();
+        candidates.retain(|path| {
+            !path.starts_with("/dev/tty.")
+                || !twins.contains(&path.replacen("/dev/tty.", "/dev/cu.", 1))
+        });
+        candidates.sort();
+        candidates.dedup();
+        anyhow::ensure!(candidates.len() == 1,
+            "Expected one ESP32 USB candidate (303a:1001), found {}. Attach the lamp's data cable or use --port with its verified serial path", candidates.len());
+        Ok(candidates.remove(0))
+    }
+
+    fn parse_pair_identity(line: &str) -> Result<[u8; 6]> {
+        let line = line.trim_end_matches(['\r', '\n']);
+        let identity = line
+            .strip_prefix("clawlight_pair identity=")
+            .and_then(|s| s.strip_suffix(&format!(" service={SERVICE}")))
+            .context(
+                "USB reply is not the expected ClawLight pairing protocol; update the C3 firmware",
+            )?;
+        anyhow::ensure!(
+            identity.len() == 12
+                && identity
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+            "USB reply has an invalid six-byte lamp identity"
+        );
+        let mut bytes = [0; 6];
+        for (i, byte) in bytes.iter_mut().enumerate() {
+            *byte = u8::from_str_radix(&identity[i * 2..i * 2 + 2], 16)?;
+        }
+        Ok(bytes)
+    }
+
+    fn usb_identity(port: &mut dyn serialport::SerialPort, command: &[u8]) -> Result<[u8; 6]> {
+        port.write_all(command)?;
+        port.flush()?;
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        let mut line = Vec::new();
+        while std::time::Instant::now() < deadline {
+            let mut byte = [0];
+            match port.read(&mut byte) {
+                Ok(1) if byte[0] == b'\n' => {
+                    if line.starts_with(b"clawlight_pair") {
+                        return parse_pair_identity(std::str::from_utf8(&line)?);
+                    }
+                    line.clear(); // Ignore ordinary firmware diagnostic lines.
+                }
+                Ok(1) => {
+                    anyhow::ensure!(line.len() < 256, "Unexpected oversized USB reply");
+                    line.push(byte[0]);
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {}
+                Err(e) => return Err(e.into()),
+                Ok(0) => bail!("USB serial connection closed before the firmware reply"),
+                _ => {}
+            }
+        }
+        bail!("No ClawLight INFO/PAIR reply over USB; close serial monitors and flash the current C3 firmware")
+    }
+
+    fn identity_matches(props: &btleplug::api::PeripheralProperties, identity: &[u8; 6]) -> bool {
+        props.services.contains(&SERVICE)
+            && props
+                .manufacturer_data
+                .get(&0xffff)
+                .is_some_and(|bytes| bytes.as_slice() == identity)
+    }
+
+    pub(super) fn pair(port_override: Option<String>) -> Result<()> {
+        let ports = if port_override.is_some() {
+            Vec::new()
+        } else {
+            serialport::available_ports()?
+        };
+        let path = pair_port(port_override, &ports)?;
+        let original_bytes = match std::fs::read(config::config_file_path()) {
+            Ok(bytes) => Some(bytes),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(e.into()),
+        };
+        let original: Config = original_bytes
+            .as_deref()
+            .map(serde_json::from_slice)
+            .transpose()?
+            .unwrap_or_default();
+        let mut paused = original.clone();
+        paused.led_enabled = false;
+        config::write_config(&paused)?;
+        let result = (|| {
+            let deadline = std::time::Instant::now() + Duration::from_secs(8);
+            let _worker = loop {
+                match crate::led::worker_lease() {
+                    Ok(lease) => break lease,
+                    Err(_) if std::time::Instant::now() < deadline => {
+                        std::thread::sleep(Duration::from_millis(100))
+                    }
+                    Err(error) => return Err(error),
+                }
+            };
+            let _radio = radio_lock()?;
+            let mut serial = serialport::new(&path, 115_200)
+                .timeout(Duration::from_millis(100))
+                .open()
+                .with_context(|| {
+                    format!("Opening USB lamp at {path}; close other serial monitors")
+                })?;
+            serial.write_data_terminal_ready(true)?;
+            serial.clear(serialport::ClearBuffer::Input)?;
+            let identity = usb_identity(serial.as_mut(), b"INFO\n")?;
+            println!("Verified ClawLight firmware on {path}; opening its pairing window.");
+            anyhow::ensure!(
+                usb_identity(serial.as_mut(), b"PAIR\n")? == identity,
+                "USB lamp identity changed between INFO and PAIR; selection was not saved"
+            );
+            drop(serial);
+            let id = runtime()?.block_on(async {
+                let keep = || !config::read_config().led_enabled;
+                let adapter = adapter(&keep).await?;
+                let found = async {
+                    start(&adapter, &keep).await?;
+                    wait(async { sleep(Duration::from_secs(8)).await; Ok(()) }, &keep).await?;
+                    let mut matching = Vec::new();
+                    for p in adapter.peripherals().await? {
+                        if p.properties().await?.is_some_and(|props| identity_matches(&props, &identity)) {
+                            matching.push(p.id().to_string());
+                        }
+                    }
+                    anyhow::ensure!(matching.len() == 1,
+                        "Expected exactly one BLE advertisement matching the USB lamp, found {}; check Bluetooth and current firmware", matching.len());
+                    Ok(matching.remove(0))
+                }.await;
+                let _ = timeout(Duration::from_secs(1), adapter.stop_scan()).await;
+                found
+            })?;
+            let mut latest = read_setup_config()?;
+            remember(&mut latest, id.clone());
+            config::write_config(&latest)?;
+            println!("Remembered lamp {id}. The tray service will connect automatically; approve any macOS pairing request for this lamp. Existing saved lamps are retained.");
+            Ok(())
+        })();
+        if result.is_err() {
+            let mut latest = read_setup_config()
+                .context("Pairing failed; cannot safely restore unreadable settings")?;
+            if serde_json::to_value(&latest)? == serde_json::to_value(&paused)? {
+                if let Some(bytes) = original_bytes {
+                    let path = config::config_file_path();
+                    let tmp = path.with_extension(format!("{}.restore.tmp", std::process::id()));
+                    std::fs::write(&tmp, bytes)?;
+                    std::fs::rename(tmp, path)?;
+                } else {
+                    std::fs::remove_file(config::config_file_path())?;
+                }
+            } else if !latest.led_enabled {
+                latest.led_enabled = original.led_enabled;
+                config::write_config(&latest)
+                    .context("Pairing failed; could not restore previous lamp enable setting")?;
+            }
+        }
+        result
+    }
+
+    pub(crate) fn run(cfg: &Config) -> Result<()> {
+        let ids = cfg.ble_ids();
+        anyhow::ensure!(
+            !ids.is_empty(),
+            "Add lamps: clawlight ble off; clawlight ble scan; clawlight ble add <ID>"
+        );
+        let _lock = radio_lock()?;
+        runtime()?.block_on(async {
+            let keep = || crate::led::same_target(cfg, &config::read_config());
+            crate::led::publish_status(cfg, "searching", "Initializing Bluetooth");
+            let adapter = adapter(&keep).await?;
+            let statuses = RefCell::new(
+                ids.iter()
+                    .map(|id| {
+                        crate::led::DeviceStatus::new(
+                            id,
+                            "searching",
+                            "Waiting for a fresh advertisement",
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            );
+            let update = |id: &str, state: &str, detail: &str| {
+                let mut devices = statuses.borrow_mut();
+                if let Some(device) = devices.iter_mut().find(|d| d.id == id) {
+                    *device = crate::led::DeviceStatus::new(id, state, detail);
+                }
+                crate::led::publish_ble_status(cfg, devices.clone());
+            };
+            let (advertisements, _) = broadcast::channel(ids.len().max(8) * 2);
+            let scan_error = RefCell::new(None);
+            // All futures share one adapter/runtime. A missing lamp or a pairing
+            // prompt cannot delay another lamp's writes or heartbeat.
+            let mut tasks = Vec::new();
+            for id in &ids {
+                tasks.push(
+                    lamp_loop(id, &advertisements, &scan_error, &keep, &update).boxed_local(),
+                );
+            }
+            tasks.push(discover(&adapter, &ids, &advertisements, &scan_error, &keep).boxed_local());
+            run_all(tasks).await;
+            Ok(())
+        })
+    }
+
+    type Advertisements = broadcast::Sender<(String, Peripheral)>;
+
+    async fn run_all(tasks: Vec<LocalBoxFuture<'_, ()>>) {
+        let mut pending: FuturesUnordered<_> = tasks.into_iter().collect();
+        while pending.next().await.is_some() {}
+    }
+
+    async fn discover(
+        adapter: &Adapter,
+        ids: &[String],
+        advertisements: &Advertisements,
+        scan_error: &RefCell<Option<String>>,
+        keep: &impl Fn() -> bool,
+    ) {
+        while keep() {
+            let result = async {
+                let mut events = adapter.events().await?;
+                start(adapter, keep).await?;
+                *scan_error.borrow_mut() = None;
+                while keep() {
+                    tokio::select! {
+                        event = events.next() => match event {
+                            Some(CentralEvent::ServicesAdvertisement { id, services }) => {
+                                let candidate = id.to_string();
+                                if selected_advertisement(&candidate, &services, ids) {
+                                    if let Ok(peripheral) = adapter.peripheral(&id).await {
+                                        let _ = advertisements.send((candidate, peripheral));
+                                    }
+                                }
+                            }
+                            Some(CentralEvent::StateUpdate(state)) if state != CentralState::PoweredOn => {
+                                bail!("Bluetooth unavailable; check power and ClawLight permission")
+                            }
+                            None => bail!("Bluetooth discovery stopped"),
+                            _ => {}
+                        },
+                        _ = sleep(POLL) => {}
+                    }
+                }
+                Ok(())
+            }.await;
+            // Only this shared discovery loop ever stops the scanner.
+            let _ = timeout(Duration::from_secs(1), adapter.stop_scan()).await;
+            if let Err(error) = result {
+                *scan_error.borrow_mut() = Some(format!("{error:#}"));
+            }
+            let _ = wait(
+                async {
+                    sleep(HEARTBEAT).await;
+                    Ok(())
+                },
+                keep,
+            )
+            .await;
+        }
+    }
+
+    async fn lamp_loop(
+        id: &str,
+        advertisements: &Advertisements,
+        scan_error: &RefCell<Option<String>>,
+        keep: &impl Fn() -> bool,
+        update: &impl Fn(&str, &str, &str),
+    ) {
+        let publish = |state: &str, detail: &str| update(id, state, detail);
+        while keep() {
+            // Subscribe anew after each disconnect: cached/queued advertisements
+            // cannot reconnect a stale native CoreBluetooth peripheral handle.
+            let mut fresh = advertisements.subscribe();
+            publish(
+                "searching",
+                "Waiting for a fresh advertisement; absent lamps are retried automatically",
+            );
+            let discovered = wait(
+                async {
+                    loop {
+                        match fresh.recv().await {
+                            Ok((candidate, peripheral)) if candidate == id => {
+                                return Ok(peripheral)
+                            }
+                            Err(broadcast::error::RecvError::Closed) => {
+                                bail!("Bluetooth discovery stopped")
+                            }
+                            _ => {}
+                        }
+                    }
+                },
+                keep,
+            )
+            .await;
+            match discovered {
+                Ok(peripheral) => {
+                    publish("connecting", "Connecting to saved lamp");
+                    let result = drive(&peripheral, keep, &publish).await;
+                    // Cancelling a Rust future doesn't cancel a native pending connect.
+                    let _ = timeout(Duration::from_secs(2), peripheral.disconnect()).await;
+                    if let Err(error) = result {
+                        if keep() {
+                            publish("error", &format!("{error:#}"));
+                        }
+                    }
+                }
+                Err(_) if keep() => {
+                    if let Some(error) = scan_error.borrow().as_ref() {
+                        publish("error", error);
+                    } else {
+                        publish("searching", "Not nearby; will reconnect automatically");
+                    }
+                }
+                Err(_) => {}
+            }
+            let _ = wait(
+                async {
+                    sleep(HEARTBEAT).await;
+                    Ok(())
+                },
+                keep,
+            )
+            .await;
+        }
+    }
+
+    async fn drive(
+        p: &Peripheral,
+        keep: &impl Fn() -> bool,
+        publish: &impl Fn(&str, &str),
+    ) -> Result<()> {
+        wait(
+            async {
+                p.connect().await?;
+                p.discover_services().await?;
+                Ok(())
+            },
+            keep,
+        )
+        .await?;
+        let characteristic = p
+            .characteristics()
+            .into_iter()
+            .find(|c| {
+                c.service_uuid == SERVICE
+                    && c.uuid == STATUS
+                    && c.properties.contains(CharPropFlags::WRITE)
+            })
+            .context("Saved device lacks the ClawLight writable status characteristic")?;
+        let brightness_characteristic = p.characteristics().into_iter().find(|c| {
+            c.service_uuid == SERVICE
+                && c.uuid == BRIGHTNESS
+                && c.properties.contains(CharPropFlags::WRITE)
+        });
+        // Set the saved brightness before any status/connection flash. This first
+        // encrypted write may prompt for pairing; sample current settings again afterward.
+        // Older firmware keeps working with the original one-byte status contract.
+        let initial = [if brightness_characteristic.is_some() {
+            config::read_config().led_brightness_percent()
+        } else {
+            b'N'
+        }];
+        let first_characteristic = brightness_characteristic
+            .as_ref()
+            .unwrap_or(&characteristic);
+        wait_for(async {
+            let write = p.write(first_characteristic, &initial, WriteType::WithResponse);
+            tokio::pin!(write);
+            loop {
+                tokio::select! {
+                    result = &mut write => return Ok(result?),
+                    _ = sleep(HEARTBEAT) => {
+                        publish("connecting", "Waiting for an encrypted write; approve any macOS pairing request for this lamp");
+                    }
+                }
+            }
+        }, keep, Duration::from_secs(60)).await?;
+        let last_brightness = Cell::new(brightness_characteristic.as_ref().map(|_| initial[0]));
+        let brightness_characteristic = brightness_characteristic.as_ref();
+        let characteristic = &characteristic;
+        let last_brightness = &last_brightness;
+        let result = send_updates(
+            |(byte, brightness), _first| async move {
+                wait_for(
+                    async {
+                        if let Some(setting) = brightness_characteristic {
+                            if last_brightness.get() != Some(brightness) {
+                                p.write(setting, &[brightness], WriteType::WithResponse)
+                                    .await
+                                    .context("Lamp brightness write failed")?;
+                                last_brightness.set(Some(brightness));
+                            }
+                        }
+                        p.write(characteristic, &[byte], WriteType::WithResponse)
+                            .await?;
+                        Ok(())
+                    },
+                    keep,
+                    Duration::from_secs(3),
+                )
+                .await?;
+                let detail = if brightness_characteristic.is_some() {
+                    format!("Status acknowledged; brightness {brightness}% applied (LED wiring is not verified)")
+                } else {
+                    "Status acknowledged; brightness unavailable — update the C3 firmware".into()
+                };
+                publish("connected", &detail);
+                Ok(())
+            },
+            || {
+                let cfg = config::read_config();
+                (
+                    crate::led::status_byte(crate::state::aggregate(
+                        &crate::state::read_hook_state(),
+                        cfg.yellow_mode,
+                    )),
+                    cfg.led_brightness_percent(),
+                )
+            },
+            keep,
+        )
+        .await;
+        let _ = timeout(
+            Duration::from_secs(1),
+            p.write(characteristic, b"N", WriteType::WithResponse),
+        )
+        .await;
+        result
+    }
+
+    async fn send_updates<T: Copy + PartialEq, F: Future<Output = Result<()>>>(
+        mut write: impl FnMut(T, bool) -> F,
+        read: impl Fn() -> T,
+        keep: &impl Fn() -> bool,
+    ) -> Result<()> {
+        let mut last = None;
+        let mut written = Instant::now();
+        while keep() {
+            let current = read();
+            if due(last, current, written.elapsed()) {
+                write(current, last.is_none()).await?;
+                last = Some(current);
+                written = Instant::now();
+            }
+            sleep(POLL).await;
+        }
+        Ok(())
+    }
+
+    fn selected_advertisement(candidate: &str, services: &[Uuid], selected: &[String]) -> bool {
+        selected.iter().any(|id| id == candidate) && services.contains(&SERVICE)
+    }
+
+    fn due<T: PartialEq>(last: Option<T>, current: T, elapsed: Duration) -> bool {
+        last != Some(current) || elapsed >= HEARTBEAT
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        #[test]
+        fn usb_pair_protocol_candidates_and_advertisement_identity() {
+            let identity = [0x14, 0x63, 0x93, 0x92, 0x45, 0x24];
+            let reply = format!("clawlight_pair identity=146393924524 service={SERVICE}");
+            assert_eq!(
+                parse_pair_identity(&format!("{reply}\r\n")).unwrap(),
+                identity
+            );
+            for invalid in [
+                reply.replace("146393924524", "14639392452"),
+                reply.replace("146393924524", "14AA93924524"),
+                reply.replace(&SERVICE.to_string(), &STATUS.to_string()),
+                format!("{reply} extra"),
+            ] {
+                assert!(parse_pair_identity(&invalid).is_err());
+            }
+            let port = |name: &str, pid| serialport::SerialPortInfo {
+                port_name: name.into(),
+                port_type: serialport::SerialPortType::UsbPort(serialport::UsbPortInfo {
+                    vid: 0x303a,
+                    pid,
+                    serial_number: None,
+                    manufacturer: None,
+                    product: None,
+                }),
+            };
+            assert!(pair_port(None, &[]).is_err());
+            assert!(pair_port(None, &[port("/dev/cu.one", 2)]).is_err());
+            assert_eq!(
+                pair_port(
+                    None,
+                    &[port("/dev/tty.one", 0x1001), port("/dev/cu.one", 0x1001)]
+                )
+                .unwrap(),
+                "/dev/cu.one"
+            );
+            assert!(pair_port(
+                None,
+                &[port("/dev/cu.one", 0x1001), port("/dev/cu.two", 0x1001)]
+            )
+            .is_err());
+            assert_eq!(
+                pair_port(Some("/verified/path".into()), &[]).unwrap(),
+                "/verified/path"
+            );
+            let mut props = btleplug::api::PeripheralProperties::default();
+            props.services.push(SERVICE);
+            props.manufacturer_data.insert(0xffff, identity.to_vec());
+            assert!(identity_matches(&props, &identity));
+            assert!(!identity_matches(&props, &[0, 0, 0, 0, 0, 0]));
+            props.manufacturer_data.get_mut(&0xffff).unwrap().push(0);
+            assert!(!identity_matches(&props, &identity));
+            props.manufacturer_data.insert(0xffff, identity.to_vec());
+            props.services.clear();
+            assert!(!identity_matches(&props, &identity));
+        }
+
+        #[test]
+        fn missing_lamp_does_not_block_another_lamps_heartbeat_or_shutdown() {
+            runtime().unwrap().block_on(async {
+                let active = std::cell::Cell::new(true);
+                let cleaned = std::cell::Cell::new(0);
+                let writes = RefCell::new(Vec::new());
+                let started = Instant::now();
+                let keep = || active.get();
+                let missing = async {
+                    assert!(wait(std::future::pending::<Result<()>>(), &keep)
+                        .await
+                        .is_err());
+                    cleaned.set(cleaned.get() + 1);
+                };
+                let nearby = async {
+                    send_updates(
+                        |byte, first| {
+                            writes.borrow_mut().push((byte, first, started.elapsed()));
+                            if writes.borrow().len() == 2 {
+                                active.set(false);
+                            }
+                            async { Ok(()) }
+                        },
+                        || b'G',
+                        &keep,
+                    )
+                    .await
+                    .unwrap();
+                    cleaned.set(cleaned.get() + 1);
+                };
+                timeout(
+                    Duration::from_secs(4),
+                    run_all(vec![missing.boxed_local(), nearby.boxed_local()]),
+                )
+                .await
+                .expect("both lamp tasks stop promptly");
+                assert_eq!(cleaned.get(), 2);
+                let writes = writes.borrow();
+                assert_eq!(writes.len(), 2);
+                assert_eq!((writes[0].0, writes[0].1), (b'G', true));
+                assert!(writes[0].2 < HEARTBEAT);
+                assert_eq!((writes[1].0, writes[1].1), (b'G', false));
+                assert!(writes[1].2 >= HEARTBEAT);
+            });
+        }
+
+        #[test]
+        fn brightness_changes_send_without_color_change_and_resend_after_reconnect() {
+            runtime().unwrap().block_on(async {
+                let active = Cell::new(true);
+                let brightness = Cell::new(100);
+                let writes = RefCell::new(Vec::new());
+                let started = Instant::now();
+                let keep = || active.get();
+                send_updates(
+                    |value, first| {
+                        writes.borrow_mut().push((value, first));
+                        if writes.borrow().len() == 1 {
+                            brightness.set(25);
+                        } else {
+                            active.set(false);
+                        }
+                        async { Ok(()) }
+                    },
+                    || (b'G', brightness.get()),
+                    &keep,
+                )
+                .await
+                .unwrap();
+                assert_eq!(
+                    *writes.borrow(),
+                    vec![((b'G', 100), true), ((b'G', 25), false)]
+                );
+                assert!(started.elapsed() < HEARTBEAT);
+                // A new connection starts with the saved value, even when the
+                // aggregate and preference have not changed since disconnect.
+                active.set(true);
+                send_updates(
+                    |value, first| {
+                        writes.borrow_mut().push((value, first));
+                        active.set(false);
+                        async { Ok(()) }
+                    },
+                    || (b'G', brightness.get()),
+                    &keep,
+                )
+                .await
+                .unwrap();
+                assert_eq!(writes.borrow().last(), Some(&((b'G', 25), true)));
+                assert!(!due(Some((b'G', 25)), (b'G', 25), Duration::ZERO));
+                assert!(due(Some((b'G', 25)), (b'G', 0), Duration::ZERO));
+            });
+        }
+
+        #[test]
+        fn heartbeat_and_cancellation_without_radio() {
+            let selected = vec!["home".into(), "work".into()];
+            assert!(!selected_advertisement("other", &[SERVICE], &selected));
+            assert!(!selected_advertisement("home", &[STATUS], &selected));
+            assert!(selected_advertisement("home", &[SERVICE], &selected));
+            assert!(selected_advertisement("work", &[SERVICE], &selected));
+            assert!(due(None, b'N', Duration::ZERO));
+            assert!(due(Some(b'R'), b'G', Duration::ZERO));
+            assert!(!due(Some(b'G'), b'G', Duration::from_secs(1)));
+            assert!(due(Some(b'G'), b'G', HEARTBEAT));
+            runtime().unwrap().block_on(async {
+                let polls = std::cell::Cell::new(0);
+                let keep = || {
+                    polls.set(polls.get() + 1);
+                    polls.get() < 2
+                };
+                // Same cancellation gate wraps scanning, connect, and writes.
+                let result = wait(std::future::pending::<Result<()>>(), &keep).await;
+                assert!(result.unwrap_err().to_string().contains("settings changed"));
+                let result = wait(async { Ok(42) }, &|| true).await.unwrap();
+                assert_eq!(result, 42);
+            });
+        }
+    }
+}

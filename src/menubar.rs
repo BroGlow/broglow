@@ -652,6 +652,15 @@ pub fn run() -> anyhow::Result<()> {
                     // popover now so the footer indicator flips immediately.
                     popover.push_state(&read_hook_state());
                 }
+                PopoverMsg::SetBrightness { percent } => {
+                    // IPC deserialization rejects values outside 0..=100.
+                    let mut cfg = config::read_config();
+                    cfg.led_brightness = percent;
+                    if let Err(e) = config::write_config(&cfg) {
+                        eprintln!("Failed to save settings: {e}");
+                    }
+                    popover.push_state(&read_hook_state());
+                }
                 PopoverMsg::GetLamp => {
                     popover.hide();
                     open_url("https://clawlight.dev");
