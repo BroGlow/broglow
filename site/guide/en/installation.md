@@ -40,20 +40,13 @@ ClawLight is installed once for your Mac user account at `~/.cargo/bin/clawlight
 You do not need to open the project folder to run it. Prebuilt installs do not need Cargo.
 In a fresh Terminal, check:
 
-```sh
-cd /tmp
-command -v clawlight
-type -a clawlight
-clawlight --help
-```
+--8<-- "docs/hardware-setup.md:path-check"
 
 The first result should point to your `~/.cargo/bin/clawlight`. If it does, no changes are
 needed. If the command is missing or an older Homebrew copy comes first, add this line **once**
 to `~/.zshrc` (macOS's default zsh), preserving its existing settings:
 
-```sh
-export PATH="$HOME/.cargo/bin:$PATH"
-```
+--8<-- "docs/hardware-setup.md:path-setup"
 
 Open a new Terminal and repeat the checks. Running `export` only in the current terminal
 does not configure future terminals. Rust may already set this up through `~/.cargo/env`;
@@ -78,3 +71,16 @@ Check “connected” for your intended lamp: the background service has sent it
 This does not test the LEDs themselves. Keep it powered from your Mac or use a USB adapter.
 ClawLight retries connections while its service is running, lamp control and Bluetooth are
 enabled, and the powered lamp is nearby.
+
+## Adjust brightness and manage lamps { #controls }
+
+Click the lamp status at the bottom of the menu-bar popup to open **Lamps**.
+Use **Light brightness** (0–100%); connected Bluetooth lamps preview all three LEDs
+while you adjust it, then return to session status two seconds after the last preview.
+At 0% the controlled LEDs stay dark while Bluetooth remains connected.
+
+Expand a lamp's row to see its connection details or **Forget lamp**. The terminal
+dashboard is optional: show its shortcut under **Settings → Appearance → Show Dashboard button**.
+
+See the [hardware reference](hardware.md) for flashing, recovery and current
+[hardware test results](hardware.md#repeatable-checks-and-results).

@@ -1,13 +1,71 @@
 """Build the landing and MkDocs guide as one GitHub Pages artifact."""
 import argparse
+import base64
+from html import escape, unescape
+import mimetypes
 import re
 import shutil
 from pathlib import Path
+from urllib.parse import quote, unquote, urlsplit
 
 from mkdocs.commands.build import build
 from mkdocs.config import load_config
 
 SITE = Path(__file__).resolve().parent
+
+
+def on_config(config, **kwargs):
+    config.mdx_configs["pymdownx.snippets"]["base_path"] = [str(SITE.parent)]
+    return config
+
+
+def on_page_content(html, *, page, config, **kwargs):
+    """Keep the included manual's repository links and icons valid on the website."""
+    if not page.file.src_uri.endswith("/hardware.md"):
+        return html
+
+    def source_path(url):
+        parsed = urlsplit(unescape(url))
+        if not parsed.path or parsed.scheme or parsed.netloc:
+            return None
+        path = (SITE.parent / "docs" / unquote(parsed.path)).resolve()
+        if not path.is_relative_to(SITE.parent) or not path.exists():
+            raise ValueError(f"Missing or outside-repository manual reference: {url}")
+        return path
+
+    def link(match):
+        url, attributes, label = match.groups()
+        # GitHub keeps repeated hyphens in heading anchors; Python-Markdown folds them.
+        if url.startswith("#") and f'id="{url[1:]}"' not in html:
+            normalized = re.sub(r"-{2,}", "-", url)
+            if f'id="{normalized[1:]}"' in html:
+                return f'<a href="{normalized}"{attributes}>{label}</a>'
+        path = source_path(url)
+        if path is None:
+            return match[0]
+        relative = path.relative_to(SITE.parent).as_posix()
+        if not config.repo_url:
+            return f'{label} (<code>{escape(relative)}</code>)'
+        kind = "tree" if path.is_dir() else "blob"
+        fragment = urlsplit(unescape(url)).fragment
+        target = f'{config.repo_url}/{kind}/HEAD/{quote(relative)}'
+        if fragment:
+            target += "#" + quote(fragment)
+        return f'<a href="{escape(target, quote=True)}"{attributes}>{label}</a>'
+
+    def icon(match):
+        before, url, after = match.groups()
+        path = source_path(url)
+        if path is None:
+            return match[0]
+        mime = mimetypes.guess_type(path.name)[0]
+        if mime != "image/png":
+            raise ValueError(f"Unsupported manual icon: {path}")
+        data = base64.b64encode(path.read_bytes()).decode("ascii")
+        return f'{before}data:{mime};base64,{data}{after}'
+
+    html = re.sub(r'<a href="([^"]+)"([^>]*)>(.*?)</a>', link, html, flags=re.DOTALL)
+    return re.sub(r'(<img\b[^>]*\bsrc=")([^"]+)("[^>]*>)', icon, html)
 
 
 def on_page_markdown(markdown, *, page, config, **kwargs):

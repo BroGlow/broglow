@@ -4,6 +4,8 @@ docs_dir: guide
 site_dir: docs
 hooks:
   - pages.py
+watch:
+  - ../docs/hardware-setup.md
 theme:
   name: material
   custom_dir: overrides
@@ -34,14 +36,19 @@ plugins:
             Install and connect: Установка и подключение
             Codex: Codex
             Troubleshooting: Диагностика
+            Hardware reference: Техническое руководство (EN)
 nav:
   - Build: index.md
   - Install and connect: installation.md
   - Codex: codex.md
   - Troubleshooting: troubleshooting.md
+  - Hardware reference: hardware.md
 markdown_extensions:
   - attr_list
   - pymdownx.superfences
+  - pymdownx.snippets:
+      check_paths: true
+  - md_in_html
 extra_css:
   - assets/guide.css
 extra_javascript:
