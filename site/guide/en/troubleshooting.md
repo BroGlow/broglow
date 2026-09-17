@@ -6,6 +6,8 @@ The lamp stays off when there are no live sessions. Start a new local task in a 
 agent. For Codex, follow the [Codex setup steps](codex.md) and check that the task appears in ClawLight.
 An ordinary conversational question from Codex does not itself turn the light red.
 
+If Terminal cannot find `clawlight` or runs an older copy, follow the [PATH checks](installation.md#path).
+
 Check power, that lamp control is enabled in ClawLight, and Bluetooth. Allow ClawLight under
 System Settings → Privacy & Security → Bluetooth. The lamp turns off after 10 seconds without
 updates. It needs an awake Mac running ClawLight. If an expected color does not light during a
