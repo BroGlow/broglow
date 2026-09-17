@@ -3,89 +3,19 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 
-test('lamp connection requires a worker success, and BLE needs no USB presence', () => {
-  const html = readFileSync(new URL('../../assets/popover.html', import.meta.url), 'utf8');
-  const render = html.slice(html.indexOf('function renderLamp()'), html.indexOf('\nfunction relTime('));
-  const button = { dataset: {}, setAttribute() {} };
-  const detail = {};
-  const control = { dataset: {} };
-  const slider = { value: '100', matches: () => false };
-  const percentage = {};
-  const state = { lamp: {} };
-  const context = {
-    state, view: 'lamp', esc: String,
-    document: { getElementById: id => ({
-      lampbtn: button, lampdetail: detail, lampcontrol: control,
-      brightness: slider, brightnessvalue: percentage,
-    })[id] },
-  };
-
-  for (const status of ['searching', 'connecting', 'error', 'unavailable']) {
-    state.lamp = { transport: 'usb', enabled: true, present: true, state: status, detail: 'Worker detail' };
-    runInNewContext(render + '\nrenderLamp();', context);
-    assert.ok(!button.innerHTML.includes('dgreen'), status);
-    assert.equal(control.dataset.enabled, 'false');
-    assert.ok(detail.textContent.includes(status));
-    assert.ok(detail.textContent.includes('Worker detail'));
-  }
-
-  state.lamp = {
-    transport: 'ble', enabled: true, present: false, selected_count: 2, state: 'connected',
-    devices: [
-      { id: 'home-id', state: 'connected', detail: 'Write acknowledged' },
-      { id: 'work-id', state: 'searching', detail: 'Waiting for advertisement' },
-    ],
-  };
-  runInNewContext(render + '\nrenderLamp();', context);
-  assert.ok(button.innerHTML.includes('dgreen'));
-  assert.ok(button.innerHTML.includes('BLE 1/2'));
-  assert.ok(detail.textContent.includes('home-id: connected. Write acknowledged'));
-  assert.ok(detail.textContent.includes('work-id: searching. Waiting for advertisement'));
-
-  state.lamp.devices[1] = { id: 'work-id', state: 'connected', detail: 'Write acknowledged' };
-  runInNewContext(render + '\nrenderLamp();', context);
-  assert.ok(button.innerHTML.includes('BLE 2/2'));
-
-  state.lamp.devices[0] = { id: 'home-id', state: 'unavailable', detail: 'Status expired' };
-  runInNewContext(render + '\nrenderLamp();', context);
-  assert.ok(button.innerHTML.includes('BLE 1/2'));
-  assert.ok(detail.textContent.includes('home-id: unavailable. Status expired'));
-
-  state.lamp.devices = [];
-  runInNewContext(render + '\nrenderLamp();', context);
-  assert.ok(!button.innerHTML.includes('dgreen'));
-  assert.ok(button.innerHTML.includes('BLE 0/2'));
-
-  state.lamp.enabled = false;
-  runInNewContext(render + '\nrenderLamp();', context);
-  assert.ok(!button.innerHTML.includes('dgreen'));
-  assert.equal(control.dataset.enabled, 'true');
-  assert.equal(control.dataset.cmd, 'set_led');
-
-  state.lamp.selected_count = 0;
-  runInNewContext(render + '\nrenderLamp();', context);
-  assert.ok(detail.textContent.includes('clawlight ble add <ID>'));
-  assert.ok(detail.textContent.includes('BOOT button 3s'));
-
-  // The main view must not need diagnostic DOM or expose IDs in its tooltip.
-  context.view = 'sessions';
-  context.document.getElementById = id => id === 'lampbtn' ? button : null;
-  runInNewContext(render + '\nrenderLamp();', context);
-  assert.equal(button.dataset.cmd, undefined);
-  assert.ok(!button.title.includes('home-id'));
-  assert.ok(!button.title.includes('Write acknowledged'));
-  assert.ok(button.title.includes('View lamp details'));
-
-});
-
+// Execute the full embedded page; native layout/keyboard behavior needs a browser.
 function popoverPage() {
   const html = readFileSync(new URL('../../assets/popover.html', import.meta.url), 'utf8');
   const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
   const elements = new Map();
   const element = id => {
     if (!elements.has(id)) elements.set(id, {
-      id, dataset: {}, setAttribute() {}, offsetHeight: 200, value: '100', active: false,
-      matches(selector) { return selector === ':active' && this.active; },
+      id, dataset: {}, attributes: {}, offsetHeight: 200, value: '100', active: false,
+      textContent: '', hidden: false, open: false, tagName: 'DIV',
+      setAttribute(name, value) { this.attributes[name] = value; },
+      matches(selector) {
+        return selector === ':active' ? this.active : selector === 'details' && this.tagName === 'DETAILS';
+      },
       writes: 0, html: '',
       set innerHTML(value) { this.html = value; this.writes++; },
       get innerHTML() { return this.html; },
@@ -93,11 +23,11 @@ function popoverPage() {
     return elements.get(id);
   };
   element('lampbtn').dataset.local = 'lamp';
-  const listeners = {}, messages = [];
+  const listeners = {}, capture = {}, messages = [];
   const context = {
     window: { ipc: { postMessage: message => messages.push(JSON.parse(message)) }, devicePixelRatio: 1 },
     document: { activeElement: null, getElementById: element,
-      addEventListener: (name, callback) => { listeners[name] = callback; } },
+      addEventListener: (name, callback, options) => { listeners[name] = callback; capture[name] = options; } },
     setInterval() {},
   };
   runInNewContext(script, context);
@@ -106,84 +36,197 @@ function popoverPage() {
     return selector === '[data-local]' && el.dataset.local ? el :
       selector === '[data-cmd]' && el.dataset.cmd ? el : null;
   } } });
-  return { context, element, listeners, messages, click };
+  const update = lamp => context.window.__setState({ aggregate: 'none', sessions: [], settings: {}, lamp });
+  const commands = name => messages.filter(message => message.cmd === name);
+  return { context, element, listeners, capture, messages, click, update, commands };
 }
 
-test('opening lamp details is read-only; controls stay there and Escape returns', () => {
-  const { context, element, listeners, messages, click } = popoverPage();
-  context.window.__setState({ aggregate: 'none', sessions: [], settings: {}, lamp: {
-    transport: 'ble', enabled: true, state: 'connected', selected_count: 1,
-    devices: [{ id: 'saved-lamp', state: 'connected', detail: 'Write acknowledged' }],
-  } });
-  assert.ok(!element('groups').innerHTML.includes('lampdetail'));
+const visibleLabel = element => element.innerHTML.replace(/<[^>]*>/g, '');
+const lamp = (changes = {}) => ({
+  transport: 'ble', enabled: true, present: false, selected_count: 1, state: 'connected',
+  devices: [{ id: 'saved-lamp', state: 'connected', detail: 'Write acknowledged' }],
+  ...changes,
+});
+
+test('footer uses readable labels and requires fresh worker success, including without USB', () => {
+  const { element, update } = popoverPage();
+  const button = element('lampbtn');
+  for (const transport of ['ble', 'usb']) {
+    for (const status of ['searching', 'connecting', 'error', 'unavailable']) {
+      // A stale positive per-device state or USB presence cannot turn the dot green.
+      update(lamp({ transport, present: true, state: status }));
+      assert.equal(visibleLabel(button), 'Lamp');
+      assert.ok(!button.innerHTML.includes('dgreen'), `${transport}: ${status}`);
+      assert.ok(!/BLE|saved-lamp|Write acknowledged/.test(button.title));
+    }
+    update(lamp({ transport, present: false }));
+    assert.equal(visibleLabel(button), 'Lamp');
+    assert.ok(button.innerHTML.includes('dgreen'));
+    assert.match(button.title, /connected/i);
+    update(lamp({ transport, enabled: false }));
+    assert.equal(visibleLabel(button), 'Lamp off');
+    assert.ok(!button.innerHTML.includes('dgreen'));
+  }
+  update(lamp({ devices: [] }));
+  assert.ok(!button.innerHTML.includes('dgreen'), 'Missing device success is not a BLE connection');
+  assert.ok(!element('groups').innerHTML.includes('lamplist'), 'Main view stays compact');
+  assert.equal(button.dataset.cmd, undefined, 'Opening details is not an enable/disable command');
+});
+
+test('lamp rows keep IDs and diagnostics collapsed and update without replacing open controls', () => {
+  const { element, update, click, listeners, capture, commands } = popoverPage();
+  const devices = [
+    { id: 'home-id', state: 'connected', detail: 'Write acknowledged' },
+    { id: 'work-id', state: 'searching', detail: 'Waiting for advertisement' },
+  ];
+  const refresh = changes => update(lamp({ selected_count: 2, devices, detail: 'Worker detail', ...changes }));
+  refresh();
+  assert.equal(visibleLabel(element('lampbtn')), 'Lamps 1/2');
   click('lampbtn');
-  assert.ok(element('groups').innerHTML.includes('Lamp details'));
-  assert.ok(element('lampdetail').textContent.includes('saved-lamp'));
-  assert.equal(messages.filter(message => message.cmd === 'set_led').length, 0);
+  const groups = element('groups'), list = element('lamplist');
+  const groupBuilds = groups.writes, listBuilds = list.writes;
+  assert.match(groups.innerHTML, /id="lampsummary"[^>]*role="status"|role="status"[^>]*id="lampsummary"/);
+  assert.match(groups.innerHTML, /<details[^>]*id="lamptechnical"/);
+  assert.ok(!/<[^>]*id="lampdetail"[^>]*role="status"/.test(groups.innerHTML));
+  assert.equal(element('lamptransport').textContent, 'Bluetooth');
+  assert.equal(element('lampstate-0').textContent, 'Connected');
+  assert.equal(element('lampstate-1').textContent, 'Looking for lamp');
+  assert.equal(element('lampcontrol').textContent, 'Disable lamps');
+  assert.equal(element('lampid-0').textContent, 'home-id');
+  assert.equal(element('lampid-1').textContent, 'work-id');
+  assert.equal(element('lampdetail').textContent, 'Worker detail');
+  assert.ok(!/home-id|work-id|Write acknowledged/.test(element('lampsummary').textContent));
+  const summaries = [...list.innerHTML.matchAll(/<summary\b[^>]*>([\s\S]*?)<\/summary>/g)];
+  assert.equal(summaries.length, 2);
+  assert.match(summaries[0][1], /Lamp 1/);
+  assert.match(summaries[1][1], /Lamp 2/);
+  assert.ok(summaries.every(([, text]) => !/home-id|work-id|Write acknowledged/.test(text)));
+  const rows = [...list.innerHTML.matchAll(/<details\b[^>]*>([\s\S]*?)<\/details>/g)];
+  rows.forEach(([, html], i) => {
+    assert.match(html, new RegExp(`<dd[^>]*id="lampid-${i}"`));
+    assert.match(html, new RegExp(`<dd[^>]*id="lampdiagnostic-${i}"`));
+  });
+  assert.ok(!/<details\b[^>]*\bopen(?:\s|=|>)/.test(list.innerHTML + groups.innerHTML));
+
+  // Native expansion changes geometry only, without rerendering or controlling lamps.
+  const details = element('expanded-row');
+  details.tagName = 'DETAILS';
+  details.open = true;
+  assert.ok(capture.toggle === true || capture.toggle?.capture === true);
+  const resizeCount = commands('resize').length;
+  element('card').offsetHeight = 310;
+  listeners.toggle({ target: details });
+  assert.equal(commands('resize').length, resizeCount + 1);
+  assert.equal(commands('resize').at(-1).height, 310);
+  assert.equal(commands('set_led').length, 0);
+  assert.equal(list.writes, listBuilds);
+
+  devices[1] = { id: 'work-id', state: 'connected', detail: '<img src=x onerror=bad()> new ACK' };
+  refresh();
+  assert.equal(visibleLabel(element('lampbtn')), 'Lamps 2/2');
+  assert.equal(element('lampstate-1').textContent, 'Connected');
+  assert.equal(element('lampdiagnostic-1').textContent, devices[1].detail);
+  assert.equal(element('lampdiagnostic-1').innerHTML, '', 'Diagnostic data is written as text');
+  assert.equal(list.writes, listBuilds, 'Refresh preserves details nodes and their open state');
+  assert.equal(groups.writes, groupBuilds, 'Refresh preserves brightness and control nodes');
+  devices[0] = { id: 'home-id', state: 'unavailable', detail: 'Status expired' };
+  refresh();
+  assert.equal(visibleLabel(element('lampbtn')), 'Lamps 1/2');
+  assert.equal(element('lampstate-0').textContent, 'No recent response');
+  refresh({ state: 'unavailable' });
+  assert.notEqual(element('lampstate-1').textContent, 'Connected');
+  refresh({ enabled: false });
+  assert.equal(visibleLabel(element('lampbtn')), 'Lamps off');
+  assert.equal(element('lampstate-0').textContent, 'Off');
+  assert.equal(element('lampstate-1').textContent, 'Off');
+  assert.equal(element('lampcontrol').textContent, 'Enable lamps');
+  devices[0] = { id: 'home-id', state: 'error', detail: 'Permission denied' };
+  devices[1] = { id: '<replacement-id>', state: 'connecting', detail: 'Pairing' };
+  refresh();
+  assert.ok(list.writes > listBuilds, 'Changed membership replaces device rows');
+  assert.equal(groups.writes, groupBuilds, 'Membership changes leave the range control intact');
+  assert.equal(element('lampstate-0').textContent, 'Needs attention');
+  assert.equal(element('lampstate-1').textContent, 'Connecting');
+  assert.equal(element('lampid-1').textContent, '<replacement-id>');
+  assert.ok(!list.innerHTML.includes('<replacement-id>'), 'IDs cannot become markup');
+});
+
+test('opening details is read-only; lamp controls stay there and Escape returns', () => {
+  const { element, listeners, messages, click, update, commands } = popoverPage();
+  update(lamp());
+  click('lampbtn');
+  assert.match(element('groups').innerHTML, />Lamps</);
+  assert.equal(commands('set_led').length, 0);
   click('lampcontrol');
   assert.deepEqual(messages.at(-1), { cmd: 'set_led', enabled: false });
   assert.equal(element('lampcontrol').textContent, 'Enable lamp');
   listeners.keydown({ key: 'Escape' });
-  assert.ok(!element('groups').innerHTML.includes('lampdetail'));
+  assert.ok(!element('groups').innerHTML.includes('lamplist'));
   assert.equal(element('settingsbtn').textContent, 'Settings');
   click('settingsbtn');
   assert.ok(element('groups').innerHTML.includes('Usage tracking'));
   click('settingsbtn');
   assert.ok(!element('groups').innerHTML.includes('Usage tracking'));
+
+  update(lamp({ transport: 'usb', present: true, devices: [] }));
+  click('lampbtn');
+  assert.equal(element('lamptransport').textContent, 'USB');
+  assert.match(element('lamplist').innerHTML, /USB lamp/);
+  assert.equal(element('brightnesscontrol').hidden, true);
+  assert.equal(element('brightnesshint').textContent, 'Brightness control requires Bluetooth.');
+  update(lamp({ transport: 'usb', present: false, enabled: false, devices: [] }));
+  assert.equal(element('lampcontrol').dataset.cmd, 'get_lamp');
 });
 
-test('brightness saves while absent without enabling lamps and preserves native edits during refresh', () => {
-  const { context, element, listeners, messages, click } = popoverPage();
-  const update = percent => context.window.__setState({ aggregate: 'none', sessions: [], settings: {}, lamp: {
-    transport: 'ble', enabled: false, present: false, state: 'disabled', selected_count: 0,
-    brightness_percent: percent,
-  } });
-  const changes = () => messages.filter(message => message.cmd === 'set_brightness');
-  update(undefined);
+test('brightness saves while absent without enabling lamps and survives focused edits during refresh', () => {
+  const { context, element, listeners, messages, click, update, commands } = popoverPage();
+  const refresh = percent => update(lamp({
+    enabled: false, selected_count: 0, state: 'disabled', devices: [], brightness_percent: percent,
+  }));
+  refresh(undefined);
   assert.ok(!element('groups').innerHTML.includes('type="range"'));
   click('lampbtn');
   const slider = element('brightness');
   assert.equal(slider.value, '100');
-  assert.ok(element('groups').innerHTML.includes('USB brightness is unchanged'));
+  assert.equal(element('brightnesscontrol').hidden, false);
+  assert.equal(element('brightnesshint').textContent, 'Saved for all lamps. Applies when each connects.');
   const builds = element('groups').writes;
-  update(75);
+  refresh(75);
   assert.equal(slider.value, '75');
   assert.equal(element('brightnessvalue').textContent, '75%');
-
-  // Keyboard focus and a mouse drag both survive periodic service refreshes.
   context.document.activeElement = slider;
   slider.value = '30';
   listeners.input({ target: slider });
-  update(75);
+  refresh(75);
   assert.equal(slider.value, '30');
   assert.equal(context.document.activeElement, slider);
   context.document.activeElement = null;
   slider.active = true;
   slider.value = '20';
   listeners.input({ target: slider });
-  update(75);
+  refresh(75);
   assert.equal(slider.value, '20');
   assert.equal(element('brightnessvalue').textContent, '20%');
-  assert.equal(element('groups').writes, builds, 'Do not replace the range DOM during refresh');
-  assert.equal(changes().length, 0, 'Dragging only previews until change is committed');
+  assert.equal(element('groups').writes, builds);
+  assert.equal(commands('set_brightness').length, 0, 'Dragging previews until change is committed');
   listeners.change({ target: slider });
-  assert.deepEqual(changes(), [{ cmd: 'set_brightness', percent: 20 }]);
-  assert.equal(messages.filter(message => message.cmd === 'set_led').length, 0);
+  assert.deepEqual(commands('set_brightness'), [{ cmd: 'set_brightness', percent: 20 }]);
+  assert.equal(commands('set_led').length, 0);
   slider.active = false;
   listeners.focusout({ target: slider });
-  update(20);
+  refresh(20);
   assert.equal(slider.value, '20');
-  update(55);
+  refresh(55);
   assert.equal(slider.value, '55', 'An idle control accepts external saved changes');
   for (const invalid of ['101', '-1', '1.5', 'invalid']) {
     slider.value = invalid;
     listeners.change({ target: slider });
   }
-  assert.equal(changes().length, 1);
+  assert.equal(commands('set_brightness').length, 1);
   for (const percent of [0, 100]) {
     slider.value = String(percent);
     listeners.change({ target: slider });
-    assert.deepEqual(changes().at(-1), { cmd: 'set_brightness', percent });
+    assert.deepEqual(messages.at(-1), { cmd: 'set_brightness', percent });
   }
   assert.equal(element('lampcontrol').dataset.enabled, 'true', 'Saving does not enable the lamp');
 });

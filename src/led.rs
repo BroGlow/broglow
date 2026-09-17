@@ -349,7 +349,7 @@ fn summarize_devices(devices: Vec<DeviceStatus>) -> ConnectionStatus {
     };
     ConnectionStatus {
         state: state.into(),
-        detail: format!("{connected}/{} BLE lamps connected", devices.len()),
+        detail: format!("{connected}/{} lamps connected", devices.len()),
         devices,
     }
 }
@@ -458,7 +458,7 @@ mod transport_tests {
         };
         let status = status_for(&cfg, Some(record), 107);
         assert_eq!(status.state, "connected");
-        assert_eq!(status.detail, "1/2 BLE lamps connected");
+        assert_eq!(status.detail, "1/2 lamps connected");
         assert_eq!(status.devices[0].state, "unavailable");
         assert_eq!(status.devices[1].state, "connected");
     }

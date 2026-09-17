@@ -171,6 +171,27 @@ body.win .pbtnpri:hover { background: #63cbff; }
 .lampbtn { gap: 6px; padding-left: 9px; padding-right: 9px; }
 .lampbtn .dot { width: 7px; height: 7px; }
 .lampbtn.lon { color: rgba(255,255,255,.8); }
+.lamptop { padding: 7px 10px 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.lamptop #lampsummary { font-size: 13px; font-weight: 600; }
+.lamptop #lamptransport { color: rgba(255,255,255,.5); font-size: 11px; }
+.lamplist { padding: 0 10px 12px; }
+.lampitem { border: 1px solid rgba(255,255,255,.12); border-radius: 7px; margin-bottom: 6px; }
+.lampheading { display: grid; grid-template-columns: 1fr auto 10px; gap: 8px; align-items: center; padding: 10px; font-size: 12px; cursor: pointer; list-style: none; }
+.lampheading::-webkit-details-marker { display: none; }
+.lampheading:hover { background: rgba(255,255,255,.05); }
+summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outline-offset: -2px; border-radius: 6px; }
+.lampstate { font-size: 11px; color: #ffbc66; }
+.lampstate.connected { color: #66d987; }
+.lampstate.disabled { color: rgba(255,255,255,.5); }
+.lampstate.error, .lampstate.unavailable { color: #ff8a80; }
+.lampchevron { color: rgba(255,255,255,.5); font-size: 16px; transition: transform .1s; }
+.lampitem[open] .lampchevron { transform: rotate(90deg); }
+.lampitem dl { padding: 0 10px 10px; font-size: 11px; line-height: 1.45; -webkit-user-select: text; user-select: text; }
+.lampitem dt { color: rgba(255,255,255,.5); margin-top: 7px; }
+.lampitem dd { color: rgba(255,255,255,.8); overflow-wrap: anywhere; }
+.lampitem dd.lampid { font-family: ui-monospace, monospace; }
+.lamptechnical { margin: 0 10px 12px; font-size: 11px; color: rgba(255,255,255,.6); }
+.lamptechnical summary { cursor: pointer; padding: 5px 0; }
 .lampdetail { padding: 7px 10px 12px; color: rgba(255,255,255,.65); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-line; -webkit-user-select: text; user-select: text; }
 .lampactions { padding: 0 10px 10px; }
 .brightness { padding: 0 10px 12px; color: rgba(255,255,255,.8); font-size: 12px; }
@@ -324,42 +345,77 @@ function renderUsage() {
   el.hidden = false;
 }
 
+function lampState(status) {
+  return ({ connected: 'Connected', connecting: 'Connecting', searching: 'Looking for lamp',
+    error: 'Needs attention', unavailable: 'No recent response', disabled: 'Off' })[status] || 'No recent response';
+}
+
 /* Connection comes from worker writes, never from a nearby advertisement or
-   enabled setting. Diagnostics and controls live in the Lamp details view. */
+   enabled setting. Diagnostics and controls live in the Lamps view. */
 function renderLamp() {
   const l = state.lamp || {};
   const el = document.getElementById('lampbtn');
-  const transport = l.transport === 'ble' ? 'BLE' : 'USB';
+  const wireless = l.transport === 'ble';
   const status = l.enabled ? (l.state || 'unavailable') : 'disabled';
   const devices = l.devices || [];
   const connectedCount = l.enabled && status === 'connected' ? devices.filter(device => device.state === 'connected').length : 0;
-  const connected = status === 'connected' && (l.transport !== 'ble' || connectedCount > 0);
-  let dot = null, label, cmd = 'set_led', enabled = !l.enabled;
+  const connected = status === 'connected' && (!wireless || connectedCount > 0);
+  const plural = wireless && l.selected_count > 1;
+  let dot = null, label = plural ? 'Lamps' : 'Lamp', cmd = 'set_led', enabled = !l.enabled;
   if (l.enabled) {
     dot = connected ? 'dgreen' : (status === 'error' || status === 'unavailable' ? 'dred' : 'dyellow');
-    label = l.transport === 'ble' ? `BLE ${connectedCount}/${l.selected_count || 0}` : transport + (connected ? ' on' : ' wait');
-  } else if (l.present || l.transport === 'ble') {
-    label = transport + ' off';
+    if (plural) label += ` ${connectedCount}/${l.selected_count}`;
   } else {
-    label = 'Lamp off'; cmd = 'get_lamp'; enabled = undefined;
+    label += ' off';
+    if (!l.present && !wireless) { cmd = 'get_lamp'; enabled = undefined; }
   }
-  let detail = `${transport}: ${status}. ${l.detail || ''}`.trim();
-  if (l.transport === 'ble' && !l.selected_count) {
-    detail += ' Add a lamp: hold its BOOT button 3s after startup, clawlight ble scan, then clawlight ble add <ID>.';
-  }
-  for (const device of devices) detail += `\n${device.id}: ${device.state}. ${device.detail || ''}`;
   el.className = 'pbtn pbtnghost lampbtn' + (connected ? ' lon' : '');
-  el.title = `${label} — ${status}. View lamp details.`;
+  el.title = `${label} — ${lampState(connected ? 'connected' : status === 'connected' ? 'unavailable' : status)}. View lamp details.`;
   el.setAttribute('aria-label', el.title);
   el.setAttribute('aria-expanded', String(view === 'lamp'));
-  el.innerHTML = (dot ? `<span class="dot ${dot}"></span>` : '') + esc(label);
+  el.innerHTML = (dot ? `<span class="dot ${dot}" aria-hidden="true"></span>` : '') + esc(label);
   if (view === 'lamp') {
-    document.getElementById('lampdetail').textContent = detail;
+    document.getElementById('lamptransport').textContent = wireless ? 'Bluetooth' : 'USB';
+    document.getElementById('lampsummary').textContent = wireless && !l.selected_count ? 'No lamps added' :
+      !l.enabled ? 'Updates paused' : plural ? `${connectedCount} of ${l.selected_count} connected` :
+      lampState(connected ? 'connected' : status === 'connected' ? 'unavailable' : status);
+    const rows = wireless ? devices : [{ id: 'usb', state: status, detail: l.detail }];
+    const list = document.getElementById('lamplist');
+    const ids = JSON.stringify([l.transport, ...rows.map(device => device.id)]);
+    // Preserve native disclosure state, focus and text selection across heartbeats.
+    if (list.dataset.ids !== ids) {
+      list.innerHTML = rows.map((device, i) =>
+        `<details class="lampitem"><summary class="lampheading">` +
+        `<span>${wireless ? 'Lamp ' + (i + 1) : 'USB lamp'}</span>` +
+        `<span class="lampstate" id="lampstate-${i}"></span>` +
+        `<span class="lampchevron" aria-hidden="true">›</span></summary>` +
+        `<dl><dt>${wireless ? 'Device ID' : 'Connection'}</dt><dd class="lampid" id="lampid-${i}"></dd>` +
+        `<dt>Diagnostic</dt><dd id="lampdiagnostic-${i}"></dd></dl></details>`
+      ).join('');
+      list.dataset.ids = ids;
+    }
+    rows.forEach((device, i) => {
+      const deviceState = !l.enabled ? 'disabled' :
+        device.state === 'connected' && status !== 'connected' ? status : (device.state || status);
+      const cell = document.getElementById('lampstate-' + i);
+      cell.textContent = lampState(deviceState);
+      cell.className = 'lampstate ' + (['connected', 'disabled', 'error', 'unavailable'].includes(deviceState) ? deviceState : '');
+      const id = document.getElementById('lampid-' + i);
+      const diagnostic = document.getElementById('lampdiagnostic-' + i);
+      const identifier = wireless ? device.id : 'USB cable';
+      if (id.textContent !== identifier) id.textContent = identifier;
+      if (diagnostic.textContent !== (device.detail || '')) diagnostic.textContent = device.detail || '';
+    });
+    document.getElementById('lampdetail').textContent = wireless && !l.selected_count ?
+      'Connect the lamp by USB, then run clawlight ble pair to set it up. For button setup, hold BOOT for 3 seconds after startup, then use clawlight ble scan and clawlight ble add <ID>.' : (l.detail || '');
     const control = document.getElementById('lampcontrol');
     control.dataset.cmd = cmd;
     if (enabled === undefined) delete control.dataset.enabled;
     else control.dataset.enabled = String(enabled);
-    control.textContent = cmd === 'get_lamp' ? 'Get a lamp ↗' : (l.enabled ? 'Disable lamp' : 'Enable lamp');
+    control.textContent = cmd === 'get_lamp' ? 'Get a lamp ↗' : (l.enabled ? 'Disable' : 'Enable') + (plural ? ' lamps' : ' lamp');
+    document.getElementById('brightnesscontrol').hidden = !wireless;
+    document.getElementById('brightnesshint').textContent = wireless ?
+      'Saved for all lamps. Applies when each connects.' : 'Brightness control requires Bluetooth.';
     const slider = document.getElementById('brightness');
     // Keep a native drag or keyboard edit intact when the service pushes state.
     if (document.activeElement !== slider && !slider.matches(':active')) {
@@ -409,13 +465,16 @@ function render() {
   if (view === 'lamp') {
     // Reuse the controls: replacing this subtree during a drag loses native focus.
     if (groupsEl.dataset.view !== 'lamp') {
-      groupsEl.innerHTML = `<div class="grplabel">Lamp details</div>` +
-        `<div class="lampdetail" id="lampdetail" role="status"></div>` +
-        `<div class="brightness"><label for="brightness">Light brightness` +
+      groupsEl.innerHTML = `<div class="grplabel">Lamps</div>` +
+        `<div class="lamptop"><span id="lampsummary" role="status"></span><span id="lamptransport"></span></div>` +
+        `<div class="lamplist" id="lamplist"></div>` +
+        `<div class="brightness" id="brightnesscontrol"><label for="brightness">Light brightness` +
         `<output id="brightnessvalue" for="brightness"></output></label>` +
         `<input id="brightness" type="range" min="0" max="100" step="1" value="100">` +
-        `<p>Saved for all BLE lamps, including while disconnected. Applies when connected; USB brightness is unchanged.</p></div>` +
-        `<div class="lampactions"><button class="pbtn" id="lampcontrol"></button></div>`;
+        `<p id="brightnesshint"></p></div>` +
+        `<div class="lampactions"><button class="pbtn" id="lampcontrol"></button></div>` +
+        `<details class="lamptechnical" id="lamptechnical"><summary>Troubleshooting</summary>` +
+        `<div class="lampdetail" id="lampdetail"></div></details>`;
     }
   } else if (view === 'settings') {
     const mode = (state.settings && state.settings.yellowMode) || 'any_inactive';
@@ -480,6 +539,13 @@ function render() {
 }
 
 window.__setState = payload => { state = payload; render(); };
+
+document.addEventListener('toggle', ev => {
+  if (ev.target.matches('details')) {
+    post({ cmd: 'resize', height: Math.ceil(document.getElementById('card').offsetHeight),
+           dpr: window.devicePixelRatio });
+  }
+}, true);
 
 document.addEventListener('input', ev => {
   if (ev.target.id === 'brightness') {
