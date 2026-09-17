@@ -7,9 +7,9 @@
 Скачайте BLE-пакет для Mac с Apple Silicon (M1 и новее). Внутри приложение и прошивка C3. Для
 Intel нужна отдельная сборка; в оригинальном Homebrew-пакете этой BLE-версии нет.
 
-[Скачать для Mac · Apple Silicon ↓](../../../../dist/clawlight-v0.13.0-aarch64-apple-darwin-20260917T131708267560Z.tar.gz){ download }
+[Скачать для Mac · Apple Silicon ↓](../../../../dist/clawlight-v0.13.0-aarch64-apple-darwin-20260917T165513096122Z.tar.gz){ download }
 
-[Скачать контрольную сумму](../../../../dist/clawlight-v0.13.0-aarch64-apple-darwin-20260917T131708267560Z.tar.gz.sha256){ download }
+[Скачать контрольную сумму](../../../../dist/clawlight-v0.13.0-aarch64-apple-darwin-20260917T165513096122Z.tar.gz.sha256){ download }
 
 ## Настройте с помощью coding-агента { #agent-setup }
 

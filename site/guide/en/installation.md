@@ -8,9 +8,9 @@ Download the BLE package for a Mac with Apple Silicon (M1 or newer). It includes
 firmware. Intel Macs need a separate build; the upstream Homebrew package does not include this
 BLE version.
 
-[Download for Mac · Apple Silicon ↓](../../../dist/clawlight-v0.13.0-aarch64-apple-darwin-20260917T131708267560Z.tar.gz){ download }
+[Download for Mac · Apple Silicon ↓](../../../dist/clawlight-v0.13.0-aarch64-apple-darwin-20260917T165513096122Z.tar.gz){ download }
 
-[Download checksum](../../../dist/clawlight-v0.13.0-aarch64-apple-darwin-20260917T131708267560Z.tar.gz.sha256){ download }
+[Download checksum](../../../dist/clawlight-v0.13.0-aarch64-apple-darwin-20260917T165513096122Z.tar.gz.sha256){ download }
 
 ## Set it up with your coding agent { #agent-setup }
 
