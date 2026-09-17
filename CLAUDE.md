@@ -285,7 +285,8 @@ thin:
 ## ESP32 board (optional)
 
 The local C3 companion firmware is in `firmware/esp32-c3-supermini/` (Arduino /
-PlatformIO). Its three independent LEDs use GPIO4/5/6 and one resistor each. BLE
+PlatformIO). Red/yellow/green use GPIO0/1/3 on the GND side, each through its own
+330-ohm resistor; cathodes share GND. Skip GPIO2, a boot-strapping pin. BLE
 uses exactly one `R`, `Y`, `G`, or `N` byte with response; the host sends immediately,
 on changes, and every two seconds. The board clears session status ten seconds
 after its last valid update; a still-connected stale link stays dark, while a

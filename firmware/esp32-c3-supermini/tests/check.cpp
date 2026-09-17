@@ -332,7 +332,7 @@ void expectLamp(int red, int yellow, int green, int builtin = -1) {
            (expected == 0 || expected == 255 ? 0 : 1);
   };
   for (const auto& expected :
-       {std::pair<int, int>{4, red}, {5, yellow}, {6, green}})
+       {std::pair<int, int>{0, red}, {1, yellow}, {3, green}})
     assert(matches(pinDuty(expected.first), expected.second));
   if (BUILTIN_LED_PIN < 0) {
     assert(std::find(pwmPins.begin(), pwmPins.end(), 8) == pwmPins.end());
@@ -516,8 +516,8 @@ void indicationChecks() {
   unsigned litSamples = 0;
   for (uint32_t elapsed = 0; elapsed < 90000; elapsed += 50) {
     at(63000 + elapsed);
-    const auto duty = pinDuty(4);
-    assert(duty <= 16 && pinDuty(5) == duty && pinDuty(6) == duty);
+    const auto duty = pinDuty(0);
+    assert(duty <= 16 && pinDuty(1) == duty && pinDuty(3) == duty);
     if (elapsed < 10000) assert(duty == 0);
     if (duty > 0) ++litSamples;
   }

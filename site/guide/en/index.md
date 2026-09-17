@@ -27,8 +27,9 @@ and check the enclosure fit. The included firmware targets ESP32-C3.
 Disconnect USB power. Connect each pin through its own 330 Ω resistor to the LED’s anode (+).
 All cathodes (−) go to GND; do not connect the LEDs to 5V.
 
-Wiring for the recommended ESP32-C3 build. Check the pin assignments for other boards.
+Wiring for the recommended ESP32-C3 build: use the pads on the GND side and skip
+GPIO2, a boot-strapping pin. Check the pin assignments for other boards.
 
-- Red: GPIO4 → 330 Ω → LED (+)
-- Yellow: GPIO5 → 330 Ω → LED (+)
-- Green: GPIO6 → 330 Ω → LED (+)
+- Red: GPIO0 → 330 Ω → LED (+)
+- Yellow: GPIO1 → 330 Ω → LED (+)
+- Green: GPIO3 → 330 Ω → LED (+)

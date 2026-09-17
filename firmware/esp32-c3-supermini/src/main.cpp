@@ -29,7 +29,7 @@ constexpr bool safePin(int pin) {
 }
 static_assert(safePin(LED_RED_PIN) && safePin(LED_YELLOW_PIN) &&
                   safePin(LED_GREEN_PIN),
-              "Choose exposed non-strapping GPIOs (defaults: 4, 5, 6)");
+              "Choose exposed non-strapping GPIOs (defaults: 0, 1, 3)");
 static_assert(LED_RED_PIN != LED_YELLOW_PIN && LED_RED_PIN != LED_GREEN_PIN &&
                   LED_YELLOW_PIN != LED_GREEN_PIN,
               "Each LED needs its own GPIO");
