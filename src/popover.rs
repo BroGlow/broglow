@@ -67,6 +67,8 @@ pub enum PopoverMsg {
     Ready,
     /// A yellow-light option picked in the Settings view.
     SetYellowMode { mode: YellowMode },
+    /// Show the terminal dashboard shortcuts, using the same preference as the CLI.
+    SetDashboardButton { enabled: bool },
     /// A usage-tracking option picked in the Settings view: whether to track
     /// usage at all (`enabled`) and, when on, which readout (`mode`). The page
     /// sends both together so "Off" and the Plan/API choice are one control.
@@ -120,6 +122,8 @@ struct SessionPayload<'a> {
 
 #[derive(Serialize)]
 struct SettingsPayload {
+    #[serde(rename = "showDashboardButton")]
+    show_dashboard_button: bool,
     #[serde(rename = "yellowMode")]
     yellow_mode: YellowMode,
     /// Whether usage tracking is opted into; drives the Settings selection and
@@ -283,11 +287,11 @@ impl Popover {
             .evaluate_script(&format!("window.__setState({payload})"));
     }
 
-    pub fn lamp_action_result(&self, error: Option<String>) {
-        let error = serde_json::to_string(&error).expect("serialize lamp error");
+    pub fn config_action_result(&self, error: Option<String>) {
+        let error = serde_json::to_string(&error).expect("serialize settings error");
         let _ = self
             .webview
-            .evaluate_script(&format!("window.__lampActionResult({error})"));
+            .evaluate_script(&format!("window.__configActionResult({error})"));
     }
 
     /// The page reported its rendered height: size the window to fit, keep it
@@ -505,6 +509,7 @@ fn build_payload(state: &HookState) -> String {
         aggregate: agg_str(aggregate(state, cfg.yellow_mode)),
         sessions,
         settings: SettingsPayload {
+            show_dashboard_button: cfg.show_dashboard_button,
             yellow_mode: cfg.yellow_mode,
             usage_enabled: cfg.usage_enabled,
             billing_mode: cfg.billing_mode,
@@ -624,6 +629,26 @@ mod tests {
                 mode: BillingMode::Plan
             }
         ));
+    }
+
+    #[test]
+    fn dashboard_visibility_requires_an_explicit_boolean() {
+        for enabled in [true, false] {
+            let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
+                "cmd": "set_dashboard_button", "enabled": enabled
+            }))
+            .unwrap();
+            assert!(
+                matches!(msg, PopoverMsg::SetDashboardButton { enabled: value } if value == enabled)
+            );
+        }
+        for payload in [
+            r#"{"cmd":"set_dashboard_button"}"#,
+            r#"{"cmd":"set_dashboard_button","enabled":"false"}"#,
+            r#"{"cmd":"set_dashboard_button","enabled":null}"#,
+        ] {
+            assert!(serde_json::from_str::<PopoverMsg>(payload).is_err());
+        }
     }
 
     /// Pins the IPC wire format the Lamp details control emits

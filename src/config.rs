@@ -42,6 +42,8 @@ pub enum LedTransport {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
+    /// Show the optional terminal-dashboard entry points in the tray app.
+    pub show_dashboard_button: bool,
     /// Whether the menu bar daemon should mirror session state to an ESP32 over
     /// serial. Off by default — the daemon never touches a serial port until a
     /// user explicitly enables it (TUI: press `l`).
@@ -80,6 +82,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            show_dashboard_button: false,
             led_enabled: false,
             led_port: None,
             led_transport: LedTransport::default(),
@@ -127,14 +130,22 @@ pub fn config_file_path() -> PathBuf {
 
 /// Read the config, falling back to defaults if it's missing or unreadable.
 pub fn read_config() -> Config {
-    let path = config_file_path();
-    if !path.exists() {
-        return Config::default();
+    read_config_strict().unwrap_or_default()
+}
+
+/// Settings edits must not replace unreadable configuration with defaults.
+pub fn read_config_strict() -> anyhow::Result<Config> {
+    match std::fs::read(config_file_path()) {
+        Ok(bytes) => Ok(serde_json::from_slice(&bytes)?),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Config::default()),
+        Err(e) => Err(e.into()),
     }
-    std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|c| serde_json::from_str(&c).ok())
-        .unwrap_or_default()
+}
+
+pub fn set_dashboard_button(enabled: bool) -> anyhow::Result<()> {
+    let mut cfg = read_config_strict()?;
+    cfg.show_dashboard_button = enabled;
+    write_config(&cfg)
 }
 
 /// Atomically write the config (temp file + rename), creating the directory if
@@ -276,11 +287,14 @@ mod tests {
         // resolve to LED off — the opt-in safety guarantee.
         let from_empty: Config = serde_json::from_str("{}").unwrap();
         assert!(!from_empty.led_enabled);
+        assert!(!from_empty.show_dashboard_button);
         assert!(from_empty.led_port.is_none());
 
         let from_partial: Config = serde_json::from_str(r#"{"led_port": null}"#).unwrap();
         assert!(!from_partial.led_enabled);
+        assert!(!from_partial.show_dashboard_button);
 
         assert!(!Config::default().led_enabled);
+        assert!(!Config::default().show_dashboard_button);
     }
 }

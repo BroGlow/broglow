@@ -13,7 +13,15 @@ fn help_lists_the_public_subcommands() {
     let assert = clawlight().arg("--help").assert().success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
 
-    for subcommand in ["install", "uninstall", "menubar", "led", "ble", "update"] {
+    for subcommand in [
+        "install",
+        "uninstall",
+        "menubar",
+        "dashboard-button",
+        "led",
+        "ble",
+        "update",
+    ] {
         assert!(stdout.contains(subcommand), "--help mentions {subcommand}");
     }
     // Internal backends stay hidden from users.
@@ -23,6 +31,46 @@ fn help_lists_the_public_subcommands() {
             "{hidden} is hidden"
         );
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn dashboard_visibility_persists_without_touching_other_settings_or_installing() {
+    let home = tempfile::tempdir().unwrap();
+    let path = home.path().join(".claude/clawlight/config.json");
+    let run = |value: &str| {
+        clawlight()
+            .env("HOME", home.path())
+            .args(["dashboard-button", value])
+            .assert()
+    };
+    run("hide").success();
+    let cfg: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert_eq!(cfg["show_dashboard_button"], false);
+    assert_eq!(cfg["led_enabled"], false);
+    assert!(!home.path().join(".claude/settings.json").exists());
+    assert!(!home.path().join("Library/LaunchAgents").exists());
+
+    let original = serde_json::json!({
+        "led_enabled": true, "led_brightness": 37,
+        "ble_peripherals": ["home", "office"], "custom": {"keep": true}
+    });
+    std::fs::write(&path, original.to_string()).unwrap();
+    for (value, enabled) in [("show", true), ("hide", false)] {
+        run(value).success();
+        let cfg: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(cfg["show_dashboard_button"], enabled);
+        for (key, value) in original.as_object().unwrap() {
+            assert_eq!(&cfg[key], value);
+        }
+    }
+    let saved = std::fs::read(&path).unwrap();
+    run("invalid").failure();
+    assert_eq!(std::fs::read(&path).unwrap(), saved);
+    std::fs::write(&path, "{corrupt").unwrap();
+    run("show").failure();
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "{corrupt");
 }
 
 #[test]

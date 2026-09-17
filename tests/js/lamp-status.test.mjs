@@ -12,6 +12,7 @@ function popoverPage() {
     if (!elements.has(id)) elements.set(id, {
       id, dataset: {}, attributes: {}, offsetHeight: 200, value: '100', active: false,
       textContent: '', hidden: false, open: false, tagName: 'DIV',
+      focus() { context.document.activeElement = this; },
       setAttribute(name, value) { this.attributes[name] = value; },
       matches(selector) {
         return selector === ':active' ? this.active : selector === 'details' && this.tagName === 'DETAILS';
@@ -70,6 +71,58 @@ const lamp = (changes = {}) => ({
   transport: 'ble', enabled: true, present: false, selected_count: 1, state: 'connected',
   devices: [{ id: 'saved-lamp', state: 'connected', detail: 'Write acknowledged' }],
   ...changes,
+});
+
+test('dashboard stays hidden unless explicitly enabled and follows live settings', () => {
+  const { context, element } = popoverPage();
+  assert.equal(element('dashboardbtn').hidden, true);
+  for (const enabled of [true, false, undefined]) {
+    context.window.__setState({ aggregate: 'none', sessions: [],
+      settings: { showDashboardButton: enabled }, lamp: lamp() });
+    assert.equal(element('dashboardbtn').hidden, enabled !== true);
+  }
+});
+
+test('Settings toggles the saved Dashboard preference, reflects CLI changes and recovers from save failures', () => {
+  const { context, element, click, listeners, commands, messages } = popoverPage();
+  const refresh = enabled => context.window.__setState({ aggregate: 'none', sessions: [],
+    settings: { showDashboardButton: enabled }, lamp: lamp() });
+  refresh(false);
+  click('settingsbtn');
+  const toggle = element('showdashboard');
+  assert.equal(toggle.checked, false);
+  assert.match(element('groups').innerHTML, /<label[^>]*for="showdashboard"/);
+  assert.match(element('groups').innerHTML, /type="checkbox"[^>]*id="showdashboard"/);
+  toggle.focus();
+  for (const enabled of [true, false]) {
+    toggle.checked = enabled;
+    listeners.change({ target: toggle });
+    assert.deepEqual(commands('set_dashboard_button').at(-1), { cmd: 'set_dashboard_button', enabled });
+    assert.equal(element('dashboardbtn').hidden, enabled, 'Await persisted host state');
+    refresh(enabled);
+    context.window.__configActionResult(null);
+    assert.equal(toggle.checked, enabled);
+    assert.equal(element('dashboardbtn').hidden, !enabled);
+    assert.equal(context.document.activeElement, toggle, 'Keep keyboard focus through refresh');
+  }
+  refresh(true); // A CLI change uses the same state update.
+  assert.equal(toggle.checked, true);
+  toggle.checked = false;
+  listeners.change({ target: toggle });
+  refresh(true); // Failed save leaves the existing preference intact.
+  const error = 'Could not save Dashboard setting: <permission denied>';
+  context.window.__configActionResult(error);
+  assert.equal(toggle.checked, true);
+  assert.equal(element('dashboardbtn').hidden, false);
+  assert.equal(element('settingserror').hidden, false);
+  assert.equal(element('settingserror').textContent, error);
+  assert.equal(element('settingserror').innerHTML, '', 'Errors are safe text');
+  toggle.checked = false;
+  listeners.change({ target: toggle });
+  assert.equal(element('settingserror').hidden, true);
+  assert.equal(commands('set_dashboard_button').length, 4, 'Retry remains available');
+  assert.ok(messages.every(({ cmd }) => ['ready', 'resize', 'set_dashboard_button'].includes(cmd)),
+    'Changing appearance does not launch Terminal or control lamps');
 });
 
 test('footer uses readable labels and requires fresh worker success, including without USB', () => {
@@ -232,7 +285,7 @@ test('forget sends exactly the chosen saved ID, including absent and disabled la
     context.document.activeElement = slider;
     slider.value = '23';
     refresh(devices.slice(0, 1));
-    context.window.__lampActionResult(null);
+    context.window.__configActionResult(null);
     assert.equal((list.innerHTML.match(/>Forget lamp<\/button>/g) || []).length, 1);
     assert.equal(element('lampid-0').textContent, 'home-id', 'The other saved lamp remains');
     assert.equal(element('lampforget-0').disabled, false);
@@ -250,7 +303,7 @@ test('forget failure stays visible across refresh, preserves the row and allows 
   click('lampbtn');
   click('lampforget-0');
   const error = 'Cannot save <config>: permission denied';
-  context.window.__lampActionResult(error);
+  context.window.__configActionResult(error);
   update(lamp());
   assert.equal(element('lamperror').hidden, false);
   assert.equal(element('lamperror').textContent, error);

@@ -108,6 +108,8 @@ body.win .optrow:hover { background: rgba(255,255,255,.06); }
 .radio.rsel { border: 4.5px solid #3577f6; }
 body.win .radio.rsel { border-color: #4cc2ff; }
 .setdesc { white-space: normal; line-height: 1.35; }
+.optrow input { margin-top: 2px; accent-color: #3577f6; }
+body.win .optrow input { accent-color: #4cc2ff; }
 
 /* Usage section (design 1a/1c) — sits between the session groups and the
    footer. Plan mode: 5h-block + week bars; API mode: per-model cost bar. */
@@ -166,6 +168,7 @@ body.win .pbtnpri:hover { background: #63cbff; }
 .pbtnghost { background: transparent; color: rgba(255,255,255,.55); }
 .pbtnghost:hover { background: rgba(255,255,255,.08); }
 .pbtn[disabled] { opacity: .55; pointer-events: none; }
+.pbtn[hidden] { display: none; }
 .f1 { flex: 1; }
 /* Footer lamp indicator opens details without changing lamp control. */
 .lampbtn { gap: 6px; padding-left: 9px; padding-right: 9px; }
@@ -217,7 +220,7 @@ body.win .brightness input { accent-color: #4cc2ff; }
   <div class="grp" id="groups"></div>
   <div class="usec" id="usage" hidden></div>
   <div class="popfoot">
-    <button class="pbtn pbtnpri" data-cmd="dashboard">Dashboard</button>
+    <button class="pbtn pbtnpri" id="dashboardbtn" data-cmd="dashboard" hidden>Dashboard</button>
     <button class="pbtn" id="settingsbtn" data-local="settings">Settings</button>
     <span class="f1"></span>
     <button class="pbtn pbtnghost lampbtn" id="lampbtn" data-local="lamp"></button>
@@ -351,10 +354,10 @@ function lampState(status) {
   return ({ connected: 'Connected', connecting: 'Connecting', searching: 'Looking for lamp',
     error: 'Needs attention', unavailable: 'No recent response', disabled: 'Off' })[status] || 'No recent response';
 }
-let pendingForgetId = null, lampActionError = '';
-window.__lampActionResult = error => {
+let pendingForgetId = null, configActionError = '';
+window.__configActionResult = error => {
   pendingForgetId = null;
-  lampActionError = error || '';
+  configActionError = error || '';
   render();
 };
 
@@ -469,8 +472,8 @@ function renderLamp() {
       }
     });
     const error = document.getElementById('lamperror');
-    error.textContent = lampActionError;
-    error.hidden = !lampActionError;
+    error.textContent = configActionError;
+    error.hidden = !configActionError;
     document.getElementById('lampdetail').textContent = wireless && !l.selected_count ?
       'Connect the lamp by USB, then run clawlight ble pair to set it up. For button setup, hold BOOT for 3 seconds after startup, then use clawlight ble scan and clawlight ble add <ID>.' : (l.detail || '');
     const control = document.getElementById('lampcontrol');
@@ -502,6 +505,7 @@ function relTime(iso) {
 }
 
 function render() {
+  document.getElementById('dashboardbtn').hidden = state.settings?.showDashboardButton !== true;
   const sessions = state.sessions;
   const counts = { needs_help: 0, active: 0, inactive: 0 };
   for (const s of sessions) if (s.status in counts) counts[s.status]++;
@@ -544,12 +548,19 @@ function render() {
         `<div class="lampdetail" id="lampdetail"></div></details>`;
     }
   } else if (view === 'settings') {
+    const dashboardFocused = document.activeElement?.id === 'showdashboard';
     const mode = (state.settings && state.settings.yellowMode) || 'any_inactive';
     // Off unless opted in; then reflect the chosen readout.
     const usage = (state.settings && state.settings.usageEnabled)
       ? ((state.settings && state.settings.billingMode) || 'plan')
       : 'off';
     groupsEl.innerHTML =
+      `<div class="grplabel">Appearance</div>` +
+      `<label class="optrow" for="showdashboard">` +
+      `<input type="checkbox" id="showdashboard" aria-describedby="dashboardhint">` +
+      `<span class="sinfo"><span class="sname">Show Dashboard button</span>` +
+      `<span class="smeta setdesc" id="dashboardhint">Open the terminal session monitor from the app.</span></span></label>` +
+      `<p class="lamperror" id="settingserror" role="alert" hidden></p>` +
       `<div class="grplabel">Yellow light when sessions are mixed</div>` +
       YELLOW_OPTIONS.map(o =>
         `<div class="optrow" data-yellow="${o.value}">` +
@@ -564,6 +575,12 @@ function render() {
         `<div class="sinfo"><span class="sname">${o.title}</span>` +
         `<span class="smeta setdesc">${o.desc}</span></div></div>`
       ).join('');
+    const dashboardToggle = document.getElementById('showdashboard');
+    dashboardToggle.checked = state.settings?.showDashboardButton === true;
+    if (dashboardFocused) dashboardToggle.focus();
+    const error = document.getElementById('settingserror');
+    error.textContent = configActionError;
+    error.hidden = !configActionError;
   } else if (live === 0) {
     groupsEl.innerHTML =
       `<div class="emptybox"><img src="${ICONS.none}" alt="">` +
@@ -637,6 +654,12 @@ for (const event of ['pointerup', 'pointercancel']) {
 window.addEventListener('blur', stopBrightnessPreview);
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopBrightnessPreview(); });
 document.addEventListener('change', ev => {
+  if (ev.target.id === 'showdashboard') {
+    configActionError = '';
+    document.getElementById('settingserror').hidden = true;
+    post({ cmd: 'set_dashboard_button', enabled: ev.target.checked });
+    return;
+  }
   if (ev.target.id !== 'brightness') return;
   const percent = brightnessPercent(ev.target.value);
   if (percent === null) return;
@@ -693,7 +716,7 @@ document.addEventListener('click', ev => {
   if (msg.cmd === 'forget_lamp') {
     if (pendingForgetId !== null || !msg.id) return;
     pendingForgetId = msg.id;
-    lampActionError = '';
+    configActionError = '';
     renderLamp();
   }
   // Optimistic enable is pending, never a successful connection.

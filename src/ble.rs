@@ -1,5 +1,5 @@
 //! Opt-in BLE control. One existing LED worker drives every remembered nearby lamp.
-use crate::config::{self, Config, LedTransport};
+use crate::config::{self, read_config_strict as read_setup_config, Config, LedTransport};
 
 #[derive(clap::Subcommand)]
 pub enum BleCommand {
@@ -90,15 +90,6 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
     config::write_config(&cfg)?;
     println!("Saved lamp settings. The installed tray service applies them automatically.");
     Ok(())
-}
-
-fn read_setup_config() -> anyhow::Result<Config> {
-    // Setup must never replace unreadable configuration with defaults.
-    match std::fs::read(config::config_file_path()) {
-        Ok(bytes) => Ok(serde_json::from_slice(&bytes)?),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Config::default()),
-        Err(e) => Err(e.into()),
-    }
 }
 
 #[cfg(target_os = "macos")]

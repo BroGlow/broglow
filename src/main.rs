@@ -50,6 +50,11 @@ enum Commands {
     Uninstall,
     /// Run the menu bar / system tray daemon (foreground)
     Menubar,
+    /// Show or hide terminal-dashboard entry points in the tray app (default: hidden)
+    DashboardButton {
+        #[arg(value_parser = ["show", "hide"])]
+        visibility: String,
+    },
     /// Mirror session state to a Seeed XIAO ESP32-C6 over USB serial (foreground)
     Led {
         /// Serial device path (default: auto-detect the Seeed XIAO ESP32-C6)
@@ -120,6 +125,15 @@ fn main() -> anyhow::Result<()> {
                 lock
             };
             menubar::run()
+        }
+        Some(Commands::DashboardButton { visibility }) => {
+            let enabled = visibility == "show";
+            config::set_dashboard_button(enabled)?;
+            println!(
+                "Dashboard entry points {}. The tray app applies this automatically.",
+                if enabled { "shown" } else { "hidden" }
+            );
+            Ok(())
         }
         Some(Commands::Led { port }) => led::run(port),
         Some(Commands::Ble { command }) => {

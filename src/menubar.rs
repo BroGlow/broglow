@@ -269,7 +269,9 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
         quit: quit.id().clone(),
         sessions: session_ids,
     };
-    menu.append(&open_clawlight)?;
+    if config::read_config().show_dashboard_button {
+        menu.append(&open_clawlight)?;
+    }
     menu.append(&quit)?;
 
     Ok((menu, ids))
@@ -279,7 +281,7 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
 /// popover (left click); this stays as a safety hatch so Quit is always
 /// reachable even if the webview fails.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-fn build_fallback_menu() -> anyhow::Result<(Menu, MenuIds)> {
+fn build_fallback_menu(show_dashboard: bool) -> anyhow::Result<(Menu, MenuIds)> {
     let menu = Menu::new();
     let open_clawlight = MenuItem::new("Open Dashboard", true, None);
     let settings = MenuItem::new("Settings…  (soon)", false, None);
@@ -288,7 +290,9 @@ fn build_fallback_menu() -> anyhow::Result<(Menu, MenuIds)> {
         open_clawlight: open_clawlight.id().clone(),
         quit: quit.id().clone(),
     };
-    menu.append(&open_clawlight)?;
+    if show_dashboard {
+        menu.append(&open_clawlight)?;
+    }
     menu.append(&settings)?;
     menu.append(&PredefinedMenuItem::separator())?;
     menu.append(&quit)?;
@@ -399,7 +403,9 @@ pub fn run() -> anyhow::Result<()> {
     let initial_state = read_hook_state();
 
     #[cfg(any(target_os = "macos", target_os = "windows"))]
-    let (menu, ids) = build_fallback_menu()?;
+    let mut dashboard_visible = config::read_config().show_dashboard_button;
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    let (menu, mut ids) = build_fallback_menu(dashboard_visible)?;
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     let (menu, mut ids) = build_menu(&initial_state)?;
 
@@ -507,6 +513,23 @@ pub fn run() -> anyhow::Result<()> {
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
+
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        if matches!(
+            event,
+            Event::UserEvent(UserEvent::StateChanged | UserEvent::Tick)
+        ) {
+            let visible = config::read_config().show_dashboard_button;
+            if visible != dashboard_visible {
+                if let Ok((menu, new_ids)) = build_fallback_menu(visible) {
+                    if let Some(tray) = tray_holder.as_ref() {
+                        tray.set_menu(Some(Box::new(menu)));
+                    }
+                    ids = new_ids;
+                    dashboard_visible = visible;
+                }
+            }
+        }
 
         match event {
             Event::UserEvent(UserEvent::StateChanged) => {
@@ -625,6 +648,13 @@ pub fn run() -> anyhow::Result<()> {
                     }
                     popover.push_state(&state);
                 }
+                PopoverMsg::SetDashboardButton { enabled } => {
+                    let error = config::set_dashboard_button(enabled)
+                        .err()
+                        .map(|error| format!("Could not save Dashboard setting: {error}"));
+                    popover.push_state(&read_hook_state());
+                    popover.config_action_result(error);
+                }
                 PopoverMsg::SetUsage { enabled, mode } => {
                     let mut cfg = config::read_config();
                     cfg.usage_enabled = enabled;
@@ -657,7 +687,7 @@ pub fn run() -> anyhow::Result<()> {
                         .err()
                         .map(|error| format!("Could not forget lamp: {error}"));
                     popover.push_state(&read_hook_state());
-                    popover.lamp_action_result(error);
+                    popover.config_action_result(error);
                 }
                 PopoverMsg::SetBrightness { percent } => {
                     // IPC deserialization rejects values outside 0..=100.
@@ -725,7 +755,7 @@ pub fn run() -> anyhow::Result<()> {
 /// Bring the terminal window hosting a session to the front, using the
 /// identity the hook captured (tty / terminal session ids / host app /
 /// ancestor processes — see `terminal::focus`). Falls back to opening the
-/// dashboard when the window can't be found.
+/// dashboard when enabled and the window can't be found.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 fn focus_session(session: Option<&state::SessionStatus>) {
     let session = session.cloned();
@@ -757,9 +787,15 @@ fn open_url(url: &str) {
         .spawn();
 }
 
+fn open_dashboard() {
+    if config::read_config().show_dashboard_button {
+        launch_dashboard();
+    }
+}
+
 /// Launch the TUI dashboard in a fresh terminal window from the tray menu.
 #[cfg(target_os = "macos")]
-fn open_dashboard() {
+fn launch_dashboard() {
     let _ = std::process::Command::new("osascript")
         .args([
             "-e",
@@ -775,7 +811,7 @@ fn open_dashboard() {
 /// Uses the running executable's own path so it works before install puts
 /// `clawlight` on PATH.
 #[cfg(target_os = "windows")]
-fn open_dashboard() {
+fn launch_dashboard() {
     let exe = std::env::current_exe()
         .map(|p| p.display().to_string())
         .unwrap_or_else(|_| "clawlight".to_string());
@@ -795,7 +831,7 @@ fn open_dashboard() {
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-fn open_dashboard() {
+fn launch_dashboard() {
     let exe = std::env::current_exe()
         .map(|p| p.display().to_string())
         .unwrap_or_else(|_| "clawlight".to_string());
