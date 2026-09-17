@@ -95,7 +95,8 @@ def main():
 
     source_files = [ROOT / "Cargo.toml", ROOT / "Cargo.lock"]
     source_files += [p for folder in ("src", "assets") for p in (ROOT / folder).rglob("*") if p.is_file()]
-    firmware_sources = [C3 / "platformio.ini", *sorted((C3 / "src").rglob("*.cpp"))]
+    # Match the production build_src_filter; led-test.cpp is a separate image.
+    firmware_sources = [C3 / "platformio.ini", C3 / "src/main.cpp"]
     for artifact, sources in ((binary, source_files), (build / "firmware.bin", firmware_sources)):
         require(all(p.stat().st_mtime_ns <= artifact.stat().st_mtime_ns for p in sources),
                 f"{artifact.name} predates an input; rebuild before packaging.")

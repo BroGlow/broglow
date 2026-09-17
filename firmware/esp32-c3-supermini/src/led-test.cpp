@@ -26,6 +26,8 @@ void loop() {
   if (BUILTIN_LED_PIN >= 0)
     digitalWrite(BUILTIN_LED_PIN, BUILTIN_LED_ACTIVE_LOW ? LOW : HIGH);
   delay(100);
+  Serial.printf("pin_levels red=%d yellow=%d green=%d\n", digitalRead(kPins[0]),
+                digitalRead(kPins[1]), digitalRead(kPins[2]));
   if (BUILTIN_LED_PIN >= 0)
     digitalWrite(BUILTIN_LED_PIN, BUILTIN_LED_ACTIVE_LOW ? HIGH : LOW);
   delay(900);
