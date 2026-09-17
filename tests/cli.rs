@@ -196,6 +196,15 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
     let failed = invoke();
     assert!(String::from_utf8_lossy(&failed.get_output().stderr).contains("Opening USB lamp"));
     assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    {
+        use fs4::fs_std::FileExt;
+        let lock = std::fs::File::open(dir.join(".pair.lock")).unwrap();
+        assert!(lock.try_lock_exclusive().unwrap());
+        let failed = invoke();
+        assert!(String::from_utf8_lossy(&failed.get_output().stderr)
+            .contains("Lamp setup is already running"));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    }
     std::fs::remove_file(&path).unwrap();
     invoke();
     assert!(

@@ -174,6 +174,8 @@ body.win .pbtnpri:hover { background: #63cbff; }
 .lampbtn { gap: 6px; padding-left: 9px; padding-right: 9px; }
 .lampbtn .dot { width: 7px; height: 7px; }
 .lampbtn.lon { color: rgba(255,255,255,.8); }
+.lampsetup { padding: 7px 10px 12px; }
+.lampsetup .error { color: #ff8a80; }
 .lamptop { padding: 7px 10px 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .lamptop #lampsummary { font-size: 13px; font-weight: 600; }
 .lamptop #lamptransport { color: rgba(255,255,255,.5); font-size: 11px; }
@@ -202,7 +204,7 @@ summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outl
 .brightness { padding: 0 10px 12px; color: rgba(255,255,255,.8); font-size: 12px; }
 .brightness label { display: flex; justify-content: space-between; margin-bottom: 7px; }
 .brightness input { width: 100%; accent-color: #3577f6; }
-.brightness p, .lampforget p { margin-top: 5px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.4; }
+.brightness p, .lampforget p, .lampsetup p { margin-top: 5px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 body.win .brightness input { accent-color: #4cc2ff; }
 .pophead, .popfoot, .usec { flex-shrink: 0; }
 </style>
@@ -360,6 +362,15 @@ window.__configActionResult = error => {
   configActionError = error || '';
   render();
 };
+let lampSetupPending = false, lampSetupError = '', lampSetupMessage = '';
+function lampSetupBusy() { return lampSetupPending || state.lamp?.setup_busy === true; }
+window.__lampSetupResult = error => {
+  lampSetupPending = false;
+  if (state.lamp) state.lamp.setup_busy = false;
+  lampSetupError = error || '';
+  lampSetupMessage = error ? '' : 'Lamp added. Approve any macOS pairing request; connection status appears below.';
+  render();
+};
 
 let previewPointer = null, previewTimer = null, previewKeepAlive = null;
 let pendingPreview = null, lastPreviewAt = -Infinity;
@@ -369,7 +380,7 @@ function brightnessPercent(value) {
 }
 function canPreviewBrightness() {
   const lamp = state.lamp || {};
-  return view === 'lamp' && lamp.transport === 'ble' && lamp.enabled && lamp.state === 'connected' &&
+  return !lampSetupBusy() && view === 'lamp' && lamp.transport === 'ble' && lamp.enabled && lamp.state === 'connected' &&
     (lamp.devices || []).some(device => device.state === 'connected');
 }
 function flushBrightnessPreview() {
@@ -408,6 +419,8 @@ function stopBrightnessPreview() {
    enabled setting. Diagnostics and controls live in the Lamps view. */
 function renderLamp() {
   const l = state.lamp || {};
+  const setupBusy = lampSetupBusy();
+  if (setupBusy) stopBrightnessPreview();
   const el = document.getElementById('lampbtn');
   const wireless = l.transport === 'ble';
   const status = l.enabled ? (l.state || 'unavailable') : 'disabled';
@@ -429,6 +442,16 @@ function renderLamp() {
   el.setAttribute('aria-expanded', String(view === 'lamp'));
   el.innerHTML = (dot ? `<span class="dot ${dot}" aria-hidden="true"></span>` : '') + esc(label);
   if (view === 'lamp') {
+    document.getElementById('lampsetup').hidden = l.bluetooth_supported !== true;
+    const add = document.getElementById('lampadd');
+    add.dataset.cmd = 'add_lamp';
+    add.disabled = setupBusy || pendingForgetId !== null;
+    add.textContent = setupBusy ? 'Adding…' : 'Add lamp';
+    const setupResult = document.getElementById('lampsetupresult');
+    setupResult.textContent = lampSetupError || lampSetupMessage;
+    setupResult.className = lampSetupError ? 'error' : '';
+    setupResult.setAttribute('role', lampSetupError ? 'alert' : 'status');
+    setupResult.hidden = !setupResult.textContent;
     document.getElementById('lamptransport').textContent = wireless ? 'Bluetooth' : 'USB';
     document.getElementById('lampsummary').textContent = wireless && !l.selected_count ? 'No lamps added' :
       !l.enabled ? 'Updates paused' : plural ? `${connectedCount} of ${l.selected_count} connected` :
@@ -467,7 +490,7 @@ function renderLamp() {
         const forget = document.getElementById('lampforget-' + i);
         forget.dataset.cmd = 'forget_lamp';
         forget.dataset.id = device.id;
-        forget.disabled = pendingForgetId !== null;
+        forget.disabled = setupBusy || pendingForgetId !== null;
         forget.textContent = pendingForgetId === device.id ? 'Forgetting…' : 'Forget lamp';
       }
     });
@@ -475,17 +498,20 @@ function renderLamp() {
     error.textContent = configActionError;
     error.hidden = !configActionError;
     document.getElementById('lampdetail').textContent = wireless && !l.selected_count ?
-      'Connect the lamp by USB, then run clawlight ble pair to set it up. For button setup, hold BOOT for 3 seconds after startup, then use clawlight ble scan and clawlight ble add <ID>.' : (l.detail || '');
+      (l.bluetooth_supported ? 'Connect one lamp by USB, then use Add lamp above.' : 'Bluetooth lamp setup requires macOS.') : (l.detail || '');
     const control = document.getElementById('lampcontrol');
     control.dataset.cmd = cmd;
+    control.disabled = setupBusy;
     if (enabled === undefined) delete control.dataset.enabled;
     else control.dataset.enabled = String(enabled);
     control.textContent = cmd === 'get_lamp' ? 'Get a lamp ↗' : (l.enabled ? 'Disable' : 'Enable') + (plural ? ' lamps' : ' lamp');
     document.getElementById('brightnesscontrol').hidden = !wireless;
     document.getElementById('brightnesshint').textContent = !wireless ? 'Brightness control requires Bluetooth.' :
+      setupBusy ? 'Brightness controls are paused while adding a lamp.' :
       canPreviewBrightness() ? 'All three lights preview this level while you adjust it, then return to status after 2 seconds. Saved for all lamps.' :
       (l.enabled ? 'Connect a lamp to preview.' : 'Enable a lamp to preview.') + ' Your brightness setting is saved for all lamps.';
     const slider = document.getElementById('brightness');
+    slider.disabled = setupBusy;
     // Keep a native drag or keyboard edit intact when the service pushes state.
     if (previewPointer === null && document.activeElement !== slider && !slider.matches(':active')) {
       slider.value = String(l.brightness_percent ?? 100);
@@ -536,6 +562,9 @@ function render() {
     // Reuse the controls: replacing this subtree during a drag loses native focus.
     if (groupsEl.dataset.view !== 'lamp') {
       groupsEl.innerHTML = `<div class="grplabel">Lamps</div>` +
+        `<div class="lampsetup" id="lampsetup"><button class="pbtn" type="button" id="lampadd" aria-describedby="lampsetuphint">Add lamp</button>` +
+        `<p id="lampsetuphint">Connect one lamp by USB, then Add lamp. Approve any macOS pairing request.</p>` +
+        `<p id="lampsetupresult" role="status" hidden></p></div>` +
         `<div class="lamptop"><span id="lampsummary" role="status"></span><span id="lamptransport"></span></div>` +
         `<div class="lamplist" id="lamplist"></div>` +
         `<p class="lamperror" id="lamperror" role="alert" hidden></p>` +
@@ -633,6 +662,7 @@ document.addEventListener('toggle', ev => {
 
 document.addEventListener('input', ev => {
   if (ev.target.id === 'brightness') {
+    if (lampSetupBusy()) return;
     const percent = brightnessPercent(ev.target.value);
     if (percent === null) return;
     document.getElementById('brightnessvalue').textContent = percent + '%';
@@ -640,7 +670,7 @@ document.addEventListener('input', ev => {
   }
 });
 document.addEventListener('pointerdown', ev => {
-  if (ev.target.id !== 'brightness' || (ev.button !== undefined && ev.button !== 0)) return;
+  if (ev.target.id !== 'brightness' || lampSetupBusy() || (ev.button !== undefined && ev.button !== 0)) return;
   stopBrightnessPreview();
   previewPointer = ev.pointerId;
   previewBrightness(ev.target.value, true);
@@ -660,7 +690,7 @@ document.addEventListener('change', ev => {
     post({ cmd: 'set_dashboard_button', enabled: ev.target.checked });
     return;
   }
-  if (ev.target.id !== 'brightness') return;
+  if (ev.target.id !== 'brightness' || lampSetupBusy()) return;
   const percent = brightnessPercent(ev.target.value);
   if (percent === null) return;
   previewBrightness(percent, true);
@@ -713,6 +743,13 @@ document.addEventListener('click', ev => {
   const msg = { cmd: btn.dataset.cmd };
   if (btn.dataset.id !== undefined) msg.id = btn.dataset.id;
   if (btn.dataset.enabled !== undefined) msg.enabled = btn.dataset.enabled === 'true';
+  if (lampSetupBusy() && ['add_lamp', 'forget_lamp', 'set_led'].includes(msg.cmd)) return;
+  if (msg.cmd === 'add_lamp') {
+    if (state.lamp?.bluetooth_supported !== true || pendingForgetId !== null) return;
+    lampSetupPending = true;
+    lampSetupError = lampSetupMessage = '';
+    render();
+  }
   if (msg.cmd === 'forget_lamp') {
     if (pendingForgetId !== null || !msg.id) return;
     pendingForgetId = msg.id;

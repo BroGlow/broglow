@@ -92,6 +92,38 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Use the installed identity and keep setup/rollback alive if the tray quits.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+pub(crate) fn pair_from_app() -> anyhow::Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::unix::process::CommandExt;
+        use std::process::Stdio;
+        let log = config::config_file_path()
+            .with_file_name(format!("pairing-{}.log", std::process::id()));
+        std::fs::create_dir_all(log.parent().unwrap())?;
+        // A file, not a pipe: closing the tray must not break the child's rollback.
+        let result = std::process::Command::new(crate::mac_bundle_executable()?)
+            .args(["ble", "pair"])
+            .process_group(0)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(std::fs::File::create(&log)?)
+            .status();
+        let error = std::fs::read_to_string(&log).unwrap_or_default();
+        let _ = std::fs::remove_file(log);
+        let status = result?;
+        anyhow::ensure!(
+            status.success(),
+            "USB setup failed ({status}): {}",
+            error.trim()
+        );
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    anyhow::bail!("Bluetooth setup is supported on macOS only")
+}
+
 #[cfg(target_os = "macos")]
 fn remember(cfg: &mut Config, id: String) {
     cfg.ble_peripherals = cfg.ble_ids();
@@ -409,6 +441,18 @@ mod mac {
             serialport::available_ports()?
         };
         let path = pair_port(port_override, &ports)?;
+        let lock_path = config::config_file_path().with_file_name(".pair.lock");
+        std::fs::create_dir_all(lock_path.parent().unwrap())?;
+        let _setup = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(lock_path)?;
+        anyhow::ensure!(
+            _setup.try_lock_exclusive()?,
+            "Lamp setup is already running; wait for it to finish"
+        );
         let original_bytes = match std::fs::read(config::config_file_path()) {
             Ok(bytes) => Some(bytes),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,

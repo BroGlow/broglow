@@ -256,6 +256,92 @@ test('opening details is read-only; lamp controls stay there and Escape returns'
   assert.equal(element('lampcontrol').dataset.cmd, 'get_lamp');
 });
 
+test('Add lamp works with no saved lamp in USB or Bluetooth mode and respects platform capability', () => {
+  for (const transport of ['usb', 'ble']) {
+    const { element, update, click, commands } = popoverPage();
+    const empty = lamp({ transport, bluetooth_supported: true, enabled: false,
+      selected_count: 0, devices: [], state: 'disabled' });
+    update(empty);
+    click('lampbtn');
+    assert.equal(element('lampsetup').hidden, false);
+    assert.equal(element('lampadd').textContent, 'Add lamp');
+    assert.match(element('groups').innerHTML, /Connect one lamp by USB, then Add lamp\. Approve any macOS pairing request\./);
+    click('lampadd');
+    click('lampadd');
+    assert.deepEqual(commands('add_lamp'), [{ cmd: 'add_lamp' }]);
+    assert.equal(element('lampadd').textContent, 'Adding…');
+    update(empty); // A state push that predates the request cannot permit a duplicate.
+    click('lampadd');
+    assert.equal(commands('add_lamp').length, 1);
+    assert.equal(element('lampadd').disabled, true);
+    assert.ok(!element('lampbtn').innerHTML.includes('dgreen'));
+  }
+  for (const bluetooth_supported of [false, undefined]) {
+    const { element, update, click, commands } = popoverPage();
+    update(lamp({ bluetooth_supported }));
+    click('lampbtn');
+    assert.equal(element('lampsetup').hidden, true);
+    click('lampadd');
+    assert.equal(commands('add_lamp').length, 0);
+  }
+});
+
+test('host setup busy survives reopening and stops lamp mutations and active preview timers', () => {
+  const { element, update, click, listeners, commands, advance } = popoverPage();
+  update(lamp({ bluetooth_supported: true }));
+  click('lampbtn');
+  const slider = element('brightness');
+  listeners.pointerdown({ target: slider, pointerId: 1 });
+  slider.value = '25';
+  listeners.input({ target: slider });
+  const previews = commands('preview_brightness').length;
+  update(lamp({ bluetooth_supported: true, setup_busy: true }));
+  assert.equal(element('lampstate-0').textContent, 'Connected', 'Setup does not invent a connection state');
+  click('settingsbtn');
+  click('lampbtn');
+  assert.equal(element('lampadd').textContent, 'Adding…');
+  for (const id of ['lampadd', 'lampforget-0', 'lampcontrol', 'brightness']) {
+    assert.equal(element(id).disabled, true, id);
+  }
+  for (const id of ['lampadd', 'lampforget-0', 'lampcontrol']) click(id);
+  listeners.pointerdown({ target: slider, pointerId: 2 });
+  listeners.input({ target: slider });
+  listeners.change({ target: slider });
+  advance(3000);
+  assert.equal(commands('preview_brightness').length, previews, 'No queued preview or stationary renewal survives setup');
+  for (const cmd of ['add_lamp', 'forget_lamp', 'set_led', 'set_brightness']) {
+    assert.equal(commands(cmd).length, 0, cmd);
+  }
+});
+
+test('Add lamp reports errors with retry and success without claiming a connection', () => {
+  const { context, element, update, click, commands } = popoverPage();
+  const empty = lamp({ bluetooth_supported: true, enabled: false, state: 'disabled', selected_count: 0, devices: [] });
+  update(empty);
+  click('lampbtn');
+  click('lampadd');
+  const error = 'More than one USB lamp <found>: connect only one';
+  context.window.__lampSetupResult(error);
+  update(empty);
+  const result = element('lampsetupresult');
+  assert.equal(result.hidden, false);
+  assert.equal(result.textContent, error);
+  assert.equal(result.innerHTML, '');
+  assert.equal(result.attributes.role, 'alert');
+  assert.equal(element('lampadd').disabled, false);
+  click('lampadd');
+  assert.equal(commands('add_lamp').length, 2);
+  assert.equal(result.hidden, true);
+  update(lamp({ bluetooth_supported: true, state: 'searching',
+    devices: [{ id: 'new-lamp', state: 'searching' }] }));
+  context.window.__lampSetupResult(null);
+  assert.equal(result.textContent, 'Lamp added. Approve any macOS pairing request; connection status appears below.');
+  assert.equal(result.attributes.role, 'status');
+  assert.equal(element('lampadd').disabled, false);
+  assert.equal(element('lampstate-0').textContent, 'Looking for lamp');
+  assert.ok(!element('lampbtn').innerHTML.includes('dgreen'));
+});
+
 test('forget sends exactly the chosen saved ID, including absent and disabled lamps, and awaits the host', () => {
   for (const enabled of [true, false]) {
     const { context, element, click, update, commands } = popoverPage();

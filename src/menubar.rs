@@ -312,6 +312,8 @@ enum UserEvent {
     Tray(TrayIconEvent),
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     Popover(PopoverMsg),
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    LampSetupFinished(Option<String>),
     /// The usage refresher produced a new snapshot (design 1a/1c readout).
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     UsageChanged,
@@ -510,6 +512,8 @@ pub fn run() -> anyhow::Result<()> {
     });
 
     let mut tray_holder = Some(tray);
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    let setup_proxy = event_loop.create_proxy();
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -614,7 +618,27 @@ pub fn run() -> anyhow::Result<()> {
                 }
             }
             #[cfg(any(target_os = "macos", target_os = "windows"))]
+            Event::UserEvent(UserEvent::LampSetupFinished(error)) => {
+                popover.lamp_setup_result(error);
+            }
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::UserEvent(UserEvent::Popover(msg)) => match msg {
+                PopoverMsg::AddLamp => {
+                    if !popover.setup_busy {
+                        popover.setup_busy = true;
+                        popover.push_state(&read_hook_state());
+                        let proxy = setup_proxy.clone();
+                        thread::spawn(move || {
+                            let error = crate::ble::pair_from_app().err().map(|e| e.to_string());
+                            let _ = proxy.send_event(UserEvent::LampSetupFinished(error));
+                        });
+                    }
+                }
+                PopoverMsg::SetLed { .. }
+                | PopoverMsg::ForgetLamp { .. }
+                | PopoverMsg::SetBrightness { .. }
+                | PopoverMsg::PreviewBrightness { .. }
+                    if popover.setup_busy => {}
                 PopoverMsg::Ready => popover.push_state(&read_hook_state()),
                 PopoverMsg::Resize { height, dpr } => popover.on_resize(height, dpr),
                 PopoverMsg::Focus { id } => {

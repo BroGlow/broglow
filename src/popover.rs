@@ -76,6 +76,8 @@ pub enum PopoverMsg {
     /// The Lamp details control: connect (`enabled: true`) or disconnect the
     /// physical status lamp by toggling LED mirroring.
     SetLed { enabled: bool },
+    /// Identify the single USB lamp and remember its Bluetooth identity.
+    AddLamp,
     /// Stop remembering/reconnecting to one lamp; retain Bluetooth bonds.
     ForgetLamp { id: String },
     /// A saved BLE brightness preference, separate from lamp enablement.
@@ -137,6 +139,8 @@ struct SettingsPayload {
 /// Physical status-lamp state for the footer connection indicator.
 #[derive(Serialize)]
 struct LampPayload {
+    bluetooth_supported: bool,
+    setup_busy: bool,
     /// A clawlight board is attached over USB right now.
     present: bool,
     /// LED mirroring is turned on in config (the daemon drives the board).
@@ -161,6 +165,7 @@ struct StatePayload<'a> {
 }
 
 pub struct Popover {
+    pub(crate) setup_busy: bool,
     window: Window,
     webview: WebView,
     anchor: Option<Rect>,
@@ -222,6 +227,7 @@ impl Popover {
             .context("Building popover webview")?;
 
         Ok(Self {
+            setup_busy: false,
             window,
             webview,
             anchor: None,
@@ -281,7 +287,7 @@ impl Popover {
     /// Re-render the page from fresh hook state. If the popover is open (or
     /// opening), the page answers with a Resize that re-applies geometry.
     pub fn push_state(&self, state: &HookState) {
-        let payload = build_payload(state);
+        let payload = build_payload(state, self.setup_busy);
         let _ = self
             .webview
             .evaluate_script(&format!("window.__setState({payload})"));
@@ -292,6 +298,15 @@ impl Popover {
         let _ = self
             .webview
             .evaluate_script(&format!("window.__configActionResult({error})"));
+    }
+
+    pub fn lamp_setup_result(&mut self, error: Option<String>) {
+        self.setup_busy = false;
+        self.push_state(&crate::state::read_hook_state());
+        let error = serde_json::to_string(&error).expect("serialize setup error");
+        let _ = self
+            .webview
+            .evaluate_script(&format!("window.__lampSetupResult({error})"));
     }
 
     /// The page reported its rendered height: size the window to fit, keep it
@@ -489,7 +504,7 @@ fn agg_str(agg: Aggregate) -> &'static str {
 
 /// Serialize hook state for `window.__setState`. Grouping, sorting, and
 /// relative-time formatting happen in the page.
-fn build_payload(state: &HookState) -> String {
+fn build_payload(state: &HookState, setup_busy: bool) -> String {
     let cfg = config::read_config();
     let connection = crate::led::connection_status();
     let sessions: Vec<SessionPayload> = state
@@ -518,6 +533,8 @@ fn build_payload(state: &HookState) -> String {
         // stays absent even if a stale snapshot is still cached.
         usage: cfg.usage_enabled.then(usage::latest).flatten(),
         lamp: LampPayload {
+            bluetooth_supported: cfg!(target_os = "macos"),
+            setup_busy,
             present: cfg.led_transport == LedTransport::Usb && crate::led::board_present_cached(),
             enabled: cfg.led_enabled,
             transport: cfg.led_transport,
@@ -656,6 +673,10 @@ mod tests {
     /// assets/popover.html): connect/disconnect the lamp, or open the store.
     #[test]
     fn lamp_controls_parse_from_page_json() {
+        assert!(matches!(
+            serde_json::from_str::<PopoverMsg>(r#"{"cmd":"add_lamp"}"#).unwrap(),
+            PopoverMsg::AddLamp
+        ));
         let msg: PopoverMsg = serde_json::from_str(r#"{"cmd":"set_led","enabled":true}"#).unwrap();
         assert!(matches!(msg, PopoverMsg::SetLed { enabled: true }));
         let msg: PopoverMsg = serde_json::from_str(r#"{"cmd":"set_led","enabled":false}"#).unwrap();
