@@ -314,6 +314,12 @@ void brightnessAt(uint32_t time, uint8_t percent) {
   brightnessCharacteristic.write(std::string(1, static_cast<char>(percent)));
   loop();
 }
+void previewAt(uint32_t time, uint8_t percent) {
+  now = time;
+  brightnessCharacteristic.write(
+      std::string{static_cast<char>(percent), '\x01'});
+  loop();
+}
 void connectPeer() {
   advertising.active = false;
   server.callbacks->onConnect(&server);
@@ -348,7 +354,10 @@ void checkAt(uint32_t time, int red, int yellow, int green, int builtin) {
 }
 void bondedBoot() {
   mockBonds = {{{1, 2, 3, 4, 5, 6}}};
+  // Existing scenarios use time zero after startup; exercise clock wrap too.
+  now = UINT32_MAX - 2999;
   setup();
+  at(0);
 }
 
 void protocolChecks() {
@@ -501,11 +510,11 @@ void indicationChecks() {
   constexpr int blue = BUILTIN_LED_BRIGHTNESS;
   setup();
   expectLamp(0, 0, 0, 0);
-  checkAt(0, 255, 0, 0, blue);
-  checkAt(100, 255, 0, 0, 0);
-  checkAt(250, 0, 255, 0, blue);
-  checkAt(500, 0, 0, 255, blue);
-  checkAt(750, 255, 0, 0, blue);
+  checkAt(3000, 255, 0, 0, blue);
+  checkAt(3100, 255, 0, 0, 0);
+  checkAt(3250, 0, 255, 0, blue);
+  checkAt(3500, 0, 0, 255, blue);
+  checkAt(3750, 255, 0, 0, blue);
   checkAt(60000, 255, 255, 255, blue);
   checkAt(60999, 255, 255, 255, blue);
   checkAt(61000, 0, 0, 0, 0);
@@ -658,6 +667,117 @@ void brightnessChecks() {
   checkAt(128000, 0, 0, 0, 0);
 }
 
+void startupChecks(bool live) {
+  mockBonds = {{{1, 2, 3, 4, 5, 6}}};
+  setup();
+  checkAt(0, 0, 0, 0, 0);
+  if (live) {
+    connectPeer();
+    brightnessAt(100, 50);
+    statusAt(200, "N");
+    previewAt(300, 75);
+    checkAt(750, 128, 128, 128, BUILTIN_LED_BRIGHTNESS / 2);
+    checkAt(1500, 0, 0, 0, 0);
+    checkAt(2250, 128, 128, 128, BUILTIN_LED_BRIGHTNESS / 2);
+    statusAt(2900, "Y");
+    checkAt(3000, 0, 128, 0,
+            0);  // Latest status, no deferred connection flash.
+    return;
+  }
+  now = 100;
+  feed("G\n");  // Serial remains responsive throughout startup.
+  for (uint32_t cycle : {0, 1500}) {
+    at(cycle + 375);
+    const auto rising = pinDuty(0);
+    assert(rising > 0 && rising < 255);
+    expectLamp(rising, rising, rising,
+               std::lround(rising * BUILTIN_LED_BRIGHTNESS / 255));
+    checkAt(cycle + 750, 255, 255, 255, BUILTIN_LED_BRIGHTNESS);
+    at(cycle + 1125);
+    const auto falling = pinDuty(0);
+    assert(falling > 0 && falling < 255);
+    expectLamp(falling, falling, falling,
+               std::lround(falling * BUILTIN_LED_BRIGHTNESS / 255));
+    at(cycle + 1499);
+    assert(pinDuty(0) < falling && pinDuty(0) < 5);
+    if (cycle == 0) checkAt(1500, 0, 0, 0, 0);
+  }
+  checkAt(3000, 0, 0, 255, 0);
+}
+
+void previewChecks() {
+  bondedBoot();
+  connectPeer();
+  brightnessAt(100, 25);
+  previewAt(150, 75);
+  expectLamp(0, 0, 0, 0);  // A preview needs a fresh, confirmed connection.
+  statusAt(200, "G");
+  at(450);
+  expectLamp(0, 0, 64);
+  previewAt(1000, 75);
+  expectLamp(191, 191, 191, BUILTIN_LED_BRIGHTNESS * 3 / 4);
+  brightnessAt(1200, 50);
+  expectLamp(191, 191, 191, BUILTIN_LED_BRIGHTNESS * 3 / 4);
+  statusAt(1500, "R");
+  expectLamp(191, 191, 191, BUILTIN_LED_BRIGHTNESS * 3 / 4);
+  previewAt(2000, 75);  // Equal values still refresh the two-second preview.
+  checkAt(3999, 191, 191, 191, BUILTIN_LED_BRIGHTNESS * 3 / 4);
+  checkAt(4000, 128, 0, 0, 0);
+  now = 4100;
+  brightnessCharacteristic.write(std::string("\0\1", 2));
+  brightnessAt(4100, 100);  // A queued saved setting must not erase a preview.
+  expectLamp(0, 0, 0, 0);
+  checkAt(6099, 0, 0, 0, 0);
+  checkAt(6100, 255, 0, 0, 0);
+  previewAt(6150, 100);
+  expectLamp(255, 255, 255, BUILTIN_LED_BRIGHTNESS);
+  statusAt(6200, "G");
+  previewAt(6300, 50);
+  now = 6400;
+  assert(!brightnessCharacteristic.write(std::string("\x64\1", 2), false));
+  for (const auto& bytes :
+       {std::string(), std::string("\x64\0", 2), std::string("\x64\2", 2),
+        std::string("\x65\1", 2), std::string("\xff\1", 2),
+        std::string("\x64\1\1", 3)}) {
+    brightnessCharacteristic.write(bytes);
+    loop();
+  }
+  checkAt(8299, 128, 128, 128, BUILTIN_LED_BRIGHTNESS / 2);
+  checkAt(8300, 0, 0, 255, 0);
+  previewAt(16150, 50);
+  checkAt(16199, 128, 128, 128, BUILTIN_LED_BRIGHTNESS / 2);
+  checkAt(16200, 0, 0, 0, 0);  // Preview never extends the status deadline.
+  previewAt(17000, 50);
+  expectLamp(0, 0, 0, 0);
+  statusAt(18000, "N");
+  previewAt(18100, 50);
+  expectLamp(128, 128, 128, BUILTIN_LED_BRIGHTNESS / 2);
+  disconnectPeer();
+  loop();
+  expectLamp(0, 0, 0, 0);
+  connectPeer();
+  statusAt(18500, "G");
+  at(18750);
+  expectLamp(0, 0, 255);  // The preceding connection's preview cannot reappear.
+  now = 19000;
+  brightnessCharacteristic.write(std::string("\x4b\1", 2));
+  disconnectPeer();
+  connectPeer();
+  statusAt(19001, "G");
+  expectLamp(255, 255, 255, BUILTIN_LED_BRIGHTNESS);
+  checkAt(19251, 0, 0, 255, 0);
+  now = 19500;
+  brightnessCharacteristic.write(std::string("\x19\1", 2));
+  checkAt(21500, 0, 0, 255,
+          -1);  // Expiry starts at receipt, not loop delivery.
+  const uint32_t receipt = UINT32_MAX - 500;
+  statusAt(receipt - 500, "G");
+  previewAt(receipt, 25);
+  checkAt(receipt + 1999, 64, 64, 64, BUILTIN_LED_BRIGHTNESS / 4);
+  checkAt(receipt + 2000, 0, 0, 255, -1);
+  checkAt(receipt + 9500, 0, 0, 0, 0);
+}
+
 void connectDuringStatusRead(QueueHandle_t queue) {
   if (queue != bleStatuses) return;
   queueReceiveHook = nullptr;
@@ -726,6 +846,12 @@ int main(int argc, char** argv) {
     indicationChecks();
   else if (scenario == "brightness")
     brightnessChecks();
+  else if (scenario == "startup")
+    startupChecks(false);
+  else if (scenario == "startup-live")
+    startupChecks(true);
+  else if (scenario == "preview")
+    previewChecks();
   else if (scenario == "races")
     callbackRaceChecks();
   else if (scenario == "gatt-change")

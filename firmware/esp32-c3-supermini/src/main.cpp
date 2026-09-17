@@ -71,7 +71,19 @@ uint32_t confirmedGeneration = 0;
 bool connectionPulse = false;
 uint32_t connectionPulseStarted = 0, statusPatternStarted = 0,
          indicationStarted = 0;
-enum class Indication { Status, Pairing, Unpaired, Waiting, Connected, Stale };
+bool startup = true, preview = false;
+uint32_t startupStarted = 0, previewStarted = 0, previewGeneration = 0;
+uint8_t previewPercent = 0;
+enum class Indication {
+  Startup,
+  Preview,
+  Status,
+  Pairing,
+  Unpaired,
+  Waiting,
+  Connected,
+  Stale
+};
 Indication indication = Indication::Waiting;
 uint8_t duties[4] = {};
 uint8_t brightness = 100;
@@ -157,10 +169,12 @@ struct BleStatus {
 struct BleBrightness {
   uint8_t percent;
   uint32_t generation;
+  uint32_t received;
 };
 QueueHandle_t bleConnections;
 QueueHandle_t bleStatuses;
 QueueHandle_t bleBrightness;
+QueueHandle_t blePreviews;
 
 bool validStatus(char state) {
   return state == 'R' || state == 'Y' || state == 'G' || state == 'N';
@@ -214,10 +228,12 @@ class BrightnessCallbacks : public BLECharacteristicCallbacks {
     const std::string value = characteristic->getValue();
     characteristic->setValue(
         std::string());  // Empty prepared writes must not replay a value.
-    if (value.size() != 1 || static_cast<uint8_t>(value[0]) > 100) return;
+    if ((value.size() != 1 && (value.size() != 2 || value[1] != 1)) ||
+        static_cast<uint8_t>(value[0]) > 100)
+      return;
     const BleBrightness setting{static_cast<uint8_t>(value[0]),
-                                bleGeneration.load()};
-    xQueueOverwrite(bleBrightness, &setting);
+                                bleGeneration.load(), millis()};
+    xQueueOverwrite(value.size() == 1 ? bleBrightness : blePreviews, &setting);
   }
 } brightnessCallbacks;
 
@@ -226,6 +242,13 @@ void applyPendingBrightness() {
   if (xQueueReceive(bleBrightness, &setting, 0) == pdTRUE &&
       setting.generation == bleGeneration.load()) {
     brightness = setting.percent;
+  }
+  if (xQueueReceive(blePreviews, &setting, 0) == pdTRUE &&
+      setting.generation == bleGeneration.load() && bleLinkConnected.load()) {
+    preview = true;
+    previewPercent = setting.percent;
+    previewStarted = setting.received;
+    previewGeneration = setting.generation;
   }
 }
 
@@ -242,12 +265,12 @@ void applyStatus(char state, uint32_t received) {
   ++acceptedStatuses;
 }
 
-void outputLeds(uint8_t red, uint8_t yellow, uint8_t green, uint8_t builtin) {
+void outputLeds(uint8_t red, uint8_t yellow, uint8_t green, uint8_t builtin,
+                uint8_t percent) {
   uint8_t next[] = {red, yellow, green,
                     BUILTIN_LED_PIN < 0 ? uint8_t(0) : builtin};
   for (size_t channel = 0; channel < 4; ++channel) {
-    next[channel] =
-        (static_cast<unsigned>(next[channel]) * brightness + 50) / 100;
+    next[channel] = (static_cast<unsigned>(next[channel]) * percent + 50) / 100;
     if (next[channel] == duties[channel]) continue;
     duties[channel] = next[channel];
     ledcWrite(channel, channel == 3 && BUILTIN_LED_ACTIVE_LOW
@@ -268,9 +291,19 @@ void renderIndication() {
        static_cast<uint32_t>(now - connectionPulseStarted) >= 250)) {
     connectionPulse = false;
   }
+  if (startup && static_cast<uint32_t>(now - startupStarted) >= 3000)
+    startup = false;
+  if (preview &&
+      (!hasStatus || !bleLinkConnected.load() || !authenticated.load() ||
+       previewGeneration != bleGeneration.load() ||
+       confirmedGeneration != previewGeneration ||
+       static_cast<uint32_t>(now - previewStarted) >= 2000))
+    preview = false;
   const Indication next =
-      connectionPulse ? Indication::Connected
-      : hasStatus     ? Indication::Status
+      startup           ? Indication::Startup
+      : preview         ? Indication::Preview
+      : connectionPulse ? Indication::Connected
+      : hasStatus       ? Indication::Status
       : bleConnected && confirmedGeneration == bleGeneration.load()
           ? Indication::Stale
       : pairingOpen()                      ? Indication::Pairing
@@ -283,6 +316,14 @@ void renderIndication() {
   }
   uint8_t red = 0, yellow = 0, green = 0, builtin = 0;
   switch (indication) {
+    case Indication::Startup: {
+      const uint32_t phase = (now - startupStarted) % 1500;
+      const uint32_t ramp = phase <= 750 ? phase : 1500 - phase;
+      red = yellow = green = ramp * 255 / 750;
+      builtin = ramp * BUILTIN_LED_BRIGHTNESS / 750;
+      break;
+    }
+    case Indication::Preview:
     case Indication::Connected:
       red = yellow = green = 255;
       builtin = BUILTIN_LED_BRIGHTNESS;
@@ -324,11 +365,16 @@ void renderIndication() {
     case Indication::Stale:
       break;
   }
-  outputLeds(red, yellow, green, builtin);
+  outputLeds(red, yellow, green, builtin,
+             indication == Indication::Preview ? previewPercent : brightness);
 }
 
 const char* indicationName() {
   switch (indication) {
+    case Indication::Startup:
+      return "startup";
+    case Indication::Preview:
+      return "preview";
     case Indication::Status:
       return "status";
     case Indication::Pairing:
@@ -389,7 +435,8 @@ void setup() {
   bleConnections = xQueueCreate(1, sizeof(bool));
   bleStatuses = xQueueCreate(1, sizeof(BleStatus));
   bleBrightness = xQueueCreate(1, sizeof(BleBrightness));
-  configASSERT(bleConnections && bleStatuses && bleBrightness);
+  blePreviews = xQueueCreate(1, sizeof(BleBrightness));
+  configASSERT(bleConnections && bleStatuses && bleBrightness && blePreviews);
   const uint64_t mac = ESP.getEfuseMac();
   char identityBytes[6];
   for (size_t i = 0; i < sizeof(identityBytes); ++i) {
@@ -450,12 +497,14 @@ void setup() {
   advertising->start();
   if (esp_ble_get_bond_device_num() == 0) openPairing();
   indicationStarted = millis();
+  startupStarted = millis();
   Serial.printf("lamp=%s security=sc-bonded button=BOOT\n", name);
 }
 
 void synchronizeBleConnection() {
   if (xQueueReceive(bleConnections, &bleConnected, 0) == pdTRUE) {
     connectionPulse = false;
+    preview = false;
     used = 0;
     overflow = false;
     if (!bleConnected) BLEDevice::startAdvertising();
@@ -495,7 +544,12 @@ void loop() {
               STATUS_TIMEOUT_MS &&
           confirmedGeneration != status.generation) {
         confirmedGeneration = status.generation;
-        connectionPulse = true;
+        // Startup already confirms power; do not replay a connection flash
+        // for a status received during its two breathing cycles.
+        connectionPulse =
+            !startup ||
+            (static_cast<uint32_t>(millis() - startupStarted) >= 3000 &&
+             static_cast<uint32_t>(status.received - startupStarted) >= 3000);
         connectionPulseStarted = millis();
       }
     }

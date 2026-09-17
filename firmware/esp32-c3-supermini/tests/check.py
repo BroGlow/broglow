@@ -10,7 +10,8 @@ PROJECT = Path(__file__).resolve().parents[1]
 CONFIG = configparser.ConfigParser(interpolation=None)
 CONFIG.read(PROJECT / "platformio.ini")
 FLAGS = shlex.split(CONFIG["env:esp32-c3-supermini"]["build_flags"])
-SCENARIOS = ("protocol", "pairing", "indications", "brightness", "races",
+SCENARIOS = ("protocol", "pairing", "indications", "brightness", "startup",
+             "startup-live", "preview", "races",
              "gatt-change", "gatt-mode-failed")
 
 with tempfile.TemporaryDirectory(prefix="clawlight-c3-check-") as folder:
@@ -29,6 +30,7 @@ with tempfile.TemporaryDirectory(prefix="clawlight-c3-check-") as folder:
             *FLAGS, *flags, str(PROJECT / "tests/check.cpp"), "-o", str(executable),
         ], check=True)
         # Each scenario starts with clean globals, like a fresh power-on.
-        for scenario in SCENARIOS if override is None else ("indications", "brightness"):
+        for scenario in SCENARIOS if override is None else (
+                "indications", "brightness", "startup", "startup-live", "preview"):
             subprocess.run([str(executable), scenario], check=True, timeout=10)
-    print("PASS: protocol/security/ownership, pairing, PWM/builtin, brightness, races, GATT cache change")
+    print("PASS: protocol/security/ownership, pairing, PWM/builtin, brightness/startup/preview, races, GATT cache change")

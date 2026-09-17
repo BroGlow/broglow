@@ -350,6 +350,49 @@ function lampState(status) {
     error: 'Needs attention', unavailable: 'No recent response', disabled: 'Off' })[status] || 'No recent response';
 }
 
+let previewPointer = null, previewTimer = null, previewKeepAlive = null;
+let pendingPreview = null, lastPreviewAt = -Infinity;
+function brightnessPercent(value) {
+  const percent = Number(value);
+  return String(value).trim() !== '' && Number.isInteger(percent) && percent >= 0 && percent <= 100 ? percent : null;
+}
+function canPreviewBrightness() {
+  const lamp = state.lamp || {};
+  return view === 'lamp' && lamp.transport === 'ble' && lamp.enabled && lamp.state === 'connected' &&
+    (lamp.devices || []).some(device => device.state === 'connected');
+}
+function flushBrightnessPreview() {
+  clearTimeout(previewTimer);
+  previewTimer = null;
+  const percent = pendingPreview;
+  pendingPreview = null;
+  if (percent !== null && canPreviewBrightness()) {
+    post({ cmd: 'preview_brightness', percent });
+    lastPreviewAt = Date.now();
+  }
+}
+function previewBrightness(value, force = false) {
+  const percent = brightnessPercent(value);
+  if (percent === null) return;
+  if (!canPreviewBrightness()) {
+    clearTimeout(previewTimer);
+    previewTimer = pendingPreview = null;
+    return;
+  }
+  pendingPreview = percent;
+  const wait = 80 - (Date.now() - lastPreviewAt);
+  if (force || wait <= 0) flushBrightnessPreview();
+  else if (previewTimer === null) previewTimer = setTimeout(flushBrightnessPreview, wait);
+}
+function stopBrightnessPreview() {
+  if (previewPointer !== null || pendingPreview !== null) {
+    previewBrightness(document.getElementById('brightness').value, true);
+  }
+  clearTimeout(previewTimer);
+  clearInterval(previewKeepAlive);
+  previewPointer = previewTimer = previewKeepAlive = pendingPreview = null;
+}
+
 /* Connection comes from worker writes, never from a nearby advertisement or
    enabled setting. Diagnostics and controls live in the Lamps view. */
 function renderLamp() {
@@ -414,11 +457,12 @@ function renderLamp() {
     else control.dataset.enabled = String(enabled);
     control.textContent = cmd === 'get_lamp' ? 'Get a lamp ↗' : (l.enabled ? 'Disable' : 'Enable') + (plural ? ' lamps' : ' lamp');
     document.getElementById('brightnesscontrol').hidden = !wireless;
-    document.getElementById('brightnesshint').textContent = wireless ?
-      'Saved for all lamps. Applies when each connects.' : 'Brightness control requires Bluetooth.';
+    document.getElementById('brightnesshint').textContent = !wireless ? 'Brightness control requires Bluetooth.' :
+      canPreviewBrightness() ? 'All three lights preview this level while you adjust it, then return to status after 2 seconds. Saved for all lamps.' :
+      (l.enabled ? 'Connect a lamp to preview.' : 'Enable a lamp to preview.') + ' Your brightness setting is saved for all lamps.';
     const slider = document.getElementById('brightness');
     // Keep a native drag or keyboard edit intact when the service pushes state.
-    if (document.activeElement !== slider && !slider.matches(':active')) {
+    if (previewPointer === null && document.activeElement !== slider && !slider.matches(':active')) {
       slider.value = String(l.brightness_percent ?? 100);
     }
     document.getElementById('brightnessvalue').textContent = slider.value + '%';
@@ -470,7 +514,7 @@ function render() {
         `<div class="lamplist" id="lamplist"></div>` +
         `<div class="brightness" id="brightnesscontrol"><label for="brightness">Light brightness` +
         `<output id="brightnessvalue" for="brightness"></output></label>` +
-        `<input id="brightness" type="range" min="0" max="100" step="1" value="100">` +
+        `<input id="brightness" type="range" min="0" max="100" step="1" value="100" aria-describedby="brightnesshint">` +
         `<p id="brightnesshint"></p></div>` +
         `<div class="lampactions"><button class="pbtn" id="lampcontrol"></button></div>` +
         `<details class="lamptechnical" id="lamptechnical"><summary>Troubleshooting</summary>` +
@@ -549,24 +593,46 @@ document.addEventListener('toggle', ev => {
 
 document.addEventListener('input', ev => {
   if (ev.target.id === 'brightness') {
-    document.getElementById('brightnessvalue').textContent = ev.target.value + '%';
+    const percent = brightnessPercent(ev.target.value);
+    if (percent === null) return;
+    document.getElementById('brightnessvalue').textContent = percent + '%';
+    previewBrightness(percent);
   }
 });
+document.addEventListener('pointerdown', ev => {
+  if (ev.target.id !== 'brightness' || (ev.button !== undefined && ev.button !== 0)) return;
+  stopBrightnessPreview();
+  previewPointer = ev.pointerId;
+  previewBrightness(ev.target.value, true);
+  previewKeepAlive = setInterval(() => previewBrightness(document.getElementById('brightness').value, true), 500);
+});
+for (const event of ['pointerup', 'pointercancel']) {
+  document.addEventListener(event, ev => {
+    if (previewPointer !== null && ev.pointerId === previewPointer) stopBrightnessPreview();
+  });
+}
+window.addEventListener('blur', stopBrightnessPreview);
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopBrightnessPreview(); });
 document.addEventListener('change', ev => {
   if (ev.target.id !== 'brightness') return;
-  const percent = Number(ev.target.value);
-  if (!Number.isInteger(percent) || percent < 0 || percent > 100) return;
+  const percent = brightnessPercent(ev.target.value);
+  if (percent === null) return;
+  previewBrightness(percent, true);
   state.lamp = state.lamp || {};
   state.lamp.brightness_percent = percent;
   post({ cmd: 'set_brightness', percent });
 });
 document.addEventListener('focusout', ev => {
-  if (ev.target.id === 'brightness' && view === 'lamp') renderLamp();
+  if (ev.target.id === 'brightness' && view === 'lamp') {
+    if (previewPointer === null) stopBrightnessPreview();
+    renderLamp();
+  }
 });
 
 document.addEventListener('click', ev => {
   const local = ev.target.closest('[data-local]');
   if (local) {
+    if (view === 'lamp') stopBrightnessPreview();
     view = view === local.dataset.local ? 'sessions' : local.dataset.local;
     render();
     return;
@@ -597,6 +663,7 @@ document.addEventListener('click', ev => {
   }
   const btn = ev.target.closest('[data-cmd]');
   if (!btn) return;
+  if (view === 'lamp') stopBrightnessPreview();
   const msg = { cmd: btn.dataset.cmd };
   if (btn.dataset.id !== undefined) msg.id = btn.dataset.id;
   if (btn.dataset.enabled !== undefined) msg.enabled = btn.dataset.enabled === 'true';
@@ -613,6 +680,7 @@ document.addEventListener('click', ev => {
 });
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'Escape') return;
+  stopBrightnessPreview();
   if (view !== 'sessions') { view = 'sessions'; render(); }
   else post({ cmd: 'hide' });
 });

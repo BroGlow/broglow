@@ -661,6 +661,9 @@ pub fn run() -> anyhow::Result<()> {
                     }
                     popover.push_state(&read_hook_state());
                 }
+                PopoverMsg::PreviewBrightness { percent } => {
+                    crate::ble::preview_brightness(percent);
+                }
                 PopoverMsg::GetLamp => {
                     popover.hide();
                     open_url("https://clawlight.dev");

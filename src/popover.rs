@@ -79,6 +79,11 @@ pub enum PopoverMsg {
         #[serde(deserialize_with = "deserialize_brightness_percent")]
         percent: u8,
     },
+    /// Temporary all-LED feedback while adjusting the brightness slider.
+    PreviewBrightness {
+        #[serde(deserialize_with = "deserialize_brightness_percent")]
+        percent: u8,
+    },
     /// The Lamp details link shown when no board is attached — opens the store /
     /// setup page so a lampless user can get one.
     GetLamp,
@@ -627,20 +632,23 @@ mod tests {
 
     #[test]
     fn brightness_ipc_accepts_only_integer_percentages() {
-        for percent in [0, 37, 100] {
-            let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
-                "cmd": "set_brightness", "percent": percent
-            }))
-            .unwrap();
-            assert!(
-                matches!(msg, PopoverMsg::SetBrightness { percent: value } if value == percent)
-            );
-        }
-        for invalid in ["-1", "101", "255", "256", "1.5", "null", "\"50\""] {
-            assert!(serde_json::from_str::<PopoverMsg>(&format!(
-                r#"{{"cmd":"set_brightness","percent":{invalid}}}"#
-            ))
-            .is_err());
+        for command in ["set_brightness", "preview_brightness"] {
+            for percent in [0, 37, 100] {
+                let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
+                    "cmd": command, "percent": percent
+                }))
+                .unwrap();
+                assert!(matches!(msg,
+                    PopoverMsg::SetBrightness { percent: value }
+                    | PopoverMsg::PreviewBrightness { percent: value } if value == percent
+                ));
+            }
+            for invalid in ["-1", "101", "255", "256", "1.5", "null", "\"50\""] {
+                assert!(serde_json::from_str::<PopoverMsg>(&format!(
+                    r#"{{"cmd":"{command}","percent":{invalid}}}"#
+                ))
+                .is_err());
+            }
         }
     }
 

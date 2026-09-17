@@ -125,7 +125,9 @@ pub fn run(_: &Config) -> anyhow::Result<()> {
     anyhow::bail!("BLE control is supported on macOS only")
 }
 #[cfg(target_os = "macos")]
-pub(crate) use mac::run;
+pub(crate) use mac::{preview_brightness, run};
+#[cfg(target_os = "windows")]
+pub(crate) fn preview_brightness(_: u8) {}
 #[cfg(target_os = "macos")]
 use mac::{pair, scan};
 
@@ -141,8 +143,12 @@ mod mac {
     use fs4::fs_std::FileExt;
     use futures_util::{future::LocalBoxFuture, stream::FuturesUnordered, FutureExt, StreamExt};
     use std::cell::{Cell, RefCell};
-    use std::{future::Future, time::Duration};
-    use tokio::sync::broadcast;
+    use std::{
+        future::Future,
+        sync::Mutex,
+        time::{Duration, Instant as StdInstant},
+    };
+    use tokio::sync::{broadcast, Notify};
     use tokio::time::{sleep, timeout, Instant};
     use uuid::Uuid;
 
@@ -152,6 +158,50 @@ mod mac {
     const POLL: Duration = Duration::from_millis(250);
     const HEARTBEAT: Duration = Duration::from_secs(2);
     const OP_TIMEOUT: Duration = Duration::from_secs(10);
+    const PREVIEW_DURATION: Duration = Duration::from_secs(2);
+    static PREVIEW: Mutex<Option<BrightnessPreview>> = Mutex::new(None);
+    static PREVIEW_CHANGED: Notify = Notify::const_new();
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    struct BrightnessPreview {
+        percent: u8,
+        requested_at: StdInstant,
+    }
+
+    impl BrightnessPreview {
+        fn active_at(self, now: StdInstant) -> bool {
+            now.saturating_duration_since(self.requested_at) < PREVIEW_DURATION
+        }
+
+        fn payload(self) -> [u8; 2] {
+            [self.percent, 1]
+        }
+    }
+
+    /// A process-local preview never changes preferences or enables the lamp.
+    pub(crate) fn preview_brightness(percent: u8) {
+        if percent > 100 {
+            return;
+        }
+        *PREVIEW.lock().unwrap_or_else(|error| error.into_inner()) = Some(BrightnessPreview {
+            percent,
+            requested_at: StdInstant::now(),
+        });
+        PREVIEW_CHANGED.notify_waiters();
+    }
+
+    fn current_preview() -> Option<BrightnessPreview> {
+        let preview = *PREVIEW.lock().unwrap_or_else(|error| error.into_inner());
+        preview.filter(|preview| preview.active_at(StdInstant::now()))
+    }
+
+    fn pending_preview(
+        last: Option<BrightnessPreview>,
+        current: Option<BrightnessPreview>,
+        now: StdInstant,
+    ) -> Option<BrightnessPreview> {
+        current.filter(|preview| Some(*preview) != last && preview.active_at(now))
+    }
 
     fn radio_lock() -> Result<std::fs::File> {
         anyhow::ensure!(
@@ -673,11 +723,13 @@ mod mac {
             }
         }, keep, Duration::from_secs(60)).await?;
         let last_brightness = Cell::new(brightness_characteristic.as_ref().map(|_| initial[0]));
+        let last_preview = Cell::new(None::<(BrightnessPreview, StdInstant)>);
         let brightness_characteristic = brightness_characteristic.as_ref();
         let characteristic = &characteristic;
         let last_brightness = &last_brightness;
+        let last_preview = &last_preview;
         let result = send_updates(
-            |(byte, brightness), _first| async move {
+            |(byte, brightness, preview), _first| async move {
                 wait_for(
                     async {
                         if let Some(setting) = brightness_characteristic {
@@ -686,6 +738,18 @@ mod mac {
                                     .await
                                     .context("Lamp brightness write failed")?;
                                 last_brightness.set(Some(brightness));
+                            }
+                            // A heartbeat must not renew a preview, and a slow
+                            // preceding write must not replay an expired event.
+                            if let Some(preview) = pending_preview(
+                                last_preview.get().map(|(preview, _)| preview),
+                                preview,
+                                StdInstant::now(),
+                            ) {
+                                p.write(setting, &preview.payload(), WriteType::WithResponse)
+                                    .await
+                                    .context("Lamp brightness preview failed")?;
+                                last_preview.set(Some((preview, StdInstant::now())));
                             }
                         }
                         p.write(characteristic, &[byte], WriteType::WithResponse)
@@ -697,7 +761,14 @@ mod mac {
                 )
                 .await?;
                 let detail = if brightness_characteristic.is_some() {
-                    format!("Status acknowledged; brightness {brightness}% applied (LED wiring is not verified)")
+                    if let Some((preview, _)) = last_preview
+                        .get()
+                        .filter(|(_, written)| written.elapsed() < PREVIEW_DURATION)
+                    {
+                        format!("Status acknowledged; brightness preview {}% (LED wiring is not verified)", preview.percent)
+                    } else {
+                        format!("Status acknowledged; brightness {brightness}% applied (LED wiring is not verified)")
+                    }
                 } else {
                     "Status acknowledged; brightness unavailable — update the C3 firmware".into()
                 };
@@ -712,6 +783,7 @@ mod mac {
                         cfg.yellow_mode,
                     )),
                     cfg.led_brightness_percent(),
+                    current_preview(),
                 )
             },
             keep,
@@ -733,13 +805,21 @@ mod mac {
         let mut last = None;
         let mut written = Instant::now();
         while keep() {
+            // Register before reading so a concurrent slider event wakes every
+            // lamp, including events arriving during an acknowledged write.
+            let changed = PREVIEW_CHANGED.notified();
+            tokio::pin!(changed);
+            changed.as_mut().enable();
             let current = read();
             if due(last, current, written.elapsed()) {
                 write(current, last.is_none()).await?;
                 last = Some(current);
                 written = Instant::now();
             }
-            sleep(POLL).await;
+            tokio::select! {
+                _ = &mut changed => {},
+                _ = sleep(POLL) => {},
+            }
         }
         Ok(())
     }
@@ -755,6 +835,153 @@ mod mac {
     #[cfg(test)]
     mod tests {
         use super::*;
+        #[test]
+        fn preview_expiry_and_write_deduplication() {
+            let now = StdInstant::now();
+            let preview = BrightnessPreview {
+                percent: 25,
+                requested_at: now,
+            };
+            assert_eq!(pending_preview(None, Some(preview), now), Some(preview));
+            assert_eq!(preview.payload(), [25, 1]);
+            assert_eq!(pending_preview(Some(preview), Some(preview), now), None);
+            // A reconnect must not replay the last slider event after expiry.
+            assert_eq!(
+                pending_preview(None, Some(preview), now + PREVIEW_DURATION),
+                None
+            );
+            let renewed = BrightnessPreview {
+                requested_at: now + Duration::from_millis(500),
+                ..preview
+            };
+            assert!(due(Some(Some(preview)), Some(renewed), Duration::ZERO));
+            assert_eq!(
+                pending_preview(Some(preview), Some(renewed), renewed.requested_at),
+                Some(renewed)
+            );
+        }
+
+        #[test]
+        fn preview_is_ephemeral_and_wakes_every_lamp() {
+            // HOME is isolated in a subprocess, never changed underneath other
+            // tests or pointed at the user's real preferences.
+            let Some(test_home) = std::env::var_os("CLAWLIGHT_PREVIEW_TEST_HOME") else {
+                let home = tempfile::TempDir::new().unwrap();
+                let result = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args([
+                        "--exact",
+                        "ble::mac::tests::preview_is_ephemeral_and_wakes_every_lamp",
+                    ])
+                    .env("HOME", home.path())
+                    .env("CLAWLIGHT_PREVIEW_TEST_HOME", home.path())
+                    .output()
+                    .unwrap();
+                assert!(
+                    result.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&result.stdout)
+                );
+                return;
+            };
+            let path = config::config_file_path();
+            assert!(path.starts_with(test_home));
+            preview_brightness(0);
+            assert!(!path.exists(), "preview must not create configuration");
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            let original = br#"{"led_enabled":false,"led_brightness":100,"unknown":"preserve"}"#;
+            std::fs::write(&path, original).unwrap();
+            preview_brightness(25);
+            let valid = current_preview();
+            preview_brightness(101);
+            assert_eq!(current_preview(), valid, "invalid input must be ignored");
+            assert_eq!(std::fs::read(&path).unwrap(), original);
+            *PREVIEW.lock().unwrap() = None;
+
+            runtime().unwrap().block_on(async {
+                let active = Cell::new(true);
+                let keep = || active.get();
+                let events = RefCell::new(Vec::new());
+                let (sent, mut received) = tokio::sync::mpsc::unbounded_channel();
+                let mut tasks = (0..2)
+                    .map(|lamp| {
+                        let sent = &sent;
+                        let events = &events;
+                        let keep = &keep;
+                        async move {
+                            let last_preview = Cell::new(None);
+                            send_updates(
+                                |(status, brightness, preview), _| {
+                                    assert_eq!((status, brightness), (b'R', 100));
+                                    let next = pending_preview(
+                                        last_preview.get(),
+                                        preview,
+                                        StdInstant::now(),
+                                    );
+                                    if next.is_some() {
+                                        last_preview.set(next);
+                                    }
+                                    let payload = next.map(BrightnessPreview::payload);
+                                    events.borrow_mut().push((lamp, payload));
+                                    sent.send((lamp, payload)).unwrap();
+                                    async { Ok(()) }
+                                },
+                                || (b'R', 100, current_preview()),
+                                keep,
+                            )
+                            .await
+                            .unwrap();
+                        }
+                        .boxed_local()
+                    })
+                    .collect::<Vec<_>>();
+                let control = async {
+                    for _ in 0..2 {
+                        assert!(received.recv().await.unwrap().1.is_none());
+                    }
+                    for _ in 0..2 {
+                        preview_brightness(25);
+                        let mut lamps = Vec::new();
+                        for _ in 0..2 {
+                            let (lamp, payload) = timeout(POLL / 2, received.recv())
+                                .await
+                                .expect("Notify must wake both lamps before the polling fallback")
+                                .unwrap();
+                            assert_eq!(payload, Some([25, 1]));
+                            lamps.push(lamp);
+                        }
+                        lamps.sort();
+                        assert_eq!(lamps, [0, 1]);
+                    }
+                    sleep(PREVIEW_DURATION + POLL).await;
+                    assert!(current_preview().is_none());
+                    active.set(false);
+                    PREVIEW_CHANGED.notify_waiters();
+                };
+                tasks.push(control.boxed_local());
+                timeout(Duration::from_secs(4), run_all(tasks))
+                    .await
+                    .unwrap();
+                for lamp in 0..2 {
+                    let events = events.borrow();
+                    assert_eq!(
+                        events
+                            .iter()
+                            .filter(|(id, payload)| *id == lamp && payload.is_some())
+                            .count(),
+                        2
+                    );
+                    assert!(
+                        events
+                            .iter()
+                            .filter(|(id, payload)| *id == lamp && payload.is_none())
+                            .count()
+                            >= 2
+                    );
+                }
+            });
+            assert_eq!(std::fs::read(path).unwrap(), original);
+        }
+
         #[test]
         fn usb_pair_protocol_candidates_and_advertisement_identity() {
             let identity = [0x14, 0x63, 0x93, 0x92, 0x45, 0x24];

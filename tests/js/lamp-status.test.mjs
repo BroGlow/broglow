@@ -23,12 +23,36 @@ function popoverPage() {
     return elements.get(id);
   };
   element('lampbtn').dataset.local = 'lamp';
-  const listeners = {}, capture = {}, messages = [];
+  const listeners = {}, windowListeners = {}, capture = {}, messages = [];
+  let clock = 0, nextTimer = 0;
+  const timers = new Map();
+  const schedule = (callback, delay, repeat = false) => {
+    const id = ++nextTimer;
+    timers.set(id, { callback, at: clock + delay, repeat: repeat ? delay : 0 });
+    return id;
+  };
+  const advance = duration => {
+    const until = clock + duration;
+    for (;;) {
+      const next = [...timers].filter(([, timer]) => timer.at <= until).sort((a, b) => a[1].at - b[1].at)[0];
+      if (!next) break;
+      const [id, timer] = next;
+      clock = timer.at;
+      if (timer.repeat) timer.at += timer.repeat;
+      else timers.delete(id);
+      timer.callback();
+    }
+    clock = until;
+  };
   const context = {
-    window: { ipc: { postMessage: message => messages.push(JSON.parse(message)) }, devicePixelRatio: 1 },
-    document: { activeElement: null, getElementById: element,
+    window: { ipc: { postMessage: message => messages.push(JSON.parse(message)) }, devicePixelRatio: 1,
+      addEventListener: (name, callback) => { windowListeners[name] = callback; } },
+    document: { activeElement: null, hidden: false, getElementById: element,
       addEventListener: (name, callback, options) => { listeners[name] = callback; capture[name] = options; } },
-    setInterval() {},
+    Date: class extends Date { static now() { return clock; } },
+    setTimeout: (callback, delay) => schedule(callback, delay),
+    setInterval: (callback, delay) => schedule(callback, delay, true),
+    clearTimeout: id => timers.delete(id), clearInterval: id => timers.delete(id),
   };
   runInNewContext(script, context);
   const click = id => listeners.click({ target: { closest: selector => {
@@ -38,7 +62,7 @@ function popoverPage() {
   } } });
   const update = lamp => context.window.__setState({ aggregate: 'none', sessions: [], settings: {}, lamp });
   const commands = name => messages.filter(message => message.cmd === name);
-  return { context, element, listeners, capture, messages, click, update, commands };
+  return { context, element, listeners, windowListeners, capture, messages, click, update, commands, advance };
 }
 
 const visibleLabel = element => element.innerHTML.replace(/<[^>]*>/g, '');
@@ -189,7 +213,7 @@ test('brightness saves while absent without enabling lamps and survives focused 
   const slider = element('brightness');
   assert.equal(slider.value, '100');
   assert.equal(element('brightnesscontrol').hidden, false);
-  assert.equal(element('brightnesshint').textContent, 'Saved for all lamps. Applies when each connects.');
+  assert.match(element('brightnesshint').textContent, /Enable a lamp to preview/);
   const builds = element('groups').writes;
   refresh(75);
   assert.equal(slider.value, '75');
@@ -229,4 +253,124 @@ test('brightness saves while absent without enabling lamps and survives focused 
     assert.deepEqual(messages.at(-1), { cmd: 'set_brightness', percent });
   }
   assert.equal(element('lampcontrol').dataset.enabled, 'true', 'Saving does not enable the lamp');
+});
+
+test('brightness preview throttles live input to the latest value and commits only on change', () => {
+  const { element, listeners, click, update, commands, advance } = popoverPage();
+  update(lamp());
+  click('lampbtn');
+  assert.match(element('brightnesshint').textContent, /All three lights.*2 seconds/);
+  const slider = element('brightness');
+  listeners.pointerdown({ target: slider, pointerId: 1, button: 0 });
+  assert.deepEqual(commands('preview_brightness'), [{ cmd: 'preview_brightness', percent: 100 }]);
+  for (const value of ['10', '20', '30']) {
+    slider.value = value;
+    listeners.input({ target: slider });
+  }
+  assert.equal(element('brightnessvalue').textContent, '30%');
+  assert.equal(commands('preview_brightness').length, 1, 'Rapid changes are coalesced');
+  advance(110);
+  assert.deepEqual(commands('preview_brightness').at(-1), { cmd: 'preview_brightness', percent: 30 });
+  assert.equal(commands('preview_brightness').length, 2);
+  assert.equal(commands('set_brightness').length, 0);
+  slider.value = '42';
+  listeners.input({ target: slider });
+  listeners.change({ target: slider });
+  assert.deepEqual(commands('preview_brightness').at(-1), { cmd: 'preview_brightness', percent: 42 });
+  assert.deepEqual(commands('set_brightness'), [{ cmd: 'set_brightness', percent: 42 }]);
+  listeners.pointerup({ pointerId: 1 });
+  const sent = commands('preview_brightness').length;
+  advance(3000);
+  assert.equal(commands('preview_brightness').length, sent, 'Release stops renewal and cancels queued old values');
+  assert.equal(commands('set_led').length, 0);
+});
+
+test('stationary pointer renews preview and keeps its value when focus or host state changes', () => {
+  const { context, element, listeners, click, update, commands, advance } = popoverPage();
+  update(lamp());
+  click('lampbtn');
+  const slider = element('brightness'), builds = element('groups').writes;
+  listeners.pointerdown({ target: slider, pointerId: 7 });
+  slider.value = '25';
+  listeners.input({ target: slider });
+  advance(110);
+  context.document.activeElement = null;
+  slider.active = false;
+  listeners.focusout({ target: slider });
+  update(lamp({ brightness_percent: 100 }));
+  assert.equal(slider.value, '25', 'A held pointer protects the unsaved edit even without focus');
+  const before = commands('preview_brightness').length;
+  advance(1600);
+  const renewals = commands('preview_brightness').slice(before);
+  assert.ok(renewals.length >= 3 && renewals.length <= 4, 'Holding still renews at a modest rate');
+  assert.ok(renewals.every(message => message.percent === 25));
+  assert.equal(element('groups').writes, builds);
+  listeners.pointercancel({ pointerId: 7 });
+  assert.equal(commands('preview_brightness').at(-1).percent, 25);
+  const sent = commands('preview_brightness').length;
+  advance(3000);
+  assert.equal(commands('preview_brightness').length, sent);
+  assert.equal(commands('set_brightness').length, 0, 'Preview and cancellation never save');
+});
+
+test('popup blur, hiding and leaving the lamp view end preview timers with the final value', () => {
+  for (const end of ['blur', 'hidden', 'Escape', 'Back']) {
+    const { context, element, listeners, windowListeners, click, update, commands, advance } = popoverPage();
+    update(lamp());
+    click('lampbtn');
+    const slider = element('brightness');
+    listeners.pointerdown({ target: slider, pointerId: 1 });
+    slider.value = '23';
+    listeners.input({ target: slider });
+    if (end === 'blur') windowListeners.blur();
+    else if (end === 'hidden') { context.document.hidden = true; listeners.visibilitychange(); }
+    else if (end === 'Escape') listeners.keydown({ key: 'Escape' });
+    else click('settingsbtn');
+    assert.equal(commands('preview_brightness').at(-1).percent, 23, end);
+    const sent = commands('preview_brightness').length;
+    advance(3000);
+    assert.equal(commands('preview_brightness').length, sent, end);
+    assert.equal(commands('set_brightness').length, 0);
+    assert.equal(commands('set_led').length, 0);
+  }
+});
+
+test('keyboard preview validates percentages and requires an enabled connected wireless lamp', () => {
+  const { element, listeners, click, update, commands, advance } = popoverPage();
+  update(lamp());
+  click('lampbtn');
+  const slider = element('brightness');
+  for (const invalid of ['101', '-1', '1.5', '', 'invalid']) {
+    slider.value = invalid;
+    listeners.input({ target: slider });
+    listeners.change({ target: slider });
+  }
+  assert.equal(commands('preview_brightness').length, 0);
+  assert.equal(commands('set_brightness').length, 0);
+  for (const value of ['0', '100']) {
+    slider.value = value;
+    listeners.input({ target: slider });
+    listeners.change({ target: slider });
+    assert.equal(commands('preview_brightness').at(-1).percent, Number(value));
+  }
+  const sent = commands('preview_brightness').length;
+  advance(3000);
+  assert.equal(commands('preview_brightness').length, sent, 'Keyboard edits do not start pointer renewal');
+
+  for (const unavailable of [
+    { enabled: false }, { state: 'searching' }, { state: 'connecting' }, { state: 'error' },
+    { state: 'unavailable' }, { devices: [] },
+    { devices: [{ id: 'saved-lamp', state: 'searching' }] }, { transport: 'usb', present: true },
+  ]) {
+    update(lamp(unavailable));
+    slider.value = '45';
+    listeners.pointerdown({ target: slider, pointerId: 2 });
+    listeners.input({ target: slider });
+    listeners.change({ target: slider });
+    advance(1100);
+    listeners.pointercancel({ pointerId: 2 });
+    assert.equal(commands('preview_brightness').length, sent, JSON.stringify(unavailable));
+    assert.equal(commands('set_brightness').at(-1).percent, 45, 'Unavailable lamps still accept saved preferences');
+  }
+  assert.equal(commands('set_led').length, 0);
 });

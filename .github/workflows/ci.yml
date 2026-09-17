@@ -27,7 +27,7 @@ jobs:
       - name: Firmware formatting (Google)
         run: clang-format --dry-run --Werror firmware/esp32-c3-supermini/src/*.cpp firmware/esp32-c3-supermini/tests/*.cpp
       - run: python firmware/esp32-c3-supermini/tests/check.py
-      - run: pio run -d firmware/esp32-c3-supermini
+      - run: pio run -d firmware/esp32-c3-supermini -e esp32-c3-supermini -e led-test
 
   fmt:
     runs-on: ubuntu-latest
