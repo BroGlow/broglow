@@ -300,16 +300,16 @@ test('host setup busy survives reopening and stops lamp mutations and active pre
   click('settingsbtn');
   click('lampbtn');
   assert.equal(element('lampadd').textContent, 'Adding…');
-  for (const id of ['lampadd', 'lampforget-0', 'lampname-0', 'lampsave-0', 'lampcontrol', 'brightness']) {
+  for (const id of ['lampadd', 'lampforget-0', 'lampname-0', 'lampsave-0', 'lampidentify-0', 'lampcontrol', 'brightness']) {
     assert.equal(element(id).disabled, true, id);
   }
-  for (const id of ['lampadd', 'lampforget-0', 'lampsave-0', 'lampcontrol']) click(id);
+  for (const id of ['lampadd', 'lampforget-0', 'lampsave-0', 'lampidentify-0', 'lampcontrol']) click(id);
   listeners.pointerdown({ target: slider, pointerId: 2 });
   listeners.input({ target: slider });
   listeners.change({ target: slider });
   advance(3000);
   assert.equal(commands('preview_brightness').length, previews, 'No queued preview or stationary renewal survives setup');
-  for (const cmd of ['add_lamp', 'forget_lamp', 'rename_lamp', 'set_led', 'set_brightness']) {
+  for (const cmd of ['add_lamp', 'forget_lamp', 'rename_lamp', 'identify_lamp', 'set_led', 'set_brightness']) {
     assert.equal(commands(cmd).length, 0, cmd);
   }
 });
@@ -438,8 +438,10 @@ test('forget sends exactly the chosen saved ID, including absent and disabled la
     assert.equal(element('lampid-1').textContent, devices[1].id, 'No optimistic removal before config succeeds');
     click('lampforget-0');
     click('lampsave-0');
+    click('lampidentify-0');
     assert.equal(commands('forget_lamp').length, 1, 'Only one action can be pending');
     assert.equal(commands('rename_lamp').length, 0);
+    assert.equal(commands('identify_lamp').length, 0);
     refresh(devices);
     assert.equal(element('lampforget-1').disabled, true, 'Heartbeat does not finish the action');
 
@@ -477,6 +479,52 @@ test('forget failure stays visible across refresh, preserves the row and allows 
   assert.equal(element('lamperror').hidden, true);
   assert.deepEqual(commands('forget_lamp').at(-1), { cmd: 'forget_lamp', id: 'saved-lamp' });
   assert.equal(commands('forget_lamp').length, 2);
+});
+
+test('Identify targets only the selected connected lamp, including at zero brightness, without changing preferences', () => {
+  const { context, element, update, click, commands } = popoverPage();
+  update(lamp({ brightness_percent: 0, selected_count: 2, devices: [
+    { id: 'home-id', state: 'connected' }, { id: 'work-id', state: 'connected' },
+  ] }));
+  click('lampbtn');
+  assert.match(element('lamplist').innerHTML, /Lights this lamp for 2 seconds without changing its brightness setting\./);
+  assert.equal(element('lampidentify-1').disabled, false);
+  click('lampidentify-1');
+  click('lampidentify-0');
+  assert.deepEqual(commands('identify_lamp'), [{ cmd: 'identify_lamp', id: 'work-id' }]);
+  assert.equal(element('lampidentify-1').textContent, 'Sending…');
+  assert.equal(element('lampsave-0').disabled, true);
+  context.window.__configActionResult('Lamp disconnected before the command');
+  assert.equal(element('lamperror').textContent, 'Lamp disconnected before the command');
+  assert.equal(element('lampidentify-1').disabled, false);
+  click('lampidentify-1');
+  context.window.__configActionResult(null);
+  assert.equal(element('lampidentify-1').textContent, 'Identify', 'Acknowledgement does not claim a visible flash');
+  assert.equal(element('lampsave-0').disabled, false, 'No artificial two-second lock after the result');
+  element('lampname-0').value = 'Home';
+  click('lampsave-0');
+  click('lampidentify-1');
+  assert.equal(commands('identify_lamp').length, 2, 'A pending rename blocks another lamp action');
+  assert.equal(element('brightness').value, '0');
+  for (const cmd of ['set_brightness', 'preview_brightness', 'set_led']) assert.equal(commands(cmd).length, 0);
+});
+
+test('Identify requires that lamp to have a fresh enabled Bluetooth connection', () => {
+  const { element, update, click, commands } = popoverPage();
+  update(lamp());
+  click('lampbtn');
+  for (const unavailable of [
+    { enabled: false }, { state: 'unavailable' }, { state: 'searching' }, { setup_busy: true },
+    { devices: [{ id: 'saved-lamp', state: 'searching' }, { id: 'other-lamp', state: 'connected' }], selected_count: 2 },
+  ]) {
+    update(lamp(unavailable));
+    assert.equal(element('lampidentify-0').disabled, true);
+    click('lampidentify-0');
+  }
+  update(lamp({ transport: 'usb' }));
+  assert.ok(!element('lamplist').innerHTML.includes('lampidentify'));
+  click('lampidentify-0'); // A stale control cannot bypass the transport guard.
+  assert.equal(commands('identify_lamp').length, 0);
 });
 
 test('brightness saves while absent without enabling lamps and survives focused edits during refresh', () => {

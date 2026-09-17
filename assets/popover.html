@@ -196,7 +196,7 @@ summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outl
 .lampitem dt { color: rgba(255,255,255,.5); margin-top: 7px; }
 .lampitem dd { color: rgba(255,255,255,.8); overflow-wrap: anywhere; }
 .lampitem dd.lampid { font-family: ui-monospace, monospace; }
-.lampforget { padding: 0 10px 10px; }
+.lampforget, .lampidentify { padding: 0 10px 10px; }
 .lampnameedit { padding: 0 10px 10px; font-size: 12px; color: rgba(255,255,255,.8); }
 .lampnameedit label { display: block; margin-bottom: 5px; }
 .lampnamefields { display: flex; gap: 6px; }
@@ -209,7 +209,7 @@ summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outl
 .brightness { padding: 0 10px 12px; color: rgba(255,255,255,.8); font-size: 12px; }
 .brightness label { display: flex; justify-content: space-between; margin-bottom: 7px; }
 .brightness input { width: 100%; accent-color: #3577f6; }
-.brightness p, .lampforget p, .lampsetup p, .lampnameedit p { margin-top: 5px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.brightness p, .lampforget p, .lampidentify p, .lampsetup p, .lampnameedit p { margin-top: 5px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 body.win .brightness input { accent-color: #4cc2ff; }
 .pophead, .popfoot, .usec { flex-shrink: 0; }
 </style>
@@ -361,18 +361,25 @@ function lampState(status) {
   return ({ connected: 'Connected', connecting: 'Connecting', searching: 'Looking for lamp',
     error: 'Needs attention', unavailable: 'No recent response', disabled: 'Off' })[status] || 'No recent response';
 }
-let pendingForgetId = null, pendingRenameId = null, configActionError = '';
+let pendingForgetId = null, pendingRenameId = null, pendingIdentifyId = null, configActionError = '';
 const lampNameDrafts = new Map();
-function lampActionPending() { return pendingForgetId !== null || pendingRenameId !== null; }
+function lampActionPending() { return pendingForgetId !== null || pendingRenameId !== null || pendingIdentifyId !== null; }
 window.__configActionResult = error => {
   if (!error && pendingRenameId !== null) lampNameDrafts.delete(pendingRenameId);
   pendingForgetId = null;
   pendingRenameId = null;
+  pendingIdentifyId = null;
   configActionError = error || '';
   render();
 };
 let lampSetupPending = false, lampSetupError = '', lampSetupMessage = '';
 function lampSetupBusy() { return lampSetupPending || state.lamp?.setup_busy === true; }
+function canIdentifyLamp(id) {
+  const lamp = state.lamp || {};
+  return !lampSetupBusy() && !lampActionPending() && lamp.transport === 'ble' &&
+    lamp.enabled && lamp.state === 'connected' &&
+    (lamp.devices || []).some(device => device.id === id && device.state === 'connected');
+}
 window.__lampSetupResult = error => {
   lampSetupPending = false;
   if (state.lamp) state.lamp.setup_busy = false;
@@ -478,7 +485,9 @@ function renderLamp() {
         (wireless ? `<div class="lampnameedit"><label for="lampname-${i}">Name</label><div class="lampnamefields">` +
           `<input id="lampname-${i}" type="text" autocomplete="off" aria-describedby="lampnamehelp-${i}">` +
           `<button class="pbtn" type="button" id="lampsave-${i}">Save</button></div>` +
-          `<p id="lampnamehelp-${i}">Up to 40 characters. Leave blank for an automatic name.</p></div>` : '') +
+          `<p id="lampnamehelp-${i}">Up to 40 characters. Leave blank for an automatic name.</p></div>` +
+          `<div class="lampidentify"><button class="pbtn" type="button" id="lampidentify-${i}" aria-describedby="lampidentifyhelp-${i}">Identify</button>` +
+          `<p id="lampidentifyhelp-${i}">Lights this lamp for 2 seconds without changing its brightness setting.</p></div>` : '') +
         `<dl><dt>${wireless ? 'Device ID' : 'Connection'}</dt><dd class="lampid" id="lampid-${i}"></dd>` +
         `<dt>Diagnostic</dt><dd id="lampdiagnostic-${i}"></dd></dl>` +
         (wireless ? `<div class="lampforget"><button class="pbtn pbtnghost" type="button" id="lampforget-${i}" ` +
@@ -504,6 +513,11 @@ function renderLamp() {
       if (id.textContent !== identifier) id.textContent = identifier;
       if (diagnostic.textContent !== (device.detail || '')) diagnostic.textContent = device.detail || '';
       if (wireless) {
+        const identify = document.getElementById('lampidentify-' + i);
+        identify.dataset.cmd = 'identify_lamp';
+        identify.dataset.id = device.id;
+        identify.disabled = !canIdentifyLamp(device.id);
+        identify.textContent = pendingIdentifyId === device.id ? 'Sending…' : 'Identify';
         const input = document.getElementById('lampname-' + i);
         input.dataset.lampNameId = device.id;
         input.disabled = setupBusy || lampActionPending();
@@ -775,7 +789,13 @@ document.addEventListener('click', ev => {
   const msg = { cmd: btn.dataset.cmd };
   if (btn.dataset.id !== undefined) msg.id = btn.dataset.id;
   if (btn.dataset.enabled !== undefined) msg.enabled = btn.dataset.enabled === 'true';
-  if (lampSetupBusy() && ['add_lamp', 'forget_lamp', 'rename_lamp', 'set_led'].includes(msg.cmd)) return;
+  if (lampSetupBusy() && ['add_lamp', 'forget_lamp', 'rename_lamp', 'identify_lamp', 'set_led'].includes(msg.cmd)) return;
+  if (msg.cmd === 'identify_lamp') {
+    if (!canIdentifyLamp(msg.id)) return;
+    pendingIdentifyId = msg.id;
+    configActionError = '';
+    renderLamp();
+  }
   if (msg.cmd === 'add_lamp') {
     if (state.lamp?.bluetooth_supported !== true || lampActionPending()) return;
     lampSetupPending = true;

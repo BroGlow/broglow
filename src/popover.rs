@@ -97,6 +97,9 @@ pub enum PopoverMsg {
         id: String,
         name: String,
     },
+    IdentifyLamp {
+        id: String,
+    },
     /// A saved BLE brightness preference, separate from lamp enablement.
     SetBrightness {
         #[serde(deserialize_with = "deserialize_brightness_percent")]

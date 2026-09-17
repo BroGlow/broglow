@@ -169,9 +169,13 @@ pub fn run(_: &Config) -> anyhow::Result<()> {
     anyhow::bail!("BLE control is supported on macOS only")
 }
 #[cfg(target_os = "macos")]
-pub(crate) use mac::{preview_brightness, run};
+pub(crate) use mac::{preview_brightness, preview_lamp_brightness, run};
 #[cfg(target_os = "windows")]
 pub(crate) fn preview_brightness(_: u8) {}
+#[cfg(target_os = "windows")]
+pub(crate) fn preview_lamp_brightness(_: &str, _: u8) -> anyhow::Result<()> {
+    anyhow::bail!("Bluetooth lamp identification is supported on macOS only")
+}
 #[cfg(target_os = "macos")]
 use mac::{pair, scan};
 
@@ -188,6 +192,7 @@ mod mac {
     use futures_util::{future::LocalBoxFuture, stream::FuturesUnordered, FutureExt, StreamExt};
     use std::cell::{Cell, RefCell};
     use std::{
+        collections::BTreeMap,
         future::Future,
         sync::Mutex,
         time::{Duration, Instant as StdInstant},
@@ -203,7 +208,7 @@ mod mac {
     const HEARTBEAT: Duration = Duration::from_secs(2);
     const OP_TIMEOUT: Duration = Duration::from_secs(10);
     const PREVIEW_DURATION: Duration = Duration::from_secs(2);
-    static PREVIEW: Mutex<Option<BrightnessPreview>> = Mutex::new(None);
+    static PREVIEW: Mutex<BTreeMap<Option<Uuid>, BrightnessPreview>> = Mutex::new(BTreeMap::new());
     static PREVIEW_CHANGED: Notify = Notify::const_new();
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -227,16 +232,58 @@ mod mac {
         if percent > 100 {
             return;
         }
-        *PREVIEW.lock().unwrap_or_else(|error| error.into_inner()) = Some(BrightnessPreview {
-            percent,
-            requested_at: StdInstant::now(),
-        });
+        store_preview(None, percent);
+    }
+
+    pub(crate) fn preview_lamp_brightness(id: &str, percent: u8) -> Result<()> {
+        let target = Uuid::parse_str(id)?;
+        let id = target.to_string();
+        anyhow::ensure!(percent <= 100, "Brightness must be between 0 and 100");
+        let cfg = read_setup_config()?;
+        anyhow::ensure!(
+            cfg.ble_ids().contains(&id),
+            "This lamp is not remembered: {id}"
+        );
+        anyhow::ensure!(
+            cfg.led_enabled && cfg.led_transport == LedTransport::Ble,
+            "Enable Bluetooth lamps before previewing brightness"
+        );
+        anyhow::ensure!(
+            crate::led::connection_status()
+                .devices
+                .iter()
+                .any(|device| { device.id == id && device.state == "connected" }),
+            "This lamp is not connected; wait for it to reconnect"
+        );
+        store_preview(Some(target), percent);
+        Ok(())
+    }
+
+    fn store_preview(target: Option<Uuid>, percent: u8) {
+        let now = StdInstant::now();
+        let mut previews = PREVIEW.lock().unwrap_or_else(|error| error.into_inner());
+        previews.retain(|_, preview| preview.active_at(now));
+        previews.insert(
+            target,
+            BrightnessPreview {
+                percent,
+                requested_at: now,
+            },
+        );
+        drop(previews);
         PREVIEW_CHANGED.notify_waiters();
     }
 
-    fn current_preview() -> Option<BrightnessPreview> {
-        let preview = *PREVIEW.lock().unwrap_or_else(|error| error.into_inner());
-        preview.filter(|preview| preview.active_at(StdInstant::now()))
+    fn current_preview(id: Uuid) -> Option<BrightnessPreview> {
+        let now = StdInstant::now();
+        let previews = PREVIEW.lock().unwrap_or_else(|error| error.into_inner());
+        previews
+            .get(&None)
+            .into_iter()
+            .chain(previews.get(&Some(id)))
+            .copied()
+            .filter(|preview| preview.active_at(now))
+            .max_by_key(|preview| preview.requested_at)
     }
 
     fn pending_preview(
@@ -732,6 +779,7 @@ mod mac {
         keep: &impl Fn() -> bool,
         publish: &impl Fn(&str, &str),
     ) -> Result<()> {
+        let id = Uuid::parse_str(&p.id().to_string())?;
         wait(
             async {
                 p.connect().await?;
@@ -842,7 +890,7 @@ mod mac {
                         cfg.yellow_mode,
                     )),
                     cfg.led_brightness_percent(),
-                    current_preview(),
+                    current_preview(id),
                 )
             },
             keep,
@@ -943,6 +991,8 @@ mod mac {
                 return;
             };
             let path = config::config_file_path();
+            let ids = [Uuid::from_u128(0xaa), Uuid::from_u128(0xbb)];
+            let names = ids.map(|id| id.to_string());
             assert!(path.starts_with(test_home));
             preview_brightness(0);
             assert!(!path.exists(), "preview must not create configuration");
@@ -950,11 +1000,76 @@ mod mac {
             let original = br#"{"led_enabled":false,"led_brightness":100,"unknown":"preserve"}"#;
             std::fs::write(&path, original).unwrap();
             preview_brightness(25);
-            let valid = current_preview();
+            let valid = current_preview(ids[0]);
             preview_brightness(101);
-            assert_eq!(current_preview(), valid, "invalid input must be ignored");
+            assert_eq!(
+                current_preview(ids[0]),
+                valid,
+                "invalid input must be ignored"
+            );
             assert_eq!(std::fs::read(&path).unwrap(), original);
-            *PREVIEW.lock().unwrap() = None;
+
+            let mut cfg: Config = serde_json::from_slice(original).unwrap();
+            cfg.led_enabled = true;
+            cfg.led_transport = LedTransport::Ble;
+            cfg.ble_peripherals = names.to_vec();
+            cfg.led_brightness = 0;
+            config::write_config(&cfg).unwrap();
+            let configured = std::fs::read(&path).unwrap();
+            let connected = || {
+                names
+                    .iter()
+                    .map(|id| crate::led::DeviceStatus::new(id, "connected", "Write acknowledged"))
+                    .collect::<Vec<_>>()
+            };
+            crate::led::publish_ble_status(&cfg, connected());
+            let rejects = |id: &str, percent| {
+                let before = std::fs::read(&path).unwrap();
+                assert!(preview_lamp_brightness(id, percent).is_err());
+                assert_eq!(std::fs::read(&path).unwrap(), before);
+            };
+            rejects("invalid", 100);
+            rejects(&Uuid::from_u128(3).to_string(), 100);
+            rejects(&names[0], 101);
+            preview_lamp_brightness(&names[0].to_uppercase(), 0).unwrap();
+            preview_lamp_brightness(&names[1], 100).unwrap();
+            assert_eq!(current_preview(ids[0]).unwrap().payload(), [0, 1]);
+            assert_eq!(current_preview(ids[1]).unwrap().payload(), [100, 1]);
+            let previous = current_preview(ids[0]);
+            preview_lamp_brightness(&names[0], 0).unwrap();
+            assert!(
+                pending_preview(previous, current_preview(ids[0]), StdInstant::now()).is_some()
+            );
+            preview_brightness(50);
+            assert!(ids
+                .iter()
+                .all(|id| current_preview(*id).unwrap().percent == 50));
+            preview_lamp_brightness(&names[0], 75).unwrap();
+            assert_eq!(current_preview(ids[0]).unwrap().percent, 75);
+            assert_eq!(current_preview(ids[1]).unwrap().percent, 50);
+            assert_eq!(std::fs::read(&path).unwrap(), configured);
+
+            let mut devices = connected();
+            devices[1].state = "searching".into();
+            crate::led::publish_ble_status(&cfg, devices);
+            rejects(&names[1], 100);
+            let mut devices = connected();
+            devices[1].updated -= 7;
+            crate::led::publish_ble_status(&cfg, devices);
+            rejects(&names[1], 100); // A healthy peer cannot make a stale lamp eligible.
+            cfg.led_enabled = false;
+            config::write_config(&cfg).unwrap();
+            rejects(&names[0], 100);
+            cfg.led_enabled = true;
+            cfg.led_transport = LedTransport::Usb;
+            config::write_config(&cfg).unwrap();
+            rejects(&names[0], 100);
+            std::fs::write(&path, "{corrupt").unwrap();
+            rejects(&names[0], 100);
+            std::fs::write(&path, &configured).unwrap();
+            cfg.led_transport = LedTransport::Ble;
+            crate::led::publish_ble_status(&cfg, connected());
+            PREVIEW.lock().unwrap().clear();
 
             runtime().unwrap().block_on(async {
                 let active = Cell::new(true);
@@ -984,7 +1099,7 @@ mod mac {
                                     sent.send((lamp, payload)).unwrap();
                                     async { Ok(()) }
                                 },
-                                || (b'R', 100, current_preview()),
+                                || (b'R', 100, current_preview(ids[lamp])),
                                 keep,
                             )
                             .await
@@ -1011,8 +1126,21 @@ mod mac {
                         lamps.sort();
                         assert_eq!(lamps, [0, 1]);
                     }
+                    // Back-to-back targeted requests must both survive until their
+                    // workers run, rather than overwriting one shared event.
+                    preview_lamp_brightness(&names[0], 0).unwrap();
+                    preview_lamp_brightness(&names[1], 100).unwrap();
+                    let mut lamps = Vec::new();
+                    for _ in 0..2 {
+                        let (lamp, payload) =
+                            timeout(POLL / 2, received.recv()).await.unwrap().unwrap();
+                        assert_eq!(payload, Some([if lamp == 0 { 0 } else { 100 }, 1]));
+                        lamps.push(lamp);
+                    }
+                    lamps.sort();
+                    assert_eq!(lamps, [0, 1]);
                     sleep(PREVIEW_DURATION + POLL).await;
-                    assert!(current_preview().is_none());
+                    assert!(ids.iter().all(|id| current_preview(*id).is_none()));
                     active.set(false);
                     PREVIEW_CHANGED.notify_waiters();
                 };
@@ -1027,7 +1155,7 @@ mod mac {
                             .iter()
                             .filter(|(id, payload)| *id == lamp && payload.is_some())
                             .count(),
-                        2
+                        3
                     );
                     assert!(
                         events
@@ -1038,7 +1166,7 @@ mod mac {
                     );
                 }
             });
-            assert_eq!(std::fs::read(path).unwrap(), original);
+            assert_eq!(std::fs::read(path).unwrap(), configured);
         }
 
         #[test]

@@ -637,6 +637,7 @@ pub fn run() -> anyhow::Result<()> {
                 PopoverMsg::SetLed { .. }
                 | PopoverMsg::ForgetLamp { .. }
                 | PopoverMsg::RenameLamp { .. }
+                | PopoverMsg::IdentifyLamp { .. }
                 | PopoverMsg::SetBrightness { .. }
                 | PopoverMsg::PreviewBrightness { .. }
                     if popover.setup_busy => {}
@@ -719,6 +720,12 @@ pub fn run() -> anyhow::Result<()> {
                         .err()
                         .map(|error| format!("Could not save lamp name: {error}"));
                     popover.push_state(&read_hook_state());
+                    popover.config_action_result(error);
+                }
+                PopoverMsg::IdentifyLamp { id } => {
+                    let error = crate::ble::preview_lamp_brightness(&id, 100)
+                        .err()
+                        .map(|error| format!("Could not identify lamp: {error}"));
                     popover.config_action_result(error);
                 }
                 PopoverMsg::SetBrightness { percent } => {
