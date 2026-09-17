@@ -1,0 +1,351 @@
+{
+  "asset": {
+    "generator": "Khronos glTF Blender I/O v5.1.20",
+    "version": "2.0"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0,
+        1,
+        2,
+        3
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "Claude-full-for-website"
+    },
+    {
+      "mesh": 1,
+      "name": "red led"
+    },
+    {
+      "mesh": 2,
+      "name": "red led.001"
+    },
+    {
+      "mesh": 3,
+      "name": "red led.002"
+    }
+  ],
+  "meshes": [
+    {
+      "name": "Claude-full-for-website.001",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "material": 0
+        },
+        {
+          "attributes": {
+            "POSITION": 4,
+            "NORMAL": 5,
+            "TEXCOORD_0": 6
+          },
+          "indices": 7,
+          "material": 1
+        }
+      ]
+    },
+    {
+      "name": "red led.003",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 8,
+            "NORMAL": 9
+          },
+          "indices": 10,
+          "material": 2
+        }
+      ]
+    },
+    {
+      "name": "red led.004",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 11,
+            "NORMAL": 12
+          },
+          "indices": 13,
+          "material": 3
+        }
+      ]
+    },
+    {
+      "name": "red led.005",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 14,
+            "NORMAL": 15
+          },
+          "indices": 16,
+          "material": 4
+        }
+      ]
+    }
+  ],
+  "materials": [
+    {
+      "doubleSided": true,
+      "extensions": {
+        "KHR_materials_specular": {
+          "specularFactor": 0
+        }
+      },
+      "name": "ABS_Orange",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          1,
+          0.30577340722084045,
+          0,
+          1
+        ],
+        "metallicFactor": 0,
+        "roughnessFactor": 0.5
+      }
+    },
+    {
+      "doubleSided": true,
+      "extensions": {
+        "KHR_materials_specular": {
+          "specularFactor": 0
+        }
+      },
+      "name": "ABS_Black",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.019999999552965164,
+          0.019999999552965164,
+          0.019999999552965164,
+          1
+        ],
+        "metallicFactor": 0,
+        "roughnessFactor": 0.44999998807907104
+      }
+    },
+    {
+      "doubleSided": true,
+      "emissiveFactor": [
+        0.800000011920929,
+        0.004999999888241291,
+        0
+      ],
+      "name": "LED_Red",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.800000011920929,
+          0.004999999888241291,
+          0,
+          1
+        ],
+        "metallicFactor": 0,
+        "roughnessFactor": 0.30000001192092896
+      }
+    },
+    {
+      "doubleSided": true,
+      "emissiveFactor": [
+        0.800000011920929,
+        0.7860000133514404,
+        0.004999999888241291
+      ],
+      "name": "LED_Amber",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.800000011920929,
+          0.7860000133514404,
+          0.004999999888241291,
+          1
+        ],
+        "metallicFactor": 0,
+        "roughnessFactor": 0.30000001192092896
+      }
+    },
+    {
+      "doubleSided": true,
+      "emissiveFactor": [
+        0.004000000189989805,
+        0.800000011920929,
+        0
+      ],
+      "name": "LED_Green",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.004000000189989805,
+          0.800000011920929,
+          0,
+          1
+        ],
+        "metallicFactor": 0,
+        "roughnessFactor": 0.30000001192092896
+      }
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 14105,
+      "max": [
+        0.03683881461620331,
+        0.05427631735801697,
+        0.017141707241535187
+      ],
+      "min": [
+        -0.045888155698776245,
+        0,
+        -0.022805657237768173
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 14105,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 14105,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5123,
+      "count": 82707,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 4,
+      "componentType": 5126,
+      "count": 1771,
+      "max": [
+        0.04588816314935684,
+        0.07500000298023224,
+        0.020102230831980705
+      ],
+      "min": [
+        -0.031085526570677757,
+        0,
+        -0.022331979125738144
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 5,
+      "componentType": 5126,
+      "count": 1771,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 6,
+      "componentType": 5126,
+      "count": 1771,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 7,
+      "componentType": 5123,
+      "count": 6834,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 8,
+      "componentType": 5126,
+      "count": 7110,
+      "max": [
+        0.03737437725067139,
+        0.0721319168806076,
+        0.02280566841363907
+      ],
+      "min": [
+        0.027172807604074478,
+        0.061930328607559204,
+        0.006991010159254074
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 9,
+      "componentType": 5126,
+      "count": 7110,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 10,
+      "componentType": 5123,
+      "count": 8814,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 11,
+      "componentType": 5126,
+      "count": 7112,
+      "max": [
+        0.03737437725067139,
+        0.06009243428707123,
+        0.02280566841363907
+      ],
+      "min": [
+        0.027172807604074478,
+        0.04989084601402283,
+        0.006991010159254074
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 12,
+      "componentType": 5126,
+      "count": 7112,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 13,
+      "componentType": 5123,
+      "count": 8814,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 14,
+      "componentType": 5126,
+      "count": 7090,
+      "max": [
+        0.03737437725067139,
+        0.04825033247470856,
+        0.02280566841363907
+      ],
+      "min": [
+        0.027172807604074478,
+        0.038048744201660156,
+        0.006991010159254074
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 15,
+      "componentType": 5126,
+      "count": 7090,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 16,
+      "componentType": 5123,
+      "count": 8814,
+      "type": "SCALAR"
+    }
+  ]
+}

@@ -1,0 +1,146 @@
+{
+  "status": "passed",
+  "hardware_fit": "PROVISIONAL, physical parts unmeasured",
+  "mesh": {
+    "00_fit_coupon": {
+      "watertight": true,
+      "components": 1,
+      "triangles": 154822,
+      "dimensions_mm": [
+        68.0,
+        50.0,
+        8.8
+      ],
+      "bed_z_mm": -1.0547118733938987e-15
+    },
+    "00b_coupon_cover_cap": {
+      "watertight": true,
+      "components": 1,
+      "triangles": 17340,
+      "dimensions_mm": [
+        54.0,
+        8.0,
+        2.4
+      ],
+      "bed_z_mm": -9.71445146547012e-16
+    },
+    "00c_coupon_retainer_cap": {
+      "watertight": true,
+      "components": 1,
+      "triangles": 16616,
+      "dimensions_mm": [
+        54.0,
+        8.0,
+        3.0
+      ],
+      "bed_z_mm": 1.0000000116860974e-07
+    },
+    "01_mascot_orange": {
+      "watertight": true,
+      "components": 1,
+      "triangles": 560,
+      "dimensions_mm": [
+        70.0,
+        55.0,
+        40.0
+      ],
+      "bed_z_mm": 7.105427357601002e-15
+    },
+    "02_eye_left_black": {
+      "watertight": true,
+      "components": 1,
+      "triangles": 76,
+      "dimensions_mm": [
+        5.0,
+        10.0,
+        4.15
+      ],
+      "bed_z_mm": 8.881784197001252e-16
+    },
+    "03_eye_right_black": {
+      "watertight": true,
+      "components": 1,
+      "triangles": 76,
+      "dimensions_mm": [
+        5.0,
+        10.0,
+        4.15
+      ],
+      "bed_z_mm": 8.881784197001252e-16
+    },
+    "04_tower_black": {
+      "watertight": true,
+      "components": 1,
+      "triangles": 15012,
+      "dimensions_mm": [
+        28.0,
+        76.0,
+        37.6
+      ],
+      "bed_z_mm": 1.3853936882032103e-17
+    },
+    "05_rear_cover_black": {
+      "watertight": true,
+      "components": 1,
+      "triangles": 9228,
+      "dimensions_mm": [
+        28.0,
+        76.0,
+        2.4
+      ],
+      "bed_z_mm": 0.0
+    },
+    "06_LED_retainer_black": {
+      "watertight": true,
+      "components": 1,
+      "triangles": 6232,
+      "dimensions_mm": [
+        9.55,
+        39.35,
+        5.15
+      ],
+      "bed_z_mm": 3.552713678800501e-15
+    },
+    "07_PCB_tray_black": {
+      "watertight": true,
+      "components": 1,
+      "triangles": 268,
+      "dimensions_mm": [
+        21.2,
+        26.95,
+        5.8
+      ],
+      "bed_z_mm": 2.6645352591003757e-15
+    }
+  },
+  "checks": [
+    "All printed parts have flat chamfers; no fillet surfaces",
+    "Both hand recess ends have full-depth 45-degree ramps; no horizontal recess ledges in rear-down print pose",
+    "7 valid single CAD solids; all 21 printed-part pairs have zero interfering volume",
+    "Provisional PCB, component, USB and all three LED envelopes clear every printed part",
+    "DIN 7982 min/max heads seat clear; all five pilots retain tip clearance and front skin; seating annuli and driver access clear",
+    "Three valid coupon solids; C/R caps seat on correct-depth pilot rows, with both screw head limits and long-screw tip clearance checked",
+    "Tie underpasses clear shelves; underside electronics have 0.4 mm spare clearance",
+    "Rear cover, PCB tray and LED strip withdrawal checked at 6 offsets",
+    "Lead, 2.5 x 7 mm resistor, wire, USB cable and screwdriver access envelopes clear",
+    "All four feet and tower pedestal contact Z=0"
+  ],
+  "screws": {
+    "standard": "DIN 7982 ST2.2 x 6.5, countersunk Phillips",
+    "head_angle_degrees": 80.0,
+    "closures": {
+      "05_rear_cover_black": {
+        "pilot_floor_y_mm": 32.04247392222174,
+        "worst_long_screw_tip_y_mm": 32.34247392222174,
+        "tip_to_pilot_floor_mm": 0.30000000000000426,
+        "minimum_full_diameter_thread_mm": 1.4787630388891326
+      },
+      "06_LED_retainer_black": {
+        "pilot_floor_y_mm": 0.8424739222217372,
+        "worst_long_screw_tip_y_mm": 1.1424739222217382,
+        "tip_to_pilot_floor_mm": 0.30000000000000093,
+        "minimum_full_diameter_thread_mm": 0.8787630388891303
+      }
+    }
+  }
+}

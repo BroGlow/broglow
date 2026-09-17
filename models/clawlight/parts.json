@@ -1,0 +1,102 @@
+{
+  "01_mascot_orange": {
+    "quantity": 1,
+    "bounds_mm": [
+      70.00000000000001,
+      55.000000000000014,
+      40.000000000000014
+    ],
+    "solid_volume_mm3": 97641.89847997112,
+    "assembly_label": "orange_mascot_four_feet_bent_arm"
+  },
+  "02_eye_left_black": {
+    "quantity": 1,
+    "bounds_mm": [
+      5.0000000000000036,
+      10.000000000000007,
+      4.150000000000003
+    ],
+    "solid_volume_mm3": 204.15688705507839,
+    "assembly_label": "black_eye_left"
+  },
+  "03_eye_right_black": {
+    "quantity": 1,
+    "bounds_mm": [
+      5.000000000000005,
+      10.000000000000005,
+      4.150000000000003
+    ],
+    "solid_volume_mm3": 204.15688705507844,
+    "assembly_label": "black_eye_right"
+  },
+  "04_tower_black": {
+    "quantity": 1,
+    "bounds_mm": [
+      28.00000000000001,
+      76.00000000000001,
+      37.600000000000016
+    ],
+    "solid_volume_mm3": 22944.28029973607,
+    "assembly_label": "black_tower_open_rear"
+  },
+  "05_rear_cover_black": {
+    "quantity": 1,
+    "bounds_mm": [
+      28.000000000000007,
+      76.00000000000003,
+      2.400000000000006
+    ],
+    "solid_volume_mm3": 3546.9379760359907,
+    "assembly_label": "black_rear_cover_three_screws"
+  },
+  "06_LED_retainer_black": {
+    "quantity": 1,
+    "bounds_mm": [
+      9.55000000000001,
+      39.35,
+      5.150000000000008
+    ],
+    "solid_volume_mm3": 1164.960607630446,
+    "assembly_label": "black_LED_retainer_countersunk_screws_forward_flange_pads"
+  },
+  "07_PCB_tray_black": {
+    "quantity": 1,
+    "bounds_mm": [
+      21.20000000000001,
+      26.95,
+      5.800000000000004
+    ],
+    "solid_volume_mm3": 1288.4071249999986,
+    "assembly_label": "black_removable_PCB_tray"
+  },
+  "00_fit_coupon": {
+    "quantity": 1,
+    "bounds_mm": [
+      68.00000019999999,
+      50.0000002,
+      8.800000000000004
+    ],
+    "solid_volume_mm3": 9044.805244123212,
+    "assembly_label": "fit_coupon_LED_5p1_5p3_5p5_pilots_1p7_1p8_1p9_2p0"
+  },
+  "00b_coupon_cover_cap": {
+    "quantity": 1,
+    "bounds_mm": [
+      54.0000002,
+      8.000000199999999,
+      2.400000100000006
+    ],
+    "solid_volume_mm3": 958.6468444032522,
+    "assembly_label": "coupon_C_80_degree_countersunk_cap"
+  },
+  "00c_coupon_retainer_cap": {
+    "quantity": 1,
+    "bounds_mm": [
+      54.0000002,
+      8.000000199999999,
+      3.000000100000006
+    ],
+    "solid_volume_mm3": 1205.8537886853671,
+    "assembly_label": "coupon_R_80_degree_countersunk_cap"
+  }
+}

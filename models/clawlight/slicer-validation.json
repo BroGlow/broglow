@@ -1,0 +1,188 @@
+{
+  "purpose": "Reference slicing validation; not a printer-specific print job or a physical component fit verification.",
+  "checked_at_utc": "2026-09-16T17:39:03.029432+00:00",
+  "slicer": "Bambu Studio 02.07.01.62, macOS CLI",
+  "reference_profile": {
+    "machine": "Bambu Lab A1 0.4 nozzle",
+    "filament": "Generic PLA @BBL A1",
+    "process_base": "0.20mm Standard @BBL A1",
+    "actual_user_printer_known": false,
+    "nozzle_mm": 0.4,
+    "layer_height_mm": 0.2,
+    "first_layer_height_mm": 0.2,
+    "wall_loops": 3,
+    "infill_percent": 15,
+    "supports": false,
+    "prime_tower": false,
+    "brim": "none",
+    "extruders": 1,
+    "orientation": "STL face-down/back-down orientation retained; XY position arranged per part"
+  },
+  "result": {
+    "files_checked": 10,
+    "successful": 10,
+    "geometry_warnings": 0,
+    "files_with_support_toolpaths": 0,
+    "filament_changes": 0
+  },
+  "parts": [
+    {
+      "file": "stl/00_fit_coupon.stl",
+      "sha256": "6e9babe15654deb0b15892b58e91a5a1397cfdba6c858925d1e4bb872bdaf0bf",
+      "status": "success",
+      "triangles": 154822,
+      "solid_volume_cm3": 9.044710201307046,
+      "estimated_filament_g": 9.227136611938477,
+      "estimated_print_seconds": 1767.1929931640625,
+      "support_toolpaths": false,
+      "filament_changes": 0,
+      "geometry_warnings": [],
+      "sliced_plates": 1
+    },
+    {
+      "file": "stl/00b_coupon_cover_cap.stl",
+      "sha256": "c8d8e2238d0e2bed2f6be05e0068fcbbad4f98669c1fcf46c91210597b130678",
+      "status": "success",
+      "triangles": 17340,
+      "solid_volume_cm3": 0.958667384600391,
+      "estimated_filament_g": 1.1109870672225952,
+      "estimated_print_seconds": 622.0567626953125,
+      "support_toolpaths": false,
+      "filament_changes": 0,
+      "geometry_warnings": [],
+      "sliced_plates": 1
+    },
+    {
+      "file": "stl/00c_coupon_retainer_cap.stl",
+      "sha256": "71e8530a6568bf362c4738b0cf6b8d23e7c86d84d8f74287eec3cb4d5bd435b9",
+      "status": "success",
+      "triangles": 16616,
+      "solid_volume_cm3": 1.2058753351952072,
+      "estimated_filament_g": 1.2986794710159302,
+      "estimated_print_seconds": 652.1099853515625,
+      "support_toolpaths": false,
+      "filament_changes": 0,
+      "geometry_warnings": [],
+      "sliced_plates": 1
+    },
+    {
+      "file": "stl/01_mascot_orange.stl",
+      "sha256": "5d3656e8be21d65b33be7bd0a8297c3cf28dad562d175942b7cd6404608e64a7",
+      "status": "success",
+      "triangles": 560,
+      "solid_volume_cm3": 97.64189799541148,
+      "estimated_filament_g": 38.700435638427734,
+      "estimated_print_seconds": 5034.33984375,
+      "support_toolpaths": false,
+      "filament_changes": 0,
+      "geometry_warnings": [],
+      "sliced_plates": 1
+    },
+    {
+      "file": "stl/02_eye_left_black.stl",
+      "sha256": "31d8fc6f0c7e66361eb4077139fab072e23557bd9a0b286e9cd1f9bc61acf400",
+      "status": "success",
+      "triangles": 76,
+      "solid_volume_cm3": 0.2041568879935829,
+      "estimated_filament_g": 0.2659238874912262,
+      "estimated_print_seconds": 554.9430541992188,
+      "support_toolpaths": false,
+      "filament_changes": 0,
+      "geometry_warnings": [],
+      "sliced_plates": 1
+    },
+    {
+      "file": "stl/03_eye_right_black.stl",
+      "sha256": "6a487c02010d8247b339766479a96dffb708eb54436d5bce55dbea9a218906e0",
+      "status": "success",
+      "triangles": 76,
+      "solid_volume_cm3": 0.20415688798513112,
+      "estimated_filament_g": 0.2659240961074829,
+      "estimated_print_seconds": 554.6708984375,
+      "support_toolpaths": false,
+      "filament_changes": 0,
+      "geometry_warnings": [],
+      "sliced_plates": 1
+    },
+    {
+      "file": "stl/04_tower_black.stl",
+      "sha256": "c9d3961ca927a2112424ceded88ea747c34b8182771e3f0b4eae5e35e3905887",
+      "status": "success",
+      "triangles": 15012,
+      "solid_volume_cm3": 22.944146581305855,
+      "estimated_filament_g": 26.88384437561035,
+      "estimated_print_seconds": 4191.3701171875,
+      "support_toolpaths": false,
+      "filament_changes": 0,
+      "geometry_warnings": [],
+      "sliced_plates": 1
+    },
+    {
+      "file": "stl/05_rear_cover_black.stl",
+      "sha256": "2e0c718bf97fd49e2a88adb29346fe62fe9aed638e4627c999c824a222b2dcc5",
+      "status": "success",
+      "triangles": 9228,
+      "solid_volume_cm3": 3.5469533498563592,
+      "estimated_filament_g": 3.5912680625915527,
+      "estimated_print_seconds": 882.7562866210938,
+      "support_toolpaths": false,
+      "filament_changes": 0,
+      "geometry_warnings": [],
+      "sliced_plates": 1
+    },
+    {
+      "file": "stl/06_LED_retainer_black.stl",
+      "sha256": "baf9f477409b21815d6f7da95529a6e3260f607bb1414f706e06929efc508c28",
+      "status": "success",
+      "triangles": 6232,
+      "solid_volume_cm3": 1.1649714290424602,
+      "estimated_filament_g": 1.324145793914795,
+      "estimated_print_seconds": 740.709716796875,
+      "support_toolpaths": false,
+      "filament_changes": 0,
+      "geometry_warnings": [],
+      "sliced_plates": 1
+    },
+    {
+      "file": "stl/07_PCB_tray_black.stl",
+      "sha256": "d1a4c7fa4d0d629be9e54960cf914bc21c8d7c9b063298f3d5fa09b758ee9c39",
+      "status": "success",
+      "triangles": 268,
+      "solid_volume_cm3": 1.288407250769358,
+      "estimated_filament_g": 1.57718026638031,
+      "estimated_print_seconds": 775.7944946289062,
+      "support_toolpaths": false,
+      "filament_changes": 0,
+      "geometry_warnings": [],
+      "sliced_plates": 1
+    }
+  ],
+  "totals": {
+    "estimated_filament_g": 84.24552527070045,
+    "estimated_print_seconds": 15775.944152832031,
+    "includes_coupon": true,
+    "separately_sliced_plates": 10
+  },
+  "notes": [
+    "Each STL was sliced separately; summed time includes repeated startup and purge overhead. Grouping same-colour parts changes the estimate.",
+    "No floating, unsupported-region, or geometry warning was reported by the CLI. Support being disabled alone is not proof of physical printability.",
+    "The shelf tie tunnels retain short approximately 1.3 mm internal return edges; inspect these areas in the actual printer slicer.",
+    "Routine CLI diagnostics about missing model colour and default tree-support style were present; support remained disabled in the effective settings.",
+    "DIN 7982 ST2.2 x 6.5 countersink holes use 80-degree included angle; rear-down LED retainer and matching coupon cap retain their prepared print orientations.",
+    "PCB, USB and LED dimensions remain explicitly provisional until checked against the purchased components.",
+    "No G-code is included in the deliverables. The actual printer, filament and fit coupon must be used for final print settings."
+  ],
+  "additional_geometry_checks": {
+    "all_meshes_watertight_single_solid": true,
+    "all_report_sha256_match_current_stls": true,
+    "production_countersink_faces": {
+      "cover": 3,
+      "retainer": 2,
+      "included_angle_deg": 80.0,
+      "mouth_diameter_mm": 4.6,
+      "depth_mm": 1.2513412722239203
+    },
+    "retainer_countersink_slope_to_print_bed_deg": 50.0,
+    "method": "Independent trimesh mesh checks and build123d conical face normals in exported print poses."
+  }
+}

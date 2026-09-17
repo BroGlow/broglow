@@ -1,4 +1,5 @@
 /target
+/dist
 .DS_Store
 *.swp
 *.swo
@@ -6,3 +7,8 @@
 
 # Local-only release runbook (not published with the CLI)
 /docs/RELEASE.md
+
+# Companion firmware and CAD Python caches
+.pio/
+__pycache__/
+/models/clawlight/.*.step.glb

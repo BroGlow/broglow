@@ -1,0 +1,35 @@
+{
+  "retrieved_on": "2026-09-16",
+  "discovery_page": "https://clawlight.dev/",
+  "files": [
+    {
+      "file": "product-photo.JPG",
+      "source_url": "https://clawlight.dev/DSC02045-2.JPG",
+      "bytes": 204936,
+      "sha256": "e7d97a01e2f70bf39468df0709eec0c9f1c4803af5c13ec609fa95738aaabf83"
+    },
+    {
+      "file": "store-photo.jpg",
+      "source_url": "https://cdn.shopify.com/s/files/1/0670/7019/7823/files/DSC02045-3_44204425-8563-49e8-a499-289b44af3e58.jpg?v=1783110243",
+      "bytes": 268671,
+      "sha256": "70016ea8985a70be7e6b8c0a360c0a1b9398e77bc86cd9a62f5552c528f61253"
+    },
+    {
+      "file": "claw-light-ar.glb",
+      "source_url": "https://clawlight.dev/models/claw-light-ar.glb",
+      "bytes": 1256640,
+      "sha256": "da275ed6f74edfa5b0bc48796731763ac490071a1e1368828826618a0a3ee418"
+    },
+    {
+      "file": "claw-light-ar.usdz",
+      "source_url": "https://clawlight.dev/models/claw-light-ar.usdz",
+      "bytes": 1887560,
+      "sha256": "4ff065d4cc47989dde3f743c7e2e1104a2aaab119bffdb265cdd7fb297fa7f46"
+    }
+  ],
+  "derived_files": {
+    "ar-model-metadata.json": "Selected unmodified JSON metadata extracted from claw-light-ar.glb.",
+    "ar-component-bounds.json": "Bounding boxes of mesh components, vertex coordinates converted from glTF metres to mm; approximate position welding at 0.0001 mm.",
+    "ar-reference-views.png": "Orthographic projections rendered from the saved GLB. Reference geometry only; not a proposed printable design."
+  }
+}

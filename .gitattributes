@@ -1,0 +1,4 @@
+# Generated CAD exports: preserve bytes and avoid enormous text diffs/merges.
+/models/**/*.step binary
+/models/**/*.stl binary
+/models/clawlight/preview/dimensions.svg binary
