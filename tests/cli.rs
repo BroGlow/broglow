@@ -236,11 +236,29 @@ fn remembered_lamps_migrate_add_remove_and_list_without_radio() {
     };
     run(&["ble", "add", &second.to_uppercase()]);
     run(&["ble", "select", first]);
+    run(&["ble", "rename", first, "  Дом 💡  "]);
+    run(&["ble", "rename", second, "Office"]);
     let bytes = std::fs::read(&path).unwrap();
     let cfg: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(cfg["ble_peripherals"], serde_json::json!([first, second]));
     assert!(cfg.get("ble_peripheral").is_none());
     assert_eq!(cfg["custom"], 42);
+    assert_eq!(cfg["lamp_names"][first], "Дом 💡");
+    assert_eq!(cfg["lamp_names"][second], "Office");
+    for name in ["a".repeat(41), "a\nb".into()] {
+        clawlight()
+            .env("HOME", home.path())
+            .args(["ble", "rename", first, &name])
+            .assert()
+            .failure();
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+    }
+    run(&["ble", "rename", first, "   "]);
+    let cleared: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert!(cleared["lamp_names"].get(first).is_none());
+    assert_eq!(cleared["lamp_names"][second], "Office");
+    run(&["ble", "rename", first, "Дом 💡"]);
     let listed = clawlight()
         .env("HOME", home.path())
         .args(["ble", "list"])
@@ -253,6 +271,7 @@ fn remembered_lamps_migrate_add_remove_and_list_without_radio() {
     let remaining = std::fs::read(&path).unwrap();
     let cfg: serde_json::Value = serde_json::from_slice(&remaining).unwrap();
     assert_eq!(cfg["ble_peripherals"], serde_json::json!([first]));
+    assert_eq!(cfg["lamp_names"], serde_json::json!({first:"Дом 💡"}));
     assert_eq!(cfg["led_enabled"], true);
     assert_eq!(cfg["led_brightness"], 37);
     assert_eq!(cfg["custom"], 42);
@@ -267,6 +286,10 @@ fn remembered_lamps_migrate_add_remove_and_list_without_radio() {
     run(&["ble", "remove", first]);
     let cfg: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     assert_eq!(cfg["ble_peripherals"], serde_json::json!([]));
+    assert!(
+        cfg.get("lamp_names").is_none(),
+        "forget removes the saved name"
+    );
     assert_eq!(cfg["led_enabled"], false);
     assert_eq!(cfg["led_brightness"], 37);
     assert_eq!(cfg["custom"], 42);

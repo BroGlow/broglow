@@ -300,16 +300,16 @@ test('host setup busy survives reopening and stops lamp mutations and active pre
   click('settingsbtn');
   click('lampbtn');
   assert.equal(element('lampadd').textContent, 'Adding…');
-  for (const id of ['lampadd', 'lampforget-0', 'lampcontrol', 'brightness']) {
+  for (const id of ['lampadd', 'lampforget-0', 'lampname-0', 'lampsave-0', 'lampcontrol', 'brightness']) {
     assert.equal(element(id).disabled, true, id);
   }
-  for (const id of ['lampadd', 'lampforget-0', 'lampcontrol']) click(id);
+  for (const id of ['lampadd', 'lampforget-0', 'lampsave-0', 'lampcontrol']) click(id);
   listeners.pointerdown({ target: slider, pointerId: 2 });
   listeners.input({ target: slider });
   listeners.change({ target: slider });
   advance(3000);
   assert.equal(commands('preview_brightness').length, previews, 'No queued preview or stationary renewal survives setup');
-  for (const cmd of ['add_lamp', 'forget_lamp', 'set_led', 'set_brightness']) {
+  for (const cmd of ['add_lamp', 'forget_lamp', 'rename_lamp', 'set_led', 'set_brightness']) {
     assert.equal(commands(cmd).length, 0, cmd);
   }
 });
@@ -342,6 +342,79 @@ test('Add lamp reports errors with retry and success without claiming a connecti
   assert.ok(!element('lampbtn').innerHTML.includes('dgreen'));
 });
 
+test('names render as text and drafts survive heartbeat, focus changes and failed saves', () => {
+  const { context, element, update, click, listeners, commands } = popoverPage();
+  const devices = [{ id: 'home-id', state: 'searching' }, { id: 'work-id', state: 'searching' }];
+  const refresh = names => update(lamp({ enabled: false, selected_count: 2, devices, names, bluetooth_supported: true }));
+  refresh({ 'home-id': '<Home & desk>' });
+  click('lampbtn');
+  const input = element('lampname-0'), list = element('lamplist');
+  const builds = list.writes;
+  assert.equal(element('lamplabel-0').textContent, '<Home & desk>');
+  assert.equal(element('lamplabel-1').textContent, 'Lamp 2');
+  assert.ok(!list.innerHTML.includes('<Home & desk>'));
+  input.focus();
+  input.value = '  Дом 🏡  ';
+  listeners.input({ target: input });
+  refresh({ 'home-id': 'Changed elsewhere' });
+  assert.equal(context.document.activeElement, input);
+  assert.equal(input.value, '  Дом 🏡  ');
+  context.document.activeElement = null; // Clicking Save moves focus before its click event.
+  refresh({ 'home-id': 'Changed elsewhere' });
+  assert.equal(input.value, '  Дом 🏡  ');
+  click('lampsave-0');
+  assert.deepEqual(commands('rename_lamp'), [{ cmd: 'rename_lamp', id: 'home-id', name: 'Дом 🏡' }]);
+  assert.equal(element('lamplabel-0').textContent, 'Changed elsewhere', 'No optimistic saved name');
+  assert.equal(element('lampsave-0').textContent, 'Saving…');
+  click('lampsave-1');
+  click('lampforget-1');
+  click('lampadd');
+  assert.equal(commands('rename_lamp').length, 1);
+  assert.equal(commands('forget_lamp').length, 0);
+  assert.equal(commands('add_lamp').length, 0);
+  context.window.__configActionResult('Cannot save name');
+  refresh({ 'home-id': 'Changed elsewhere' });
+  assert.equal(element('lamperror').textContent, 'Cannot save name');
+  assert.equal(input.value, '  Дом 🏡  ');
+  assert.equal(element('lampsave-0').disabled, false);
+  click('lampsave-0');
+  refresh({ 'home-id': 'Дом 🏡' });
+  context.window.__configActionResult(null);
+  assert.equal(element('lamplabel-0').textContent, 'Дом 🏡');
+  assert.equal(input.value, 'Дом 🏡');
+  assert.equal(element('lamperror').hidden, true);
+  assert.equal(list.writes, builds, 'Names and drafts do not rebuild disclosure controls');
+});
+
+test('rename accepts 40 Unicode characters, rejects longer names and resets to automatic with blank input', () => {
+  const { context, element, update, click, listeners, commands } = popoverPage();
+  const refresh = names => update(lamp({ state: 'searching', devices: [{ id: 'saved-lamp', state: 'searching' }], names }));
+  refresh({});
+  click('lampbtn');
+  const input = element('lampname-0'), name = '🏡'.repeat(40);
+  input.value = '  ' + name + '  ';
+  listeners.input({ target: input });
+  click('lampsave-0');
+  assert.deepEqual(commands('rename_lamp').at(-1), { cmd: 'rename_lamp', id: 'saved-lamp', name });
+  refresh({ 'saved-lamp': name });
+  context.window.__configActionResult(null);
+  input.value = name + '🏡';
+  listeners.input({ target: input });
+  click('lampsave-0');
+  assert.equal(commands('rename_lamp').length, 1);
+  assert.match(element('lamperror').textContent, /40 characters/);
+  input.value = '   ';
+  listeners.input({ target: input });
+  context.document.activeElement = null;
+  click('lampsave-0');
+  assert.deepEqual(commands('rename_lamp').at(-1), { cmd: 'rename_lamp', id: 'saved-lamp', name: '' });
+  refresh({});
+  context.window.__configActionResult(null);
+  assert.equal(element('lamplabel-0').textContent, 'Lamp 1');
+  assert.equal(input.value, '');
+  assert.equal(commands('set_led').length, 0);
+});
+
 test('forget sends exactly the chosen saved ID, including absent and disabled lamps, and awaits the host', () => {
   for (const enabled of [true, false]) {
     const { context, element, click, update, commands } = popoverPage();
@@ -360,10 +433,13 @@ test('forget sends exactly the chosen saved ID, including absent and disabled la
     assert.deepEqual(commands('forget_lamp'), [{ cmd: 'forget_lamp', id: devices[1].id }]);
     assert.equal(element('lampforget-1').textContent, 'Forgetting…');
     assert.equal(element('lampforget-0').disabled, true);
+    assert.equal(element('lampsave-0').disabled, true);
     assert.equal(element('lampid-0').textContent, 'home-id');
     assert.equal(element('lampid-1').textContent, devices[1].id, 'No optimistic removal before config succeeds');
     click('lampforget-0');
+    click('lampsave-0');
     assert.equal(commands('forget_lamp').length, 1, 'Only one action can be pending');
+    assert.equal(commands('rename_lamp').length, 0);
     refresh(devices);
     assert.equal(element('lampforget-1').disabled, true, 'Heartbeat does not finish the action');
 

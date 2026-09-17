@@ -56,7 +56,9 @@ pub enum PopoverMsg {
         dpr: Option<f64>,
     },
     /// The Focus button on a needs-help session row.
-    Focus { id: String },
+    Focus {
+        id: String,
+    },
     /// The Dashboard footer button.
     Dashboard,
     /// The Quit footer button.
@@ -66,20 +68,35 @@ pub enum PopoverMsg {
     /// The page finished loading and can accept `__setState` calls.
     Ready,
     /// A yellow-light option picked in the Settings view.
-    SetYellowMode { mode: YellowMode },
+    SetYellowMode {
+        mode: YellowMode,
+    },
     /// Show the terminal dashboard shortcuts, using the same preference as the CLI.
-    SetDashboardButton { enabled: bool },
+    SetDashboardButton {
+        enabled: bool,
+    },
     /// A usage-tracking option picked in the Settings view: whether to track
     /// usage at all (`enabled`) and, when on, which readout (`mode`). The page
     /// sends both together so "Off" and the Plan/API choice are one control.
-    SetUsage { enabled: bool, mode: BillingMode },
+    SetUsage {
+        enabled: bool,
+        mode: BillingMode,
+    },
     /// The Lamp details control: connect (`enabled: true`) or disconnect the
     /// physical status lamp by toggling LED mirroring.
-    SetLed { enabled: bool },
+    SetLed {
+        enabled: bool,
+    },
     /// Identify the single USB lamp and remember its Bluetooth identity.
     AddLamp,
     /// Stop remembering/reconnecting to one lamp; retain Bluetooth bonds.
-    ForgetLamp { id: String },
+    ForgetLamp {
+        id: String,
+    },
+    RenameLamp {
+        id: String,
+        name: String,
+    },
     /// A saved BLE brightness preference, separate from lamp enablement.
     SetBrightness {
         #[serde(deserialize_with = "deserialize_brightness_percent")]
@@ -139,6 +156,7 @@ struct SettingsPayload {
 /// Physical status-lamp state for the footer connection indicator.
 #[derive(Serialize)]
 struct LampPayload {
+    names: std::collections::BTreeMap<String, String>,
     bluetooth_supported: bool,
     setup_busy: bool,
     /// A clawlight board is attached over USB right now.
@@ -533,6 +551,7 @@ fn build_payload(state: &HookState, setup_busy: bool) -> String {
         // stays absent even if a stale snapshot is still cached.
         usage: cfg.usage_enabled.then(usage::latest).flatten(),
         lamp: LampPayload {
+            names: cfg.lamp_names.clone(),
             bluetooth_supported: cfg!(target_os = "macos"),
             setup_busy,
             present: cfg.led_transport == LedTransport::Usb && crate::led::board_present_cached(),

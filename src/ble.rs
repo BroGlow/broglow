@@ -17,6 +17,8 @@ pub enum BleCommand {
     Select { id: String },
     /// Forget a saved lamp (does not erase its Bluetooth bond).
     Remove { id: String },
+    /// Name a remembered lamp; an empty name restores its automatic label.
+    Rename { id: String, name: String },
     /// List remembered lamps and their current connection states.
     List,
     /// Return to USB (disabled until explicitly enabled).
@@ -65,8 +67,27 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
                 .filter(|saved| saved != &id)
                 .collect();
             cfg.ble_peripheral = None;
+            cfg.lamp_names.remove(&id);
             if cfg.ble_peripherals.is_empty() && cfg.led_transport == LedTransport::Ble {
                 cfg.led_enabled = false;
+            }
+        }
+        BleCommand::Rename { id, name } => {
+            #[cfg(target_os = "macos")]
+            let id = uuid::Uuid::parse_str(&id)?.to_string();
+            anyhow::ensure!(
+                cfg.ble_ids().contains(&id),
+                "This lamp is not remembered: {id}"
+            );
+            let name = name.trim();
+            anyhow::ensure!(
+                name.chars().count() <= 40 && !name.chars().any(char::is_control),
+                "Use a lamp name of at most 40 characters without control characters"
+            );
+            if name.is_empty() {
+                cfg.lamp_names.remove(&id);
+            } else {
+                cfg.lamp_names.insert(id, name.to_owned());
             }
         }
         BleCommand::List => {

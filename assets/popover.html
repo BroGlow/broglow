@@ -181,7 +181,8 @@ body.win .pbtnpri:hover { background: #63cbff; }
 .lamptop #lamptransport { color: rgba(255,255,255,.5); font-size: 11px; }
 .lamplist { padding: 0 10px 12px; }
 .lampitem { border: 1px solid rgba(255,255,255,.12); border-radius: 7px; margin-bottom: 6px; }
-.lampheading { display: grid; grid-template-columns: 1fr auto 10px; gap: 8px; align-items: center; padding: 10px; font-size: 12px; cursor: pointer; list-style: none; }
+.lampheading { display: grid; grid-template-columns: minmax(0,1fr) auto 10px; gap: 8px; align-items: center; padding: 10px; font-size: 12px; cursor: pointer; list-style: none; }
+.lamptitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lampheading::-webkit-details-marker { display: none; }
 .lampheading:hover { background: rgba(255,255,255,.05); }
 summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outline-offset: -2px; border-radius: 6px; }
@@ -196,6 +197,10 @@ summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outl
 .lampitem dd { color: rgba(255,255,255,.8); overflow-wrap: anywhere; }
 .lampitem dd.lampid { font-family: ui-monospace, monospace; }
 .lampforget { padding: 0 10px 10px; }
+.lampnameedit { padding: 0 10px 10px; font-size: 12px; color: rgba(255,255,255,.8); }
+.lampnameedit label { display: block; margin-bottom: 5px; }
+.lampnamefields { display: flex; gap: 6px; }
+.lampnamefields input { min-width: 0; width: 100%; padding: 5px 7px; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; background: rgba(255,255,255,.05); color: inherit; font: inherit; }
 .lamperror { margin: 0 10px 12px; color: #ff8a80; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 .lamptechnical { margin: 0 10px 12px; font-size: 11px; color: rgba(255,255,255,.6); }
 .lamptechnical summary { cursor: pointer; padding: 5px 0; }
@@ -204,7 +209,7 @@ summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outl
 .brightness { padding: 0 10px 12px; color: rgba(255,255,255,.8); font-size: 12px; }
 .brightness label { display: flex; justify-content: space-between; margin-bottom: 7px; }
 .brightness input { width: 100%; accent-color: #3577f6; }
-.brightness p, .lampforget p, .lampsetup p { margin-top: 5px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.brightness p, .lampforget p, .lampsetup p, .lampnameedit p { margin-top: 5px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 body.win .brightness input { accent-color: #4cc2ff; }
 .pophead, .popfoot, .usec { flex-shrink: 0; }
 </style>
@@ -356,9 +361,13 @@ function lampState(status) {
   return ({ connected: 'Connected', connecting: 'Connecting', searching: 'Looking for lamp',
     error: 'Needs attention', unavailable: 'No recent response', disabled: 'Off' })[status] || 'No recent response';
 }
-let pendingForgetId = null, configActionError = '';
+let pendingForgetId = null, pendingRenameId = null, configActionError = '';
+const lampNameDrafts = new Map();
+function lampActionPending() { return pendingForgetId !== null || pendingRenameId !== null; }
 window.__configActionResult = error => {
+  if (!error && pendingRenameId !== null) lampNameDrafts.delete(pendingRenameId);
   pendingForgetId = null;
+  pendingRenameId = null;
   configActionError = error || '';
   render();
 };
@@ -445,7 +454,7 @@ function renderLamp() {
     document.getElementById('lampsetup').hidden = l.bluetooth_supported !== true;
     const add = document.getElementById('lampadd');
     add.dataset.cmd = 'add_lamp';
-    add.disabled = setupBusy || pendingForgetId !== null;
+    add.disabled = setupBusy || lampActionPending();
     add.textContent = setupBusy ? 'Adding…' : 'Add lamp';
     const setupResult = document.getElementById('lampsetupresult');
     setupResult.textContent = lampSetupError || lampSetupMessage;
@@ -463,9 +472,13 @@ function renderLamp() {
     if (list.dataset.ids !== ids) {
       list.innerHTML = rows.map((device, i) =>
         `<details class="lampitem"><summary class="lampheading">` +
-        `<span>${wireless ? 'Lamp ' + (i + 1) : 'USB lamp'}</span>` +
+        `<span class="lamptitle" id="lamplabel-${i}">${wireless ? 'Lamp ' + (i + 1) : 'USB lamp'}</span>` +
         `<span class="lampstate" id="lampstate-${i}"></span>` +
         `<span class="lampchevron" aria-hidden="true">›</span></summary>` +
+        (wireless ? `<div class="lampnameedit"><label for="lampname-${i}">Name</label><div class="lampnamefields">` +
+          `<input id="lampname-${i}" type="text" autocomplete="off" aria-describedby="lampnamehelp-${i}">` +
+          `<button class="pbtn" type="button" id="lampsave-${i}">Save</button></div>` +
+          `<p id="lampnamehelp-${i}">Up to 40 characters. Leave blank for an automatic name.</p></div>` : '') +
         `<dl><dt>${wireless ? 'Device ID' : 'Connection'}</dt><dd class="lampid" id="lampid-${i}"></dd>` +
         `<dt>Diagnostic</dt><dd id="lampdiagnostic-${i}"></dd></dl>` +
         (wireless ? `<div class="lampforget"><button class="pbtn pbtnghost" type="button" id="lampforget-${i}" ` +
@@ -476,6 +489,10 @@ function renderLamp() {
       list.dataset.ids = ids;
     }
     rows.forEach((device, i) => {
+      const savedName = wireless ? (l.names?.[device.id] || '') : '';
+      const label = document.getElementById('lamplabel-' + i);
+      const name = savedName || (wireless ? 'Lamp ' + (i + 1) : 'USB lamp');
+      if (label.textContent !== name) label.textContent = name;
       const deviceState = !l.enabled ? 'disabled' :
         device.state === 'connected' && status !== 'connected' ? status : (device.state || status);
       const cell = document.getElementById('lampstate-' + i);
@@ -487,10 +504,21 @@ function renderLamp() {
       if (id.textContent !== identifier) id.textContent = identifier;
       if (diagnostic.textContent !== (device.detail || '')) diagnostic.textContent = device.detail || '';
       if (wireless) {
+        const input = document.getElementById('lampname-' + i);
+        input.dataset.lampNameId = device.id;
+        input.disabled = setupBusy || lampActionPending();
+        const draft = lampNameDrafts.has(device.id) ? lampNameDrafts.get(device.id) : savedName;
+        if (document.activeElement !== input && input.value !== draft) input.value = draft;
+        const save = document.getElementById('lampsave-' + i);
+        save.dataset.cmd = 'rename_lamp';
+        save.dataset.id = device.id;
+        save.dataset.input = input.id;
+        save.disabled = setupBusy || lampActionPending();
+        save.textContent = pendingRenameId === device.id ? 'Saving…' : 'Save';
         const forget = document.getElementById('lampforget-' + i);
         forget.dataset.cmd = 'forget_lamp';
         forget.dataset.id = device.id;
-        forget.disabled = setupBusy || pendingForgetId !== null;
+        forget.disabled = setupBusy || lampActionPending();
         forget.textContent = pendingForgetId === device.id ? 'Forgetting…' : 'Forget lamp';
       }
     });
@@ -661,6 +689,10 @@ document.addEventListener('toggle', ev => {
 }, true);
 
 document.addEventListener('input', ev => {
+  if (ev.target.dataset.lampNameId !== undefined) {
+    if (!lampSetupBusy() && !lampActionPending()) lampNameDrafts.set(ev.target.dataset.lampNameId, ev.target.value);
+    return;
+  }
   if (ev.target.id === 'brightness') {
     if (lampSetupBusy()) return;
     const percent = brightnessPercent(ev.target.value);
@@ -743,16 +775,31 @@ document.addEventListener('click', ev => {
   const msg = { cmd: btn.dataset.cmd };
   if (btn.dataset.id !== undefined) msg.id = btn.dataset.id;
   if (btn.dataset.enabled !== undefined) msg.enabled = btn.dataset.enabled === 'true';
-  if (lampSetupBusy() && ['add_lamp', 'forget_lamp', 'set_led'].includes(msg.cmd)) return;
+  if (lampSetupBusy() && ['add_lamp', 'forget_lamp', 'rename_lamp', 'set_led'].includes(msg.cmd)) return;
   if (msg.cmd === 'add_lamp') {
-    if (state.lamp?.bluetooth_supported !== true || pendingForgetId !== null) return;
+    if (state.lamp?.bluetooth_supported !== true || lampActionPending()) return;
     lampSetupPending = true;
     lampSetupError = lampSetupMessage = '';
     render();
   }
   if (msg.cmd === 'forget_lamp') {
-    if (pendingForgetId !== null || !msg.id) return;
+    if (lampActionPending() || !msg.id) return;
     pendingForgetId = msg.id;
+    configActionError = '';
+    renderLamp();
+  }
+  if (msg.cmd === 'rename_lamp') {
+    if (lampActionPending() || !msg.id) return;
+    const input = document.getElementById(btn.dataset.input);
+    lampNameDrafts.set(msg.id, input.value);
+    msg.name = input.value.trim();
+    if ([...msg.name].length > 40) {
+      configActionError = 'Use 40 characters or fewer for the lamp name.';
+      render();
+      input.focus();
+      return;
+    }
+    pendingRenameId = msg.id;
     configActionError = '';
     renderLamp();
   }

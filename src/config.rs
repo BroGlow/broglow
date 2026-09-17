@@ -58,6 +58,9 @@ pub struct Config {
     pub ble_peripheral: Option<String>,
     /// Remembered CoreBluetooth UUIDs, never guessed MAC addresses/names.
     pub ble_peripherals: Vec<String>,
+    /// Optional user labels, keyed by the saved Bluetooth identity.
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub lamp_names: std::collections::BTreeMap<String, String>,
     /// Saved brightness for BLE lamps, including when mirroring is disabled.
     #[serde(deserialize_with = "deserialize_led_brightness")]
     pub led_brightness: u8,
@@ -88,6 +91,7 @@ impl Default for Config {
             led_transport: LedTransport::default(),
             ble_peripheral: None,
             ble_peripherals: Vec::new(),
+            lamp_names: Default::default(),
             led_brightness: 100,
             yellow_mode: YellowMode::default(),
             usage_enabled: false,

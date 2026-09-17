@@ -636,6 +636,7 @@ pub fn run() -> anyhow::Result<()> {
                 }
                 PopoverMsg::SetLed { .. }
                 | PopoverMsg::ForgetLamp { .. }
+                | PopoverMsg::RenameLamp { .. }
                 | PopoverMsg::SetBrightness { .. }
                 | PopoverMsg::PreviewBrightness { .. }
                     if popover.setup_busy => {}
@@ -710,6 +711,13 @@ pub fn run() -> anyhow::Result<()> {
                     let error = crate::ble::command(crate::ble::BleCommand::Remove { id })
                         .err()
                         .map(|error| format!("Could not forget lamp: {error}"));
+                    popover.push_state(&read_hook_state());
+                    popover.config_action_result(error);
+                }
+                PopoverMsg::RenameLamp { id, name } => {
+                    let error = crate::ble::command(crate::ble::BleCommand::Rename { id, name })
+                        .err()
+                        .map(|error| format!("Could not save lamp name: {error}"));
                     popover.push_state(&read_hook_state());
                     popover.config_action_result(error);
                 }
