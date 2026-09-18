@@ -143,7 +143,7 @@ jobs:
           body: |
             Mac archives contain the native ClawLight app, ESP32-C3 SuperMini firmware and its source, checksums and operating guide. Choose aarch64 for Apple Silicon or x86_64 for Intel. Install with the included guide; the app is not Developer ID notarized.
 
-            The Windows archive is the CLI only: no BLE support or firmware. C6 firmware is not supported.
+            The Windows archive is the CLI only: no BLE support or firmware.
 
             The enclosure ZIP contains the accepted release candidate: STL, STEP, CAD source, print guide and validation reports.
 

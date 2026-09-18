@@ -1,14 +1,9 @@
 # ClawLight agent entry points
 
-ClawLight is our standalone project, built for our ESP32-C3 SuperMini lamps and
-local agent workflows. Compatibility with the referenced ClawLight project,
-its C6 hardware, protocols, commands, or releases is not a requirement.
-Choose behavior from this project's needs; preserve source attribution and
-license notices separately from product requirements. Protect our existing
-settings, Bluetooth bonds, and installed service identity when making changes.
-Additional board targets are welcome when they need only a small build/pin
-configuration change; mark hardware validation separately. C6 currently needs
-a firmware port, so leave it deferred per the [board assessment](docs/hardware-setup.md#esp32-c6-status).
+ClawLight combines a CLI, desktop app, ESP32-C3 SuperMini firmware and printable
+enclosure for local coding-agent workflows. Describe its features and supported
+hardware directly. Keep attribution in license notices. Protect existing settings,
+Bluetooth bonds and the installed service identity when making changes.
 
 For **installation, updates, connecting a lamp, or checking the Mac service**, read
 [the agent runbook](docs/hardware-setup.md#agent-runbook) first. It routes to the

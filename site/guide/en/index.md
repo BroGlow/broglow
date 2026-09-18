@@ -2,7 +2,7 @@
 
 # Build your lamp { #build }
 
-This independent project includes its own app, ESP32-C3 firmware and enclosure.
+ClawLight includes an app, ESP32-C3 firmware and a printable enclosure.
 
 Already assembled? [Install ClawLight and connect the lamp](installation.md).
 
@@ -21,8 +21,6 @@ Already assembled? [Install ClawLight and connect the lamp](installation.md).
 | Enclosure · optional | 1.0.0 release candidate; use the print package above. The lamp can operate without it. |
 
 Verify the actual chip before flashing; the supplied firmware targets ESP32-C3 only.
-ESP32-C6 currently needs a firmware port, so it has no build or flashing option;
-see the [C6 assessment](hardware.md#esp32-c6-status).
 
 ## Wire up the LEDs { #wiring }
 

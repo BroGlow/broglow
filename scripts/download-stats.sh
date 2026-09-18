@@ -24,9 +24,8 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 1
 fi
 
-# One API call, paginated, flattened to TSV. We count only the installable
-# archives — `.sha256` checksum sidecars are excluded, since Homebrew/binstall
-# fetch the archive, not the checksum, so counting them would inflate the proxy.
+# One API call, paginated, flattened to TSV. Exclude checksum sidecars so an
+# archive and its checksum do not count as two product downloads.
 ARCHIVE_ONLY='select((.name | endswith(".sha256")) | not)'
 
 release_rows() {

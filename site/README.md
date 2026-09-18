@@ -3,8 +3,7 @@
 The short landing is plain HTML/CSS. The separate guide uses [MkDocs](https://www.mkdocs.org/)
 with [Material](https://squidfunk.github.io/mkdocs-material/) and
 [static-i18n](https://ultrabug.github.io/mkdocs-static-i18n/). These pages describe
-this independent project's app, C3 firmware and enclosure. References to other
-projects establish provenance; they are not installation or compatibility targets.
+ClawLight's app, ESP32-C3 firmware and printable enclosure.
 
 ## Edit the guide
 
@@ -189,10 +188,8 @@ website checks do not establish physical fit. Preview source files:
 - `clawlight.png`: rendered from `site/assets/clawlight.glb` with the pinned model-viewer and the hero camera; it depicts the same geometry as the interactive view.
 - `assembly.png`: `models/clawlight/preview/flat_floor_exploded_20260918T101601Z.png`
 
-Use only our own photos, screenshots, renders and original geometric artwork.
-Do not copy, hotlink or embed the referenced project's product media, screenshots,
-mascot artwork, or third-party reference photos/models. A source attribution link
-is not permission to use its imagery. No stock-photo or upstream-image placeholders.
+Use only our own photos, screenshots, CAD renders and geometric artwork.
+Keep each asset's source recorded here and follow the media checklist below.
 
 The guide's logo and favicon are our simple three-circle lamp SVG at
 `guide/assets/favicon.svg`; the landing uses the same geometric design as an
@@ -219,10 +216,8 @@ No `gh-pages` branch, committed generated HTML, or custom token is needed.
 When you are ready:
 
 1. Push the app, firmware, documentation and enclosure sources to **your repository**.
-   The source download needs those files in the default branch. Source archives
-   include our CAD; `.gitattributes` excludes retired reference directories and
-   historical documents. Old Git history still needs the release runbook's
-   source-publication step.
+   The source download needs those files, including our CAD, in the default branch.
+   Follow the [release runbook](../docs/releasing.md) before publishing.
 2. In **Settings → Pages → Build and deployment → Source**, choose **GitHub Actions**.
    Enable Actions in the repository if GitHub prompts you to do so.
 3. Open **Actions → Website → Run workflow** and select the default branch.

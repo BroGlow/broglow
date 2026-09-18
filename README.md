@@ -4,8 +4,7 @@ A local coding-session monitor with a menu-bar app, terminal dashboard and optio
 ESP32-C3 status lamp. It integrates Claude Code, opencode, Codex and GitHub Copilot
 CLI. The lamp shows working, idle and needs-input states over USB or Bluetooth LE.
 
-This is our independent project. Its firmware and release process follow our own
-requirements; source attribution is preserved separately. We are preparing **1.0.0**.
+We are preparing **1.0.0**.
 
 ## Start here
 
@@ -24,7 +23,6 @@ The enclosure release candidate is ready for the **1.0.0** release. Its separate
 print package includes STL, STEP, source and the print guide; see
 [printing and assembly](models/clawlight/PRINT_GUIDE.md) in the source checkout.
 The app and wired C3 lamp can also be used without a printed case.
-C6 requires a firmware port and is [currently deferred](docs/hardware-setup.md#esp32-c6-status).
 
 ## Install
 
@@ -81,11 +79,8 @@ Settings controls whether mixed working/idle sessions show yellow or green.
 The app starts at login after installation. The [manual](docs/hardware-setup.md)
 contains recovery, firmware upload, pairing and diagnostics.
 
-## License and provenance
+## License
 
-[MIT](LICENSE), including the retained copyright notice and source history from
-[clawlight/clawlight-cli](https://github.com/clawlight/clawlight-cli).
-Firmware dependencies retain their own notices in distributed packages.
+[MIT](LICENSE). Dependency license notices are included in distributed packages.
 Project media use our own photos, screenshots, diagrams and renders. See the
-[photo checklist and media policy](docs/media.md). Removed upstream artwork is
-still present in old Git history; use the release runbook before publishing source.
+[photo checklist and media policy](docs/media.md).
