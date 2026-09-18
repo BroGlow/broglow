@@ -87,6 +87,14 @@ External Android Scene Viewer reloads the original GLB, so these live signal cha
 apply to the browser preview, not that external AR view. Bloom postprocessing is
 not available in AR modes, including WebXR.
 
+**View in your space** opens a keyboard-accessible dialog with a locally generated
+QR code and an **Open on this device** link. The QR uses the current site path with
+`#view-in-space`, without query parameters; scanning opens the 3D preview, then the
+visitor taps **View on your desk** to start AR. The phone uses its own language
+preference. Localhost/file previews show guidance instead of an unreachable QR;
+use a phone-accessible HTTPS address to test scanning and AR. QR generation failure
+keeps the on-device link usable. The pinned QR encoder and license live in `vendor/`.
+
 AR uses `webxr`, `scene-viewer` and `quick-look` with `ar-scale="fixed"`; the GLB
 uses meters. Safari on iPhone/iPad generates USDZ on demand (`ios-src` is omitted);
 other iOS browsers are unverified. WebXR requires HTTPS or loopback, and a phone

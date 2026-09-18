@@ -251,6 +251,85 @@ model-viewer[hidden],.model-stage img[hidden],.model-tools button[hidden] {
   font-size:11px;
   color:#626c65;
 }
+.ar-dialog {
+  width:min(440px,calc(100% - 32px));
+  max-height:calc(100dvh - 32px);
+  padding:36px 30px 30px;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--bg);
+  color:var(--ink);
+  text-align:center;
+}
+.ar-dialog::backdrop {
+  background:rgb(0 0 0 / .7);
+}
+body:has(.ar-dialog[open]) {
+  overflow:hidden;
+}
+.ar-close-form {
+  position:absolute;
+  top:8px;
+  right:8px;
+}
+.ar-close {
+  width:44px;
+  height:44px;
+  border:0;
+  background:transparent;
+  color:var(--muted);
+  font-size:28px;
+  cursor:pointer;
+}
+.ar-close:hover {
+  color:var(--ink);
+}
+.ar-dialog .eyebrow {
+  margin-bottom:12px;
+}
+.ar-dialog h2 {
+  font-size:28px;
+  line-height:1.2;
+  letter-spacing:-.7px;
+}
+#ar-description {
+  margin-top:14px;
+  color:var(--muted);
+}
+.ar-qr {
+  width:232px;
+  aspect-ratio:1;
+  margin:24px auto 20px;
+  border-radius:8px;
+  image-rendering:pixelated;
+}
+.ar-qr[hidden] {
+  display:none;
+}
+.ar-dialog:has(.ar-qr[hidden]) :is(.ar-scan,.ar-instructions) {
+  display:none;
+}
+.ar-scan {
+  margin-top:24px;
+  font-weight:600;
+}
+.ar-instructions,.ar-notice {
+  margin-top:10px;
+  font-size:13px;
+  color:var(--muted);
+}
+.ar-notice {
+  color:var(--accent);
+}
+.ar-link {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin-top:24px;
+}
+.ar-link:hover {
+  color:#27332b;
+}
 #model-help,#model-error,#model-loading {
   margin-bottom:8px;
 }

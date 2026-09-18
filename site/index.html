@@ -37,7 +37,7 @@
         <p class="intro" data-en="A small traffic light on your desk shows what your coding agent is doing: working, waiting, or asking for your attention.">Маленький светофор на столе показывает, чем занят ваш coding-агент. Работает, ждёт или зовёт вас.</p>
         <a class="button" href="#build"><span data-en="Build your ClawLight">Собрать свой ClawLight</span> <span aria-hidden="true">↗</span></a>
       </div>
-      <figure class="hero-visual">
+      <figure class="hero-visual" id="view-in-space">
         <div class="model-stage" id="signals">
           <img id="model-poster" src="assets/clawlight.png?v=working-soft-light" width="1400" height="1000" alt="Рендер состояния «Работает»: оранжевый персонаж, тёмная стойка и один горящий зелёный светодиод" data-en-alt="Working-state render: an orange character, dark tower, and one glowing green LED" fetchpriority="high">
           <model-viewer id="lamp-model" data-model-src="assets/clawlight.glb" poster="assets/clawlight.png?v=working-soft-light" alt="3D-модель релиз-кандидата нашей лампы. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Our lamp's release-candidate 3D model. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="25deg 80deg 95%" shadow-intensity="0.8" exposure="0.85" interaction-prompt="none" loading="eager" ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" hidden>
@@ -79,6 +79,7 @@
           <p class="priority-note" data-en="Red always takes priority. When some sessions are working and others are idle, you choose which takes priority in ClawLight settings.">Красный всегда важнее. Для одновременно работающих и ожидающих сессий приоритет выбирается в настройках ClawLight.</p>
           <div class="model-tools">
             <button id="model-load" type="button" class="model-button" data-viewer-src="vendor/model-viewer-with-effects.js" data-en="Retry 3D" hidden>Загрузить 3D снова</button>
+            <button id="model-space" type="button" class="model-button" aria-haspopup="dialog" aria-controls="ar-dialog" data-en="View in your space" hidden>Примерить у себя</button>
             <button id="model-reset" type="button" class="model-button" data-en="Reset view" hidden>Сбросить вид</button>
           </div>
           <p id="model-loading" role="status" data-en="Loading 3D…" hidden>Загружаем 3D…</p>
@@ -136,7 +137,22 @@
     <div><a class="brand" href="#">clawlight<span class="edition">DIY</span></a><p data-en="Your agent’s status, right on your desk.">Статус агента — часть вашего стола.</p></div>
     <div class="footer-links"><a href="docs/installation/"><span data-en="Install this project">Установить этот проект</span> <span aria-hidden="true">→</span></a><span data-en="DIY lamp · macOS">DIY-лампа · macOS</span></div>
   </footer>
+  <dialog id="ar-dialog" class="ar-dialog" aria-labelledby="ar-title" aria-describedby="ar-description">
+    <form method="dialog" class="ar-close-form">
+      <button id="ar-close" type="submit" class="ar-close" aria-label="Закрыть" data-en-aria-label="Close" autofocus>×</button>
+    </form>
+    <p class="eyebrow">ClawLight · AR</p>
+    <h2 id="ar-title" data-en="View in your space">Примерить у себя</h2>
+    <p id="ar-description" data-en="See how ClawLight fits on your desk, in real size.">Посмотрите, как ClawLight выглядит на вашем столе в натуральную величину.</p>
+    <img id="ar-qr" class="ar-qr" width="232" height="232" alt="QR-код для открытия ClawLight на телефоне" data-en-alt="QR code to open ClawLight on your phone" hidden>
+    <p class="ar-scan" data-en="Scan with your phone">Отсканируйте телефоном</p>
+    <p class="ar-instructions" data-en="Open your camera, scan the code, then tap “View on your desk”. Use Safari on iPhone/iPad or an AR-compatible Android browser.">Наведите камеру на код, откройте ссылку и нажмите «Поставить на стол». Используйте Safari на iPhone/iPad или браузер Android с поддержкой AR.</p>
+    <p id="ar-local" class="ar-notice" data-en="This is a local preview. For phone scanning, open the site at an address your phone can reach. AR works best over HTTPS." hidden>Это локальный просмотр. Для сканирования откройте сайт по адресу, доступному с телефона. Для AR рекомендуется HTTPS.</p>
+    <p id="ar-qr-error" class="ar-notice" role="status" data-en="The QR code could not load. You can still open the 3D view using the link below." hidden>Не удалось создать QR-код. Открыть 3D-просмотр можно по ссылке ниже.</p>
+    <a id="ar-link" class="model-button ar-link" href="#view-in-space" data-en="Open on this device">Открыть на этом устройстве</a>
+  </dialog>
   <script src="i18n.js"></script>
+  <script src="vendor/qrcode-generator-2.0.4.js"></script>
   <script type="module" src="model-preview.js"></script>
 </body>
 </html>

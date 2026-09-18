@@ -10,6 +10,12 @@ import { PointLight } from "three";
   const loading = document.querySelector("#model-loading");
   const error = document.querySelector("#model-error");
   const help = document.querySelector("#model-help");
+  const space = document.querySelector("#model-space");
+  const dialog = document.querySelector("#ar-dialog");
+  const qr = document.querySelector("#ar-qr");
+  const link = document.querySelector("#ar-link");
+  const local = document.querySelector("#ar-local");
+  const qrError = document.querySelector("#ar-qr-error");
   const signals = document.querySelector(".signal-demo");
   // Lens material indices in clawlight.glb; the regression test checks the LED nodes.
   const lenses = [
@@ -130,6 +136,41 @@ import { PointLight } from "three";
     loadModel();
     updateSignal();
   });
+  space.addEventListener("click", () => {
+    const url = new URL(location.href);
+    url.search = "";
+    url.hash = "view-in-space";
+    link.href = url.href;
+    local.hidden = /^https?:$/.test(url.protocol) &&
+      !/^(localhost|.*\.localhost|127\..*|\[::1\]|0\.0\.0\.0)$/.test(url.hostname);
+    qr.hidden = true;
+    qrError.hidden = true;
+    if (local.hidden) {
+      try {
+        const code = qrcode(0, "M");
+        code.addData(url.href);
+        code.make();
+        qr.src = code.createDataURL(6, 24);
+        qr.hidden = false;
+      } catch {
+        qrError.hidden = false;
+      }
+    }
+    dialog.showModal();
+  });
+  dialog.addEventListener("click", (event) => {
+    if (event.target !== dialog) return;
+    const bounds = dialog.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX > bounds.right ||
+        event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+  });
+  link.addEventListener("click", (event) => {
+    event.preventDefault();
+    dialog.close();
+    focusOnLoad = true;
+    loadModel();
+  });
   load.hidden = false;
+  space.hidden = false;
   loadModel();
 })();

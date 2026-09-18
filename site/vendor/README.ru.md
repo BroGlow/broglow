@@ -59,3 +59,14 @@ postprocessing позволяет не менять Three.js и не добав�
 авторских правах и лицензиях сохранены в сборках. Эффекты используют реальные
 отрисованные пиксели с учётом перспективы и перекрытия объектов. Во внешних
 AR-просмотрщиках и WebXR эффекты не применяются: используется обычный рендер модели.
+
+<a name="qrcode-generator"></a>
+
+## qrcode-generator
+
+`qrcode-generator-2.0.4.js` — неизменённый `dist/qrcode.js` из
+[`qrcode-generator` 2.0.4](https://registry.npmjs.org/qrcode-generator/-/qrcode-generator-2.0.4.tgz).
+Перед копированием проверена целостность npm-архива по SHA-512:
+`mZSiP6RnbHl4xL2Ap5HfkjLnmxfKcPWpWe/c+5XxCuetEenqmNFf1FH/ftXPCtFG5/TDobjsjz6sSNL0Sr8Z9g==`.
+Библиотека создаёт QR для перехода на телефон в браузере, без внешнего QR-сервиса.
+Оригинальная лицензия MIT включена в `qrcode-generator-LICENSE`.

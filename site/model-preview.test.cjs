@@ -16,7 +16,7 @@ for (const [number, index] of [4, 5, 6].entries()) {
   assert.equal(gltf.meshes[node.mesh].primitives[0].material, index, 'Keep preview material indices aligned with the exported lenses');
 }
 
-function page(defined = false, lateEffects = false) {
+function page(defined = false, href = 'https://example.com/clawlight/', qrFailure = false, lateEffects = false) {
   let effectsDefined = defined;
   const document = { activeElement: null };
   function element() {
@@ -31,9 +31,14 @@ function page(defined = false, lateEffects = false) {
       getAttribute() { return initialOrbit; },
       focus() { this.focused = true; document.activeElement = this; },
       jumpCameraToGoal() { this.reset = true; },
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      getBoundingClientRect() { return { left: 100, right: 500, top: 100, bottom: 600 }; },
+      activateAR() { assert.fail('Opening the phone link must not launch AR without a tap'); },
     };
   }
-  const ids = ['lamp-model', 'model-poster', 'model-load', 'model-reset', 'model-loading', 'model-error', 'model-help'];
+  const ids = ['lamp-model', 'model-poster', 'model-load', 'model-reset', 'model-loading', 'model-error', 'model-help',
+    'model-space', 'ar-dialog', 'ar-close', 'ar-qr', 'ar-link', 'ar-local', 'ar-qr-error'];
   const nodes = Object.fromEntries(ids.map(id => [id, element()]));
   const signals = element();
   const radios = [...Object.keys(lensIndices), 'off'].map((value, index) => ({
@@ -100,6 +105,7 @@ function page(defined = false, lateEffects = false) {
     if (name === 'before-render') populateSelection();
   };
   const scripts = [];
+  const qrValues = [];
   const camera = element();
   nodes['lamp-model'].shadowRoot = { querySelector(selector) {
     assert.equal(selector, '[role="img"][tabindex="0"]');
@@ -117,11 +123,17 @@ function page(defined = false, lateEffects = false) {
   const source = readFileSync(`${__dirname}/model-preview.js`, 'utf8')
     .replace('import { PointLight } from "three";', '');
   runInNewContext(source, {
-    PointLight,
+    URL, PointLight,
+    location: new URL(href),
+    qrcode: () => ({
+      addData(value) { qrValues.push(value); },
+      make() { if (qrFailure) throw new Error('QR generation failed'); },
+      createDataURL: () => 'data:image/gif;base64,QR',
+    }),
     customElements: { get: name => name === 'model-viewer' ? defined : name === 'effect-composer' && effectsDefined },
     document,
   });
-  return { nodes, scripts, camera, document,
+  return { nodes, scripts, camera, qrValues, document,
     define() { defined = effectsDefined = true; },
     defineViewerOnly() { defined = true; effectsDefined = false; },
     select(value, event = 'change') {
@@ -184,7 +196,7 @@ function assertEnclosure(viewer) {
   }
 }
 
-const deferredEffects = page(true, true);
+const deferredEffects = page(true, undefined, false, true);
 const deferredViewer = deferredEffects.nodes['lamp-model'];
 assert.equal(deferredViewer.composer.selection, undefined, 'Effects may not be upgraded at first model render');
 assert.equal(deferredViewer.composer.queueRender, undefined);
@@ -302,11 +314,67 @@ cached.nodes['model-load'].emit('click');
 assert.equal(cached.scripts.length, 0, 'Reuse an already loaded component on retry');
 assert.equal(cached.nodes['lamp-model'].src, 'assets/clawlight.glb');
 
+const space = page(false, 'https://example.com/project/index.html?token=private#signals');
+assert.equal(space.nodes['model-space'].hidden, false, 'Phone handoff is available before loading 3D');
+space.nodes['model-space'].emit('click');
+assert.equal(space.nodes['ar-dialog'].open, true);
+assert.equal(space.nodes['ar-link'].href, 'https://example.com/project/index.html#view-in-space');
+assert.deepEqual(space.qrValues, [space.nodes['ar-link'].href], 'QR retains the deployment path and drops query parameters');
+assert.equal(space.nodes['ar-qr'].src, 'data:image/gif;base64,QR');
+assert.equal(space.nodes['ar-qr'].hidden, false);
+assert.equal(space.nodes['ar-local'].hidden, true);
+assert.equal(space.nodes['ar-qr-error'].hidden, true);
+assert.equal(space.scripts.length, 1, 'Opening the QR modal does not duplicate the startup viewer load');
+space.nodes['ar-dialog'].emit('click', { target: space.nodes['ar-qr'] });
+assert.equal(space.nodes['ar-dialog'].open, true, 'Clicking modal content keeps it open');
+space.nodes['ar-dialog'].emit('click', { target: space.nodes['ar-dialog'], clientX: 110, clientY: 110 });
+assert.equal(space.nodes['ar-dialog'].open, true, 'Clicking dialog padding keeps it open');
+space.nodes['ar-dialog'].emit('click', { target: space.nodes['ar-dialog'], clientX: 10, clientY: 10 });
+assert.equal(space.nodes['ar-dialog'].open, false, 'Backdrop click closes the modal');
+assert.match(html,
+  /<form method="dialog"[^>]*>\s*<button id="ar-close"[^>]*type="submit"/,
+  'Close button uses the native dialog form');
+space.nodes['model-space'].emit('click');
+let prevented = false;
+space.nodes['ar-link'].emit('click', { preventDefault() { prevented = true; } });
+assert.equal(prevented, true, 'Opening on this device preserves the current page');
+assert.equal(space.nodes['ar-dialog'].open, false);
+assert.equal(space.scripts.length, 1, 'Opening on this device reuses the startup model load');
+space.nodes['model-load'].emit('click');
+assert.equal(space.scripts.length, 1, 'Do not duplicate a pending model load');
+
+for (const href of ['http://localhost:8080/site/', 'http://preview.localhost/site/',
+  'http://127.0.0.1/site/', 'http://127.2.3.4/site/', 'http://[::1]/site/',
+  'http://0.0.0.0/site/', 'file:///project/site/index.html']) {
+  const local = page(false, href);
+  local.nodes['model-space'].emit('click');
+  assert.equal(local.nodes['ar-dialog'].open, true, href);
+  assert.equal(local.nodes['ar-qr'].hidden, true, `${href} cannot be scanned from another device`);
+  assert.equal(local.nodes['ar-local'].hidden, false, href);
+  assert.equal(local.qrValues.length, 0, 'Do not generate an unusable QR');
+}
+
+const qrError = page(false, 'https://example.com/', true);
+qrError.nodes['model-space'].emit('click');
+assert.equal(qrError.nodes['ar-dialog'].open, true);
+assert.equal(qrError.nodes['ar-qr'].hidden, true);
+assert.equal(qrError.nodes['ar-qr-error'].hidden, false);
+assert.equal(qrError.nodes['ar-link'].href, 'https://example.com/#view-in-space', 'QR failure keeps the usable link');
+
+const phone = page(false, 'https://example.com/clawlight/#view-in-space');
+assert.equal(phone.scripts.length, 1, 'Scanning the phone link loads 3D immediately');
+phone.define();
+phone.scripts[0].emit('load');
+assert.equal(phone.nodes['lamp-model'].src, 'assets/clawlight.glb');
+phone.nodes['lamp-model'].emit('load');
+assert.equal(phone.nodes['ar-dialog'].open, undefined, 'The phone link shows the model, not another QR modal');
+assert.equal(page(false, 'https://example.com/#signals').scripts.length, 1, 'All sections initialize the live model');
+
 assert.ok(Number(html.match(/<bloom-effect[^>]*strength="([^"]+)"/)[1]) <= 0.3,
   'Bloom stays subtle rather than amplifying the whole lens');
 assert.match(html, /<script[^>]*type="module"[^>]*src="model-preview.js"|<script[^>]*src="model-preview.js"[^>]*type="module"/,
   'The preview imports its light from the shared Three module');
-console.log('PASS: automatic preview, subtle glow and real light source, load/retry/focus/reset');
+console.log('PASS: automatic preview, subtle glow and real light source, load/retry/focus/reset, QR modal and phone deep link');
 }
 
 run().catch(error => { console.error(error); process.exitCode = 1; });

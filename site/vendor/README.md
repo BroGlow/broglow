@@ -53,3 +53,12 @@ integrity values, the build command and output SHA-256 hashes are recorded in
 comments remain in the bundles. The effects use real rendered pixels, including
 camera perspective and occlusion. Effects are not applied in external AR viewers
 or WebXR, which use the normal model rendering.
+
+## qrcode-generator
+
+`qrcode-generator-2.0.4.js` is the unmodified `dist/qrcode.js` from
+[`qrcode-generator` 2.0.4](https://registry.npmjs.org/qrcode-generator/-/qrcode-generator-2.0.4.tgz).
+The npm archive SHA-512 integrity was verified before copying:
+`mZSiP6RnbHl4xL2Ap5HfkjLnmxfKcPWpWe/c+5XxCuetEenqmNFf1FH/ftXPCtFG5/TDobjsjz6sSNL0Sr8Z9g==`.
+It generates the phone handoff QR in the browser, without an external QR service.
+The upstream MIT license is included in `qrcode-generator-LICENSE`.
