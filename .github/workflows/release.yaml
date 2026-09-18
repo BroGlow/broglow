@@ -21,32 +21,32 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: python scripts/package-macos.py --release-tag "$RELEASE_TAG" --check-only
-      - name: Check and package the enclosure
+      - name: Install pinned CAD toolchain
+        run: python -m pip install -r models/clawlight/requirements.txt
+      - name: Generate, validate and package the enclosure
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          python models/clawlight/package_prints.py --check
+          python scripts/package-enclosure.py --release-tag "$RELEASE_TAG"
           python scripts/export-web-model.py --check
-          mkdir -p dist
-          FILE="clawlight-enclosure-${RELEASE_TAG}.zip"
-          cp models/clawlight-print-pack.zip "dist/$FILE"
-          cd dist
-          sha256sum "$FILE" > "$FILE.sha256"
+          test -z "$(git status --porcelain --untracked-files=normal)"
       - uses: actions/upload-artifact@v4
         with:
           name: enclosure
           if-no-files-found: error
           path: |
-            dist/clawlight-enclosure-${{ github.ref_name }}.zip
-            dist/clawlight-enclosure-${{ github.ref_name }}.zip.sha256
+            dist/enclosure/clawlight-enclosure-${{ github.ref_name }}.zip
+            dist/enclosure/clawlight-enclosure-${{ github.ref_name }}.zip.sha256
 
   check:
-    needs: source
+    needs:
+      - source
     uses: ./.github/workflows/ci.yaml
 
   mac:
-    needs: check
+    needs:
+      - check
     strategy:
       fail-fast: false
       matrix:
@@ -80,7 +80,8 @@ jobs:
             dist/clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz.sha256
 
   windows:
-    needs: check
+    needs:
+      - check
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6

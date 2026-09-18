@@ -15,7 +15,8 @@ on:
       - 'models/clawlight/*.py'
       - 'models/clawlight/requirements.txt'
       - 'models/clawlight/PRINT_GUIDE*.md'
-      - 'models/clawlight-print-pack.zip'
+      - 'models/clawlight/parts.json'
+      - 'Cargo.toml'
       - '.github/workflows/pages.yaml'
   pull_request:
     paths:
@@ -29,7 +30,8 @@ on:
       - 'models/clawlight/*.py'
       - 'models/clawlight/requirements.txt'
       - 'models/clawlight/PRINT_GUIDE*.md'
-      - 'models/clawlight-print-pack.zip'
+      - 'models/clawlight/parts.json'
+      - 'Cargo.toml'
       - '.github/workflows/pages.yaml'
   workflow_dispatch:
 
@@ -76,7 +78,8 @@ jobs:
 
   deploy:
     if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-    needs: build
+    needs:
+      - build
     runs-on: ubuntu-latest
     permissions:
       contents: read

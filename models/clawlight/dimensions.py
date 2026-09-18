@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
 import numpy as np
 from clawlight import (
-    DEPTH, LED_PITCH, LED_Z, MASCOT_SCALE, OUT, TOWER_HEIGHT,
+    DEPTH, LED_PITCH, LED_Z, MASCOT_DEPTH, MASCOT_SCALE, OUT, TOWER_HEIGHT,
     UPRIGHT_LEFT, UPRIGHT_RIGHT, WALL, electronics, parts,
 )
 
@@ -51,7 +51,7 @@ def main():
     vertical(LED_Z[0],LED_Z[1],xmax+2,f'{LED_PITCH:g} — шаг',UPRIGHT_RIGHT)
     ax.set(xlim=(xmin-16,xmax+19),ylim=(-17,TOWER_HEIGHT+14),aspect='equal'); ax.axis('off')
     fig.suptitle('CLAW LIGHT  /  РАЗМЕРЫ В мм',x=.07,y=.97,ha='left',fontsize=18,fontweight='bold')
-    fig.text(.07,.925,f'Вид спереди · глубина корпуса {DEPTH:g} · базовая стенка {WALL:g} · четыре ножки по {5*MASCOT_SCALE:g}',fontsize=10,color='#4d5963')
+    fig.text(.07,.925,f'Вид спереди · глубина: маскот {MASCOT_DEPTH:g}, светофор {DEPTH:g} · четыре ножки по {5*MASCOT_SCALE:g}',fontsize=10,color='#4d5963')
     fig.text(.07,.035,'Измеренные LED: корпус Ø4,75 / фланец Ø5,4. Посадка Ø5,1 проверена купоном; новая сборка требует примерки.',fontsize=9,color='#4d5963')
     fig.subplots_adjust(left=.04,right=.96,bottom=.06,top=.9)
     fig.savefig(OUT/'preview'/'dimensions.png',facecolor=fig.get_facecolor())

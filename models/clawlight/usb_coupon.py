@@ -1,15 +1,15 @@
 """Production-derived USB fit fixture; millimetres, assembly Z is vertical.
 
-Print both crops and production 06_PCB_tray_black separately.
+Print both crops; the base has integral PCB guides.
 Fit the actual PCB and close with two production DIN 7982 screws. The open
-top provides access without changing the USB interface or tray rails.
+top provides access without changing the USB interface or fixed PCB guides.
 """
 from build123d import Compound, Solid
 from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCP.TopLoc import TopLoc_Location
 import clawlight as m
 
-COUPON_HEIGHT = 19.2
+COUPON_HEIGHT = 14.0
 CROP_MARGIN = 1.0
 LAYOUT_GAP = 6.0
 
@@ -18,7 +18,7 @@ def coupon_parts():
     lower_screws = [z for _, z in m.COVER_SCREWS if z < COUPON_HEIGHT]
     assert len(lower_screws) == 2
     assert max(lower_screws) + m.COVER_BOSS_DIAMETER / 2 < COUPON_HEIGHT
-    assert m.CLIP_KEEPER_TOP_Z < COUPON_HEIGHT
+    assert m.PCB_RAIL_TOP < COUPON_HEIGHT
     production = m.parts()
     result = {}
     for source, name in (('04_tower_black', '01_USB_base_coupon'),

@@ -29,6 +29,8 @@ jobs:
         run: clang-format --dry-run --Werror firmware/esp32-c3-supermini/src/*.cpp firmware/esp32-c3-supermini/tests/*.cpp
       - run: python firmware/esp32-c3-supermini/tests/check.py
       - run: python tests/package_macos.py
+      - run: python scripts/check-generated-artifacts.py
+      - run: python tests/package_enclosure.py
       - run: python assets/icons/render.py --check
       - run: pio run -d firmware/esp32-c3-supermini -e esp32-c3-supermini -e led-test
 

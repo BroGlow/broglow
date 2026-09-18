@@ -1,9 +1,7 @@
-# Generated CAD exports: preserve bytes and avoid enormous text diffs/merges.
-/models/**/*.step binary
-/models/**/*.stl binary
+# Generated documentation image: preserve bytes during merges.
 /models/clawlight/preview/dimensions.svg binary
 
-# Source archives include the app, firmware and release-candidate enclosure.
+# Source archives include the app, firmware and editable enclosure sources.
 # Retired reference directories and historical handoffs stay out of archives;
 # these exclusions do not change old Git history.
 /references export-ignore

@@ -29,6 +29,8 @@ for locale in ("en", "ru"):
             assert "(printing.md)" in public
             assert "https://github.com/example/lamp/archive/HEAD.zip" in public
             assert "1.0.0" in public and "clawlight-print-pack.zip" not in public
+            assert "STL, STEP" in public
+            assert "source with CAD and STL" not in public and "исходники с CAD и STL" not in public
         with TemporaryDirectory() as temporary:
             pages.SITE = Path(temporary) / "site"
             local = on_page_markdown(source, page=page, config=SimpleNamespace(repo_url=None))
@@ -47,16 +49,64 @@ for locale in ("en", "ru"):
                 guide = "PRINT_GUIDE.md" if locale == "ru" else "PRINT_GUIDE.en.md"
                 start = "START_HERE.ru.md" if locale == "ru" else "START_HERE.md"
                 assert f"models/clawlight/{guide}" in local and "(printing.md)" in local
-                models = Path(temporary) / "models"
-                models.mkdir()
-                (models / "clawlight-print-pack.zip").touch()
+                dist = Path(temporary) / "dist/enclosure"
+                dist.mkdir(parents=True)
+                archive = dist / "clawlight-enclosure-v1.0.0.zip"
+                archive.touch()
+                assert "{ download }" not in on_page_markdown(source, page=page, config=SimpleNamespace(repo_url=None))
+                archive.with_name(archive.name + ".sha256").touch()
                 local = on_page_markdown(source, page=page, config=SimpleNamespace(repo_url=None))
                 prefix = "../../../" if locale == "ru" else "../../"
-                assert f"]({prefix}models/clawlight-print-pack.zip){{ download }}" in local
+                assert f"]({prefix}dist/enclosure/{archive.name}){{ download }}" in local
+                assert f"]({prefix}dist/enclosure/{archive.name}.sha256){{ download }}" in local
                 assert start in local and f"models/clawlight/{guide}" in local
         pages.SITE = SITE
 
 print("PASS: separate Mac/enclosure downloads and source fallback in both languages, including clean checkouts")
+
+# Known generated files resolve without CAD outputs; other missing links still fail.
+with TemporaryDirectory() as temporary:
+    root = Path(temporary).resolve()
+    pages.SITE = root / "site"
+    model = root / "models/clawlight"
+    model.mkdir(parents=True)
+    (model / "parts.json").write_bytes((SITE.parent / "models/clawlight/parts.json").read_bytes())
+    (model / "clawlight.py").touch()
+    (root / "Cargo.toml").write_text('[package]\nversion = "1.2.3"\n')
+    for locale in ("en", "ru"):
+        page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/printing.md"))
+        for generated in ("stl/01_mascot_orange.stl", "stl/coupons/01_USB_base_coupon.stl",
+                          "clawlight.step", "appearance.step", "exploded.step", "usb_coupon.step"):
+            assert not (model / generated).exists()
+            sample = f'<a href="{generated}">Part</a>'
+            local = on_page_content(sample, page=page, config=SimpleNamespace(repo_url=None))
+            assert 'href="../releasing/"' in local and generated in local
+            public = on_page_content(sample, page=page, config=SimpleNamespace(repo_url="https://github.com/example/lamp"))
+            assert 'href="https://github.com/example/lamp/releases/download/v1.2.3/clawlight-enclosure-v1.2.3.zip"' in public
+            assert generated in public and "/blob/" not in public
+        for invalid in ("missing.md", "missing.png", "missing.step", "stl/typo.stl", "../../../outside.stp"):
+            for repo in (None, "https://github.com/example/lamp"):
+                try:
+                    on_page_content(f'<a href="{invalid}">Bad</a>', page=page, config=SimpleNamespace(repo_url=repo))
+                except ValueError:
+                    pass
+                else:
+                    raise AssertionError(f"Accepted missing or outside-repository link: {invalid}")
+        public = on_page_content('<a href="clawlight.py">Source</a>', page=page,
+                                 config=SimpleNamespace(repo_url="https://github.com/example/lamp"))
+        assert 'href="https://github.com/example/lamp/blob/HEAD/models/clawlight/clawlight.py"' in public
+    dist = root / "dist/enclosure"
+    dist.mkdir(parents=True)
+    archive = dist / "clawlight-enclosure-v1.2.3.zip"
+    archive.touch()
+    archive.with_name(archive.name + ".sha256").touch()
+    for locale in ("en", "ru"):
+        page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/printing.md"))
+        local = on_page_content('<a href="clawlight.step">Assembly</a>', page=page, config=SimpleNamespace(repo_url=None))
+        prefix = "../../../../" if locale == "ru" else "../../../"
+        assert f'href="{prefix}dist/enclosure/{archive.name}" download' in local
+    pages.SITE = SITE
+print("PASS: missing generated CAD routes to enclosure assets or generation instructions; other missing references fail")
 
 config = on_config(load_config(str(SITE / "mkdocs.yaml")))
 # GitHub-readable named anchors become native heading IDs after snippet expansion.

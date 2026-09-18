@@ -8,8 +8,8 @@ from math import sqrt
 
 from build123d import Compound, Face, GeomType, Wire, extrude
 
-JOINT_X = 32.0
-JOINT_CENTERS_YZ = ((7.0, 30.0), (20.0, 30.0))
+JOINT_X = 26.0
+JOINT_CENTERS_YZ = ((6.0, 24.0), (16.0, 24.0))
 PIN_DIAGONAL = 3.0
 PIN_PROJECTION = 1.8
 PIN_TIP_CHAMFER = 0.2

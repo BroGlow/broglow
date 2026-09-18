@@ -58,6 +58,8 @@ python3 -m http.server 8080 --bind 127.0.0.1
 Open http://127.0.0.1:8080/site/ for the landing and
 http://127.0.0.1:8080/site/docs/ for the guide. Rebuild after Markdown edits;
 output goes to ignored `site/docs/` without cleaning the landing.
+Website builds need no generated STL, STEP/STP or ZIP files and do not run CAD.
+Keep those exports ignored; printable downloads are release assets.
 
 For automatic guide refresh, use
 `site/.venv/bin/mkdocs serve -f site/mkdocs.yaml`. It serves only the guide;
@@ -140,11 +142,22 @@ Keep the preview server running for the HTTP check.
 ## Local downloads and factual limits
 
 `pages.py` expands `<!-- mac-downloads -->` and `<!-- model-download -->`:
-local previews link to the newest complete Mac archive in `dist/` with a sibling
-`.sha256`, and to `models/clawlight-print-pack.zip` when present. Without archives,
-they offer source instructions. Public builds link to Releases and the source ZIP.
+local previews link to the newest complete Mac archive in `dist/` and enclosure
+archive `dist/enclosure/clawlight-enclosure-vVERSION.zip`, each with a sibling
+`.sha256`. Without archives, they offer source instructions. Public builds link
+to Releases and the source ZIP. GitHub's automatic source ZIP contains editable
+source and instructions, without STL, STEP/STP or ready-to-print ZIPs; use the
+enclosure release asset or [generate it from source](../docs/releasing.md).
 Previews neither rebuild nor copy archives; inspect a package's `BUILD.json` for
 its architecture, date and source.
+
+Print-guide STL links from `models/clawlight/parts.json` and the four named STEP
+views route to the versioned enclosure release asset in public builds. Local
+builds use the enclosure archive above, or the generation instructions when it
+is absent. The original member path stays visible for use after extraction;
+Markdown links inside the extracted package remain relative. Unknown or missing
+source links still fail the build. Keep the manual and agent generation procedures
+in the [release runbook](../docs/releasing.md) aligned with the release workflow.
 
 USB Mac power is supported; a power adapter and enclosure are optional. Supplied
 firmware targets ESP32-C3 SuperMini only. `connected` means the service wrote to

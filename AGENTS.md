@@ -16,10 +16,13 @@ For **source changes, builds, or tests**, also read [CLAUDE.md](CLAUDE.md). Work
 this repository's root; the parent directory is a separate workspace. Preserve
 existing user changes and Git history.
 
-For **release packaging, distribution, or website publication**, follow
-[the release runbook](docs/releasing.md). Prepare version 1.0.0 with the enclosure
-release candidate as a separate print download. Source archives include our CAD;
-source-archive exclusions do not remove files from Git history.
+For **enclosure generation, release packaging, distribution, or website publication**,
+follow [the release runbook](docs/releasing.md) and its manual/agent generation
+procedure. Keep editable CAD sources and reviewed evidence in Git; generate
+STL, STEP/STP and ZIP files under ignored output paths and distribute them as
+release assets with checksums. These formats stay out of Git, including history.
+GitHub source archives contain sources and instructions; ready-to-print files
+come from the separate enclosure release download.
 
 For **images, screenshots, or other media**, use only our own assets and follow
 [the media policy and photo checklist](docs/media.md). Label CAD renders accurately

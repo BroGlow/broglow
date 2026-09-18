@@ -2,10 +2,12 @@
 import argparse
 import base64
 from html import escape, unescape
+import json
 import mimetypes
 import posixpath
 import re
 import shutil
+import tomllib
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
 
@@ -23,6 +25,12 @@ REFERENCE_SOURCES = {
     "enclosure.md": ("docs/enclosure-modeling-brief.md", "docs/enclosure-modeling-brief.ru.md"),
     "printing.md": ("models/clawlight/PRINT_GUIDE.en.md", "models/clawlight/PRINT_GUIDE.md"),
 }
+
+
+def enclosure_package():
+    packages = [path for path in (SITE.parent / "dist/enclosure").glob("clawlight-enclosure-v*.zip")
+                if path.with_name(path.name + ".sha256").is_file()]
+    return max(packages, key=lambda path: path.stat().st_mtime_ns, default=None)
 
 
 class SectionAnchorPreprocessor(Preprocessor):
@@ -52,10 +60,13 @@ def on_page_content(html, *, page, config, **kwargs):
     ru = page.file.src_uri.startswith("ru/")
     source = SITE.parent / REFERENCE_SOURCES[name][ru]
     current = ("ru/" if ru else "") + name.removesuffix(".md")
+    model = SITE.parent / "models/clawlight"
+    generated = {model / f"{name}.step" for name in ("clawlight", "appearance", "exploded", "usb_coupon")}
+    generated.update(model / part["file"] for part in json.loads((model / "parts.json").read_text()).values())
     # The website's language menu preserves the section and saved preference.
     html = re.sub(r'<p><a href="[^"]*">English</a> \| <a href="[^"]*">Русский</a></p>\n?', "", html)
 
-    def source_path(url):
+    def source_path(url, *, allow_generated=False):
         parsed = urlsplit(unescape(url))
         if not parsed.path or parsed.scheme or parsed.netloc:
             return None
@@ -67,7 +78,7 @@ def on_page_content(html, *, page, config, **kwargs):
             for name in REFERENCE_SOURCES for prefix in ("", "ru/")
         }:
             return None
-        if not path.is_relative_to(SITE.parent) or not path.exists():
+        if not path.is_relative_to(SITE.parent) or not (path.exists() or allow_generated and path in generated):
             raise ValueError(f"Missing or outside-repository manual reference: {url}")
         return path
 
@@ -78,10 +89,20 @@ def on_page_content(html, *, page, config, **kwargs):
             normalized = re.sub(r"-{2,}", "-", url)
             if f'id="{normalized[1:]}"' in html:
                 return f'<a href="{normalized}"{attributes}>{label}</a>'
-        path = source_path(url)
+        path = source_path(url, allow_generated=True)
         if path is None:
             return match[0]
         relative = path.relative_to(SITE.parent).as_posix()
+        if path in generated:
+            if config.repo_url:
+                version = tomllib.loads((SITE.parent / "Cargo.toml").read_text())["package"]["version"]
+                target = f"{config.repo_url}/releases/download/v{version}/clawlight-enclosure-v{version}.zip"
+            elif package := enclosure_package():
+                target = posixpath.relpath(package, SITE / "docs" / current)
+            else:
+                target = posixpath.relpath(("ru/" if ru else "") + "releasing", current) + "/"
+            download = " download" if target.endswith(".zip") else ""
+            return f'<a href="{escape(target, quote=True)}"{attributes}{download}>{label}</a> (<code>{escape(relative)}</code>)'
         fragment = urlsplit(unescape(url)).fragment
         for route, translations in REFERENCE_SOURCES.items():
             if relative in translations:
@@ -132,14 +153,16 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
         guide = "printing.md"
         models = (f"[Комплект для печати корпуса · релизы]({releases})\n\n"
                   "Выберите `clawlight-enclosure-vVERSION.zip` и одноимённый файл `.sha256`. "
-                  "Это отдельный комплект с CAD, STL и руководством; он не входит в пакет приложения. "
+                  "Это отдельный комплект с исходниками CAD, STL, STEP и руководством; он не входит в пакет приложения. "
                   f"[Инструкция по печати]({guide}). Если релиз ещё не опубликован, "
-                  f"[скачайте исходники с CAD и STL]({source})."
+                  f"[скачайте исходники]({source}) и сгенерируйте комплект по инструкции. "
+                  "Автоматический ZIP исходников GitHub не содержит готовых STL, STEP или архивов печати."
                   if ru else f"[Enclosure print package · releases]({releases})\n\n"
                   "Choose `clawlight-enclosure-vVERSION.zip` and its matching `.sha256` file. "
-                  "This separate package contains CAD, STL and a print guide; it is not part of the app bundle. "
+                  "This separate package contains CAD source, STL, STEP and a print guide; it is not part of the app bundle. "
                   f"[Print guide]({guide}). Before the release is published, "
-                  f"[download the source with CAD and STL]({source}).")
+                  f"[download the source]({source}) and generate the package using the guide. "
+                  "GitHub's automatic source ZIP contains no ready-to-print STL, STEP or print archives.")
 
     else:
         packages = [path for path in (SITE.parent / "dist").glob("clawlight-*-apple-darwin*.tar.gz")
@@ -157,20 +180,24 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
                    "или попросите владельца проекта предоставить полный пакет Mac + C3 и контрольную сумму."
                    if ru else "This checkout has no prebuilt package. [Build from source](hardware.md#build-from-source) "
                    "or obtain a complete Mac + C3 bundle and checksum from the project owner.")
-        print_package = SITE.parent / "models/clawlight-print-pack.zip"
-        if print_package.is_file():
+        print_package = enclosure_package()
+        if print_package:
             prefix = "../../../" if ru else "../../"
             label = "Комплект для печати корпуса и инструкция" if ru else "Enclosure print package and guide"
-            models = f"[{label}]({prefix}models/{print_package.name}){{ download }}"
+            checksum = "Контрольная сумма" if ru else "Checksum"
+            models = (f"[{label}]({prefix}dist/enclosure/{print_package.name}){{ download }}\n\n"
+                      f"[{checksum}]({prefix}dist/enclosure/{print_package.name}.sha256){{ download }}")
             models += ("\n\nРаспакуйте архив и откройте `START_HERE.ru.md`, затем `models/clawlight/PRINT_GUIDE.md`. "
                        "В комплекте — CAD, STL и настройки печати; приложение и прошивка скачиваются отдельно."
                        if ru else "\n\nExtract the archive and open `START_HERE.md`, then `models/clawlight/PRINT_GUIDE.en.md`. "
                        "The package includes CAD, STL and print settings; download the app and firmware separately.")
         else:
             models = ("В этом checkout нет архива корпуса. Откройте `models/clawlight/PRINT_GUIDE.md` "
-                      "в полных исходниках проекта или получите комплект корпуса из релиза проекта."
+                      "в полных исходниках проекта и [сгенерируйте комплект](releasing.md) "
+                      "или получите комплект корпуса из релиза проекта."
                       if ru else "This checkout has no enclosure archive. Open `models/clawlight/PRINT_GUIDE.en.md` "
-                      "in the full project source or obtain the enclosure package from the project's release.")
+                      "in the full project source and [generate the package](releasing.md) "
+                      "or obtain the enclosure package from the project's release.")
         models += ("\n\n[Инструкция по печати и сборке](printing.md)." if ru else
                    "\n\n[Printing and assembly instructions](printing.md).")
     models = ("**Корпус · релиз-кандидат 1.0.0, готов к выпуску.** Финальная физическая проверка сборки продолжается.\n\n"

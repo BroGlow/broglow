@@ -12,8 +12,15 @@
 # Companion firmware and local Python environments/caches
 .pio/
 .venv/
+.venv-cad/
 __pycache__/
 *.py[cod]
+
+# Generated enclosure exports and distribution archives belong in release assets.
+*.[sS][tT][lL]
+*.[sS][tT][eE][pP]
+*.[sS][tT][pP]
+*.[zZ][iI][pP]
 
 # CAD viewer conversion caches
 /models/**/.*.step.glb
