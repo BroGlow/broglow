@@ -784,21 +784,22 @@ void identifyChecks() {
   statusAt(200, "G");
   previewAt(1000, 100, 2);
   for (uint32_t step = 0; step < 9; ++step) {
-    const uint32_t time = 1000 + step * 250;
+    const uint32_t time = 1000 + step * 100;
     const int red = step % 3 == 0 ? 255 : 0;
     const int yellow = step % 3 == 1 ? 255 : 0;
     const int green = step % 3 == 2 ? 255 : 0;
     checkAt(time, red, yellow, green, BUILTIN_LED_BRIGHTNESS);
     if (step == 3) {
-      statusAt(time + 100, "R");
-      brightnessAt(time + 150, 50);
+      statusAt(time + 40, "R");
+      brightnessAt(time + 60, 50);
     }
-    checkAt(time + 249, red, yellow, green, 0);
+    checkAt(time + 99, red, yellow, green, 0);
   }
-  checkAt(3250, 128, 0, 0,
-          0);  // Restore the latest status and saved brightness.
+  checkAt(
+      1900, 128, 0, 0,
+      BUILTIN_LED_BRIGHTNESS / 2);  // Restore the latest status and brightness.
   previewAt(4000, 100, 2);
-  checkAt(4499, 0, 255, 0, 0);
+  checkAt(4199, 0, 255, 0, 0);
   previewAt(4500, 100, 2);  // Repeated requests restart at red.
   expectLamp(255, 0, 0, BUILTIN_LED_BRIGHTNESS);
   now = 4600;
@@ -810,9 +811,9 @@ void identifyChecks() {
     brightnessCharacteristic.write(bytes);
     loop();
   }
-  checkAt(4750, 0, 255, 0, BUILTIN_LED_BRIGHTNESS);
-  checkAt(6749, 0, 0, 255, 0);
-  checkAt(6750, 128, 0, 0, 0);
+  checkAt(4700, 0, 0, 255, BUILTIN_LED_BRIGHTNESS);
+  checkAt(5399, 0, 0, 255, 0);
+  checkAt(5400, 128, 0, 0, 0);
   previewAt(7000, 100, 2);
   disconnectPeer();
   loop();
@@ -833,9 +834,9 @@ void identifyChecks() {
   checkAt(10200, 0, 0, 128, 0);  // A brightness preview replaces the scan.
   now = 12000;
   brightnessCharacteristic.write(std::string("\x64\2", 2));
-  checkAt(14250, 0, 0, 128, -1);  // Scan expiry starts at receipt.
+  checkAt(12900, 0, 0, 128, -1);  // Scan expiry starts at receipt.
   previewAt(17750, 100, 2);
-  checkAt(17999, 255, 0, 0, 0);
+  checkAt(17999, 0, 0, 255, 0);
   checkAt(18000, 0, 0, 0, 0);  // Identify cannot extend status freshness.
   previewAt(18100, 100, 2);
   expectLamp(0, 0, 0, 0);
@@ -847,8 +848,8 @@ void identifyChecks() {
   const uint32_t receipt = UINT32_MAX - 500;
   statusAt(receipt - 500, "G");
   previewAt(receipt, 25, 2);
-  checkAt(receipt + 2249, 0, 0, 64, 0);
-  checkAt(receipt + 2250, 0, 0, 128, -1);
+  checkAt(receipt + 899, 0, 0, 64, 0);
+  checkAt(receipt + 900, 0, 0, 128, -1);
 }
 
 void connectDuringStatusRead(QueueHandle_t queue) {

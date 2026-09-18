@@ -242,7 +242,7 @@ mod mac {
     const HEARTBEAT: Duration = Duration::from_secs(2);
     const OP_TIMEOUT: Duration = Duration::from_secs(10);
     const PREVIEW_DURATION: Duration = Duration::from_secs(2);
-    const IDENTIFY_DURATION: Duration = Duration::from_millis(2250);
+    const IDENTIFY_DURATION: Duration = Duration::from_millis(900);
     static PREVIEW: Mutex<BTreeMap<Option<Uuid>, BrightnessPreview>> = Mutex::new(BTreeMap::new());
     static PREVIEW_CHANGED: Notify = Notify::const_new();
 

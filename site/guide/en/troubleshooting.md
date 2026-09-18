@@ -17,7 +17,7 @@ and use **Lamps → Add lamp**; approve the macOS prompt and wait for **Connecte
 In **Lamps**, expand the intended lamp's row and check its **Light brightness**:
 0% keeps the controlled LEDs dark even when connected. Move that slider to preview all three,
 or use **Identify** for three red → yellow → green passes on that connected lamp at 100%,
-250 ms per LED (2.25 seconds total), then the latest status and saved brightness return.
+100 ms per LED (0.9 seconds total), then the latest status and saved brightness return.
 Identify never changes preferences. Older firmware silently ignores this scan mode;
 it needs a matching firmware update, which updating the app does not perform.
 **All lamps** replaces individual brightness levels with one shared value.

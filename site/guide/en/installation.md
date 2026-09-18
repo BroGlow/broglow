@@ -83,7 +83,7 @@ Open **Lamps** and expand a row:
 
 - **Name:** up to 40 characters, saved on this Mac; blank restores the automatic label.
 - **Identify:** scans that connected lamp's red → yellow → green LEDs three times,
-  one at a time at 100%, 250 ms per LED (2.25 seconds total), then restores the latest
+  one at a time at 100%, 100 ms per LED (0.9 seconds total), then restores the latest
   status and saved brightness without changing settings.
 - **Light brightness:** 0–100% for that lamp. **All lamps** replaces every saved lamp's
   individual level. Preview ends two seconds after the last change.

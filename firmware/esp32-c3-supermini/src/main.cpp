@@ -21,6 +21,7 @@ constexpr char SERVICE_UUID[] = "7d2ea28a-f7bd-485a-bd9d-92ad6ecfe93e";
 constexpr char STATUS_UUID[] = "7d2ea28b-f7bd-485a-bd9d-92ad6ecfe93e";
 constexpr char BRIGHTNESS_UUID[] = "7d2ea28c-f7bd-485a-bd9d-92ad6ecfe93e";
 constexpr uint32_t PAIRING_MS = 60000;
+constexpr uint32_t IDENTIFY_STEP_MS = 100;
 constexpr int BUTTON_PIN =
     9;  // BOOT: use only after normal boot, never hold during reset.
 
@@ -303,7 +304,7 @@ void renderIndication() {
        previewGeneration != bleGeneration.load() ||
        confirmedGeneration != previewGeneration ||
        static_cast<uint32_t>(now - previewStarted) >=
-           (previewIdentify ? 2250 : 2000)))
+           (previewIdentify ? 9 * IDENTIFY_STEP_MS : 2000)))
     preview = false;
   const Indication next =
       startup                      ? Indication::Startup
@@ -353,10 +354,12 @@ void renderIndication() {
       const uint32_t phase =
           now - (indication == Indication::Identify ? previewStarted
                                                     : pairingStarted.load());
-      red = phase / 250 % 3 == 0 ? 255 : 0;
-      yellow = phase / 250 % 3 == 1 ? 255 : 0;
-      green = phase / 250 % 3 == 2 ? 255 : 0;
-      if (phase % 250 < 100) builtin = BUILTIN_LED_BRIGHTNESS;
+      const uint32_t step =
+          indication == Indication::Identify ? IDENTIFY_STEP_MS : 250;
+      red = phase / step % 3 == 0 ? 255 : 0;
+      yellow = phase / step % 3 == 1 ? 255 : 0;
+      green = phase / step % 3 == 2 ? 255 : 0;
+      if (phase % step < step * 2 / 5) builtin = BUILTIN_LED_BRIGHTNESS;
       break;
     }
     case Indication::Unpaired:
