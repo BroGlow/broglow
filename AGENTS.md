@@ -16,11 +16,16 @@ For **source changes, builds, or tests**, also read [CLAUDE.md](CLAUDE.md). Work
 this repository's root; the parent directory is a separate workspace. Preserve
 existing user changes and Git history.
 
+**Generated artifacts — applies to every change:** Keep STL, STEP/STP and ZIP
+files untracked and ignored everywhere, regardless of filename case. Preserve
+their `.gitignore` rules; never force-add these files or put them in Git LFS.
+Keep editable sources and reviewed evidence in Git; distribute generated files
+as release assets with checksums. After generation, verify output paths with
+`git check-ignore`; before committing, run `python3 scripts/check-generated-artifacts.py`.
+
 For **enclosure generation, release packaging, distribution, or website publication**,
 follow [the release runbook](docs/releasing.md) and its manual/agent generation
-procedure. Keep editable CAD sources and reviewed evidence in Git; generate
-STL, STEP/STP and ZIP files under ignored output paths and distribute them as
-release assets with checksums. These formats stay out of Git, including history.
+procedure. Generate enclosure deliverables under ignored `dist/enclosure/`.
 GitHub source archives contain sources and instructions; ready-to-print files
 come from the separate enclosure release download.
 
