@@ -69,7 +69,29 @@ with tempfile.TemporaryDirectory(prefix='clawlight-enclosure-check-') as folder:
     git('tag', 'v1.2.3')
     guard = root/'scripts/check-generated-artifacts.py'
     guard.write_bytes((Path(__file__).resolve().parents[1]/'scripts/check-generated-artifacts.py').read_bytes())
-    retired = ['retired/old.ZIP', 'elsewhere/part.StP', 'outside/mesh.sTl', 'view.STEP']
+    retired = [
+        'retired/old.ZIP', 'elsewhere/part.StP', 'outside/mesh.sTl', 'view.STEP',
+        'models/clawlight/cad-inspection.json', 'models/clawlight/coupon-inspection.json',
+        'models/clawlight/USB-COUPON-INSPECTION.JSON',
+        'models/clawlight/preview/snapshot-job.json',
+        'models/clawlight/preview/base-fit-snapshot-job.json',
+        'models/clawlight/preview/cover-chamfers-snapshot-job.json',
+        'models/clawlight/preview/flat-floor-snapshot-job.json',
+        'models/clawlight/preview/TIGHT-USB-SNAPSHOT-JOB.JSON',
+    ]
+    preserved = [
+        'models/clawlight/parts.json', 'models/clawlight/validation.json',
+        'models/clawlight/slicer-validation.json', 'models/clawlight/slicer-result.json',
+        'site/assets/clawlight-model.json', 'site/vendor/bloom-provenance.json',
+        'references/clawlight/ar-component-bounds.json',
+        'references/clawlight/ar-model-metadata.json', 'references/clawlight/sources.json',
+        'config.json', 'tests/fixtures/cad-inspection.json',
+    ]
+    for name in preserved:
+        path = root/name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('{}\n')
+    git('add', *preserved)
     for name in retired:
         path = root/name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -93,4 +115,4 @@ with tempfile.TemporaryDirectory(prefix='clawlight-enclosure-check-') as folder:
     (model/'clawlight.py').unlink()
     (model/'clawlight.py').symlink_to(model/'private.py')
     rejected(package.source_files, 'unsafe source input')
-print('PASS: isolated source inventory, stale-output removal, source archives, release guards and mixed-case artifact tracking')
+print('PASS: isolated staging, release guards, mixed-case artifacts and scoped CAD JSON tracking')
