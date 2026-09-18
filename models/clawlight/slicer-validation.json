@@ -1,5 +1,5 @@
 {
-  "purpose": "Upper-rail retention trial after the printed wide coupon accepted the PCB but pushing USB-C upward tilted it out. Two changed STLs freshly sliced; five unchanged records retained only after exact hash matches. Wide-channel insertion was physically confirmed; extended-lip retention remains unverified.",
+  "purpose": "Slicing evidence for the extended upper-rail geometry. Two changed STLs freshly sliced; five unchanged records retained only after exact hash matches. User subsequently accepted the printed extended-rail coupon as a good fit and finalized all models on 2026-09-19. Slicing evidence and STL hashes are unchanged by that physical acceptance.",
   "checked_at_utc": "2026-09-18T22:32:37.657046+00:00",
   "slicer": "Bambu Studio 02.07.01.62, macOS CLI",
   "reference_profile": {

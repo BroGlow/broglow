@@ -520,7 +520,7 @@ def pcb_guide_checks(parts,report):
         'rear_entry_chamfer_mm':m.PCB_RAIL_ENTRY_CHAMFER,
         'endplay_mm':[-m.PCB_END_CLEARANCE,m.PCB_END_CLEARANCE],
         'continuous_hardware_sweeps':sweeps,'swept_rear_faces':swept_faces,'insertion_translation_y_mm':[-m.PCB_END_CLEARANCE,30],
-        'physical_fit':'User printed the wide coupon: slides in, but pushing USB-C upward easily tilts the board out. This trial extends each upper rail inward by 0.5 mm to a 0.3 mm nominal overlap; retention is unprinted. Channel and slot sizes are retained. Centered insertion and unchanged component/solder assumptions require a physical check',
+        'physical_fit':'User printed the extended-rail coupon and accepted it as a good fit on 2026-09-19; model set finalized. Upper overlap is 0.3 mm per edge, channel 19.2 mm, slot 1.1 mm. Earlier wide coupon admitted USB-end lifting. This result applies to the tested board; component/solder envelopes remain provisional',
     }
     report['checks'].append('Flat 2 mm floor, 45-degree wall braces, 0.3 mm upper edge overlaps, unchanged 19.2 x 1.1 mm sliding channel and independent lift / 2-degree USB-end tilt stops on both rails verified')
     report['checks'].append('All PCB/component/USB envelopes clear centered rear insertion at X=0 and +/-0.15 mm, across vertical slot play; seated endplay clears the closed cover. Full +/-0.6 mm bare-board side play is not a component-clearance claim')
@@ -690,7 +690,7 @@ def main(check_mesh=True):
     p=m.parts()
     printable=m.print_parts()
     coupons=m.coupon_parts()
-    report={'status':'passed','hardware_fit':'Wide-coupon PCB insertion passed physically, but pushing USB-C upward tilted the board out. This revision adds upper-rail capture; its retention, full compact assembly, separate keyed LED retainer and recessed collars remain unprinted. Measured hardware and previously fitted LED/screw diameters are retained; component/solder envelopes remain provisional, including two assumed bare 2.7 x 1.0 mm top corner patches. Physical assembly, retention strength and USB projection require checking on this revision.',
+    report={'status':'passed','hardware_fit':'User accepted the printed extended-rail PCB coupon as a good fit and finalized all models on 2026-09-19. Complete wired-assembly fit and separate keyed LED-retainer/collar fit are not established by that coupon. Measured hardware and previously fitted LED/screw diameters are retained; component/solder envelopes remain provisional, including two assumed bare 2.7 x 1.0 mm top corner patches. Physical assembly, retention strength and USB projection require checking on this revision.',
             'mesh':{},'checks':[]}
     for n,s in p.items():
         assert s.is_valid and len(s.solids())==1 and s.volume>0,n
@@ -782,7 +782,7 @@ def main(check_mesh=True):
         'assumed_exposed_metal_ahead_of_plastic_mm':m.USB_CABLE_BODY_START-m.USB_REAR,
         'flat_cover_skin_mm':m.COVER_INNER_SKIN,
         'cover_pcb_stop_backing_mm':m.DEPTH-m.PCB_REAR_STOP_FRONT,
-        'physical_fit':'Wide-coupon PCB insertion passed; this extended-rail revision is unprinted. The unchanged USB opening and earlier axial USB recess have not been remeasured on this geometry. Cable plastic remains unmeasured.',
+        'physical_fit':'Extended-rail PCB coupon fit physically accepted by the user on 2026-09-19. The unchanged USB opening and earlier axial USB recess have not been remeasured on this geometry. Cable plastic remains unmeasured.',
     }
     report['checks'].append('Lead, 2.5 x 7 mm resistor, wire, USB cable and screwdriver access envelopes clear')
     for x in (-22.5,-12.5,12.5,22.5):

@@ -76,10 +76,10 @@ Main assembly: five unique STLs, six physical pieces including two eyes.
 The complete inventory is seven unique STLs, eight pieces including the two coupons.
 USB fit test: the two coupon parts, actual PCB/cable and two DIN 7982 ST2.2 x 6.5 screws.
 
-The widened coupon now slides in successfully, but lifts too easily. This revision extends
-each upper rail inward by 0.50 mm for 0.30 mm overlap on the centered PCB.
-Upper side rails and far-end lips retain the centered PCB; the unchanged cover locates USB. Reprint only tower 03; use the new USB
-base coupon for a first fit test. Cover 04, flat LED retainer 05, mascot and eyes are unchanged.
+Models finalized and accepted by the user on 2026-09-19 after a good printed fit
+with the extended upper rails: 0.30 mm overlap, unchanged 19.20 x 1.10 mm channel.
+Upper side rails and far-end lips retain the centered PCB; the unchanged cover locates USB.
+If updating the earlier wide version, reprint only tower 03; no further coupon iteration is needed for this board. Cover 04, flat LED retainer 05, mascot and eyes are unchanged.
 The LED retainer still uses a rigid upper tab in a roof pocket and one lower screw.
 The full assembly uses FOUR DIN 7982 ST2.2 x 6.5 screws: three cover, one retainer.
 The rear cover locates the PCB independently of the LED retainer. No separate tray is used.
@@ -104,7 +104,7 @@ Check actual edge components, GPIO solder joints and wire clearance; do not forc
 Leave wiring slack; remove the cover and slide the board straight out for service.
 Keep wires clear of the LED retainer, tab pocket and screw. Actual insulated-wire
 sizes and bundle fit are unmeasured: check the real wiring before closing the cover.
-The new integral fit needs a printed test; CAD clearances are nominal.
+PCB coupon fit is physically accepted; complete wiring and assembly still need checking.
 
 PCB bottom/top remain Z=2.8/3.5 mm. The USB opening remains 9.15 x 3.20 mm,
 center Z=5.25 mm, entry chamfers 0.2 mm and corner bevels 0.15 mm.
@@ -160,10 +160,10 @@ coupons/02_USB_cover_coupon.stl
 Весь комплект: семь уникальных STL, восемь деталей вместе с двумя пробниками.
 USB-примерка: две детали пробника, настоящая плата/кабель и два DIN 7982 ST2.2 x 6,5.
 
-Расширенный пробник проверен: плата вставляется, но легко поднимается. В этой версии
-верхние полки продлены внутрь на 0,50 мм для перекрытия отцентрированной платы на 0,30 мм.
-Верхние полки и дальние уголки удерживают отцентрированную плату, неизменённая крышка позиционирует USB. Перепечатайте только башню 03;
-для первой примерки используйте новое основание USB-пробника. Крышка 04, плоский
+Модели финализированы и приняты пользователем 2026-09-19 после удачной печатной
+примерки удлинённых верхних полок: перекрытие 0,30 мм, прежний канал 19,20 x 1,10 мм.
+Верхние полки и дальние уголки удерживают отцентрированную плату; прежняя крышка позиционирует USB.
+При обновлении прежней расширенной версии перепечатайте только башню 03; для этой платы новые итерации пробника не нужны. Крышка 04, плоский
 держатель LED 05, маскот и глаза не изменены. Держатель по-прежнему крепится
 жёстким верхним язычком в кармане крыши и одним нижним саморезом.
 Для полной сборки нужны ЧЕТЫРЕ DIN 7982 ST2.2 x 6,5: три для крышки, один для держателя.
@@ -191,7 +191,7 @@ USB-пробник высотой 14 мм проверяет только пла
 Оставьте запас проводов: для обслуживания снимите крышку и выдвиньте плату прямо назад.
 Уложите провода вне держателя LED, кармана язычка и самореза. Размеры изоляции
 и посадка пучка не измерены: перед закрытием проверьте реальную проводку.
-Новая посадка требует печатной примерки; расчётные зазоры номинальные.
+Посадка платы в пробнике физически принята; проводку и полную сборку ещё нужно проверить.
 
 Низ/верх платы сохранены на Z=2,8/3,5 мм. USB-проём 9,15 x 3,20 мм,
 центр Z=5,25 мм, входные фаски 0,2 мм, угловые 0,15 мм.
@@ -276,8 +276,8 @@ USB facing backward, until the far edge reaches the front stops. Close the cover
 without bending the board; its stops capture the PCB. Leave wiring slack for removal.
 Check insertion/removal, actual GPIO solder and edge-component clearance, lid closure,
 USB alignment and full cable seating. Do not force the PCB into the slots.
-The wide coupon was printed: insertion works, but the PCB lifts easily. Each upper rail
-now extends 0.50 mm farther inward for 0.30 mm edge overlap; new retention is unprinted.
+The extended-rail coupon was printed and accepted as a good fit on 2026-09-19.
+Each upper rail overlaps the centered PCB by 0.30 mm; the model set is finalized.
 Slide centered under the lips: modeled components clear at +/-0.15 mm, not the full
 +/-0.60 mm bare-PCB side play. Center USB in the unchanged cover before closing. Lower screw bosses have
 0.30 mm underside relief to Z=8.0 mm; minimum pilot wall is 1.55 mm.
@@ -316,8 +316,8 @@ A1 Mini / PETG Basic / сопло 0,4 мм / слой 0,2 мм; 3 стенки, 
 Оставьте запас провода для извлечения. Проверьте установку/извлечение,
 реальные GPIO-пайку и компоненты у краёв, закрытие крышки, совпадение USB
 и полную посадку кабеля. Не вдавливайте плату в пазы.
-Расширенный пробник проверен: плата вставляется, но легко поднимается. Верхние полки
-продлены внутрь на 0,50 мм для перекрытия края на 0,30 мм; новое удержание ещё не напечатано.
+Пробник с удлинёнными полками напечатан и принят как хорошая посадка 2026-09-19.
+Верхние полки перекрывают край отцентрированной платы на 0,30 мм; комплект моделей финализирован.
 Вставляйте по центру: модель компонентов проходит при +/-0,15 мм, но не на всём
 боковом ходе голой платы +/-0,60 мм. Совместите USB с неизменённой крышкой перед закрытием. Снизу нижних стоек
 снято 0,30 мм до Z=8,0 мм; минимальная стенка пилота 1,55 мм.
