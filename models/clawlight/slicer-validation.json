@@ -1,6 +1,6 @@
 {
-  "purpose": "Wider PCB fit trial after measured 17.5 mm printed opening rejected 18 mm PCB. Two changed STLs freshly sliced; five unchanged records retained only after exact hash matches. Physical fit remains unverified.",
-  "checked_at_utc": "2026-09-18T21:41:49.709963+00:00",
+  "purpose": "Upper-rail retention trial after the printed wide coupon accepted the PCB but pushing USB-C upward tilted it out. Two changed STLs freshly sliced; five unchanged records retained only after exact hash matches. Wide-channel insertion was physically confirmed; extended-lip retention remains unverified.",
+  "checked_at_utc": "2026-09-18T22:32:37.657046+00:00",
   "slicer": "Bambu Studio 02.07.01.62, macOS CLI",
   "reference_profile": {
     "machine": "Bambu Lab A1 mini 0.4 nozzle",
@@ -90,7 +90,7 @@
     },
     {
       "file": "stl/03_tower_black.stl",
-      "sha256": "26bbe8e0c66973524c2f50858ebebfa1eda99701c7dfac1032fcb3a1a3bc76af",
+      "sha256": "5ec6abb0082b34219fe555d897e020cf89a1d82ce411ad020e49f7a882275297",
       "status": "success",
       "quantity": 1,
       "geometry_warnings": [],
@@ -99,9 +99,9 @@
       "floating_or_unsupported_region_warnings": 0,
       "slicer_log_diagnostics": [],
       "triangles": 15666,
-      "estimated_filament_g": 9.436136245727539,
-      "estimated_print_seconds": 3509.01806640625,
-      "slice_evidence_directory": "/private/tmp/clawlight-slice-wider-20260919/03_tower_black",
+      "estimated_filament_g": 9.488997459411621,
+      "estimated_print_seconds": 3585.15673828125,
+      "slice_evidence_directory": "/private/tmp/clawlight-slice-grip-20260919/03_tower_black",
       "profile": "0.4 mm lines, 1000 mm/s^2 main acceleration, 100 mm/s main speeds; first-layer/bridge and volumetric limits retained"
     },
     {
@@ -148,7 +148,7 @@
     },
     {
       "file": "stl/coupons/01_USB_base_coupon.stl",
-      "sha256": "863ee17079b925f9e3ce9d67d269d0c676db82523148d7ae4e069b8dc867db80",
+      "sha256": "f270010560585c73305451ac1966ba570fd53d41cbb0358fbe657803886bf5eb",
       "status": "success",
       "quantity": 1,
       "geometry_warnings": [],
@@ -157,9 +157,9 @@
       "floating_or_unsupported_region_warnings": 0,
       "slicer_log_diagnostics": [],
       "triangles": 2924,
-      "estimated_filament_g": 4.6164231300354,
-      "estimated_print_seconds": 2493.5673828125,
-      "slice_evidence_directory": "/private/tmp/clawlight-slice-wider-20260919/01_USB_base_coupon",
+      "estimated_filament_g": 4.669320583343506,
+      "estimated_print_seconds": 2584.100830078125,
+      "slice_evidence_directory": "/private/tmp/clawlight-slice-grip-20260919/01_USB_base_coupon",
       "profile": "0.4 mm lines, 1000 mm/s^2 main acceleration, 100 mm/s main speeds; first-layer/bridge and volumetric limits retained"
     },
     {
@@ -194,8 +194,8 @@
         "first_layer_alignment_scores": [
           {
             "angle": 0,
-            "mean_distance_outside_first_layer_mm": 0.06686550791656196,
-            "fraction_within_0_3mm": 0.9793587174348697
+            "mean_distance_outside_first_layer_mm": 0.06687891050383728,
+            "fraction_within_0_3mm": 0.9793545800761676
           },
           {
             "angle": 180,
@@ -206,15 +206,15 @@
         "layers": 125,
         "components_checked": 157,
         "missing_entire_components": [],
-        "model_extrusion_volume_mm3": 7491.802365032661,
-        "stl_volume_mm3": 8565.348416468247,
+        "model_extrusion_volume_mm3": 7534.091501804011,
+        "stl_volume_mm3": 8608.230515654983,
         "extrusion_volume_by_feature_mm3": {
-          "Inner wall": 3021.310907505006,
-          "Outer wall": 2230.2880699998977,
+          "Inner wall": 3058.0544023316043,
+          "Outer wall": 2239.819913438309,
           "Bottom surface": 89.37755652151868,
-          "Gap infill": 766.1677850870655,
-          "Internal solid infill": 933.814897531552,
-          "Top surface": 154.06073345436494,
+          "Gap infill": 762.0181206371612,
+          "Internal solid infill": 933.7401894765072,
+          "Top surface": 154.2989044656675,
           "Sparse infill": 135.19795977260915,
           "Floating vertical shell": 15.323762194378208,
           "Bridge": 146.26069296625184
@@ -238,18 +238,18 @@
         "layers": 125,
         "components_checked": 125,
         "missing_entire_components": [],
-        "model_extrusion_volume_mm3": 3636.032115691127,
-        "stl_volume_mm3": 4002.2336793994327,
+        "model_extrusion_volume_mm3": 3678.349875316797,
+        "stl_volume_mm3": 4045.1158099562344,
         "extrusion_volume_by_feature_mm3": {
-          "Inner wall": 1435.3539314788775,
-          "Outer wall": 949.5879904330963,
+          "Inner wall": 1472.0908117803217,
+          "Outer wall": 959.1184388080053,
           "Bottom surface": 46.54254102854329,
-          "Internal solid infill": 718.0757855272028,
-          "Sparse infill": 17.113436226591798,
+          "Internal solid infill": 718.0084857403348,
+          "Sparse infill": 17.1134362265918,
           "Floating vertical shell": 4.078828898673757,
           "Bridge": 78.22948392693698,
-          "Top surface": 68.81788052948463,
-          "Gap infill": 318.23223764172377
+          "Top surface": 69.09403094159985,
+          "Gap infill": 314.07381796579216
         }
       }
     ]

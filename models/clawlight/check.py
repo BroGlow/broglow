@@ -361,7 +361,7 @@ def pcb_guide_checks(parts,report):
     clear(m.box(left+m.PCB_CORNER_LENGTH,right-m.PCB_CORNER_LENGTH,
                 m.WALL+.01,corner_end,m.PCB_TOP+m.PCB_TOP_CLEARANCE,
                 m.PCB_TOP+m.PCB_TOP_HEIGHT),shell,'Central 13 mm component opening is blocked')
-    # These probes lie beyond the recessed side roofs, so the side rails
+    # These probes lie beyond the side roofs, so the side rails
     # alone cannot satisfy the corner-retention assertions.
     corner_patches=[]
     for mirrored in (False,True):
@@ -408,6 +408,12 @@ def pcb_guide_checks(parts,report):
                  m.PCB_TOP,m.PCB_TOP+m.PCB_TOP_HEIGHT)
     assert abs(overlap(center,top)-center.volume)<1e-5, 'Central top-component envelope was reduced'
 
+    # The bare PCB can move +/-0.6 mm, but wider roofs require centered
+    # insertion: the unchanged top envelope starts 0.5 mm in from each edge.
+    # Keep 0.05 mm between that envelope and the lips; do not shrink hardware
+    # proxies or claim that the whole assembly clears the full bare-board float.
+    insertion_side_play=min(m.PCB_SIDE_CLEARANCE,.5-m.PCB_RAIL_UPPER_OVERLAP-.05)
+    assert insertion_side_play>=.15-1e-8
     # Sweep the actual axis-aligned envelopes, including their corner reliefs.
     # On each +Y ray, the initial solid plus its outward rear faces swept
     # forward is the complete translation volume; no bounding-box substitution.
@@ -419,7 +425,7 @@ def pcb_guide_checks(parts,report):
                    for f in shape.faces()), 'PCB insertion envelope must have axis-aligned planar faces: '+name
         rear_faces=[f for f in shape.faces() if f.normal_at().Y>1-1e-6]
         assert rear_faces, 'Insertion envelope has no rear boundary: '+name
-        for dx,dz in itertools.product((-m.PCB_SIDE_CLEARANCE,m.PCB_SIDE_CLEARANCE),
+        for dx,dz in itertools.product((-insertion_side_play,0,insertion_side_play),
                                        (0,m.PCB_TOP_CLEARANCE)):
             offset=(dx,-m.PCB_END_CLEARANCE,dz)
             clear(shape.translate(offset),shell,'Fully seated insertion pose / '+name)
@@ -445,14 +451,15 @@ def pcb_guide_checks(parts,report):
 
     lower_capture=m.PCB_RAIL_LOWER_OVERLAP-m.PCB_SIDE_CLEARANCE
     assert lower_capture>=.2-1e-8
-    # The old printed 17.5 mm throat blocked an 18 mm board. Upper side tips
-    # must now sit outside its outline; corner lips provide vertical capture.
+    # Retain the printed sliding clearance beneath wider upper lips. The
+    # narrower opening ABOVE the board is intentional: it now stops lifting.
     throat_width=m.PCB_WIDTH-2*m.PCB_RAIL_UPPER_OVERLAP
-    assert throat_width>=18.4-1e-8
+    assert abs(m.PCB_RAIL_UPPER_OVERLAP-.3)<1e-8
+    assert abs(throat_width-17.4)<1e-8
     assert m.PCB_WIDTH+2*m.PCB_SIDE_CLEARANCE>=19.2-1e-8
     assert m.PCB_THICKNESS+m.PCB_TOP_CLEARANCE>=1.1-1e-8
-    clear(m.box(left-.2,right+.2,corner_end+.1,m.REAR,
-                m.PCB_TOP+m.PCB_TOP_CLEARANCE,m.PCB_RAIL_TOP),shell,'PCB throat is narrower than 18.4 mm')
+    clear(m.box(left-m.PCB_SIDE_CLEARANCE,right+m.PCB_SIDE_CLEARANCE,corner_end+.1,m.REAR,
+                m.PCB_BOTTOM,m.PCB_TOP+m.PCB_TOP_CLEARANCE),shell,'Proven 19.2 x 1.1 mm sliding channel was narrowed')
     for side in (-1,1):
         # Check real bearing lands at maximum lateral PCB travel behind the lead-in.
         def band(inset0,inset1,y0,y1,z0,z1):
@@ -462,9 +469,22 @@ def pcb_guide_checks(parts,report):
         land=band(m.PCB_SIDE_CLEARANCE+.01,m.PCB_RAIL_LOWER_OVERLAP-.01,
                   corner_end+.1,m.REAR-m.PCB_RAIL_ENTRY_CHAMFER-.1,m.PCB_BOTTOM-.1,m.PCB_BOTTOM)
         assert abs(overlap(land,shell)-land.volume)<1e-5, 'PCB lower bearing is missing or chamfered away'
+        upper_land=band(insertion_side_play+.01,m.PCB_RAIL_UPPER_OVERLAP-.01,
+                        corner_end+.1,m.REAR-m.PCB_RAIL_ENTRY_CHAMFER-.1,
+                        m.PCB_TOP+m.PCB_TOP_CLEARANCE,m.PCB_TOP+m.PCB_TOP_CLEARANCE+.1)
+        assert abs(overlap(upper_land,shell)-upper_land.volume)<1e-5, 'Upper rail does not capture the centered PCB edge'
+        # Probe well behind the far-corner holders so they cannot hide missing rails.
+        edge=band(0,.4,corner_end+2,m.REAR-1,m.PCB_BOTTOM,m.PCB_TOP)
+        for dx in (-insertion_side_play,0,insertion_side_play):
+            clear(edge.translate((dx,0,0)),shell,'PCB edge is pinched by the new upper rail')
+            assert overlap(edge.translate((dx,0,m.PCB_TOP_CLEARANCE+.1)),shell)>1e-5, 'PCB edge lifts past its upper rail'
+            # Raising USB-C pivots the board about its far edge. Use only the
+            # long edge strip so the far-corner holders cannot satisfy this check.
+            tilted=edge.translate((dx,0,0)).rotate(Axis((m.TOWER_X,m.PCB_FRONT,m.PCB_TOP),(1,0,0)),2)
+            assert overlap(tilted,shell)>1e-5, 'USB-end tilt escapes the upper rail'
         # The mouth opens both slot lips and returns to full lands behind the bevel.
         for inset0,inset1,z0,z1 in ((.15,.2,m.PCB_BOTTOM-.05,m.PCB_BOTTOM-.025),
-                      (-.4,-.35,m.PCB_TOP+m.PCB_TOP_CLEARANCE+.025,m.PCB_TOP+m.PCB_TOP_CLEARANCE+.05)):
+                      (.15,.2,m.PCB_TOP+m.PCB_TOP_CLEARANCE+.025,m.PCB_TOP+m.PCB_TOP_CLEARANCE+.05)):
             clear(band(inset0,inset1,m.REAR-.05,m.REAR-.025,z0,z1),shell,'PCB slot entry chamfer missing')
             behind=band(inset0,inset1,m.REAR-m.PCB_RAIL_ENTRY_CHAMFER-.1,
                         m.REAR-m.PCB_RAIL_ENTRY_CHAMFER-.05,z0,z1)
@@ -481,7 +501,11 @@ def pcb_guide_checks(parts,report):
         'slot_height_mm':m.PCB_THICKNESS+m.PCB_TOP_CLEARANCE,
         'upper_throat_width_mm':throat_width,
         'channel_width_mm':m.PCB_WIDTH+2*m.PCB_SIDE_CLEARANCE,
-        'vertical_retention':'Far-end corner lips; rear cover locates USB after centering the loose PCB',
+        'upper_edge_overlap_mm':m.PCB_RAIL_UPPER_OVERLAP,
+        'component_safe_insertion_side_play_mm':insertion_side_play,
+        'minimum_upper_capture_with_centered_insertion_mm':m.PCB_RAIL_UPPER_OVERLAP-insertion_side_play,
+        'usb_end_upward_tilt_blocked_at_degrees':2,
+        'vertical_retention':'Both upper rails catch centered PCB edges; rear cover locates USB. Full +/-0.6 mm bare-board float is not component-safe with the wider lips',
         'wall_haunch_angle_degrees':45,
         'added_triangle_probe_volume_per_side_mm3':triangle.volume,
         'positive_wall_bridge_probe_volume_per_side_mm3':wall_bridge.volume,
@@ -496,10 +520,10 @@ def pcb_guide_checks(parts,report):
         'rear_entry_chamfer_mm':m.PCB_RAIL_ENTRY_CHAMFER,
         'endplay_mm':[-m.PCB_END_CLEARANCE,m.PCB_END_CLEARANCE],
         'continuous_hardware_sweeps':sweeps,'swept_rear_faces':swept_faces,'insertion_translation_y_mm':[-m.PCB_END_CLEARANCE,30],
-        'physical_fit':'Widened trial is unprinted. Previous coupon opening measured 17.5 mm and rejected the 18 mm PCB. The same two 2.7 x 1.0 mm bare corner patches and other component/solder envelopes remain provisional',
+        'physical_fit':'User printed the wide coupon: slides in, but pushing USB-C upward easily tilts the board out. This trial extends each upper rail inward by 0.5 mm to a 0.3 mm nominal overlap; retention is unprinted. Channel and slot sizes are retained. Centered insertion and unchanged component/solder assumptions require a physical check',
     }
-    report['checks'].append('Flat 2 mm floor, 45-degree wall braces, 18.4 mm upper throat, 19.2 mm channel, 1.1 mm slot, lower bearing and two 2 mm far-corner retaining lips verified')
-    report['checks'].append('All PCB/component/USB envelopes clear the continuous rear insertion sweep at every lateral/vertical float extreme; seated endplay clears the closed cover and motion beyond guide clearances meets physical stops')
+    report['checks'].append('Flat 2 mm floor, 45-degree wall braces, 0.3 mm upper edge overlaps, unchanged 19.2 x 1.1 mm sliding channel and independent lift / 2-degree USB-end tilt stops on both rails verified')
+    report['checks'].append('All PCB/component/USB envelopes clear centered rear insertion at X=0 and +/-0.15 mm, across vertical slot play; seated endplay clears the closed cover. Full +/-0.6 mm bare-board side play is not a component-clearance claim')
 
 
 def compact_led_checks(parts,report):
@@ -666,7 +690,7 @@ def main(check_mesh=True):
     p=m.parts()
     printable=m.print_parts()
     coupons=m.coupon_parts()
-    report={'status':'passed','hardware_fit':'The compact body, high LED stack, a separate keyed LED retainer, recessed collars, integral PCB guides and lowered USB opening are unprinted. Measured hardware and previously fitted LED/screw diameters are retained; component/solder envelopes remain provisional, including two assumed bare 2.7 x 1.0 mm top corner patches. Physical assembly, retention strength and USB projection require checking on this revision.',
+    report={'status':'passed','hardware_fit':'Wide-coupon PCB insertion passed physically, but pushing USB-C upward tilted the board out. This revision adds upper-rail capture; its retention, full compact assembly, separate keyed LED retainer and recessed collars remain unprinted. Measured hardware and previously fitted LED/screw diameters are retained; component/solder envelopes remain provisional, including two assumed bare 2.7 x 1.0 mm top corner patches. Physical assembly, retention strength and USB projection require checking on this revision.',
             'mesh':{},'checks':[]}
     for n,s in p.items():
         assert s.is_valid and len(s.solids())==1 and s.volume>0,n
@@ -758,7 +782,7 @@ def main(check_mesh=True):
         'assumed_exposed_metal_ahead_of_plastic_mm':m.USB_CABLE_BODY_START-m.USB_REAR,
         'flat_cover_skin_mm':m.COVER_INNER_SKIN,
         'cover_pcb_stop_backing_mm':m.DEPTH-m.PCB_REAR_STOP_FRONT,
-        'physical_fit':'Compact base, integral guides and lowered USB opening are unprinted. Earlier axial USB recess has not been remeasured on this geometry. Cable plastic remains unmeasured.',
+        'physical_fit':'Wide-coupon PCB insertion passed; this extended-rail revision is unprinted. The unchanged USB opening and earlier axial USB recess have not been remeasured on this geometry. Cable plastic remains unmeasured.',
     }
     report['checks'].append('Lead, 2.5 x 7 mm resistor, wire, USB cable and screwdriver access envelopes clear')
     for x in (-22.5,-12.5,12.5,22.5):

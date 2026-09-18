@@ -4,7 +4,7 @@
   "purpose": "Web/AR visualization of the enclosure release candidate",
   "source_sha256": {
     "models/clawlight/appearance.py": "35a322dd67afb97128ba77fce64ae4924014c6dc7ab9eb1042a087ca6a58f8c1",
-    "models/clawlight/clawlight.py": "3f0eb2d309991d96ce2abf8633bf865f041309a14c185c2cc92193d584f64414",
+    "models/clawlight/clawlight.py": "fa69720d60f00d582f34300911fe63714f90b56bdcecd5b681109f7cc9fcf3bd",
     "models/clawlight/hand_joint.py": "cb168d45d19aab02831e8b09810c45c4cf6b45f363a1bbf7780f2de33d441132",
     "models/clawlight/requirements.txt": "0ece12144722aa492efb3c7ffe78629cebd7345f4f9caa9fb19aa73ef983bd73"
   },
@@ -57,5 +57,5 @@
   "triangles": 12102,
   "materials": 7,
   "bytes": 434552,
-  "glb_sha256": "b7cee25bb5a8644ae390a8174a91f4635ac174ee15a1186f8ec6784d160409b2"
+  "glb_sha256": "e1097394c58d14c2e94a16b0708037f2d53b1aacd9a66648dd02aa3c0a10ef38"
 }

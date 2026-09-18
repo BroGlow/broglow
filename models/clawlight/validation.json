@@ -1,6 +1,6 @@
 {
   "status": "passed",
-  "hardware_fit": "The compact body, high LED stack, a separate keyed LED retainer, recessed collars, integral PCB guides and lowered USB opening are unprinted. Measured hardware and previously fitted LED/screw diameters are retained; component/solder envelopes remain provisional, including two assumed bare 2.7 x 1.0 mm top corner patches. Physical assembly, retention strength and USB projection require checking on this revision.",
+  "hardware_fit": "Wide-coupon PCB insertion passed physically, but pushing USB-C upward tilted the board out. This revision adds upper-rail capture; its retention, full compact assembly, separate keyed LED retainer and recessed collars remain unprinted. Measured hardware and previously fitted LED/screw diameters are retained; component/solder envelopes remain provisional, including two assumed bare 2.7 x 1.0 mm top corner patches. Physical assembly, retention strength and USB projection require checking on this revision.",
   "mesh": {
     "01_mascot_orange": {
       "watertight": true,
@@ -71,7 +71,7 @@
         14.0,
         25.0
       ],
-      "bed_z_mm": 1.270556832419739e-15,
+      "bed_z_mm": 1.3309705044705863e-15,
       "quantity": 1
     },
     "02_USB_cover_coupon": {
@@ -100,8 +100,8 @@
     "Rear socket gusset has a continuous solid support strip from the wall; its local front-down faces have at most 45-degree overhangs",
     "Both formerly open shoulders contain continuous 2 mm reinforced strips from the front wall to the rear seam",
     "Cover has a continuous 1 mm skin and solid PCB stops; modeled USB stays flush to 0.5 mm proud across endplay (physical axial discrepancy unresolved); above-bed downward faces meet the 45-degree limit",
-    "Flat 2 mm floor, 45-degree wall braces, 18.4 mm upper throat, 19.2 mm channel, 1.1 mm slot, lower bearing and two 2 mm far-corner retaining lips verified",
-    "All PCB/component/USB envelopes clear the continuous rear insertion sweep at every lateral/vertical float extreme; seated endplay clears the closed cover and motion beyond guide clearances meets physical stops",
+    "Flat 2 mm floor, 45-degree wall braces, 0.3 mm upper edge overlaps, unchanged 19.2 x 1.1 mm sliding channel and independent lift / 2-degree USB-end tilt stops on both rails verified",
+    "All PCB/component/USB envelopes clear centered rear insertion at X=0 and +/-0.15 mm, across vertical slot play; seated endplay clears the closed cover. Full +/-0.6 mm bare-board side play is not a component-clearance claim",
     "Measured 8.5 mm total LED length includes the flange; flat front collar rings and short retainer pads limit protrusion to 3.25\u20133.5 mm across LED radial travel",
     "One lower screw prevents release while the rigid roof key blocks pull and rotation; roof skin, printable pocket ramp, hand-haunch clearance and continuous drop-then-rearward service motion including lead envelopes verified",
     "Rear cover has no LED fingers; both cover and separate retainer print rear-face down without above-bed overhangs exceeding 45 degrees",
@@ -205,11 +205,15 @@
     "side_clearance_mm": 0.6,
     "top_clearance_mm": 0.4,
     "slot_height_mm": 1.1,
-    "upper_throat_width_mm": 18.4,
+    "upper_throat_width_mm": 17.4,
     "channel_width_mm": 19.2,
-    "vertical_retention": "Far-end corner lips; rear cover locates USB after centering the loose PCB",
+    "upper_edge_overlap_mm": 0.3,
+    "component_safe_insertion_side_play_mm": 0.15000000000000002,
+    "minimum_upper_capture_with_centered_insertion_mm": 0.14999999999999997,
+    "usb_end_upward_tilt_blocked_at_degrees": 2,
+    "vertical_retention": "Both upper rails catch centered PCB edges; rear cover locates USB. Full +/-0.6 mm bare-board float is not component-safe with the wider lips",
     "wall_haunch_angle_degrees": 45,
-    "added_triangle_probe_volume_per_side_mm3": 3.9097500000000234,
+    "added_triangle_probe_volume_per_side_mm3": 12.681625000000041,
     "positive_wall_bridge_probe_volume_per_side_mm3": 0.6015000000000081,
     "rear_seam_wall_bridge_probe_volume_per_side_mm3": 0.0030000000000000833,
     "far_corner_holder_count": 2,
@@ -228,13 +232,13 @@
       -0.25,
       0.25
     ],
-    "continuous_hardware_sweeps": 16,
-    "swept_rear_faces": 16,
+    "continuous_hardware_sweeps": 24,
+    "swept_rear_faces": 24,
     "insertion_translation_y_mm": [
       -0.25,
       30
     ],
-    "physical_fit": "Widened trial is unprinted. Previous coupon opening measured 17.5 mm and rejected the 18 mm PCB. The same two 2.7 x 1.0 mm bare corner patches and other component/solder envelopes remain provisional"
+    "physical_fit": "User printed the wide coupon: slides in, but pushing USB-C upward easily tilts the board out. This trial extends each upper rail inward by 0.5 mm to a 0.3 mm nominal overlap; retention is unprinted. Channel and slot sizes are retained. Centered insertion and unchanged component/solder assumptions require a physical check"
   },
   "compact_layout": {
     "mascot_body_width_height_depth_mm": [
@@ -349,6 +353,6 @@
     "assumed_exposed_metal_ahead_of_plastic_mm": 0.10000000000000142,
     "flat_cover_skin_mm": 1.0,
     "cover_pcb_stop_backing_mm": 1.0,
-    "physical_fit": "Compact base, integral guides and lowered USB opening are unprinted. Earlier axial USB recess has not been remeasured on this geometry. Cable plastic remains unmeasured."
+    "physical_fit": "Wide-coupon PCB insertion passed; this extended-rail revision is unprinted. The unchanged USB opening and earlier axial USB recess have not been remeasured on this geometry. Cable plastic remains unmeasured."
   }
 }

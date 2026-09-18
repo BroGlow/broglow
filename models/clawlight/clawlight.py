@@ -88,11 +88,11 @@ PCB_REAR = PCB_FRONT+PCB_LENGTH
 PCB_BOTTOM = 2.8
 PCB_TOP = PCB_BOTTOM+PCB_THICKNESS
 PCB_FLOOR_GAP = PCB_BOTTOM-BASE_FLOOR_THICKNESS
-PCB_SIDE_CLEARANCE = 0.60  # Trial: old printed opening measured 17.5 mm for an 18 mm PCB.
+PCB_SIDE_CLEARANCE = 0.60  # Printed wide coupon slides in; preserve its channel clearance.
 PCB_END_CLEARANCE = 0.25
 PCB_TOP_CLEARANCE = 0.40
 PCB_RAIL_LOWER_OVERLAP = 0.80  # Retain 0.2 mm bearing at maximum lateral float.
-PCB_RAIL_UPPER_OVERLAP = -0.20  # Signed: recessed tips open an 18.4 mm throat; corners retain the PCB.
+PCB_RAIL_UPPER_OVERLAP = 0.30  # Catch centered PCB edges; retain the proven 19.2 x 1.1 mm channel.
 PCB_RAIL_ROOF_THICKNESS = 1.0
 PCB_RAIL_TOP = PCB_TOP+PCB_TOP_CLEARANCE+PCB_RAIL_ROOF_THICKNESS
 PCB_RAIL_ENTRY_CHAMFER = 0.25
@@ -406,7 +406,7 @@ def led_retainer():
 
 
 def pcb_guides():
-    """Loose side channels with recessed roofs; far-end corners and cover locate the PCB."""
+    """Roomy channels with upper edge lips; slide the PCB centered, then locate USB with the cover."""
     left = TOWER_X-PCB_WIDTH/2
     wall = INNER_LEFT-BOOLEAN_OVERLAP
     tip = left+PCB_RAIL_UPPER_OVERLAP

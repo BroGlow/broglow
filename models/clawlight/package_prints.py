@@ -76,8 +76,9 @@ Main assembly: five unique STLs, six physical pieces including two eyes.
 The complete inventory is seven unique STLs, eight pieces including the two coupons.
 USB fit test: the two coupon parts, actual PCB/cable and two DIN 7982 ST2.2 x 6.5 screws.
 
-This revision widens the PCB guides after the 18 mm PCB failed in the printed 17.5 mm opening.
-Far-end corner lips retain the PCB; the unchanged cover locates USB. Reprint only tower 03; use the new USB
+The widened coupon now slides in successfully, but lifts too easily. This revision extends
+each upper rail inward by 0.50 mm for 0.30 mm overlap on the centered PCB.
+Upper side rails and far-end lips retain the centered PCB; the unchanged cover locates USB. Reprint only tower 03; use the new USB
 base coupon for a first fit test. Cover 04, flat LED retainer 05, mascot and eyes are unchanged.
 The LED retainer still uses a rigid upper tab in a roof pocket and one lower screw.
 The full assembly uses FOUR DIN 7982 ST2.2 x 6.5 screws: three cover, one retainer.
@@ -89,11 +90,12 @@ The 14 mm-high USB coupon checks only PCB/USB fit and the lower cover screws.
 It omits the LED retainer and upper pocket: test their fit with the full tower.
 Use the current matching coupon pair.
 The PCB slides straight from the open rear into loose guides, USB facing backward.
-Center USB in the unchanged cover before closing; do not force alignment with screws.
+Slide centered: component-safe sideways offset is +/-0.15 mm; full +/-0.60 mm bare-board
+travel may contact components. Center USB in the unchanged cover before closing; do not force alignment with screws.
 Each guide has 0.60 mm side clearance (19.20 mm channel), a 1.10 mm slot for the 0.70 mm PCB,
-a 0.80 mm lower bearing and upper tips recessed 0.20 mm (18.40 mm throat). Only the rear slot mouths
+a 0.80 mm lower bearing and upper lips overlapping 0.30 mm (17.40 mm opening above the PCB). Only the rear slot mouths
 are chamfered 0.25 mm; long edges 0.10 mm. Wall/floor roots remain continuous to the seam. Guides meet the flat 2 mm floor and front wall and
-stop at the cover seam. Their 45-degree top braces rise 0.8 mm at the side walls.
+stop at the cover seam. Their 45-degree top braces rise 1.3 mm at the side walls.
 Each far-end corner lip covers 2.0 mm across the PCB and reaches 0.60 mm over its end,
 leaving 14 mm open centrally. Lip entries have 0.15 mm chamfers and 45-degree wall braces.
 The model assumes bare 2.7 x 1.0 mm patches at both far corners; check the actual board.
@@ -158,8 +160,9 @@ coupons/02_USB_cover_coupon.stl
 Весь комплект: семь уникальных STL, восемь деталей вместе с двумя пробниками.
 USB-примерка: две детали пробника, настоящая плата/кабель и два DIN 7982 ST2.2 x 6,5.
 
-В этой версии посадка расширена: плата 18 мм не вошла в печатный проём 17,5 мм.
-Дальние уголки удерживают плату, неизменённая крышка позиционирует USB. Перепечатайте только башню 03;
+Расширенный пробник проверен: плата вставляется, но легко поднимается. В этой версии
+верхние полки продлены внутрь на 0,50 мм для перекрытия отцентрированной платы на 0,30 мм.
+Верхние полки и дальние уголки удерживают отцентрированную плату, неизменённая крышка позиционирует USB. Перепечатайте только башню 03;
 для первой примерки используйте новое основание USB-пробника. Крышка 04, плоский
 держатель LED 05, маскот и глаза не изменены. Держатель по-прежнему крепится
 жёстким верхним язычком в кармане крыши и одним нижним саморезом.
@@ -172,13 +175,14 @@ USB-пробник высотой 14 мм проверяет только пла
 Держателя LED и верхнего кармана в нём нет: проверяйте их на полной башне.
 Используйте текущую согласованную пару пробников.
 Плата вставляется прямо сзади в свободные направляющие, USB назад.
-Совместите USB с неизменённой крышкой перед закрытием; не выравнивайте затяжкой саморезов.
+Вставляйте по центру: безопасное смещение модели компонентов +/-0,15 мм; весь боковой ход
+голой платы +/-0,60 мм может задеть компоненты. Совместите USB с неизменённой крышкой перед закрытием; не выравнивайте затяжкой саморезов.
 Боковой зазор — по 0,60 мм (канал 19,20 мм); паз высотой 1,10 мм для платы 0,70 мм;
-нижняя опора заходит под край на 0,80 мм; верхние кромки отступают наружу на 0,20 мм (проём 18,40 мм).
+нижняя опора заходит под край на 0,80 мм; верхние полки перекрывают край на 0,30 мм (верхний проём 17,40 мм).
 Входные фаски 0,25 мм только на устьях пазов сзади, продольные 0,10 мм.
 Основания у стенок и дна непрерывны до стыка крышки. Направляющие соединены с плоским
 дном 2 мм и передней стенкой, заканчиваются у стыка крышки. Верхние укосы
-45 градусов поднимаются на 0,8 мм у боковых стенок. Каждый дальний уголок занимает
+45 градусов поднимаются на 1,3 мм у боковых стенок. Каждый дальний уголок занимает
 2,0 мм по ширине платы и заходит над её торцом на 0,60 мм; по центру свободны 14 мм.
 Уголки имеют входные фаски 0,15 мм и укосы к стенкам 45 градусов. Модель предполагает
 свободные участки 2,7 x 1,0 мм в обоих дальних углах; проверьте настоящую плату.
@@ -272,14 +276,16 @@ USB facing backward, until the far edge reaches the front stops. Close the cover
 without bending the board; its stops capture the PCB. Leave wiring slack for removal.
 Check insertion/removal, actual GPIO solder and edge-component clearance, lid closure,
 USB alignment and full cable seating. Do not force the PCB into the slots.
-The old printed opening measured 17.5 mm and rejected the 18 mm PCB. This widened trial is unprinted.
-The board may wiggle: center USB in the unchanged cover before closing. Lower screw bosses have
+The wide coupon was printed: insertion works, but the PCB lifts easily. Each upper rail
+now extends 0.50 mm farther inward for 0.30 mm edge overlap; new retention is unprinted.
+Slide centered under the lips: modeled components clear at +/-0.15 mm, not the full
++/-0.60 mm bare-PCB side play. Center USB in the unchanged cover before closing. Lower screw bosses have
 0.30 mm underside relief to Z=8.0 mm; minimum pilot wall is 1.55 mm.
 Guides: 0.60 mm side clearance each (19.20 mm channel), slot 1.10 mm for a 0.70 mm PCB,
-0.80 mm lower bearing, upper tips recessed 0.20 mm (18.40 mm throat), 0.25 mm slot-mouth entry chamfers
+0.80 mm lower bearing, upper lips overlapping 0.30 mm (17.40 mm opening above the PCB), 0.25 mm slot-mouth entry chamfers
 and 0.10 mm edge bevels; wall/floor roots remain continuous to the cover seam.
 Board bottom/top remain Z=2.8/3.5 mm. Guides meet the 2 mm floor and end at the cover seam.
-New 45-degree roof braces rise 0.8 mm at the side walls. Each far-end corner lip
+New 45-degree roof braces rise 1.3 mm at the side walls. Each far-end corner lip
 covers 2.0 mm across the PCB and reaches 0.60 mm over its end, with 0.15 mm entries;
 the middle 14 mm stays open. Check the assumed bare 2.7 x 1.0 mm patches at both corners.
 Use the new base coupon; its cover is unchanged.
@@ -310,14 +316,16 @@ A1 Mini / PETG Basic / сопло 0,4 мм / слой 0,2 мм; 3 стенки, 
 Оставьте запас провода для извлечения. Проверьте установку/извлечение,
 реальные GPIO-пайку и компоненты у краёв, закрытие крышки, совпадение USB
 и полную посадку кабеля. Не вдавливайте плату в пазы.
-Прежний печатный проём 17,5 мм не принял плату 18 мм. Расширенная посадка ещё не напечатана.
-Люфт платы допустим: совместите USB с неизменённой крышкой перед закрытием. Снизу нижних стоек
+Расширенный пробник проверен: плата вставляется, но легко поднимается. Верхние полки
+продлены внутрь на 0,50 мм для перекрытия края на 0,30 мм; новое удержание ещё не напечатано.
+Вставляйте по центру: модель компонентов проходит при +/-0,15 мм, но не на всём
+боковом ходе голой платы +/-0,60 мм. Совместите USB с неизменённой крышкой перед закрытием. Снизу нижних стоек
 снято 0,30 мм до Z=8,0 мм; минимальная стенка пилота 1,55 мм.
 Направляющие: боковой зазор по 0,60 мм (канал 19,20 мм), паз 1,10 мм для платы 0,70 мм,
-нижняя опора 0,80 мм, верхние кромки отступают наружу на 0,20 мм (проём 18,40 мм), входные фаски 0,25 мм только
+нижняя опора 0,80 мм, верхние полки перекрывают край на 0,30 мм (верхний проём 17,40 мм), входные фаски 0,25 мм только
 на устьях пазов, продольные 0,10 мм; основания у стенок и дна непрерывны до стыка крышки.
 Низ/верх платы сохранены на Z=2,8/3,5 мм; направляющие соединены с дном 2 мм и заканчиваются у стыка крышки.
-Новые верхние укосы 45 градусов поднимаются на 0,8 мм у боковых стенок. Каждый дальний
+Новые верхние укосы 45 градусов поднимаются на 1,3 мм у боковых стенок. Каждый дальний
 уголок занимает 2,0 мм по ширине и заходит над торцом платы на 0,60 мм, с фасками 0,15 мм;
 по центру свободны 14 мм. Проверьте предполагаемые свободные участки 2,7 x 1,0 мм
 в обоих дальних углах. Используйте новое основание пробника; его крышка не изменена.
