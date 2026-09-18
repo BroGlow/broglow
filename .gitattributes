@@ -2,3 +2,10 @@
 /models/**/*.step binary
 /models/**/*.stl binary
 /models/clawlight/preview/dimensions.svg binary
+
+# Source archives include the app, firmware and release-candidate enclosure.
+# Retired reference directories and historical handoffs stay out of archives;
+# these exclusions do not change old Git history.
+/references export-ignore
+/docs/ble-implementation-handoff.md export-ignore
+/docs/start-ble-implementation.md export-ignore

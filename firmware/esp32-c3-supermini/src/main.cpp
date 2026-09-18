@@ -572,9 +572,6 @@ void loop() {
       } else if (!overflow && used == 4 && std::memcmp(line, "PAIR", 4) == 0) {
         openPairing();
         reportIdentity();
-      } else if (used >= 4 && std::memcmp(line, "OTA:", 4) == 0) {
-        // ponytail: no serial OTA in this replacement; reflash with PlatformIO.
-        Serial.print("E\n");
       }
       used = 0;
       overflow = false;

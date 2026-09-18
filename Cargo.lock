@@ -552,14 +552,13 @@ checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
 
 [[package]]
 name = "clawlight"
-version = "0.13.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
  "btleplug",
  "chrono",
  "clap",
- "crc32fast",
  "crossterm",
  "dirs 5.0.1",
  "fs4",

@@ -5,14 +5,21 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
 import numpy as np
-from clawlight import parts, electronics, OUT
+from clawlight import (
+    DEPTH, LED_PITCH, LED_Z, MASCOT_SCALE, OUT, TOWER_HEIGHT,
+    UPRIGHT_LEFT, UPRIGHT_RIGHT, WALL, electronics, parts,
+)
 
 
 def main():
     fig,ax=plt.subplots(figsize=(11,9),dpi=160)
     fig.patch.set_facecolor('#f5f3ed'); ax.set_facecolor('#f5f3ed')
+    printed=parts()
+    boxes=[s.bounding_box() for s in printed.values()]
+    xmin,xmax=min(b.min.X for b in boxes),max(b.max.X for b in boxes)
+    mascot_height=55*MASCOT_SCALE
     faces=[]
-    for n,s in (parts() | electronics()).items():
+    for n,s in (printed | electronics()).items():
         v,t=s.tessellate(.05,.1)
         v=np.array([tuple(p) for p in v]); t=np.array(t)
         color='#ee7b16' if n.startswith('01') else '#30343a'
@@ -34,16 +41,18 @@ def main():
         ax.annotate('',(x,z0),(x,z1),arrowprops={'arrowstyle':'<->','color':'#313944','lw':1})
         ax.text(x+1.5,(z0+z1)/2,label,ha='left',va='center',fontsize=11,color='#313944',rotation=90)
 
-    horizontal(-30,63,-10,'93 overall width',0)
-    horizontal(-25,25,61,'50 body',55)
-    horizontal(40,58,83,'18 upright',76)
-    vertical(0,76,72,'76 overall height',63)
-    vertical(0,55,-37,'55 mascot height',-25)
-    vertical(44,56,64,'12 pitch',58)
-    ax.set(xlim=(-46,82),ylim=(-19,91),aspect='equal'); ax.axis('off')
-    fig.suptitle('CLAW LIGHT  /  DIMENSIONS IN mm',x=.07,y=.97,ha='left',fontsize=18,fontweight='bold')
-    fig.text(.07,.925,'Front projection · 40 enclosure depth · 2.4 nominal shell wall · four 5 mm feet',fontsize=10,color='#4d5963')
-    fig.text(.07,.035,'LEDs shown: provisional Ø5 packages. Verify actual parts and the fit coupon before printing the enclosure.',fontsize=9,color='#4d5963')
+    horizontal(xmin,xmax,-8,f'{xmax-xmin:g} — общая ширина',0)
+    horizontal(-25*MASCOT_SCALE,25*MASCOT_SCALE,mascot_height+5,
+               f'{50*MASCOT_SCALE:g} — корпус',mascot_height)
+    horizontal(UPRIGHT_LEFT,UPRIGHT_RIGHT,TOWER_HEIGHT+6,
+               f'{UPRIGHT_RIGHT-UPRIGHT_LEFT:g} — стойка',TOWER_HEIGHT)
+    vertical(0,TOWER_HEIGHT,xmax+8,f'{TOWER_HEIGHT:g} — высота',xmax)
+    vertical(0,mascot_height,xmin-7,f'{mascot_height:g} — маскот',-25*MASCOT_SCALE)
+    vertical(LED_Z[0],LED_Z[1],xmax+2,f'{LED_PITCH:g} — шаг',UPRIGHT_RIGHT)
+    ax.set(xlim=(xmin-16,xmax+19),ylim=(-17,TOWER_HEIGHT+14),aspect='equal'); ax.axis('off')
+    fig.suptitle('CLAW LIGHT  /  РАЗМЕРЫ В мм',x=.07,y=.97,ha='left',fontsize=18,fontweight='bold')
+    fig.text(.07,.925,f'Вид спереди · глубина корпуса {DEPTH:g} · базовая стенка {WALL:g} · четыре ножки по {5*MASCOT_SCALE:g}',fontsize=10,color='#4d5963')
+    fig.text(.07,.035,'Измеренные LED: корпус Ø4,75 / фланец Ø5,4. Посадка Ø5,1 проверена купоном; новая сборка требует примерки.',fontsize=9,color='#4d5963')
     fig.subplots_adjust(left=.04,right=.96,bottom=.06,top=.9)
     fig.savefig(OUT/'preview'/'dimensions.png',facecolor=fig.get_facecolor())
     fig.savefig(OUT/'preview'/'dimensions.svg',facecolor=fig.get_facecolor())

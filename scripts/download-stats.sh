@@ -1,25 +1,13 @@
 #!/usr/bin/env bash
 #
-# Report GitHub release-asset download counts for clawlight-cli — the closest
-# passive, no-telemetry signal we have for "how many installs."
-#
-# WHAT THIS MEASURES (and what it doesn't):
-#   Every `brew install clawlight`, `cargo-binstall`, or manual download pulls a
-#   release archive (.tar.gz / .zip), and GitHub reports a `download_count` per
-#   asset. That is a *proxy* for installs, not a headcount:
-#     • There is NO uninstall signal — GitHub can't see removals, so `brew
-#       uninstall` is invisible. Downloads only ever go up.
-#     • It overcounts: CI, mirrors, curious clickers, and re-downloads on upgrade
-#       all increment the same counter.
-#     • It undercounts: `cargo install clawlight` compiles from source (crates.io)
-#       and never touches a GitHub asset, so those installs don't show up here.
-#   Treat the number as a trend line, not a census.
+# Report release-asset download counts for an explicitly selected repository.
+# Downloads are a rough trend, not unique installs: retries and CI count too;
+# source builds and uninstalls are invisible.
 #
 # USAGE:
-#   scripts/download-stats.sh              # per-release totals, newest first
-#   scripts/download-stats.sh --by-asset   # totals per platform asset (all releases)
-#   scripts/download-stats.sh --total      # just the grand total
-#   REPO=owner/name scripts/download-stats.sh
+#   REPO=owner/name scripts/download-stats.sh              # per-release totals
+#   REPO=owner/name scripts/download-stats.sh --by-asset    # totals per asset
+#   REPO=owner/name scripts/download-stats.sh --total       # grand total
 #
 # REQUIRES: the GitHub CLI (`gh`), authenticated (`gh auth login`). We use
 # `gh api --jq`, whose embedded jq means no external `jq` install is needed.
@@ -27,7 +15,7 @@
 
 set -euo pipefail
 
-REPO="${REPO:-clawlight/clawlight-cli}"
+: "${REPO:?Set REPO=OWNER/REPOSITORY for this project}"
 MODE="${1:-per-release}"
 
 if ! command -v gh >/dev/null 2>&1; then

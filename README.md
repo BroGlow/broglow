@@ -1,216 +1,91 @@
-# clawlight
+# ClawLight
 
-<img width="1164" height="655" alt="claw-light-gif" src="https://github.com/user-attachments/assets/3e148527-169f-4f36-b2cd-0bcc3160527b" />
+A local coding-session monitor with a menu-bar app, terminal dashboard and optional
+ESP32-C3 status lamp. It integrates Claude Code, opencode, Codex and GitHub Copilot
+CLI. The lamp shows working, idle and needs-input states over USB or Bluetooth LE.
 
-**The simple way to manage your Claude Code, opencode, Codex, and Copilot
-sessions.**
+This is our independent project. Its firmware and release process follow our own
+requirements; source attribution is preserved separately. We are preparing **1.0.0**.
 
-clawlight is a TUI dashboard and menu bar / system tray indicator for
-monitoring [Claude Code](https://claude.ai/code), [opencode](https://opencode.ai),
-[Codex CLI](https://github.com/openai/codex), and
-[GitHub Copilot CLI](https://github.com/github/copilot-cli) sessions in real
-time, all in the same dashboard.
+## Start here
 
-This checkout also includes the ESP32-C3 SuperMini BLE traffic light firmware,
-enclosure models, and reference assets. Start with the complete
-[hardware setup and operating guide](docs/hardware-setup.md) for wiring,
-builds, flashing, USB-assisted Bluetooth pairing, multiple lamps, Mac service installation, and verification
-results. Upstream release binaries below do not include this local BLE extension.
-The desktop **Lamps** view can add a lamp over USB, save names such as Home/Office,
-identify a connected lamp, and set brightness separately for each lamp.
+- **Install or update:** [setup manual](docs/hardware-setup.md#install-or-update-the-mac-service).
+- **Connect a flashed lamp:** [USB-assisted setup](docs/hardware-setup.md#usb-assisted-setup).
+- **Build/wire a C3:** [hardware guide](docs/hardware-setup.md#wiring-and-resistor-choice).
+- **Publish a release or website:** [maintainer runbook](docs/releasing.md) in the source repository.
 
-For this BLE version: [install a ready package](docs/hardware-setup.md#install-a-prebuilt-package),
-[build from source](docs/hardware-setup.md#build-from-source), or
-[ask an agent to install/connect it](docs/hardware-setup.md#agent-runbook).
-To find the existing tray icon or check the running service, use
-[menu bar and service validation](docs/hardware-setup.md#menu-bar-icon-and-service-validation).
+The release workflow builds complete Mac packages for Apple Silicon and Intel:
+app executable, C3 firmware, manuals, licenses and checksums. Windows archives
+are labeled **CLI-only**. BLE lamp control is macOS-only. Linux users build from
+source. Local runtime validation has used Apple Silicon; other machines need
+separate acceptance checks. See [verified behavior and limits](docs/hardware-setup.md#repeatable-checks-and-results).
 
-## Works with
-
-One `clawlight install` sets up every coding agent it detects. Each adapter is
-detection-gated: clawlight only wires up an agent it finds installed, and
-`clawlight uninstall` cleanly reverses all of it.
-
-| Agent | Setup (automatic via `clawlight install`) | Badge | Notes |
-|---|---|---|---|
-| [Claude Code](https://claude.ai/code) | hooks in `~/.claude/settings.json` | *(none, the default)* | just works |
-| [opencode](https://opencode.ai) | plugin written to `~/.config/opencode/plugins/` | `oc` | restart running sessions after install |
-| [Codex CLI](https://github.com/openai/codex) | hooks in `$CODEX_HOME/hooks.json` | `cx` | needs Codex >= 0.144; review hooks via `/hooks`; [local desktop-task setup](docs/hardware-setup.md#connect-local-codex-sessions) |
-| [GitHub Copilot CLI](https://github.com/github/copilot-cli) | owned file at `~/.copilot/hooks/clawlight.json` | `co` | sessions appear on first prompt; restart sessions open during install |
-
-<p align="center">
-  <img src="docs/screenshots/opencode-tui.png" width="800" alt="clawlight TUI dashboard showing a mixed Claude Code + opencode session list, with the oc badge marking opencode sessions" />
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/opencode-popover.png" width="280" alt="clawlight tray popover with an opencode session (oc badge) needing help" />
-</p>
-
-
-## Features
-
-- **TUI dashboard**: live view of every Claude Code, opencode, Codex CLI, and
-  GitHub Copilot CLI session with status (working, idle, needs help),
-  updating in real time via file watching
-- **Jump to session**: press `↵` in the TUI (or click a session in the
-  tray popover) and clawlight raises the exact terminal window or tab
-  hosting that session, whether it's a Terminal/iTerm tab, a tmux pane,
-  or an IDE's integrated terminal
-- **Menu bar / system tray icon**: a pixel-art Clawd that changes color
-  with aggregate session health; auto-starts at login (launchd on macOS,
-  a registry Run key on Windows, XDG autostart on Linux)
-- **Desktop notifications**: a native notification the moment a session
-  flips to "needs help," so permission prompts never sit unnoticed
-- **Auto-naming**: sessions are named from their first prompt using the
-  Claude CLI, so the list reads "fix flaky auth test," not a UUID
-- **ESP32 status light (optional)**: mirror the aggregate state to a
-  physical desk light over USB serial ([clawlight.dev](https://clawlight.dev))
-  or directly over BLE to the [ESP32-C3 SuperMini](docs/hardware-setup.md).
-  Plug it in before installing and it lights up automatically; otherwise
-  connect it any time from the tray popover's footer (or `l` in the TUI)
-
+The enclosure release candidate is ready for the **1.0.0** release. Its separate
+print package includes STL, STEP, source and the print guide; see
+[printing and assembly](models/clawlight/PRINT_GUIDE.md) in the source checkout.
+The app and wired C3 lamp can also be used without a printed case.
+C6 requires a firmware port and is [currently deferred](docs/hardware-setup.md#esp32-c6-status).
 
 ## Install
 
-### Homebrew
+Download the full Mac package for your architecture and its matching `.sha256`
+file from **this repository's Releases**. Follow the [checksum and installation
+steps](docs/hardware-setup.md#install-a-prebuilt-package). Builds are not Developer
+ID notarized; the manual describes macOS's normal per-app approval flow.
+
+To build the app from a source checkout instead:
 
 ```bash
-brew install clawlight/tap/clawlight
+cargo install --locked --path .
+"$HOME/.cargo/bin/clawlight" install
 ```
 
-### From GitHub Releases
+On Linux, install the system development libraries listed in
+`.github/workflows/ci.yaml` before compiling. On Windows, use the Rust MSVC
+toolchain and put the built executable on PATH, then run `clawlight install`.
+No board is flashed by app installation.
 
-Download a binary from [Releases](https://github.com/clawlight/clawlight-cli/releases)
-(replace `VERSION`, e.g. `0.9.0`):
+## Connect your coding agents
 
-```bash
-# Apple Silicon
-curl -L https://github.com/clawlight/clawlight-cli/releases/download/vVERSION/clawlight-vVERSION-aarch64-apple-darwin.tar.gz | tar xz
-sudo mv clawlight /usr/local/bin/
+Installation registers hooks only for detected agents; already-running sessions
+may need a restart.
 
-# Intel Mac
-curl -L https://github.com/clawlight/clawlight-cli/releases/download/vVERSION/clawlight-vVERSION-x86_64-apple-darwin.tar.gz | tar xz
-sudo mv clawlight /usr/local/bin/
+| Agent | Setup note |
+| --- | --- |
+| Claude Code | Hooks in `~/.claude/settings.json`. |
+| opencode | Installed plugin; restart running sessions. |
+| Codex | Codex >= 0.144; review hooks via `/hooks`. [Local desktop-task setup](docs/hardware-setup.md#connect-local-codex-sessions). |
+| GitHub Copilot CLI | Installed hooks; restart sessions open during installation. |
+
+Cloud tasks and ordinary ChatGPT conversations do not emit this Mac's local hooks.
+
+## Use it
+
+Click the menu-bar icon for sessions and **Lamps**. Add a lamp over USB, name it,
+set its brightness or forget it. A connected indication requires a recent
+acknowledged write. Several saved lamps are supported; an absent lamp does not
+block the others. Session **×** dismisses a row until new activity, keeping the
+conversation in its coding app.
+
+```text
+clawlight --version          Identify the installed release
+clawlight                    Open the terminal dashboard
+clawlight ble pair           Identify and remember a flashed C3 over USB
+clawlight ble status         Check current lamp delivery
+clawlight dashboard-button show   Enable optional dashboard shortcuts
+clawlight uninstall          Remove hooks, autostart and ClawLight settings
 ```
 
-### Windows
+The lamp's colors represent aggregate session state: needs input takes priority;
+Settings controls whether mixed working/idle sessions show yellow or green.
+The app starts at login after installation. The [manual](docs/hardware-setup.md)
+contains recovery, firmware upload, pairing and diagnostics.
 
-Download the `x86_64-pc-windows-msvc` archive from
-[Releases](https://github.com/clawlight/clawlight-cli/releases), extract
-`clawlight.exe`, and put it somewhere on your `PATH` (PowerShell):
+## License and provenance
 
-```powershell
-# From the folder containing the downloaded archive (replace VERSION):
-tar -xf clawlight-vVERSION-x86_64-pc-windows-msvc.tar.gz
-$dest = "$env:LOCALAPPDATA\Programs\clawlight"
-New-Item -ItemType Directory -Force $dest | Out-Null
-Move-Item clawlight.exe $dest -Force
-# Add $dest to your user PATH (one-time):
-[Environment]::SetEnvironmentVariable("Path", "$([Environment]::GetEnvironmentVariable('Path','User'));$dest", "User")
-```
-
-Open a new terminal afterward so the updated `PATH` takes effect.
-
-
-```bash
-git clone https://github.com/clawlight/clawlight-cli.git
-cd clawlight-cli
-cargo install --path .
-```
-
-## Quick Start
-
-```bash
-# Install hooks for Claude Code and every detected coding agent (opencode,
-# Codex, Copilot), then start the tray daemon
-clawlight install
-
-# Launch the TUI dashboard
-clawlight
-```
-
-`clawlight install` registers the built-in hook and menu bar icon.
-
-## Usage
-
-```
-clawlight                     Launch the TUI dashboard
-clawlight install             Install hooks and start the menu bar daemon
-clawlight uninstall           Remove hooks, unload the daemon, clean up
-clawlight menubar             Run the tray daemon in the foreground (debugging)
-clawlight led [--port PORT]   Mirror state to the ESP32 in the foreground (debugging)
-clawlight update <firmware>   Push new ESP32 firmware over serial, no cable reflash
-```
-
-Inside the dashboard:
-
-```
-↵:focus session   j/k:nav   r:reload   x:clear   l:toggle ESP32 LEDs   q/Esc:quit
-```
-
-`↵` raises the terminal window or tab that hosts the selected session.
-The hook backend records each session's hosting window (terminal
-emulator, IDE integrated terminal, or tmux pane) as it runs, so the jump
-lands on the right one.
-
-## Menu bar / system tray
-
-`clawlight install` sets up the tray daemon to start at login:
-
-- **macOS**: a launchd LaunchAgent. The plist lives at
-  `~/Library/LaunchAgents/io.roush.clawlight.menubar.plist`; logs are at
-  `~/.claude/clawlight/menubar.{log,err}`.
-- **Windows**: an `HKCU\…\CurrentVersion\Run` registry entry named
-  `clawlight`. The daemon runs without a console window in the system tray.
-- **Linux**: an XDG autostart entry at
-  `~/.config/autostart/clawlight.desktop`. Tray support depends on your
-  desktop's appindicator support; it works out of the box on most desktops
-  (KDE, XFCE, Cinnamon, etc.), though GNOME needs an extension such as
-  AppIndicator.
-
-The icon is a color-coded Clawd:
-
-| Icon   | Meaning                           |
-|--------|-----------------------------------|
-| Green  | All sessions actively working     |
-| Yellow | At least one session is idle      |
-| Red    | At least one session needs help   |
-| Gray   | No live sessions                  |
-
-On macOS and Windows, clicking the icon opens a popover with session
-counts, the list of live sessions (click one to jump to its terminal),
-a **Settings** view, and buttons to open the full TUI or quit. On Linux
-the tray uses the native menu.
-
-### Notifications
-
-When a session transitions to "needs help" (e.g. Claude is waiting on a
-permission prompt), clawlight fires a native desktop notification: macOS
-Notification Center, WinRT toast on Windows, freedesktop notifications on
-Linux.
-
-### Yellow-light behavior
-
-By default any idle session turns the aggregate light yellow, even while
-others are working. If you'd rather stay green while *anything* is active
-(yellow only when every session is idle), switch the mode in the tray
-popover's Settings view.
-
-## ClawLight (optional)
-
-A ready-made desk light is at [clawlight.dev](https://clawlight.dev).
-
-## Uninstall
-
-```bash
-clawlight uninstall
-```
-
-This removes the login autostart (launchd LaunchAgent on macOS, the `Run`
-registry entry on Windows, or the XDG autostart entry on Linux), clears
-the hook entries from `~/.claude/settings.json`, and deletes
-`~/.claude/clawlight`.
-
-## License
-
-MIT
+[MIT](LICENSE), including the retained copyright notice and source history from
+[clawlight/clawlight-cli](https://github.com/clawlight/clawlight-cli).
+Firmware dependencies retain their own notices in distributed packages.
+Project media use our own photos, screenshots, diagrams and renders. See the
+[photo checklist and media policy](docs/media.md). Removed upstream artwork is
+still present in old Git history; use the release runbook before publishing source.

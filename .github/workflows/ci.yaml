@@ -23,11 +23,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.14'
       - run: pip install platformio==6.1.19 clang-format==18.1.8
       - name: Firmware formatting (Google)
         run: clang-format --dry-run --Werror firmware/esp32-c3-supermini/src/*.cpp firmware/esp32-c3-supermini/tests/*.cpp
       - run: python firmware/esp32-c3-supermini/tests/check.py
+      - run: python tests/package_macos.py
+      - run: python assets/icons/render.py --check
       - run: pio run -d firmware/esp32-c3-supermini -e esp32-c3-supermini -e led-test
 
   fmt:

@@ -9,6 +9,15 @@ fn clawlight() -> Command {
 }
 
 #[test]
+fn version_identifies_the_release() {
+    clawlight()
+        .arg("--version")
+        .assert()
+        .success()
+        .stdout(concat!("clawlight ", env!("CARGO_PKG_VERSION"), "\n"));
+}
+
+#[test]
 fn help_lists_the_public_subcommands() {
     let assert = clawlight().arg("--help").assert().success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
@@ -20,10 +29,10 @@ fn help_lists_the_public_subcommands() {
         "dashboard-button",
         "led",
         "ble",
-        "update",
     ] {
         assert!(stdout.contains(subcommand), "--help mentions {subcommand}");
     }
+    assert!(!stdout.contains("\n  update"));
     // Internal backends stay hidden from users.
     for hidden in ["hook", "name"] {
         assert!(
@@ -523,7 +532,7 @@ fn brightness_settings_are_independent_and_save_offline_without_enabling() {
 
 #[cfg(target_os = "macos")]
 #[test]
-fn ble_selection_preserves_settings_and_blocks_c6_updates_without_radio() {
+fn ble_selection_preserves_settings_without_radio() {
     let home = tempfile::tempdir().unwrap();
     let dir = home.path().join(".claude/clawlight");
     std::fs::create_dir_all(&dir).unwrap();
@@ -552,19 +561,6 @@ fn ble_selection_preserves_settings_and_blocks_c6_updates_without_radio() {
         .assert()
         .failure();
     assert_eq!(std::fs::read(&path).unwrap(), selected);
-    let ota = clawlight()
-        .env("HOME", home.path())
-        .args(["update", "not-an-image"])
-        .assert()
-        .failure();
-    assert!(String::from_utf8_lossy(&ota.get_output().stderr).contains("PlatformIO"));
-    let flash = std::process::Command::new("bash")
-        .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/scripts/flash.sh"))
-        .env("HOME", home.path())
-        .output()
-        .unwrap();
-    assert!(!flash.status.success());
-    assert!(String::from_utf8_lossy(&flash.stderr).contains("PlatformIO"));
     clawlight()
         .env("HOME", home.path())
         .args(["ble", "off"])

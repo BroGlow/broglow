@@ -11,7 +11,7 @@ use crate::led;
 use crate::menubar;
 use crate::notification::send_notification;
 use crate::session::{load_all_sessions, DisplaySession};
-use crate::state::{self, read_hook_state, Status};
+use crate::state::{self, read_display_state, Status};
 use crate::ui;
 
 enum AppEvent {
@@ -40,7 +40,7 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let hook_state = read_hook_state();
+        let hook_state = read_display_state();
         let sessions = load_all_sessions(&hook_state);
         let previous_statuses: HashMap<String, Status> = sessions
             .iter()
@@ -146,7 +146,7 @@ impl App {
             )
         };
 
-        let state = read_hook_state();
+        let state = read_display_state();
         let session = state.sessions.get(&session_id);
         let path = (!project_path.is_empty()).then_some(project_path.as_str());
         if crate::terminal::focus(
@@ -162,7 +162,7 @@ impl App {
     }
 
     pub fn reload_data(&mut self) {
-        let hook_state = read_hook_state();
+        let hook_state = read_display_state();
         let sessions = load_all_sessions(&hook_state);
 
         // Check for needs_help transitions and notify

@@ -73,6 +73,44 @@ const lamp = (changes = {}) => ({
   ...changes,
 });
 
+test('sessions dismiss without focusing, show failures, and return on fresh host activity', () => {
+  const { context, element, click, commands } = popoverPage();
+  const sessions = ['active', 'inactive', 'needs_help'].map((status, i) => ({
+    id: 'session-' + i, name: 'Task <one> "quoted"', project: 'project', status,
+    lastUpdated: new Date().toISOString(), badge: 'cx',
+  }));
+  const refresh = sessions => context.window.__setState({ aggregate: 'red', sessions, settings: {}, lamp: lamp() });
+  refresh(sessions);
+  const html = element('groups').innerHTML;
+  assert.equal((html.match(/class="dismissbtn"/g) || []).length, 3);
+  assert.match(html, /type="button"[^>]*data-cmd="clear_session"/);
+  assert.match(html, /aria-label="Dismiss Task &lt;one&gt; &quot;quoted&quot; from ClawLight"/);
+  const dismiss = element('dismiss-session-1');
+  dismiss.dataset = { cmd: 'clear_session', id: 'session-1' };
+  dismiss.focus();
+  refresh(sessions);
+  assert.equal(context.document.activeElement, dismiss);
+  click(dismiss.id);
+  assert.deepEqual(commands('clear_session'), [{ cmd: 'clear_session', id: 'session-1' }]);
+  assert.equal(commands('focus').length, 0);
+  assert.equal(commands('hide').length, 0);
+  assert.match(element('groups').innerHTML, /dismiss-session-1/, 'Wait for the saved host state');
+  context.window.__configActionResult('Could not dismiss session: <locked>');
+  assert.equal(element('sessionerror').textContent, 'Could not dismiss session: <locked>');
+  assert.equal(element('sessionerror').innerHTML, '');
+  assert.equal(element('sessionerror').hidden, false);
+  click(dismiss.id);
+  assert.equal(element('sessionerror').hidden, true);
+  refresh(sessions.filter(s => s.id !== 'session-1'));
+  context.window.__configActionResult(null);
+  assert.doesNotMatch(element('groups').innerHTML, /dismiss-session-1/);
+  assert.equal(element('aggline').textContent, '2 live sessions · 1 needs help');
+  refresh(sessions.map(s => ({ ...s, status: 'active' })));
+  assert.match(element('groups').innerHTML, /dismiss-session-1/);
+  refresh([]);
+  assert.equal(element('aggline').textContent, 'No live sessions');
+});
+
 test('dashboard stays hidden unless explicitly enabled and follows live settings', () => {
   const { context, element } = popoverPage();
   assert.equal(element('dashboardbtn').hidden, true);
@@ -253,7 +291,15 @@ test('opening details is read-only; lamp controls stay there and Escape returns'
   assert.equal(element('brightnesscontrol').hidden, true);
   assert.equal(element('brightnesshint').textContent, 'Brightness control requires Bluetooth.');
   update(lamp({ transport: 'usb', present: false, enabled: false, devices: [] }));
-  assert.equal(element('lampcontrol').dataset.cmd, 'get_lamp');
+  assert.equal(element('lampcontrol').dataset.cmd, 'set_led');
+  assert.equal(element('lampcontrol').textContent, 'Enable lamp');
+  assert.equal(element('lampcontrol').disabled, true);
+  click('lampcontrol');
+  assert.equal(commands('set_led').length, 1, 'An absent USB lamp cannot be enabled');
+  update(lamp({ transport: 'usb', present: true, enabled: false, devices: [] }));
+  assert.equal(element('lampcontrol').disabled, false);
+  click('lampcontrol');
+  assert.deepEqual(messages.at(-1), { cmd: 'set_led', enabled: true });
 });
 
 test('Add lamp works with no saved lamp in USB or Bluetooth mode and respects platform capability', () => {

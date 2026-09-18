@@ -1,138 +1,146 @@
 {
   "status": "passed",
-  "hardware_fit": "PROVISIONAL, physical parts unmeasured",
+  "hardware_fit": "User coupon-tested screw/LED bores and measured PCB, LED and USB-shell outlines; component allowances, cable plastic and assembled fit remain unverified",
   "mesh": {
-    "00_fit_coupon": {
-      "watertight": true,
-      "components": 1,
-      "triangles": 154822,
-      "dimensions_mm": [
-        68.0,
-        50.0,
-        8.8
-      ],
-      "bed_z_mm": -1.0547118733938987e-15
-    },
-    "00b_coupon_cover_cap": {
-      "watertight": true,
-      "components": 1,
-      "triangles": 17340,
-      "dimensions_mm": [
-        54.0,
-        8.0,
-        2.4
-      ],
-      "bed_z_mm": -9.71445146547012e-16
-    },
-    "00c_coupon_retainer_cap": {
-      "watertight": true,
-      "components": 1,
-      "triangles": 16616,
-      "dimensions_mm": [
-        54.0,
-        8.0,
-        3.0
-      ],
-      "bed_z_mm": 1.0000000116860974e-07
-    },
     "01_mascot_orange": {
       "watertight": true,
       "components": 1,
-      "triangles": 560,
+      "triangles": 632,
       "dimensions_mm": [
-        70.0,
-        55.0,
-        40.0
+        57.8,
+        44.0,
+        27.4
       ],
-      "bed_z_mm": 7.105427357601002e-15
+      "bed_z_mm": 0.0,
+      "quantity": 1
     },
-    "02_eye_left_black": {
+    "02_eye_black_x2": {
       "watertight": true,
       "components": 1,
-      "triangles": 76,
+      "triangles": 92,
       "dimensions_mm": [
-        5.0,
-        10.0,
-        4.15
+        4.0,
+        8.0,
+        3.32
       ],
-      "bed_z_mm": 8.881784197001252e-16
+      "bed_z_mm": 4.440892098500626e-16,
+      "quantity": 2
     },
-    "03_eye_right_black": {
+    "03_tower_black": {
       "watertight": true,
       "components": 1,
-      "triangles": 76,
-      "dimensions_mm": [
-        5.0,
-        10.0,
-        4.15
-      ],
-      "bed_z_mm": 8.881784197001252e-16
-    },
-    "04_tower_black": {
-      "watertight": true,
-      "components": 1,
-      "triangles": 15012,
+      "triangles": 15596,
       "dimensions_mm": [
         28.0,
-        76.0,
-        37.6
+        58.0,
+        25.0
       ],
-      "bed_z_mm": 1.3853936882032103e-17
+      "bed_z_mm": 1.7319914770845568e-15,
+      "quantity": 1
     },
-    "05_rear_cover_black": {
+    "04_rear_cover_black": {
       "watertight": true,
       "components": 1,
-      "triangles": 9228,
+      "triangles": 12320,
       "dimensions_mm": [
         28.0,
-        76.0,
+        58.0,
         2.4
       ],
-      "bed_z_mm": 0.0
+      "bed_z_mm": 0.0,
+      "quantity": 1
     },
-    "06_LED_retainer_black": {
+    "05_LED_retainer_black": {
       "watertight": true,
       "components": 1,
-      "triangles": 6232,
+      "triangles": 7404,
       "dimensions_mm": [
-        9.55,
-        39.35,
-        5.15
+        9.2,
+        30.0,
+        4.95
       ],
-      "bed_z_mm": 3.552713678800501e-15
+      "bed_z_mm": 1.7763568394002505e-15,
+      "quantity": 1
     },
-    "07_PCB_tray_black": {
+    "06_PCB_tray_black": {
       "watertight": true,
       "components": 1,
-      "triangles": 268,
+      "triangles": 2752,
       "dimensions_mm": [
-        21.2,
-        26.95,
-        5.8
+        22.8,
+        23.45,
+        5.85
       ],
-      "bed_z_mm": 2.6645352591003757e-15
+      "bed_z_mm": 4.440892098500626e-15,
+      "quantity": 1
+    },
+    "01_USB_base_coupon": {
+      "watertight": true,
+      "components": 1,
+      "triangles": 3160,
+      "dimensions_mm": [
+        28.0,
+        19.2,
+        25.0
+      ],
+      "bed_z_mm": 1.9097149771653884e-15,
+      "quantity": 1
+    },
+    "02_USB_cover_coupon": {
+      "watertight": true,
+      "components": 1,
+      "triangles": 8206,
+      "dimensions_mm": [
+        28.0,
+        19.2,
+        2.4
+      ],
+      "bed_z_mm": 0.0,
+      "quantity": 1
     }
   },
   "checks": [
     "All printed parts have flat chamfers; no fillet surfaces",
+    "Both eyes have identical normalized solids; one eye STL with quantity two preserves all seven assembly occurrences",
     "Both hand recess ends have full-depth 45-degree ramps; no horizontal recess ledges in rear-down print pose",
     "7 valid single CAD solids; all 21 printed-part pairs have zero interfering volume",
-    "Provisional PCB, component, USB and all three LED envelopes clear every printed part",
-    "DIN 7982 min/max heads seat clear; all five pilots retain tip clearance and front skin; seating annuli and driver access clear",
-    "Three valid coupon solids; C/R caps seat on correct-depth pilot rows, with both screw head limits and long-screw tip clearance checked",
-    "Tie underpasses clear shelves; underside electronics have 0.4 mm spare clearance",
+    "Measured PCB, USB-shell and LED envelopes, plus provisional component allowances, clear every printed part",
+    "DIN 7982 min/max heads seat clear; all 5 pilots retain tip clearance and front skin; seating annuli and driver access clear",
+    "Both active USB coupon parts are valid single solids",
+    "Both USB fixture pieces exactly match production crops; the unchanged production tray and electronics align without interference",
+    "Integral straight hand pins clear both blind sockets and the straight-X insertion path; blind floors and support-free pin faces checked",
+    "Rear socket gusset has a continuous solid support strip from the wall; its local front-down faces have at most 45-degree overhangs",
+    "Both formerly open shoulders contain continuous 2 mm reinforced strips from the front wall to the rear seam",
+    "Cover has a continuous 1 mm skin and solid PCB stops; USB stays flush to 0.5 mm proud across endplay; above-bed downward faces meet the 45-degree limit",
+    "PCB-to-floor gap is 1 mm; provisional underside component allowance retains at least 0.4 mm clearance",
     "Rear cover, PCB tray and LED strip withdrawal checked at 6 offsets",
+    "Chamfers preserve both spring-strip sections and all four groove capture lands",
+    "Tray clip/lip undersides have at most 45-degree overhangs above the print bed",
+    "Tie-free PCB entry pose clears; board end/lift stops and tray front/rear/lift stops engage beyond design clearances",
     "Lead, 2.5 x 7 mm resistor, wire, USB cable and screwdriver access envelopes clear",
     "All four feet and tower pedestal contact Z=0"
   ],
+  "print_inventory": {
+    "assembly_occurrences": 7,
+    "unique_assembly_STLs": 6,
+    "coupon_STLs": 2,
+    "quantities": {
+      "01_mascot_orange": 1,
+      "02_eye_black_x2": 2,
+      "03_tower_black": 1,
+      "04_rear_cover_black": 1,
+      "05_LED_retainer_black": 1,
+      "06_PCB_tray_black": 1
+    }
+  },
   "screws": {
     "standard": "DIN 7982 ST2.2 x 6.5, countersunk Phillips",
     "head_angle_degrees": 80.0,
     "closures": {
       "05_rear_cover_black": {
-        "pilot_floor_y_mm": 32.04247392222174,
-        "worst_long_screw_tip_y_mm": 32.34247392222174,
-        "tip_to_pilot_floor_mm": 0.30000000000000426,
+        "pilot_floor_y_mm": 19.442473922221737,
+        "worst_long_screw_tip_y_mm": 19.742473922221734,
+        "tip_to_pilot_floor_mm": 0.29999999999999716,
         "minimum_full_diameter_thread_mm": 1.4787630388891326
       },
       "06_LED_retainer_black": {
@@ -142,5 +150,86 @@
         "minimum_full_diameter_thread_mm": 0.8787630388891303
       }
     }
+  },
+  "hand_joint": {
+    "integral_pin_count": 2,
+    "pin_diagonal_mm": 3.0,
+    "socket_diagonal_mm": 3.3,
+    "front_guide_face_clearance_mm": 0.10606601717798206,
+    "tip_clearance_x_mm": 0.19999999999999996,
+    "insertion_direction": [
+      1,
+      0,
+      0
+    ],
+    "withdrawal_direction": [
+      -1,
+      0,
+      0
+    ],
+    "rear_socket_gusset": {
+      "continuous_wall_to_boss_probe_volume_mm3": 0.03999999999999979,
+      "local_faces_checked": 9,
+      "minimum_print_direction_normal": -0.7071067811865476
+    },
+    "physical_fit": "User tested the 3.3 mm coupon: locating fit, not friction retention; optional glue for permanent attachment. Simultaneous two-pin assembly remains unverified."
+  },
+  "tower_shoulders": {
+    "continuous_strip_width_mm": 2.0,
+    "verified_depth_y_mm": [
+      2.4,
+      25.0
+    ],
+    "solid_probe_volumes_mm3": [
+      38.35347181155839,
+      38.35347181155829
+    ]
+  },
+  "flat_cover": {
+    "skin_mm": 1.0,
+    "inner_edge_chamfer_mm": 0.2,
+    "usb_entry_chamfer_both_sides_mm": 0.2,
+    "skin_probe_volume_mm3": 140.845,
+    "pcb_stop_backing_thickness_mm": 1.0,
+    "usb_face_offset_mm": -0.25,
+    "usb_projection_range_mm": [
+      0.0,
+      0.5
+    ]
+  },
+  "flat_base_floor_mm": 2.0,
+  "tray_clearances_mm": {
+    "floor_gap": 1.0,
+    "rail_vertical": 0.45,
+    "rail_side": 0.35,
+    "local_clip_keeper": 0.2,
+    "key_roof_overlap_nominal": 0.45000000000000007,
+    "key_roof_overlap_at_lateral_limit": 0.25000000000000006,
+    "minimum_clip_overlap_after_tray_and_board_float": 0.15000000000000002,
+    "rear_clearance_to_cover_stop": 0.25,
+    "rail_extension_beyond_shell_seam": 0.0
+  },
+  "usb_fit": {
+    "measured_socket_width_height_mm": [
+      8.9,
+      3.1
+    ],
+    "aperture_width_height_mm": [
+      9.3,
+      3.5
+    ],
+    "socket_to_exterior_face_recess_mm": -0.25,
+    "user_measured_vertical_correction_mm": 1.2,
+    "aperture_center_z_mm": 8.05,
+    "entry_chamfer_mm": 0.2,
+    "provisional_cable_body_width_height_mm": [
+      12,
+      7
+    ],
+    "provisional_cable_body_start_y_mm": 27.75,
+    "assumed_exposed_metal_ahead_of_plastic_mm": 0.10000000000000142,
+    "flat_cover_skin_mm": 1.0,
+    "cover_pcb_stop_backing_mm": 1.0,
+    "physical_fit": "Cable plastic is unmeasured; requires at least the stated exposed-metal gap when fully mated"
   }
 }

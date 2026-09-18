@@ -1,4 +1,4 @@
-"""Assembled view with illustrative, UNMEASURED electronics; not a print file."""
+"""Assembled view; measured outlines with provisional component/USB envelopes, not a print file."""
 from build123d import Compound
 from clawlight import parts, electronics
 

@@ -1,5 +1,7 @@
 # clawlight
 
+Follow the standalone product scope in [AGENTS.md](AGENTS.md).
+
 For installation from a package or source, connecting a board, and checking a
 running Mac service, start with the [agent runbook](docs/hardware-setup.md#agent-runbook).
 
@@ -7,7 +9,7 @@ A single Rust binary that monitors [Claude Code](https://claude.ai/code) session
 in real time. It ships three faces of the same executable:
 
 - **TUI dashboard** (`clawlight`) — a ratatui table of all sessions with live status.
-- **Menu bar / system tray daemon** (`clawlight menubar`) — a color-coded Clawd icon
+- **Menu bar / system tray daemon** (`clawlight menubar`) — a color-coded status-light icon
   reflecting aggregate session health; auto-starts at login.
 - **Hook backend** (`clawlight hook`) — invoked by Claude Code's lifecycle hooks to
   record per-session status. Replaces the old bash+jq hook script; no shell/`jq` dep.
@@ -59,7 +61,6 @@ operation: record those acceptance checks separately.
 | `led [--port]` | Foreground ESP32 LED mirror (debugging) |
 | `ble pair [--port]` | Identify ClawLight firmware over USB, open pairing and remember its matching BLE ID; actual tray handles encryption/macOS approval |
 | `ble scan/add/select/remove/list/off/usb/status` | Discover, remember/forget CoreBluetooth IDs, list per-lamp state, disable, restore USB, or inspect worker status; select is additive like add |
-| `update <firmware> [--port]` | Serial-OTA push of new board firmware |
 | `hook` *(hidden)* | Claude Code hook backend; reads one event as JSON on stdin |
 | `event` *(hidden)* | Normalized-event backend for non-Claude harnesses (opencode); reads one event as JSON on stdin |
 | `codex-hook` *(hidden)* | Codex shim: reads one Claude-dialect hook payload on stdin, maps it to a normalized event |
@@ -112,7 +113,6 @@ operation: record those acceptance checks separately.
   Keep btleplug 0.13.0 locked: its macOS write-error propagation fixes dropped
   CoreBluetooth NSError failures during pairing. A longer host timeout cannot
   extend the macOS system pairing alert (about 30 seconds observed).
-- **ota.rs** — host side of the stop-and-wait serial firmware update protocol.
 - **notification.rs** — desktop notifications (macOS `osascript`; else `notify-rust`).
 - **spawn.rs** — Windows-only detached/windowless child-process flags (no-op elsewhere).
 - **terminal.rs** — click-to-focus: `capture` records which terminal window/app hosts a
@@ -224,7 +224,7 @@ thin:
 - **First-run auto-setup is asymmetric on purpose** (main.rs). Both entry points check
   `hooks_registered()` (a clawlight hook command present in `settings.json`) and act only
   when it's false. The **TUI** (`first_run_setup_tui`) runs the *full* `install_hooks`
-  (hooks + autostart), so `brew install clawlight && clawlight` is a complete setup. The
+  (hooks + autostart), so first launch can finish setup after installing our binary. The
   **tray daemon** (`first_run_setup_daemon`) runs `register_hooks` **only** — never
   autostart: the daemon is already running, and bootstrapping/kickstarting its own
   LaunchAgent (or spawning a detached `menubar` on Linux/Windows) would create a duplicate
@@ -284,14 +284,15 @@ thin:
 
 ## ESP32 board (optional)
 
-The local C3 companion firmware is in `firmware/esp32-c3-supermini/` (Arduino /
+The ESP32-C3 SuperMini firmware is in `firmware/esp32-c3-supermini/` (Arduino /
 PlatformIO). Red/yellow/green use GPIO0/1/3 on the GND side, each through its own
-330-ohm resistor; cathodes share GND. Skip GPIO2, a boot-strapping pin. BLE
+resistor (330 Ω red/yellow, 220 Ω green); cathodes share GND. Skip GPIO2, a boot-strapping pin. BLE
 uses exactly one `R`, `Y`, `G`, or `N` byte with response; the host sends immediately,
 on changes, and every two seconds. The board clears session status ten seconds
 after its last valid update; a still-connected stale link stays dark, while a
 disconnected board resumes its setup/waiting indication. A connected BLE client owns LED control; serial commands work
-when BLE is disconnected. The C3 rejects serial `OTA:`; flash it with PlatformIO.
+when BLE is disconnected. Flash with PlatformIO or the documented prebuilt
+esptool procedure; firmware updates over the application protocol are unsupported.
 BLE writes require encryption and LE Secure Connections Just Works bonding.
 After normal boot, BOOT/GPIO9 held three seconds opens a 60-second pairing window;
 ten seconds requests deletion of all board bonds. No bonds at startup also opens
@@ -309,9 +310,7 @@ pairing/bonds; these are not pin readback or proof of visible light. `N` cannot
 distinguish disabled from absent Mac, so disconnected waiting pulses may resume;
 `WAIT_LED_BRIGHTNESS=0` silences them. The hardware guide owns pattern timing and setup.
 
-`scripts/flash.sh` and `clawlight update <image>` remain upstream C6 operations;
-they are not the C3 flash/update path. The existing serial OTA CRC-32 test remains
-in `ota.rs`. See the hardware guide for commands and the confirmed hardware state.
+See the hardware guide for flashing commands and the confirmed hardware state.
 
 ## CI
 

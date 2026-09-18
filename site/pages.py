@@ -69,33 +69,66 @@ def on_page_content(html, *, page, config, **kwargs):
 
 
 def on_page_markdown(markdown, *, page, config, **kwargs):
-    """Local previews keep local downloads; Pages links to the fork's Releases."""
-    if not config.repo_url:
-        return markdown
+    """Offer complete Mac bundles, with a source route before the first release."""
     ru = page.file.src_uri.startswith("ru/")
-    releases = config.repo_url + "/releases"
-
-    def download(match):
-        label, path = match.groups()
-        if path.endswith(".sha256"):
-            return ""  # The Releases link includes both archive and checksum.
-        if "/models/" in path:
-            label = "Модели корпуса · GitHub Releases" if ru else "Enclosure models · GitHub Releases"
-            source = config.repo_url + "/archive/HEAD.zip"
-            note = (f"Ищите `clawlight-print-pack.zip` в файлах релиза. Модели также есть в папке `models/` [архива исходников]({source})."
-                    if ru else f"Look for `clawlight-print-pack.zip` in the release assets. Models are also in the `models/` folder of the [source archive]({source}).")
-            return f"[{label}]({releases})\n\n{note}"
-        else:
-            label = "Пакеты для Mac и контрольные суммы · GitHub Releases" if ru else "Mac packages and checksums · GitHub Releases"
-        return f"[{label}]({releases})"
-
-    markdown = re.sub(r"\[([^\]]+)\]\(((?:\.\./)+(?:dist|models)/[^)]+)\)\{ download \}", download, markdown)
-    if page.file.src_uri.endswith("installation.md"):
+    if config.repo_url:
+        releases = config.repo_url + "/releases"
         source = config.repo_url + "/archive/HEAD.zip"
-        note = (f"Если BLE-пакет ещё не опубликован, [скачайте исходники]({source}) и попросите агента собрать проект по инструкции ниже."
-                if ru else f"If no BLE package is published yet, [download the source]({source}) and ask your agent to build it using the guide below.")
-        markdown = markdown.replace("## ", note + "\n\n## ", 1)
-    return markdown
+        mac = (f"[Приложение для Mac + прошивка C3 · релизы]({releases})"
+               if ru else f"[Mac app + C3 firmware · releases]({releases})")
+        mac += ("\n\nВыберите полный пакет для своего Mac: `clawlight-vVERSION-aarch64-apple-darwin.tar.gz` "
+                "для Apple Silicon или `clawlight-vVERSION-x86_64-apple-darwin.tar.gz` для Intel, "
+                "и одноимённый файл `.sha256`. Архивы `clawlight-cli-…` не содержат прошивку и руководство. "
+                f"Если полного пакета ещё нет, [скачайте исходники]({source}) и соберите по инструкции ниже."
+                if ru else "\n\nChoose the complete bundle for your Mac: `clawlight-vVERSION-aarch64-apple-darwin.tar.gz` "
+                "for Apple Silicon or `clawlight-vVERSION-x86_64-apple-darwin.tar.gz` for Intel, "
+                "plus its matching `.sha256` file. `clawlight-cli-…` archives omit the firmware and manual. "
+                f"If no complete package is available, [download the source]({source}) and build using the guide below.")
+        guide = config.repo_url + "/blob/HEAD/models/clawlight/PRINT_GUIDE.md"
+        models = (f"[Комплект для печати корпуса · релизы]({releases})\n\n"
+                  "Выберите `clawlight-enclosure-vVERSION.zip` и одноимённый файл `.sha256`. "
+                  "Это отдельный комплект с CAD, STL и руководством; он не входит в пакет приложения. "
+                  f"[Инструкция по печати (RU)]({guide}). Если релиз ещё не опубликован, "
+                  f"[скачайте исходники с CAD и STL]({source})."
+                  if ru else f"[Enclosure print package · releases]({releases})\n\n"
+                  "Choose `clawlight-enclosure-vVERSION.zip` and its matching `.sha256` file. "
+                  "This separate package contains CAD, STL and a print guide; it is not part of the app bundle. "
+                  f"[Print guide (RU)]({guide}). Before the release is published, "
+                  f"[download the source with CAD and STL]({source}).")
+
+    else:
+        packages = [path for path in (SITE.parent / "dist").glob("clawlight-*-apple-darwin*.tar.gz")
+                    if path.with_name(path.name + ".sha256").is_file()]
+        if packages:
+            package = max(packages, key=lambda path: path.stat().st_mtime_ns)
+            prefix = "../../../../" if ru else "../../../"
+            label = "Локальный пакет Mac + C3" if ru else "Local Mac + C3 package"
+            checksum = "Контрольная сумма" if ru else "Checksum"
+            mac = f"[{label}]({prefix}dist/{package.name}){{ download }}\n\n[{checksum}]({prefix}dist/{package.name}.sha256){{ download }}"
+            mac += ("\n\nПроверьте архитектуру и дату сборки в `BUILD.json` внутри пакета."
+                    if ru else "\n\nCheck the architecture and build date in the package's `BUILD.json`.")
+        else:
+            mac = ("Готового пакета в этом checkout нет. [Соберите из исходников](hardware.md#build-from-source) "
+                   "или попросите владельца проекта предоставить полный пакет Mac + C3 и контрольную сумму."
+                   if ru else "This checkout has no prebuilt package. [Build from source](hardware.md#build-from-source) "
+                   "or obtain a complete Mac + C3 bundle and checksum from the project owner.")
+        print_package = SITE.parent / "models/clawlight-print-pack.zip"
+        if print_package.is_file():
+            prefix = "../../../" if ru else "../../"
+            label = "Комплект для печати корпуса и инструкция" if ru else "Enclosure print package and guide"
+            models = f"[{label}]({prefix}models/{print_package.name}){{ download }}"
+            models += ("\n\nРаспакуйте архив и откройте `START_HERE.md`, затем `models/clawlight/PRINT_GUIDE.md` (RU). "
+                       "В комплекте — CAD, STL и настройки печати; приложение и прошивка скачиваются отдельно."
+                       if ru else "\n\nExtract the archive and open `START_HERE.md`, then `models/clawlight/PRINT_GUIDE.md` (RU). "
+                       "The package includes CAD, STL and print settings; download the app and firmware separately.")
+        else:
+            models = ("В этом checkout нет архива корпуса. Откройте `models/clawlight/PRINT_GUIDE.md` "
+                      "в полных исходниках проекта или получите комплект корпуса из релиза проекта."
+                      if ru else "This checkout has no enclosure archive. Open `models/clawlight/PRINT_GUIDE.md` "
+                      "in the full project source or obtain the enclosure package from the project's release.")
+    models = ("**Корпус · релиз-кандидат 1.0.0, готов к выпуску.** Финальная физическая проверка сборки продолжается.\n\n"
+              if ru else "**Enclosure · 1.0.0 release candidate, ready for release.** Final physical assembly testing is in progress.\n\n") + models
+    return markdown.replace("<!-- mac-downloads -->", mac).replace("<!-- model-download -->", models)
 
 
 def main():
@@ -111,9 +144,10 @@ def main():
                          repo_url=f"https://github.com/{args.repository}",
                          site_dir=str(output / "docs"))
     build(config)
-    for name in ("index.html", "styles.css", "i18n.js"):
+    for name in ("index.html", "styles.css", "i18n.js", "model-preview.js"):
         shutil.copy2(SITE / name, output / name)
     shutil.copytree(SITE / "assets", output / "assets")
+    shutil.copytree(SITE / "vendor", output / "vendor")
     (output / ".nojekyll").touch()
     print(f"Pages artifact: {output}")
 

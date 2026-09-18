@@ -4,13 +4,11 @@
 
 ## Install ClawLight and the firmware { #installation }
 
-Download the BLE package for a Mac with Apple Silicon (M1 or newer). It includes the app and C3
-firmware. Intel Macs need a separate build; the upstream Homebrew package does not include this
-BLE version.
+Use this project's complete Mac package, which includes the app, ESP32-C3 firmware
+and operating guide. Choose the build for your Mac's processor. Apple Silicon has
+been tested on hardware; Intel builds still need installation and Bluetooth checks.
 
-[Download for Mac · Apple Silicon ↓](../../../dist/clawlight-v0.13.0-aarch64-apple-darwin-20260917T165513096122Z.tar.gz){ download }
-
-[Download checksum](../../../dist/clawlight-v0.13.0-aarch64-apple-darwin-20260917T165513096122Z.tar.gz.sha256){ download }
+<!-- mac-downloads -->
 
 ## Set it up with your coding agent { #agent-setup }
 
@@ -23,11 +21,10 @@ Help me set up ClawLight using docs/hardware-setup.md. If this is a prebuilt pac
 checksums; if it is a source checkout, follow the source build instructions. Back up existing
 settings in this folder's private .recovery/ directory and keep one menu bar service.
 Verify in a fresh terminal that clawlight resolves to
-the installed BLE version from outside the project; configure PATH only if needed, preserving
+this project's installed build from outside the project; configure PATH only if needed, preserving
 shell settings and avoiding duplicate entries. Identify my actual board before hardware commands.
-This project's firmware targets ESP32-C3; another Bluetooth LE SuperMini needs
-matching firmware and pins. If the package does not support my board, explain what is needed
-before flashing. Flash only if needed and keep existing pairings. Tell me when to connect the
+This project's firmware targets ESP32-C3 SuperMini. Verify the actual chip and
+stop before flashing if the board does not match. Flash only if needed and keep existing pairings. Tell me when to connect the
 cable or approve a macOS dialog. Use Lamps → Add lamp with one USB-connected lamp, or the
 documented ble pair command; retain all saved lamps, names and brightness preferences.
 Check that the background service reaches the intended lamp. For
@@ -46,7 +43,7 @@ In a fresh Terminal, check:
 --8<-- "docs/hardware-setup.md:path-check"
 
 The first result should point to your `~/.cargo/bin/clawlight`. If it does, no changes are
-needed. If the command is missing or an older Homebrew copy comes first, add this line **once**
+needed. If the command is missing or a different ClawLight copy comes first, add this line **once**
 to `~/.zshrc` (macOS's default zsh), preserving its existing settings:
 
 --8<-- "docs/hardware-setup.md:path-setup"

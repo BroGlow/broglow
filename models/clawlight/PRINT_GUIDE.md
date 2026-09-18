@@ -1,140 +1,142 @@
-# Claw Light — single-extruder printing and assembly
+# Claw Light — компактная версия для печати одним экструдером
 
-**Fit status: provisional.** These files use explicit, unmeasured PCB, USB and LED envelopes. They are not a verified fit for your purchased parts. Measure the hardware, print the fit coupon, and inspect the sliced layers before committing to the complete enclosure. CAD checks do not establish physical fit, cable access or printer tolerances.
+**Статус: релиз-кандидат корпуса.** Эта инструкция относится к текущим CAD, STL и комплектам для печати. Результаты геометрических, слайсерных и физических проверок приведены ниже отдельно.
 
-The assembled printed parts occupy approximately **93 × 43 × 76 mm** (width × depth × height), including the projecting eyes but excluding LEDs and USB cable. The STL sizes below are their **print orientations**, not assembled dimensions. All STL exports already sit on bed Z = 0; import in millimetres and do not auto-orient them.
+Корпус рассчитан на **A1 Mini, PETG Basic, сопло 0,4 мм, слой 0,2 мм**. Ширина и высота маскота, а также глаза сохранены в масштабе 80%; электроника, саморезы и проверенные посадки сохранили реальные размеры. Габарит сборки — около **79 × 29,8 × 58 мм** с глазами, без выступающих LED и кабеля; глубина основного корпуса — **27,4 мм**.
 
-## Сначала — тест посадки
+**Что уже проверено физически:** купон на вашем принтере, саморезы DIN 7982 ST2.2 × 6,5 и все три LED. Выбраны отверстия **1,9 мм под саморезы** и **5,1 мм под LED**. Самое маленькое гнездо старого пробника, **3,3 мм**, подошло к штифту; этот размер принят для башни. На последней примерке плата с лотком установлены в основание, но USB оказался на **1,2 мм выше окна**, утоплен относительно крышки, а крышка оставляла щель. Ниже описана новая исправленная версия: её основание, крышка, лоток и оба USB-пробника требуют повторной печати и примерки. Держатель LED и окончательная сборка также требуют физической проверки; геометрия и слайсер её не заменяют.
 
-1. Напечатайте **все три детали купона**: [основание](stl/00_fit_coupon.stl), [планку C](stl/00b_coupon_cover_cap.stl) и [планку R](stl/00c_coupon_retainer_cap.stl). Используйте тот же пластик и настройки, что для чёрного корпуса: сопло 0,4 мм, слой 0,2 мм, 3 стенки, 15% заполнения, 5 верхних/нижних слоёв, поддержки выключены. Сохраните ориентацию STL: у C зенковки вверх, у R — вниз.
-2. После печати **переверните R зенковками вверх**. Установите C на ряд C, R на ряд R; отверстия планок должны совпасть со стойками. Ряд C повторяет крышку толщиной 2,4 мм, R — крепёжную пластину удерживателя толщиной 3 мм. Глубины глухих отверстий соответствуют каждому креплению.
-3. Вашим саморезом **DIN 7982 ST2.2 × 6,5 мм с потайной головкой** проверьте отверстия **1,7 / 1,8 / 1,9 / 2,0 мм** слева направо. Вкручивайте вручную **только через соответствующую планку**: без неё остриё может упереться в дно. Подходящий диаметр позволяет головке сесть и прижать планку без трещин, прокручивания и чрезмерного усилия. Не затягивайте дальше после прижима. Проверьте оба ряда; значение 1,8 мм в модели пока предварительное.
-4. Примерьте каждый светодиод в подписанные отверстия **5,1 / 5,3 / 5,5 мм**: цилиндр входит без усилия, фланец остаётся сзади. Прямоугольный карман предназначен для пробной посадки одного напечатанного глаза.
-5. Сообщите, какой диаметр отверстия под саморез подошёл в **C и R**, и какое отверстие лучше для **красного, жёлтого и зелёного** светодиодов. Если результаты рядов различаются, нужны отдельные размеры отверстий в модели до печати корпуса. Физическая посадка ещё не проверена; купон проверяет её на вашем пластике и крепеже.
+## Что изменено и зачем
 
-## Files and print order
-
-Print the three-piece fit coupon first, then print the orange and black jobs separately. There are **10 STLs: seven assembly parts and three coupon parts**. No AMS, filament changes during a print, or multicolour slicing are required. Print each file once; the eyes are two separate files.
-
-| Job / file | Bed footprint × height, mm | Exported orientation |
+| Ваше замечание | Было → стало | Обоснование |
 | --- | --- | --- |
-| 1. [Fit coupon base](stl/00_fit_coupon.stl) | 68 × 50 × 8.8 | Flat base down; posts and labels up |
-| 1. [Coupon cover cap C](stl/00b_coupon_cover_cap.stl) | 54 × 8 × 2.4 | Countersink mouths up |
-| 1. [Coupon retainer cap R](stl/00c_coupon_retainer_cap.stl) | 54 × 8 × 3 | Countersink mouths down; flip after printing for the test |
-| 2. Orange: [mascot, four feet and arm](stl/01_mascot_orange.stl) | 70 × 55 × 40 | Back down; face up |
-| 3. Black: [left eye](stl/02_eye_left_black.stl) and [right eye](stl/03_eye_right_black.stl) | 5 × 10 × 4.15 each | Visible faces down; locating tongues up |
-| 3. Black: [tower](stl/04_tower_black.stl) | 28 × 76 × 37.6 | Front down; wiring cavity open upward |
-| 3. Black: [rear cover](stl/05_rear_cover_black.stl) | 28 × 76 × 2.4 | Inner face down; countersink mouths up |
-| 3. Black: [LED retainer](stl/06_LED_retainer_black.stl) | 9.55 × 39.35 × 5.15 | Rear/countersink mouths down; flange pads up |
-| 3. Black: [PCB tray](stl/07_PCB_tray_black.stl) | 21.2 × 26.95 × 5.8 | Base down; PCB supports up |
+| 1. USB выше отверстия крышки | Центр окна Z = **8,05 мм** | Ваша измеренная поправка **+1,2 мм** сохранена в `USB_SEATING_Z_OFFSET`; новое плоское дно опускает лоток, плату и окно вместе ещё на **0,8 мм** относительно промежуточной версии с центром 8,85 мм. |
+| 2–3. Крышка оставляет щель; выступающие направляющие мешают | Направляющие и усиления заканчиваются в плоскости стыка **Y = 25 мм** | Выступающие за торец основания «пальцы» удалены; внутренних рёбер на крышке также нет. Задние боковые выступы лотка теперь захвачены направляющими внутри самого основания. Ромбовидные штифты руки сохранены. |
+| 4. Слишком свободное окно USB | Проём **9,5 × 3,7 → 9,3 × 3,5 мм** | Для измеренного разъёма **8,9 × 3,1 мм** оставлено по **0,2 мм** с каждой стороны; входные фаски **0,2 мм** выполнены с обеих сторон, рабочий проём между ними сохранён. Внутренняя выборка оставляет стенку **1 мм**, у винтов сохраняется **2,4 мм**. |
+| 5. USB утоплен; уменьшить глубину базы | Глубина корпуса **28,4 → 27,4 мм**, лоток **24,25 → 23,45 мм** | Торцы платы теперь Y = **3,75 / 26,15 мм**, USB — **27,65 мм**. При полностью посаженном лотке номинальный выступ USB над крышкой — **0,25 мм**; при продольном люфте платы ±0,25 мм — от **0 до 0,5 мм**. |
+| Убрать ступеньки внутри дна | Дно **2,4 мм** с боковыми полками ещё **0,4 мм** → единое плоское дно **2 мм** | Лоток опирается непосредственно на дно; отдельные нижние полки удалены. Высотные координаты платы и USB пересчитаны от новой опоры. |
 
-Reference slicer settings: **0.4 mm nozzle, 0.2 mm layers, 3 walls, 15% infill, 5 top and 5 bottom layers, supports OFF**. Use the temperature and cooling settings for your actual filament. Print the coupon in the same filament and settings as the black enclosure. Add a brim to the small eyes if bed adhesion requires it. Keep the prepared orientations: they expose the tower cavity and avoid printing the mascot standing on its feet. The tower's tie tunnels introduce only 1.3 mm short internal shelf-return bridges. Inspect those, the arm recess and small holes in the layer preview for your slicer's bridging and thin-feature handling.
+Лоток стоит на плоском дне основания **Z = 2 мм** и занимает Y = **2,7…26,15 мм** и упирается передним торцом в основание; прежний дополнительный зазор перед лотком убран, чтобы посадка не утапливала USB. Крышка ограничивает ход платы назад. Сохранены зазоры **0,6 мм** у наружных выступов, **0,35 мм** сбоку и **0,45 мм** по высоте; под платой — **1 мм**. Общий параметр глубины также укорачивает маскота на **1 мм**, сохраняя общий задний торец сборки; высота башни **58 мм**, шаг LED **9 мм**, глаза и размеры электроники не изменены.
 
-The mascot is a closed solid in CAD; slicer infill creates its internal structure. Do not print at 100% infill unless deliberately choosing that extra material and weight.
+Чтобы удержать задние выступы лотка внутри основания без рёбер крышки, крючки защёлок смещены вперёд и укорочены вдоль лотка до **0,55 мм**. Длина упругой части **12 мм** и её толщина **0,8 мм** сохранены. Новые крючки требуют проверки защёлкивания и удержания платы на печатном лотке.
 
-## Chamfered rectangular finish
+Крышка получила фаски **0,2 мм** на внутреннем периметре, кромке внутренней выборки и внутренних входах винтовых отверстий. Вход USB с внутренней стороны также с фаской **0,2 мм**; верх выборки поднят до **Z = 10,25 мм**, чтобы фаска шла по всему окну без ступени. Наружный периметр сохраняет фаску **0,4 мм**.
 
-This revision uses **flat chamfers only**, preserving the rectangular character. The mascot outline has 0.8 mm bevels, its face 0.6 mm, and the exposed foot/arm fronts 0.4 mm. The tower and cover share 0.6 mm corner bevels, with 0.4 mm outer face/bed chamfers. Eye corners use 0.35 mm bevels and their visible bed-facing perimeter 0.25 mm. LED bores have 0.3 mm front lead-ins; the USB opening has 0.8 mm clipped corners and a 0.3 mm rear mouth chamfer. Smaller bevels ease the removable retainer and tray.
+Сохранены предыдущие исправления: сплошные стенки перехода башни в основание, плоская наружная поверхность крышки для печати на столе, фаски держателя LED и один файл глаза для двух экземпляров.
 
-The cover mating plane, LED flange seats, PCB bearing pads and eye locating tongues retain their fitting dimensions. Bed-facing chamfers slope at 45° instead of introducing shallow rounded overhangs. The source exposes the finishing dimensions as `*_CHAMFER` parameters. The domed LED reference shapes represent the purchased LEDs; they are not printed enclosure fillets.
+**Рука и башня:** два ромбовидных штифта печатаются заодно с рукой и входят в гнёзда башни. Отдельных штифтов нет. Оси штифтов **прямые, строго перпендикулярны торцу руки**: маскот сдвигается к башне только **вправо, вдоль +X, на 1,8 мм**. Передний ромб штифта имеет полную диагональ **3 мм**, гнездо — проверенные на пробнике **3,3 мм**, глубину **2 мм**. Штифты и их выступ **1,8 мм** не изменены. У корня штифта есть удлинённая пятка со скатом 45° для печати маскота спиной вниз; скат не меняет направление вставки. Соответствующее расширение есть и в гнезде. Штифты позиционируют детали; если нужно постоянное крепление, после окончательной примерки нанесите немного клея. Башня по-прежнему стоит на собственном основании.
 
-The hand recess now has **full-depth 45° ramps at both ends**, replacing the horizontal ledges. A 2 mm end chamfer on the recess cutter keeps every internal recess surface at 45° or steeper to the bed in the supplied back-down print orientation. Keep that orientation and supports off; the middle of the recess retains its original depth.
+Основные STL лежат в `stl/`, два оставшихся USB-пробника — в `stl/coupons/`. Файл `02_eye_black_x2.stl` содержит **один глаз**: добавьте в слайсер **две копии**. Нумерация основных деталей — 01–06; пробники имеют отдельную нумерацию внутри своей папки. Переименование не меняло геометрию. У заднего язычка глаза сохранены прямые фаски **0,4 мм на углах** и **0,2 мм на входном торце**. Глаз по-прежнему печатается лицом вниз; посадочный габарит и лицевая поверхность сохранены.
 
-## Coupon layout and hardware fit
+## Что печатать следующим
 
-The base has engraved sizes. The LED holes are at Y = 8 mm; the **C** screw row is at Y = 25 mm and the **R** row at Y = 40 mm. Both screw rows have **1.7, 1.8, 1.9 and 2.0 mm** blind pilots at X = 7, 20, 33 and 46 mm. Each row reproduces its production boss diameter and blind pilot depth. Test the actual screw through the matching cap, with its countersink facing the screw head; never drive the screw directly into a bare test post. Cap R intentionally prints upside down to reproduce the retainer's head-seat orientation.
+1. Сначала напечатайте [USB-01 — основание USB-пробника](stl/coupons/01_USB_base_coupon.stl), [USB-02 — его крышку](stl/coupons/02_USB_cover_coupon.stl) и **текущий рабочий [лоток 06](stl/06_PCB_tray_black.stl)**. Пробник — нижние **19,2 мм** рабочих основания и крышки, с полной шириной, глубиной и направляющими. Установите настоящую плату по шагам ниже, удерживая её у переднего упора; закройте двумя штатными DIN 7982 ST2.2 × 6,5. Проверьте свободный ход лотка, защёлкивание и удержание платы укороченными крючками, закрытие без изгиба платы, совпадение USB и подключение вашего кабеля. После снятия крышки лоток должен выдвигаться. Отдельный дубликат лотка в пробники не входит: этот 06 затем используется в корпусе.
+2. После успешной USB-примерки напечатайте **башню 03, крышку 04 и держатель LED 05**. Переставьте проверенный лоток, проверьте LED, проводку и закрытие полной сборки. Затем печатайте **маскота 01** и **два глаза из файла 02**. Все соединения сначала соберите насухо; клей применяйте только после примерки.
 
-The enclosure defaults to 5.3 mm LED holes for provisional 5.0 mm barrels, and 1.8 mm screw pilots. The rectangular pocket uses the same parameters as the production eye pocket. Print one eye alongside the coupon and check it enters without splitting the pocket. Remove first-layer flare before judging fits. Report the best pilot for **each of C and R**, plus the best LED hole for **each lamp**; the current model uses one shared pilot diameter for all five screws.
+Пробники LED/винтов и соединения руки удалены из комплекта после физических тестов. Проверенные размеры сохранены: LED **5,1 мм**, пилоты **1,9 мм**, гнёзда руки **3,3 мм**. Остался только USB-пробник для ещё не проверенной сборки.
 
-Measure all three LED barrels, flanges and flange thicknesses; the PCB outline and thickness; components above and below the PCB; the USB socket location; and the cable overmould. Confirm the tray's four small bearing pads and two ties land on clear PCB areas. The design does not assume PCB mounting holes. Check there is room for your resistor bodies, insulated joints and lead bends throughout the open tower. BOOT and RESET must remain accessible with the cover removed.
+## STL и ориентация
 
-## Additional assembly items
+Всего **8 STL: 6 уникальных деталей сборки и 2 детали пробников**. Для сборки нужны **7 печатных деталей**: глаз 02 — два экземпляра, остальные — по одному. Все файлы в миллиметрах, уже ориентированы и опущены на Z = 0. **Не включайте автоматическую ориентацию.** Печатайте оранжевую и чёрные детали отдельными заданиями; AMS и смена цвета внутри задания не нужны.
 
-- Five **DIN 7982 ST2.2 × 6.5 mm countersunk Phillips self-tapping screws, stainless 304**: three for the rear cover and two for the LED retainer. The same screw size is used throughout.
-- Two **2.5 mm wide cable ties, no thicker than 1 mm**, for the PCB tray.
-- A small amount of plastic-compatible glue for the two eyes and the arm-to-tower joint only.
-- Optional thin, soft **0.25 mm shims** behind the LED flanges if axial play needs removing.
+| Деталь | Габарит в ориентации печати, мм | Какая сторона на столе |
+| --- | --- | --- |
+| [01 — оранжевый маскот с рукой и штифтами](stl/01_mascot_orange.stl) | 57,8 × 44 × 27,4 | Спина; лицо вверх |
+| [02 — глаз, **2 экземпляра**](stl/02_eye_black_x2.stl) | 4 × 8 × 3,32 каждый | Видимая поверхность; язычок вверх |
+| [03 — башня](stl/03_tower_black.stl) | 28 × 58 × 25 | Передняя поверхность; полость вверх |
+| [04 — плоская задняя крышка](stl/04_rear_cover_black.stl) | 28 × 58 × 2,4 | **Наружная задняя поверхность; зенковки вниз** |
+| [05 — держатель LED](stl/05_LED_retainer_black.stl) | 9,2 × 30 × 4,95 | Задняя поверхность с зенковками; опоры фланцев вверх |
+| [06 — лоток с защёлками](stl/06_PCB_tray_black.stl) | 22,8 × 23,45 × 5,85 | Плоское дно; защёлки вверх |
+| [USB-01 — основание USB-пробника](stl/coupons/01_USB_base_coupon.stl) | 28 × 19,2 × 25 | Передняя поверхность; полость вверх |
+| [USB-02 — крышка USB-пробника](stl/coupons/02_USB_cover_coupon.stl) | 28 × 19,2 × 2,4 | Наружная задняя поверхность; зенковки вниз |
 
-For these countersunk screws, **6.5 mm is the overall length including the head**. The model uses an **80° head seat, 4.6 mm mouth, 2.5 mm clearance bore and provisional 1.8 mm pilot**. The DIN 7982 reference specifies a 4.0–4.3 mm head diameter for ST2.2 and a 5.7–7.3 mm tolerance range for the nominal 6.5 mm length; the model's blind depths allow for that range and head seating. The 80° DIN / 90° ISO distinction is documented in [REYHER technical information, page 11](https://www.reyher.de/fileadmin/user_upload/Downloadbereich/Technische_Informationen_2016_11_EN_KS_klein.pdf#page=11). See the [Böllhoff DIN 7982 A2 product sheet](https://eshop.boellhoff.de/out/media/pdf/DIN_7982_Edelstahl_A2___en.pdf). Measure or test the purchased screws: matching a standard is not a physical fit test. Tighten by hand only until the plate is clamped; do not force the head flush or continue after seating.
+Крышки 04 и USB-02 печатаются **плоской наружной стороной вниз, зенковками к столу**. Внутренняя выборка открыта вверх; её плоская поверхность ограничивает ход платы и лотка назад. Выступов внутри выборки и наружной USB-ниши нет.
 
-## Assembly
+Настройки: **сопло 0,4 мм, слой 0,2 мм, 3 стенки, 15% заполнения, 5 верхних и нижних слоёв, поддержки выключены**. Используйте PETG Basic и ту же пластину/настройки материала, что дали успешный купон. При необходимости добавьте кайму только маленьким глазам. Проверьте в слайсере щели защёлок, направляющие, штифты и USB-окно. Маскот — замкнутое тело в CAD; его внутреннюю структуру создаёт заполнение слайсера, сплошная печать не требуется.
 
-1. Clean first-layer flare and loose strands from mating surfaces, LED holes and screw holes. Dry-fit the eyes, cover and tray before applying any glue.
-2. Place the LEDs through the tower front from inside: **red at the top, yellow in the middle, green at the bottom**. Each flange bears against the inside front wall. Orient each LED's two leads as a **vertical pair along assembly Z**, matching the retainer's open slots. These slots open sideways so the retainer can later be removed without threading soldered leads through closed holes.
-3. Fit the LED retainer with its raised pads toward the LED flanges and its countersinks toward the open rear. Secure it with two DIN 7982 ST2.2 × 6.5 mm screws at the relocated mounts below the green lamp and between the yellow/red lamps. The 3 mm structural plate sits at assembly Y = 5.8…8.8 mm; its pads extend forward to Y = 3.65 mm, preserving 0.25 mm nominal flange clearance. If needed, fit thin soft shims that do not obstruct the lead slots; do not crush a flange or clamp a lead with a screw. Keep LED packages replaceable and unglued.
-4. Fit the PCB to the tray with its USB-C socket toward the rear. Route the two cable ties through the paired tray slots and around bare PCB areas. Tighten only enough to hold the board; do not press ties onto components or buttons. Insert the tray onto the pedestal's two shelves until it reaches the front stop, aligning the ties with the 1.3 mm deep shelf tunnels. Keep each tie's locking head clear of the shelf tunnels and cover. The tray and PCB must remain removable.
-5. Wire and test the electronics using the existing [hardware wiring and resistor instructions](../../docs/hardware-setup.md#wiring-and-resistor-choice) and [wiring check](../../docs/hardware-setup.md#check-the-wiring-before-connecting-clawlight). Route insulated leads and resistors clear of the tray, screw bosses and cover contact surfaces. Leave approximately 30 mm of flexible service slack between the board and lamps so the tray can slide out; fold it loosely into the tower. Check USB insertion with the actual cable, the PCB supported, and no load or pinching on the wires.
-6. Fit the rear cover with its countersinks facing outward and secure it with three DIN 7982 ST2.2 × 6.5 mm screws. It must seat without forcing the tray, wires or components. Confirm the cable overmould clears the opening and both buttons remain serviceable after removing the cover.
-7. Glue the eyes into their shallow front pockets using a small amount on their locating tongues. Set the mascot's **four feet and the tower pedestal together on one flat desk surface**, dry-fit the arm contact, then glue the arm to the tower shell in that position. Apply arm glue only between **5 and 35 mm behind the tower's front face (Y = 5…35)**. **Do not glue the rear-cover contact at Y = 37.6…40**, even though the arm reaches that far back. The tower stands on its own pedestal. Keep glue away from the cover seam, screws and electronics so the cover can still be removed.
+## Измерения и крепёж
 
-## Editable dimensions and rebuilding
-
-The editable source is [clawlight.py](clawlight.py); the [assembled STEP](clawlight.step) contains **only the seven printed parts** in assembly coordinates. [parts.json](parts.json) records all ten print-oriented bounding boxes and solid volumes. The [coupon layout source](fit_coupon.py) defines the three coupon pieces in print orientation; its review export is [fit_coupon.step](fit_coupon.step). For visual review, [appearance.step](appearance.step) and [exploded.step](exploded.step) include illustrative, unmeasured electronics; these are not extra printable parts. Their view sources are [appearance.py](appearance.py) and [exploded.py](exploded.py).
-
-The source currently assumes:
-
-| Parameter(s) | Provisional default / purpose |
+| Фактическая деталь | Принято в модели |
 | --- | --- |
-| `LED_DIAMETERS`, `LED_FLANGES` | Three 5.0 mm barrels and three 6.0 mm flanges; order is green, yellow, red |
-| `LED_FLANGE_THICKNESS`, `LED_BARREL_LENGTH` | 1.0 mm flange thickness; 8.5 mm flange-front-to-tip length |
-| `LED_PITCH`, `LED_BORE_CLEARANCE` | 12 mm centre pitch; 0.30 mm diametral barrel clearance |
-| `LED_RETAINER_GAP`, `LEAD_SLOT` | 0.25 mm axial play; 3.6 mm open slot for a vertically oriented lead pair |
-| `PCB_WIDTH`, `PCB_LENGTH`, `PCB_THICKNESS` | 18 × 22.5 × 1.6 mm PCB |
-| `PCB_UNDERSIDE`, `PCB_TOP_HEIGHT` | 2 mm below and 4 mm above the PCB component envelopes; 0.4 mm spare between the assumed underside envelope and tray floor |
-| `PCB_REAR`, `PCB_BOTTOM` | Rear PCB edge Y = 35.2 mm; lower PCB surface Z = 9.0 mm |
-| `USB_WIDTH`, `USB_HEIGHT`, `USB_CENTER_Z`, `USB_REAR` | 9 × 3.5 mm shell; Z = 12.1 mm centre, derived from PCB height; rear face Y = 37.6 mm |
-| `USB_OPENING_WIDTH`, `USB_OPENING_HEIGHT` | 14 × 10 mm cover opening; check the real cable overmould |
-| `FIT` | 0.25 mm clearance per side |
-| `SCREW_DIAMETER`, `SCREW_LENGTH`, `SCREW_LENGTH_TOLERANCE` | DIN 7982 ST2.2 × 6.5 mm; ±0.8 mm overall length allowance |
-| `SCREW_HEAD_DIAMETER_MIN`, `SCREW_HEAD_DIAMETER_MAX`, `SCREW_HEAD_ANGLE_DEG` | 4.0–4.3 mm head; 80° included angle |
-| `SCREW_PILOT_DIAMETER`, `SCREW_CLEARANCE`, `COUNTERSINK_DIAMETER` | Provisional 1.8 mm pilot; 2.5 mm clearance bore; 4.6 mm head seat mouth |
-| `COVER_PILOT_DEPTH`, `RETAINER_PILOT_DEPTH` | Derived blind depths, approximately 5.56 and 4.96 mm; coupon rows reproduce them |
-| `RETAINER_MOUNT_Y`, `RETAINER_BACK_Y`, `RETAINER_Y` | 3 mm plate at Y = 5.8…8.8; front flange pads at Y = 3.65 mm |
-| `LED_SCREWS` | Retainer screw centres (X, Z) = (45.8, 38) and (45.8, 62) mm |
-| `COUPON_PILOT_DIAMETERS`, `COUPON_LED_DIAMETERS` | Pilot samples 1.7 / 1.8 / 1.9 / 2.0 mm; LED samples 5.1 / 5.3 / 5.5 mm |
-| `EYE_CLEARANCE` | 0.30 mm pocket clearance per side around the eye locating tongue |
-| `WALL`, `COVER`, `DEPTH` | 2.4 mm nominal wall; 2.4 mm cover; 40 mm assembled depth |
+| Три LED | Корпус **Ø4,75**, фланец **Ø5,4 × 1,2 мм**; посадочные отверстия **Ø5,1 мм** выбраны по купону отдельно от диаметра LED |
+| ESP32-C3 SuperMini | Плата **22,4 × 18 × 0,7 мм**, общая длина с USB **23,9 мм**, выступ USB за плату **1,5 мм** |
+| USB-C | Корпус **8,9 × 3,1 мм**; центр Z = **8,05 мм** с измеренной поправкой +1,2 мм и новым дном 2 мм; задний торец Y = **27,65 мм**, номинально на **0,25 мм** снаружи крышки |
+| Саморезы | **5 одинаковых DIN 7982 ST2.2 × 6,5 мм**, потайная Phillips, нержавеющая сталь 304: 3 на крышку, 2 на держатель LED |
 
-`EYE_TONGUE_*`, `EYE_POCKET_DEPTH` and `EYE_CLEARANCE` control the eye and both production/coupon pockets together. `coupon_parts()` supplies the final cap print poses: the raw `coupon_cap(...)` builder creates both caps with their countersinks up, then the R export is flipped. Use the exported STL poses. Tie positions are defined in both `pcb_tray()` and the corresponding shelf tunnels in `tower()`; move them together if required by the actual PCB. LED flange thickness is shared by the three lamps; unlike barrel and flange diameter, it is not an independent value per lamp.
+Длина потайного самореза **6,5 мм включает головку**. Посадка головки: угол **80°**, наружный диаметр зенковки **4,6 мм**, проходное отверстие **2,5 мм**, пилот **1,9 мм**. Размеры стандарта приведены в [таблице Böllhoff DIN 7982](https://eshop.boellhoff.de/out/media/pdf/DIN_7982_Edelstahl_A2___en.pdf); отличие углов DIN 7982 и ISO 7050 — в [REYHER, стр. 11](https://www.reyher.de/fileadmin/user_upload/Downloadbereich/Technische_Informationen_2016_11_EN_KS_klein.pdf#page=11). Затягивайте вручную до прижима, без дополнительного усилия после посадки головки.
 
-This layout has fixed pedestal, upright and fastener coordinates. Larger boards or LED flanges may require changing the surrounding geometry, not only one parameter; the source checks reject a tray wider than the available pedestal or a flange diameter of 8.5 mm or more. Recheck the entire fit and assembly after any dimension change.
+Купон от 17.09.2026: в рядах C и R отверстия **1,8 мм** хорошо держали саморезы, головки садились заподлицо; **1,9 и 2,0 мм** также держали. Выбран **1,9 мм**. Все три LED подошли к **5,1 мм**; **5,3 и 5,5 мм** оказались слишком свободными. Старый тест подтверждает диаметр пилота; уменьшенные стойки держателя LED **Ø4,8 мм** и новая сборка ещё не проверены печатью.
 
-From an environment with **build123d 0.11.1**, run `python models/clawlight/clawlight.py` from the `clawlight` repository root to regenerate all ten STLs, the printed-assembly STEP and parts metadata. Re-export auxiliary views from their `gen_step()` functions after changes. Re-run the accompanying checks and inspect the updated sliced parts before printing. Physical fit remains unverified until tested with your actual hardware.
+Дополнительно нужны только клей для глаз/необязательной фиксации руки и, при необходимости, мягкие прокладки **0,25 мм** за фланцами LED. Электроника и лоток не приклеиваются. Установка платы не требует стяжек или дополнительных винтов.
 
-## Checks and previews
+## Сборка и обслуживание
 
-[check.py](check.py) passed for this revision: all **10 STL meshes are watertight, single-component and positioned on Z = 0**; the seven assembly solids have no mutual volume interference. Checks cover provisional electronics, ties, wire and screwdriver access, withdrawal paths, common desk plane, and both coupon cap rows. At the largest modeled screw length and deepest head seating, the tip retains 0.30 mm clearance to the blind pilot floor; the retainer boss retains approximately 0.84 mm of front material. Results are in [validation.json](validation.json). Install [requirements.txt](requirements.txt), regenerate, then run `python models/clawlight/check.py` from the `clawlight` repository root to repeat the checks.
+1. Уберите нитки и наплывы с кромок, отверстий и щелей защёлок. На новом лотке проверьте свободные от компонентов края платы, отсутствие изгиба и зазор под пайкой. Между полом лотка и платой **1 мм**; размер платы взят из ваших измерений.
+2. Через открытую заднюю часть башни вставьте LED: **красный сверху, жёлтый посередине, зелёный снизу**. Фланцы упираются в заднюю поверхность передней стенки. Пару выводов каждого LED ориентируйте вертикально — вдоль Z, чтобы она проходила в открытый паз держателя.
+3. Поставьте держатель выступами к фланцам, зенковками назад и закрепите двумя саморезами. Его основная пластина расположена на Y = **5,8…8,8 мм**, передние опоры — на Y = **3,85 мм**. За фланцем остаётся **0,25 мм** осевого зазора. При необходимости уберите люфт тонкой мягкой прокладкой, не перекрывая выводы. Светодиоды остаются заменяемыми.
+4. **Вне башни** заведите передний край платы, противоположный USB, под неподвижные губки лотка, приподняв USB-край примерно на **15°**. Опустите задний край до фиксации обеими защёлками. Нажимайте на свободный текстолит, а не на компоненты. **До закрытия крышки плата может сдвигаться назад:** защёлки удерживают её по высоте, а ход назад ограничивает внутренняя поверхность крышки. Придерживая плату у переднего упора, вставьте загруженный лоток сзади в направляющие **до переднего упора**. Направляющие захватывают боковые выступы, а локальные упоры не дают защёлкам раскрыться.
+5. Подключение и электрическую проверку выполняйте по [инструкции по оборудованию](../../docs/hardware-setup.md#wiring-and-resistor-choice) и [проверке LED](../../docs/hardware-setup.md#check-the-wiring-before-connecting-clawlight). Оставьте свободную петлю гибких проводов для выдвигания лотка, уложите её без прижима к крышке, направляющим и стойкам винтов. BOOT и RESET должны оставаться доступны при открытой крышке.
+6. Закройте крышку тремя саморезами; в USB-пробнике используются только два нижних. Передний упор лотка и внутренняя поверхность крышки воспринимают усилие через свободные торцы текстолита, а крышка удерживает лоток от выдвигания. Она должна закрываться без нажима на компоненты и изгиба платы. Наружная поверхность крышки находится на **Y = 27,4 мм**, номинальный торец USB — на **Y = 27,65 мм**. Продольный люфт платы допускает выступ разъёма **0…0,5 мм**; он не должен быть утоплен при полностью установленном лотке. Проверьте подключение и отключение вашего кабеля: штекер должен полностью садиться, а плата и лоток — оставаться на месте.
+7. Совместите ромбовидные штифты руки с гнёздами башни, включая расширения под их корневые пятки. При неподвижной башне сдвиньте маскота **прямо вправо к башне, только по +X, на 1,8 мм**. Движения вперёд/назад по Y не требуется. Для разъединения вытяните его прямо в обратную сторону, по −X. **Четыре ноги маскота и основание башни должны одновременно стоять на одной плоскости.** Если нужна постоянная фиксация, нанесите совсем немного клея только на штифты/контакт руки с оболочкой. Не допускайте клея на съёмную крышку и её стык **Y = 25 мм** (крышка занимает Y = **25…27,4 мм**). Два одинаковых глаза вклейте в неглубокие передние карманы.
 
-All **10 regenerated STLs** sliced successfully in **Bambu Studio 02.07.01.62**, using a reference **A1 / 0.4 mm / Generic PLA** profile: 0.2 mm layers, 3 walls, 15% infill, supports off and one extruder. The run reported **zero geometry warnings, support toolpaths or filament changes**. [slicer-validation.json](slicer-validation.json) records the checked STL hashes and effective settings. Estimated consumption is **84.2 g / 4 h 23 min**, including the three coupon parts and ten separate print startups; grouping same-colour parts changes that estimate. This is reference slicing, not G-code or a profile for your unconfirmed printer. **No physical print or hardware-fit test has been performed.**
+Для снятия платы отключите USB, откройте крышку и, придерживая плату от сдвига назад, полностью выдвиньте лоток без натяжения проводов. Только снаружи корпуса осторожно разведите защёлки, приподнимите USB-край и выведите передний край из-под губок. Внутри башни защёлки намеренно заблокированы локальными упорами.
 
-- [Three-piece coupon](preview/coupon_20260916T173845Z.png) and [top view with hole labels](preview/coupon_top_20260916T173845Z.png).
-- [Cover countersinks](preview/cover_screws_20260916T173845Z.png) and [LED-retainer countersinks](preview/retainer_screws_20260916T173845Z.png).
-- [Assembled preview](preview/finished_20260916T173845Z.png), with illustrative LEDs.
-- [Printed assembly](preview/assembly_20260916T173845Z.png) and [front view](preview/front_20260916T173845Z.png).
-- [Rear service access](preview/service_20260916T173845Z.png), cover hidden.
-- [Exploded assembly](preview/exploded_20260916T173845Z.png).
-- [Hand recess, front close-up](preview/hand_front_20260916T173845Z.png) and [rear close-up](preview/hand_rear_20260916T173845Z.png), showing both 45° ramps.
-- [Dimensioned drawing](preview/dimensions.png), also available as [SVG](preview/dimensions.svg).
+Крышка — одна печатная деталь с плоской наружной поверхностью и внутренней выборкой без выступающих рёбер. Стяжки, вклеенная USB-панель и отдельные крепления платы не нужны. Внутри башни усиления гнёзд руки опираются на укосы под 45°.
 
-The local CAD viewer is **stopped**. To use the links below, start the existing viewer manually with this command; it stops automatically after 12 hours. Neutral shading makes the black parts' internal features visible; choose orange and black filament for the actual object.
+## Файлы и настройка
 
-```sh
-npm --prefix "$HOME/.agents/skills/cad-viewer/scripts/viewer" run start -- --host 127.0.0.1 --dir "/Users/mahenzon/Documents/ChatGPT/bro-agent-light/clawlight/models/clawlight" --shutdown-after 12h
-```
+- [clawlight.py](clawlight.py) — параметрическая геометрия семи деталей сборки и экспорт шести уникальных STL; [hand_joint.py](hand_joint.py) — штифты и гнёзда соединения.
+- [clawlight.step](clawlight.step) — только печатные детали в сборке; [parts.json](parts.json) — размеры STL и объёмы после генерации.
+- [appearance.step](appearance.step) и [exploded.step](exploded.step) — визуальная и разнесённая сборки с иллюстративной электроникой; исходники [appearance.py](appearance.py) и [exploded.py](exploded.py).
+- [usb_coupon.py](usb_coupon.py) — USB-пробник, полученный обрезкой рабочих башни и крышки по высоте **19,2 мм**; [usb_coupon.step](usb_coupon.step) — две детали в ориентации печати. [USB-01 — основание](stl/coupons/01_USB_base_coupon.stl) и [USB-02 — крышка](stl/coupons/02_USB_cover_coupon.stl) используются с рабочим лотком 06, настоящей платой и двумя штатными саморезами. Электроника и дубликат лотка в эти файлы не включены.
 
-| File | Live review |
+Основные параметры находятся в начале исходников:
+
+| Группа | Параметры и смысл |
 | --- | --- |
-| clawlight.step | [Open in 3D](http://127.0.0.1:4178/?dir=%2FUsers%2Fmahenzon%2FDocuments%2FChatGPT%2Fbro-agent-light%2Fclawlight%2Fmodels%2Fclawlight&file=clawlight.step) |
-| appearance.step | [Open in 3D](http://127.0.0.1:4178/?dir=%2FUsers%2Fmahenzon%2FDocuments%2FChatGPT%2Fbro-agent-light%2Fclawlight%2Fmodels%2Fclawlight&file=appearance.step) |
-| exploded.step | [Open in 3D](http://127.0.0.1:4178/?dir=%2FUsers%2Fmahenzon%2FDocuments%2FChatGPT%2Fbro-agent-light%2Fclawlight%2Fmodels%2Fclawlight&file=exploded.step) |
-| stl/00_fit_coupon.stl | [Open in 3D](http://127.0.0.1:4178/?dir=%2FUsers%2Fmahenzon%2FDocuments%2FChatGPT%2Fbro-agent-light%2Fclawlight%2Fmodels%2Fclawlight&file=stl%2F00_fit_coupon.stl) |
-| fit_coupon.step | [Open in 3D](http://127.0.0.1:4178/?dir=%2FUsers%2Fmahenzon%2FDocuments%2FChatGPT%2Fbro-agent-light%2Fclawlight%2Fmodels%2Fclawlight&file=fit_coupon.step) |
-| stl/00b_coupon_cover_cap.stl | [Open in 3D](http://127.0.0.1:4178/?dir=%2FUsers%2Fmahenzon%2FDocuments%2FChatGPT%2Fbro-agent-light%2Fclawlight%2Fmodels%2Fclawlight&file=stl%2F00b_coupon_cover_cap.stl) |
-| stl/00c_coupon_retainer_cap.stl | [Open in 3D](http://127.0.0.1:4178/?dir=%2FUsers%2Fmahenzon%2FDocuments%2FChatGPT%2Fbro-agent-light%2Fclawlight%2Fmodels%2Fclawlight&file=stl%2F00c_coupon_retainer_cap.stl) |
-| stl/01_mascot_orange.stl | [Open in 3D](http://127.0.0.1:4178/?dir=%2FUsers%2Fmahenzon%2FDocuments%2FChatGPT%2Fbro-agent-light%2Fclawlight%2Fmodels%2Fclawlight&file=stl%2F01_mascot_orange.stl) |
-| stl/02_eye_left_black.stl | [Open in 3D](http://127.0.0.1:4178/?dir=%2FUsers%2Fmahenzon%2FDocuments%2FChatGPT%2Fbro-agent-light%2Fclawlight%2Fmodels%2Fclawlight&file=stl%2F02_eye_left_black.stl) |
-| stl/03_eye_right_black.stl | [Open in 3D](http://127.0.0.1:4178/?dir=%2FUsers%2Fmahenzon%2FDocuments%2FChatGPT%2Fbro-agent-light%2Fclawlight%2Fmodels%2Fclawlight&file=stl%2F03_eye_right_black.stl) |
-| stl/04_tower_black.stl | [Open in 3D](http://127.0.0.1:4178/?dir=%2FUsers%2Fmahenzon%2FDocuments%2FChatGPT%2Fbro-agent-light%2Fclawlight%2Fmodels%2Fclawlight&file=stl%2F04_tower_black.stl) |
-| stl/05_rear_cover_black.stl | [Open in 3D](http://127.0.0.1:4178/?dir=%2FUsers%2Fmahenzon%2FDocuments%2FChatGPT%2Fbro-agent-light%2Fclawlight%2Fmodels%2Fclawlight&file=stl%2F05_rear_cover_black.stl) |
-| stl/06_LED_retainer_black.stl | [Open in 3D](http://127.0.0.1:4178/?dir=%2FUsers%2Fmahenzon%2FDocuments%2FChatGPT%2Fbro-agent-light%2Fclawlight%2Fmodels%2Fclawlight&file=stl%2F06_LED_retainer_black.stl) |
-| stl/07_PCB_tray_black.stl | [Open in 3D](http://127.0.0.1:4178/?dir=%2FUsers%2Fmahenzon%2FDocuments%2FChatGPT%2Fbro-agent-light%2Fclawlight%2Fmodels%2Fclawlight&file=stl%2F07_PCB_tray_black.stl) |
+| Габариты | `DEPTH=27.4`, `MASCOT_SCALE=0.8`, `TOWER_HEIGHT=58`, `BASE_HEIGHT=22.4`, `LED_PITCH=9` |
+| Посадки LED | `LED_DIAMETERS`, `LED_FLANGES`, `LED_FLANGE_THICKNESS` — измерения; `LED_BORE_DIAMETERS=(5.1,5.1,5.1)` — независимые отверстия; `LED_BORE_LEAD_IN=0.6` — фаска |
+| Глаза | `EYE_TONGUE_CORNER_CHAMFER=0.50`, `EYE_TONGUE_ENTRY_CHAMFER=0.25` до масштаба 0,8; готовые фаски язычка 0,4 / 0,2 мм; печать лицом вниз |
+| Держатель LED | `RETAINER_EDGE_CHAMFER=0.20`, `RETAINER_SLOT_CHAMFER=0.15`, `RETAINER_RELIEF_CHAMFER=0.15`; осевой зазор `LED_RETAINER_GAP=0.25` |
+| Плата и лоток | `PCB_WIDTH`, `PCB_LENGTH`, `PCB_THICKNESS`, `PCB_LENGTH_WITH_USB`; `PCB_FRONT=3.75`, `TRAY_FRONT_EXTENSION=1.05`, `PCB_FRONT_STOP_EXTENSION=1.05`, `TRAY_FRONT_CLEARANCE=0`; `PCB_FLOOR_GAP=1`, `BASE_FLOOR_THICKNESS=2`, `TRAY_FLOOR_Z=BASE_FLOOR_THICKNESS` |
+| Направляющие | `BASE_SIDE_WALL=2` даёт зазор наружных выступов 0,6 мм; `TRAY_RAIL_SIDE_CLEARANCE=0.35`, `TRAY_RAIL_VERTICAL_CLEARANCE=0.45`, `TRAY_KEY_EXTENSION=0.8`; `TRAY_RAIL_BACK=REAR=25` убирает выступы за стык; `TRAY_KEY_CHAMFER=0.1` сохраняет опорные кромки задних выступов; локальный `CLIP_KEEPER_CLEARANCE=0.2` |
+| Защёлки | `CLIP_BEAM_THICKNESS=0.8`, `CLIP_BEAM_LENGTH=12`, `CLIP_HOOK_OVERLAP=0.8`; `CLIP_HOOK_REAR_INSET=2.2`, `CLIP_HOOK_LENGTH=0.55`; зазор над платой `PCB_TOP_CLEARANCE=0.15` |
+| USB и крышка | `USB_WIDTH=8.9`, `USB_HEIGHT=3.1`, `USB_SEATING_Z_OFFSET=1.2`, `USB_CLEARANCE=0.2`, `USB_ENTRY_CHAMFER=0.2`; `USB_REAR=27.65`, `USB_CENTER_Z=8.05`; `COVER_INNER_SKIN=1`, `COVER=2.4`, `COVER_INNER_CHAMFER=0.2`; задние упоры задаются `PCB_REAR_STOP_FRONT`, люфт платы — `PCB_END_CLEARANCE=0.25` |
+| Саморезы | `SCREW_PILOT_DIAMETER=1.9`; параметры головки/длины определяют зенковки и глубины пилотов; стойки `COVER_BOSS_DIAMETER=5.6`, `LED_BOSS_DIAMETER=4.8` |
+| Соединение руки | В `hand_joint.py`: `PIN_DIAGONAL=3`, `SOCKET_DIAGONAL=3.3`, `PIN_PROJECTION=1.8`, `SOCKET_DEPTH=2`; центры на Y = 7/20, Z = 30 мм; ось +X |
+
+Высоты компонентов **0,6 мм снизу / 4 мм сверху** и изображённая длина LED от фланца до вершины **8,5 мм** остаются расчётными предположениями. Реальная плата не должна опираться на компоненты или пайку. Корпус вашего кабеля проверяется физически. Масштабирование маскота не применяется к аппаратуре и проверенным отверстиям.
+
+Для пересборки установите [requirements.txt](requirements.txt), затем из корня репозитория `clawlight` выполните `python models/clawlight/clawlight.py` и `python models/clawlight/check.py`. Архивы пересобираются командой `python models/clawlight/package_prints.py`. Дополнительные STEP-виды экспортируются из их `gen_step()`; [dimensions.py](dimensions.py) создаёт размерный PNG/SVG по фактической геометрии.
+
+## Проверки и просмотр
+
+[CAD-проверка](validation.json) текущей версии глубиной **27,4 мм** прошла **19 проверок**. Все **8 STL имеют замкнутую сетку**, по одному связному компоненту и лежат на Z = 0. Проверены отсутствие пересечений печатных деталей, ход лотка и крышки, совпадение USB-пробников с рабочими деталями и выступ USB **0…0,5 мм** при продольном люфте платы. Проверены новые внутренние фаски и сохранение узкого USB-проёма за фаской. Дополнительно проверены непрерывное плоское дно **2 мм**, отсутствие рёбер в выборке крышки и захват задних выступов лотка в основании даже при крайнем заднем положении.
+
+[Отчёт слайсера](slicer-validation.json): **8 из 8 STL проверены успешно** для A1 Mini / PETG Basic / сопла 0,4 мм / слоя 0,2 мм. Две крышки нарезаны заново после добавления фасок; результаты шести остальных STL переиспользованы после точного совпадения SHA-256. Хеши всех восьми текущих STL сверены с отчётом. Поддержки и смена филамента не сгенерированы; предупреждений о висящих областях или ремонте сетки нет. Лоток 06 нарезан без внутренних диагностических сообщений.
+
+На крышке пробника **USB-02** сохранилось одно нефатальное внутреннее сообщение `ZFiller`. Проверка фактических траекторий на **12 слоях и 12 компонентах** не нашла пропущенных целых слоёв или компонентов, но не доказывает полноту локального заполнения. Перед печатью просмотрите стенки и заполнение USB-02 в своём слайсере; физическую посадку сначала проверьте USB-пробником.
+
+| Набор | PETG | Оценка времени |
+| --- | --- | --- |
+| Сборка: 6 уникальных STL, 7 деталей с двумя глазами | **38,13 г** | **2 ч 34 мин** |
+| USB-тест: 06 + USB-01 + USB-02 | **8,42 г** | **1 ч** |
+| Полный набор: 8 уникальных STL, 9 деталей с двумя глазами | **45,34 г** | **3 ч 22 мин** |
+
+Оценки суммируют раздельную печать каждой детали, включая подготовку принтера; объединение деталей на одной пластине изменит время. Проверочный профиль использует Textured PEI и Bambu PETG Basic. При реальной печати сохраните свою пластину и настройки, с которыми получился купон.
+
+**Посадка руки в гнездо 3,3 мм физически проверена на прежних пробниках; окончательная сборка ещё требует примерки.** USB-пробник проверяет плату, направляющие, закрытие крышки и настоящий кабель. Перед постоянным соединением руки клеем примерьте LED, провода и всю сборку.
+
+- [Фаски заднего язычка глаза](preview/eye_chamfers_20260918T085846Z.png) — геометрия глаза не менялась.
+- [Фаски держателя LED спереди](preview/retainer_front_20260917T203403Z.png) и [сзади](preview/retainer_rear_20260917T203403Z.png) — геометрия держателя не менялась.
+
+Новые виды версии с **плоским дном 2 мм и фасками крышки**, полученные из пересобранных STEP и просмотренные после CAD-проверок:
+
+- [Открытое основание с лотком](preview/cover_chamfers_open_20260918T102410Z.png), [внутренняя сторона крышки](preview/cover_chamfers_cover_inside_20260918T102410Z.png).
+- [USB крупно](preview/cover_chamfers_usb_20260918T102410Z.png) — светлый блок показывает проверочный габарит разъёма, а не заглушку печатной детали.
+- [Общий вид](preview/cover_chamfers_finished_20260918T102410Z.png), [разнесённая сборка](preview/cover_chamfers_exploded_20260918T102410Z.png), [обновлённый USB-пробник](preview/cover_chamfers_coupons_20260918T102410Z.png).
+- [Текущий размерный чертёж](preview/dimensions.png), также [SVG](preview/dimensions.svg).
+
+Остальные старые виды основания в `preview/` относятся к предыдущей геометрии.
+
+Для локального просмотра откройте [сборку](clawlight.step), [вид с электроникой](appearance.step) или [разнесённую сборку](exploded.step) в CAD-просмотрщике. Эти относительные ссылки работают и в распакованном комплекте для печати; размеры STEP и STL заданы в миллиметрах.

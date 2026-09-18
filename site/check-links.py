@@ -18,7 +18,7 @@ class Links(HTMLParser):
         if "id" in attrs:
             assert attrs["id"] not in self.ids, f"Duplicate id: {attrs['id']}"
             self.ids.add(attrs["id"])
-        for key in ("href", "src"):
+        for key in ("href", "src", "poster", "ios-src", "data-model-src", "data-viewer-src"):
             if key in attrs:
                 self.links.append((attrs[key], "download" in attrs))
 

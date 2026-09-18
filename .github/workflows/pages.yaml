@@ -6,14 +6,24 @@ on:
       - main
     paths:
       - 'site/**'
-      - 'docs/hardware-setup.md'
+      - 'docs/**'
       - 'assets/icons/**'
+      - 'scripts/export-web-model.py'
+      - 'models/clawlight/*.py'
+      - 'models/clawlight/requirements.txt'
+      - 'models/clawlight/PRINT_GUIDE.md'
+      - 'models/clawlight-print-pack.zip'
       - '.github/workflows/pages.yaml'
   pull_request:
     paths:
       - 'site/**'
-      - 'docs/hardware-setup.md'
+      - 'docs/**'
       - 'assets/icons/**'
+      - 'scripts/export-web-model.py'
+      - 'models/clawlight/*.py'
+      - 'models/clawlight/requirements.txt'
+      - 'models/clawlight/PRINT_GUIDE.md'
+      - 'models/clawlight-print-pack.zip'
       - '.github/workflows/pages.yaml'
   workflow_dispatch:
 
@@ -31,7 +41,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: '3.14'
           cache: pip
           cache-dependency-path: site/requirements-docs.txt
       - uses: actions/setup-node@v6
@@ -41,9 +51,11 @@ jobs:
       - name: Check language and copying
         run: |
           node site/i18n.test.cjs
+          node site/model-preview.test.cjs
           node site/docs-language.test.cjs
           node site/docs-copy.test.cjs
           python site/pages.test.py
+          python scripts/export-web-model.py --check
       - name: Build and check the complete website
         env:
           WEBSITE_REPOSITORY: ${{ github.repository }}

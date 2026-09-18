@@ -11,6 +11,7 @@ theme:
   custom_dir: overrides
   font: false
   favicon: assets/favicon.svg
+  logo: assets/favicon.svg
   palette:
     scheme: slate
     primary: custom

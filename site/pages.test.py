@@ -7,6 +7,7 @@ import re
 import markdown
 from mkdocs.config import load_config
 
+import pages
 from pages import SITE, on_config, on_page_content, on_page_markdown
 
 
@@ -14,14 +15,46 @@ for locale in ("en", "ru"):
     for name in ("index.md", "installation.md"):
         source = (Path(__file__).parent / "guide" / locale / name).read_text()
         page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/{name}"))
-        assert on_page_markdown(source, page=page, config=SimpleNamespace(repo_url=None)) == source
         public = on_page_markdown(source, page=page, config=SimpleNamespace(repo_url="https://github.com/example/lamp"))
-        assert "https://github.com/example/lamp/releases" in public
-        assert "https://github.com/example/lamp/archive/HEAD.zip" in public
         assert "/dist/" not in public and "{ download }" not in public
-        assert ("исходников" in public) if locale == "ru" else ("source" in public)
+        if name == "installation.md":
+            assert "https://github.com/example/lamp/releases" in public
+            assert "https://github.com/example/lamp/archive/HEAD.zip" in public
+            assert "clawlight-vVERSION-aarch64-apple-darwin.tar.gz" in public
+            assert "clawlight-vVERSION-x86_64-apple-darwin.tar.gz" in public
+            assert ".sha256" in public and "clawlight-cli-" in public
+        else:
+            assert "https://github.com/example/lamp/releases" in public
+            assert "clawlight-enclosure-vVERSION.zip" in public and ".sha256" in public
+            assert "https://github.com/example/lamp/blob/HEAD/models/clawlight/PRINT_GUIDE.md" in public
+            assert "https://github.com/example/lamp/archive/HEAD.zip" in public
+            assert "1.0.0" in public and "clawlight-print-pack.zip" not in public
+        with TemporaryDirectory() as temporary:
+            pages.SITE = Path(temporary) / "site"
+            local = on_page_markdown(source, page=page, config=SimpleNamespace(repo_url=None))
+            if name == "installation.md":
+                assert "hardware.md#build-from-source" in local and "/dist/" not in local
+                dist = Path(temporary) / "dist"
+                dist.mkdir()
+                archive = dist / "clawlight-v1.0.0-aarch64-apple-darwin.tar.gz"
+                archive.touch()
+                assert "/dist/" not in on_page_markdown(source, page=page, config=SimpleNamespace(repo_url=None))
+                archive.with_name(archive.name + ".sha256").touch()
+                local = on_page_markdown(source, page=page, config=SimpleNamespace(repo_url=None))
+                assert f"dist/{archive.name})" in local and f"dist/{archive.name}.sha256)" in local
+            else:
+                assert "clawlight-print-pack.zip" not in local and "{ download }" not in local
+                assert "models/clawlight/PRINT_GUIDE.md" in local
+                models = Path(temporary) / "models"
+                models.mkdir()
+                (models / "clawlight-print-pack.zip").touch()
+                local = on_page_markdown(source, page=page, config=SimpleNamespace(repo_url=None))
+                prefix = "../../../" if locale == "ru" else "../../"
+                assert f"]({prefix}models/clawlight-print-pack.zip){{ download }}" in local
+                assert "START_HERE.md" in local and "models/clawlight/PRINT_GUIDE.md" in local
+        pages.SITE = SITE
 
-print("PASS: local downloads and public Releases/source fallback in both languages")
+print("PASS: separate Mac/enclosure downloads and source fallback in both languages, including clean checkouts")
 
 config = on_config(load_config(str(SITE / "mkdocs.yaml")))
 master = (SITE.parent / "docs/hardware-setup.md").read_text()
@@ -46,7 +79,7 @@ with TemporaryDirectory() as temporary:
         assert f"{value} Ω ── green" in rendered
 
 page = SimpleNamespace(file=SimpleNamespace(src_uri="en/hardware.md"))
-sample = '<a href="../firmware/esp32-c3-supermini/">Firmware</a><img src="../assets/icons/clawd-red.png" alt="Red"><h2 id="camera-2026"></h2><a href="#camera--2026">Check</a>'
+sample = '<a href="../firmware/esp32-c3-supermini/">Firmware</a><img src="../assets/icons/clawd-red.png" alt="Red status lamp"><h2 id="camera-2026"></h2><a href="#camera--2026">Check</a>'
 local = on_page_content(sample, page=page, config=SimpleNamespace(repo_url=None))
 public = on_page_content(sample, page=page, config=SimpleNamespace(repo_url="https://github.com/example/lamp"))
 assert 'href="../' not in local and "firmware/esp32-c3-supermini" in local

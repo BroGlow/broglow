@@ -52,6 +52,83 @@ fn update_state(mutate: impl FnOnce(&mut HookState) -> bool) -> anyhow::Result<(
     Ok(())
 }
 
+#[cfg(all(test, unix))]
+#[test]
+fn dismissed_session_returns_on_activity() {
+    // Isolate the real filesystem path in a child, never change this runner's HOME.
+    if std::env::var_os("CLAWLIGHT_TEST_DISMISS").is_none() {
+        let home = tempfile::tempdir().unwrap();
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "hook::dismissed_session_returns_on_activity",
+                "--nocapture",
+            ])
+            .env("HOME", home.path())
+            .env("CLAWLIGHT_TEST_DISMISS", "1")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+    let read = || -> Value {
+        serde_json::from_str(&std::fs::read_to_string(state_file_path()).unwrap()).unwrap()
+    };
+    let event = |id, event| {
+        ingest_event(&serde_json::json!({
+            "harness": "codex", "session_id": id, "event": event,
+            "title": "Keep this conversation", "directory": "/project"
+        }))
+        .unwrap()
+    };
+    crate::state::clear_session("missing").unwrap();
+    assert!(!state_file_path().exists());
+    event("working", "working");
+    event("paused", "idle");
+    let original = read();
+    crate::state::clear_session("paused").unwrap();
+    assert_eq!(
+        read()["sessions"]["working"],
+        original["sessions"]["working"]
+    );
+    assert!(read()["sessions"].get("paused").is_none());
+    assert_eq!(
+        crate::state::aggregate(
+            &crate::state::read_hook_state(),
+            crate::config::YellowMode::AnyInactive
+        ),
+        crate::state::Aggregate::Green
+    );
+    crate::state::clear_session("paused").unwrap(); // Repeated clicks are harmless.
+    event("paused", "resumed");
+    assert_eq!(read()["sessions"]["paused"]["status"], "active");
+    assert_eq!(read()["sessions"]["paused"]["harness"], "codex");
+    for status in ["working", "needs_input", "idle"] {
+        event("paused", status);
+        crate::state::clear_session("paused").unwrap();
+        assert!(read()["sessions"].get("paused").is_none());
+    }
+    crate::state::clear_session("working").unwrap();
+    assert_eq!(
+        crate::state::aggregate(
+            &crate::state::read_hook_state(),
+            crate::config::YellowMode::AnyInactive
+        ),
+        crate::state::Aggregate::None
+    );
+    std::fs::write(state_file_path(), "invalid JSON").unwrap();
+    assert!(crate::state::clear_session("paused").is_err());
+    assert_eq!(
+        std::fs::read_to_string(state_file_path()).unwrap(),
+        "invalid JSON"
+    );
+}
+
 /// `clawlight hook`: read one hook event as JSON on stdin and update
 /// `state.json`. Mirrors the semantics of the previous `hook.sh` exactly.
 pub fn run() -> anyhow::Result<()> {

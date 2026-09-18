@@ -34,11 +34,40 @@ def require(condition, message):
         raise SystemExit(message)
 
 
+def release_identity(version, tag):
+    commit = run("git", "rev-parse", "HEAD")
+    dirty = bool(run("git", "status", "--porcelain", "--untracked-files=normal"))
+    if tag:
+        require(tag == f"v{version}", f"Release tag must equal Cargo.toml version: v{version}")
+        require(not dirty, "Release packaging requires a clean source checkout.")
+        require(run("git", "rev-parse", f"{tag}^{{commit}}") == commit,
+                "Release tag must point to the checked-out commit.")
+    return commit, dirty
+
+
+def macho_build_info(load_commands):
+    for command in load_commands.split("Load command"):
+        if "cmd LC_BUILD_VERSION" in command or "cmd LC_VERSION_MIN_MACOSX" in command:
+            minimum = "minos" if "cmd LC_BUILD_VERSION" in command else "version"
+            return {"minos" if key == minimum else key: value for key, value in
+                    (line.split() for line in command.splitlines() if len(line.split()) == 2)
+                    if key in (minimum, "sdk")}
+    return {}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, default=ROOT / "dist")
     parser.add_argument("--platformio-core", type=Path, default=Path.home() / ".platformio")
+    parser.add_argument("--release-tag", help="Require a clean matching tag and use a versioned filename.")
+    parser.add_argument("--check-only", action="store_true", help="Only validate --release-tag; no build outputs needed.")
     args = parser.parse_args()
+    version = re.search(r'^version = "([^"]+)"$', (ROOT / "Cargo.toml").read_text(), re.M).group(1)
+    commit, dirty = release_identity(version, args.release_tag)
+    if args.check_only:
+        require(args.release_tag, "--check-only requires --release-tag.")
+        print(f"Release source verified: {args.release_tag} ({commit})")
+        return
     require(platform.system() == "Darwin", "Run on the native macOS build machine.")
     arch = platform.machine()
     require(arch in ("arm64", "x86_64"), f"Unsupported Mac architecture: {arch}")
@@ -47,20 +76,14 @@ def main():
     require(binary.is_file(), "First run: cargo build --release --locked")
     require(run("/usr/bin/lipo", "-archs", str(binary)) == arch,
             "target/release/clawlight must contain only this Mac's native architecture.")
-    version = re.search(r'^version = "([^"]+)"$', (ROOT / "Cargo.toml").read_text(), re.M).group(1)
-    reported = subprocess.run([str(binary), "--version"], capture_output=True, text=True)
-    reported_version = reported.stdout.strip() if reported.returncode == 0 else None
-    require(reported_version in (None, f"clawlight {version}"), "CLI version differs from Cargo.toml.")
+    reported_version = run(str(binary), "--version")
+    require(reported_version == f"clawlight {version}", "CLI version differs from Cargo.toml.")
     run(str(binary), "--help")
     require("--port" in run(str(binary), "ble", "pair", "--help"),
-            "CLI lacks USB-assisted BLE pairing; rebuild this fork first.")
+            "CLI lacks USB-assisted BLE pairing; rebuild this project first.")
     run(str(binary), "install", "--help") # Parser smoke test; never installs.
-    mac_build = {}
-    for command in run("/usr/bin/otool", "-l", str(binary)).split("Load command"):
-        if "cmd LC_BUILD_VERSION" in command:
-            mac_build = {key: value for key, value in
-                         (line.split() for line in command.splitlines() if len(line.split()) == 2)
-                         if key in ("minos", "sdk")}
+    mac_build = macho_build_info(run("/usr/bin/otool", "-l", str(binary)))
+    require("minos" in mac_build, "Could not determine the CLI's minimum macOS version.")
 
     build = C3 / ".pio/build/esp32-c3-supermini"
     framework = args.platformio_core / "packages/framework-arduinoespressif32"
@@ -102,10 +125,13 @@ def main():
                 f"{artifact.name} predates an input; rebuild before packaging.")
 
     now = datetime.now(timezone.utc)
-    name = f"clawlight-v{version}-{target}-{now.strftime('%Y%m%dT%H%M%S%fZ')}"
+    name = f"clawlight-v{version}-{target}"
+    if not args.release_tag:
+        name += f"-{now.strftime('%Y%m%dT%H%M%S%fZ')}"
     output = args.output_dir.resolve()
     output.mkdir(parents=True, exist_ok=True)
     archive = output / f"{name}.tar.gz"
+    require(not archive.exists(), f"Refusing to overwrite existing package: {archive}")
     with tempfile.TemporaryDirectory(prefix=".clawlight-package-", dir=output) as temp:
         package = Path(temp) / name
         (package / "bin").mkdir(parents=True)
@@ -115,6 +141,21 @@ def main():
         destination.mkdir(parents=True)
         for _, path in segments:
             shutil.copy2(path, destination / path.name)
+        shutil.copy2(C3 / "platformio.ini", destination / "platformio.ini")
+        shutil.copytree(C3 / "src", destination / "src")
+        shutil.copytree(C3 / "tests", destination / "tests", ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copy2(ROOT / "licenses/arduino-esp32-2.0.17-LICENSE.md", destination / "ARDUINO-LICENSE.md")
+        shutil.copy2(framework / "libraries/BLE/LICENSE", destination / "BLE-LICENSE.txt")
+        (destination / "DEPENDENCIES.md").write_text(
+            "# Firmware dependencies\n\n"
+            "This firmware uses Arduino-ESP32 2.0.17 (LGPL-2.1-or-later; see ARDUINO-LICENSE.md)\n"
+            "and its ESP32 BLE Arduino library (see BLE-LICENSE.txt).\n"
+            "Pinned framework source: https://github.com/espressif/arduino-esp32/tree/2.0.17\n"
+            "ESP-IDF source: https://github.com/espressif/esp-idf/tree/v4.4.7\n\n"
+            "The project's C3 source, PlatformIO configuration and host checks are included.\n"
+            "Build with PlatformIO Core 6.1.19: `pio run -d firmware/esp32-c3-supermini`.\n"
+            "The pinned framework and SDK contain additional third-party components and notices.\n"
+        )
         manifest = {
             "chip": "esp32c3", "flash_mode": "dio", "flash_freq": "40m", "flash_size": "4MB",
             "segments": [{"offset": hex(offset), "file": path.name} for offset, path in segments],
@@ -122,19 +163,21 @@ def main():
             "requires_matching_existing_partition_layout": True,
         }
         (destination / "flash-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-        for filename in ("README.md", "LICENSE", "CLAUDE.md", "AGENTS.md"):
-            if (ROOT / filename).is_file():
-                shutil.copy2(ROOT / filename, package / filename)
-        shutil.copytree(ROOT / "docs", package / "docs",
-                        ignore=shutil.ignore_patterns("RELEASE.md", ".DS_Store"))
+        for filename in ("README.md", "LICENSE", "CLAUDE.md", "AGENTS.md",
+                         "docs/hardware-setup.md", "docs/firmware-reference.md",
+                         "docs/releasing.md", "docs/media.md"):
+            destination = package / filename
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / filename, destination)
         shutil.copytree(ROOT / "assets/icons", package / "assets/icons")
         provenance = {
             "packaged_at_utc": now.isoformat(), "package_version_from_source": version,
             "cli_reported_version": reported_version, "target": target, "macho_build": mac_build,
             "build_macos": platform.mac_ver()[0],
             "other_architectures_included": False,
-            "source_commit_at_packaging": run("git", "rev-parse", "HEAD"),
-            "source_dirty_at_packaging": bool(run("git", "status", "--porcelain", "--untracked-files=normal")),
+            "source_commit_at_packaging": commit,
+            "source_dirty_at_packaging": dirty,
+            "release_tag": args.release_tag,
             "artifacts_rebuilt_by_packager": False,
             "provenance_note": "Existing builds; input age checks and hashes do not prove reproducibility or test results.",
             "arduino_framework_package": framework_version,

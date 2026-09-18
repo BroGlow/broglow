@@ -436,9 +436,6 @@ void protocolChecks() {
   feed("\n");
   expectLamp(255, 0,
              0);  // Partial pre-BLE input cannot replay after disconnect.
-  Serial.output.clear();
-  feed("OTA:100:12345678\n");
-  assert(Serial.output.find("E\n") != std::string::npos);
   now = serialTime + 10000;
   Serial.input.push_back('x');
   Serial.flood = true;

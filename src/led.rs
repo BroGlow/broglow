@@ -1,6 +1,6 @@
-//! `clawlight led` — daemon that mirrors aggregate session state to a Seeed
-//! XIAO ESP32-C6 over USB serial, driving three status LEDs (red / yellow /
-//! green).
+//! `clawlight led` — daemon that mirrors aggregate session state to the
+//! ESP32-C3 SuperMini lamp over USB serial, driving three status LEDs
+//! (red / yellow / green).
 //!
 //! Protocol: one ASCII byte + newline per update.
 //!   'R' = needs help   (red LED)
@@ -8,7 +8,7 @@
 //!   'G' = active       (green LED)
 //!   'N' = no sessions  (all LEDs off)
 //!
-//! The daemon scans for the Seeed XIAO ESP32-C6 serial device, connects, and sends
+//! The daemon scans Espressif USB serial devices, connects, and sends
 //! the current state on every change plus a periodic heartbeat. If the
 //! board is unplugged it falls back to scanning until it reappears, so it
 //! can be left running unattended.
@@ -28,14 +28,9 @@ const POLL_INTERVAL: Duration = Duration::from_millis(500);
 const HEARTBEAT: Duration = Duration::from_secs(2);
 const RESCAN_INTERVAL: Duration = Duration::from_secs(2);
 
-/// USB vendor ID of the Seeed XIAO ESP32-C6 — the only board clawlight
-/// supports. The XIAO wires the ESP32-C6's built-in USB straight to its USB-C
-/// port (no CH340/CP210x UART bridge), so it always enumerates under
-/// Espressif's native USB-Serial-JTAG vendor ID. Matching this VID (and nothing
-/// else) is unambiguous — 0x303A is used only by native-USB ESP32 variants — so
-/// the always-on daemon never risks writing status bytes to an unrelated board
-/// (an Arduino on a CH340/CP210x bridge, a GPS, a printer, ...).
-const SEEED_C6_VID: u16 = 0x303A;
+/// Espressif's native USB vendor ID, used by the ESP32-C3 SuperMini.
+/// This identifies candidates, not the board model or installed firmware.
+const ESPRESSIF_VID: u16 = 0x303A;
 
 pub(crate) fn status_byte(agg: Aggregate) -> u8 {
     match agg {
@@ -46,10 +41,8 @@ pub(crate) fn status_byte(agg: Aggregate) -> u8 {
     }
 }
 
-/// Detect connected Seeed XIAO ESP32-C6 boards by USB vendor ID, most likely
-/// first. Matches only the XIAO's native USB-Serial-JTAG VID and never falls
-/// back to an arbitrary serial device, so scanning is always safe. Pass
-/// `--port` to force any other device.
+/// List Espressif USB serial candidates, most likely first. The vendor ID does
+/// not prove that a device is a ClawLight lamp. Pass `--port` to select a device.
 ///
 /// Returns a list so callers can fall through to the next candidate when one
 /// can't be opened — e.g. it's held by another app, or it's the `tty.*` twin of
@@ -67,7 +60,7 @@ pub fn detect_boards() -> Vec<String> {
     let mut boards: Vec<(u8, String)> = Vec::new();
     for p in ports {
         if let SerialPortType::UsbPort(usb) = &p.port_type {
-            if usb.vid == SEEED_C6_VID {
+            if usb.vid == ESPRESSIF_VID {
                 let penalty = cu_penalty(&p.port_name);
                 boards.push((penalty, p.port_name));
             }
@@ -78,13 +71,13 @@ pub fn detect_boards() -> Vec<String> {
     boards.into_iter().map(|(_, name)| name).collect()
 }
 
-/// The single most likely board — used by the TUI for its "board attached?"
+/// The single most likely USB candidate — used by the TUI for its "board attached?"
 /// indicator and the `l` toggle, and by the foreground `led` command.
 pub fn detect_board() -> Option<String> {
     detect_boards().into_iter().next()
 }
 
-/// Is a clawlight board attached right now? Cached with a short TTL so the tray
+/// Is an Espressif USB candidate attached? Cached with a short TTL so the tray
 /// popover — which asks on every state push, potentially several times a second
 /// during a busy session — doesn't re-enumerate the USB bus each time. The LED
 /// daemon and the TUI call [`detect_board`] directly instead; they already scan
@@ -102,12 +95,12 @@ pub fn board_present_cached() -> bool {
     guard.map(|(_, present)| present).unwrap_or(false)
 }
 
-/// Foreground command (`clawlight led`): mirror state to the Seeed XIAO
-/// ESP32-C6 until killed. Kept for debugging and for users who'd rather run it
+/// Foreground command (`clawlight led`): mirror state to the ESP32-C3 SuperMini
+/// lamp until killed. Kept for debugging and for users who'd rather run it
 /// standalone than via the menu bar daemon.
 pub fn run(port_override: Option<String>) -> anyhow::Result<()> {
     println!(
-        "clawlight led — mirroring {} to the Seeed XIAO ESP32-C6 over serial",
+        "clawlight led — mirroring {} to the ESP32-C3 SuperMini lamp over serial",
         state::state_file_path().display()
     );
 
@@ -140,7 +133,7 @@ pub fn run(port_override: Option<String>) -> anyhow::Result<()> {
 }
 
 /// Background driver for the menu bar daemon. Idles — touching no serial port —
-/// while the LED setting is off; when on, connects to a known board (or the
+/// while the LED setting is off; when on, connects to a USB candidate (or the
 /// configured `led_port`) and mirrors state, reconnecting on replug. Returns
 /// promptly when the user turns the setting off. Never exits.
 pub fn run_daemon() -> ! {

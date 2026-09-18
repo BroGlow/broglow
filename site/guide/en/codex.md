@@ -19,3 +19,10 @@ Click a local Codex session to return to it. On macOS, desktop tasks open direct
 in Codex (including the ChatGPT desktop app) using their task link. CLI sessions
 still focus their captured terminal; if no host can be focused, ClawLight tries
 the task link in the installed Codex app.
+
+Session names update within five seconds after Codex saves a generated title or
+rename. No new prompt is needed; the session's status and activity time stay the same.
+
+Use **×** beside a session in ClawLight to dismiss it from the list and lamp status.
+The Codex conversation stays intact and reappears automatically on a new prompt or
+other activity. Just opening the conversation does not restore it.

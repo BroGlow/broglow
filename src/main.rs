@@ -8,7 +8,6 @@ mod hook;
 mod led;
 mod menubar;
 mod notification;
-mod ota;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod popover;
 mod session;
@@ -35,6 +34,7 @@ use crate::app::App;
 #[derive(Parser)]
 #[command(
     name = "clawlight",
+    version,
     about = "TUI dashboard for Claude Code, opencode, Codex CLI, and GitHub Copilot CLI sessions"
 )]
 struct Cli {
@@ -55,9 +55,9 @@ enum Commands {
         #[arg(value_parser = ["show", "hide"])]
         visibility: String,
     },
-    /// Mirror session state to a Seeed XIAO ESP32-C6 over USB serial (foreground)
+    /// Mirror session state to an ESP32-C3 SuperMini lamp over USB serial (foreground)
     Led {
-        /// Serial device path (default: auto-detect the Seeed XIAO ESP32-C6)
+        /// Serial device path (default: scan Espressif USB devices)
         #[arg(long)]
         port: Option<String>,
     },
@@ -65,14 +65,6 @@ enum Commands {
     Ble {
         #[command(subcommand)]
         command: ble::BleCommand,
-    },
-    /// Push new firmware to the ESP32-C6 over serial — no cable reflash
-    Update {
-        /// espflash image to install (output of `espflash save-image`)
-        firmware: String,
-        /// Serial device path (default: auto-detect / configured led_port)
-        #[arg(long)]
-        port: Option<String>,
     },
     /// (internal) Print today's usage snapshot (tokens / $ / plan %) as JSON
     #[command(hide = true)]
@@ -158,7 +150,6 @@ fn main() -> anyhow::Result<()> {
             }
             ble::command(command)
         }
-        Some(Commands::Update { firmware, port }) => ota::run(firmware, port),
         Some(Commands::Usage) => usage::run_once(),
         Some(Commands::Hook) => hook::run(),
         Some(Commands::Event) => hook::run_event(),
@@ -317,14 +308,13 @@ fn install_hooks() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// On a clean first install, enable the status LEDs automatically if a clawlight
-/// board is already plugged in — so "plug it in, install, done" just works.
+/// On a clean first install, enable the status LEDs automatically if an Espressif
+/// USB candidate is already plugged in.
 ///
 /// Gated on there being no `config.json` yet: a config file means the user has
 /// already made a choice in the popover/TUI, so re-running install must never
-/// flip the LEDs back on against a deliberate opt-out. Detection matches only
-/// the XIAO's native USB vendor ID (see `led::detect_board`), so a positive hit
-/// is unambiguously our board — enabling it can't drive an unrelated device.
+/// flip the LEDs back on against a deliberate opt-out. Detection uses Espressif's
+/// USB vendor ID (see `led::detect_board`), not a firmware identity check.
 ///
 /// Returns whether the LEDs ended up enabled (either just now or already), so
 /// the caller can tailor the closing hint. Best-effort: a config write failure
@@ -352,7 +342,7 @@ fn maybe_autoenable_led() -> bool {
     match result {
         Ok((enabled, created)) => {
             if created {
-                println!("Detected a Claw Light board at {port} — status LEDs enabled.");
+                println!("Detected an Espressif USB device at {port} — status LEDs enabled.");
             }
             enabled
         }
@@ -552,7 +542,7 @@ fn install_run_key() -> anyhow::Result<()> {
         .stderr(std::process::Stdio::null());
     crate::spawn::configure_detached(&mut cmd);
     let _ = cmd.spawn();
-    println!("Tray icon launched — look for the Clawd icon in the system tray.");
+    println!("Tray icon launched — look for the traffic-light icon in the system tray.");
     Ok(())
 }
 

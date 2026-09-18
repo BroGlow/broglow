@@ -80,6 +80,14 @@ body.win .srow:hover { background: rgba(255,255,255,.06); }
   padding: 0 5px; margin-right: 6px; vertical-align: 1px; }
 body.win .badge { color: #c9a0ff; background: rgba(201,160,255,.16); }
 .time { font-size: 11px; color: rgba(255,255,255,.4); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.dismissbtn {
+  width: 24px; height: 24px; flex-shrink: 0; border: none; border-radius: 5px;
+  background: transparent; color: rgba(255,255,255,.6);
+  font-family: inherit; font-size: 18px; line-height: 1;
+  cursor: pointer;
+}
+.dismissbtn:hover { background: rgba(255,255,255,.12); color: #fff; }
+.dismissbtn:focus-visible { outline: 2px solid #71a4ff; outline-offset: 1px; }
 
 .focusbtn {
   font-size: 11px; font-weight: 600; color: #fff; background: #3577f6;
@@ -225,6 +233,7 @@ body.win .brightness input { accent-color: #4cc2ff; }
     <div class="chips" id="chips"></div>
   </div>
   <div class="grp" id="groups"></div>
+  <p class="lamperror" id="sessionerror" role="alert" hidden></p>
   <div class="usec" id="usage" hidden></div>
   <div class="popfoot">
     <button class="pbtn pbtnpri" id="dashboardbtn" data-cmd="dashboard" hidden>Dashboard</button>
@@ -472,13 +481,12 @@ function renderLamp() {
   const connectedCount = l.enabled && status === 'connected' ? devices.filter(device => device.state === 'connected').length : 0;
   const connected = status === 'connected' && (!wireless || connectedCount > 0);
   const plural = wireless && l.selected_count > 1;
-  let dot = null, label = plural ? 'Lamps' : 'Lamp', cmd = 'set_led', enabled = !l.enabled;
+  let dot = null, label = plural ? 'Lamps' : 'Lamp';
   if (l.enabled) {
     dot = connected ? 'dgreen' : (status === 'error' || status === 'unavailable' ? 'dred' : 'dyellow');
     if (plural) label += ` ${connectedCount}/${l.selected_count}`;
   } else {
     label += ' off';
-    if (!l.present && !wireless) { cmd = 'get_lamp'; enabled = undefined; }
   }
   el.className = 'pbtn pbtnghost lampbtn' + (connected ? ' lon' : '');
   el.title = `${label} — ${lampState(connected ? 'connected' : status === 'connected' ? 'unavailable' : status)}. View lamp details.`;
@@ -580,11 +588,10 @@ function renderLamp() {
     document.getElementById('lampdetail').textContent = wireless && !l.selected_count ?
       (l.bluetooth_supported ? 'Connect one lamp by USB, then use Add lamp above.' : 'Bluetooth lamp setup requires macOS.') : (l.detail || '');
     const control = document.getElementById('lampcontrol');
-    control.dataset.cmd = cmd;
-    control.disabled = setupBusy;
-    if (enabled === undefined) delete control.dataset.enabled;
-    else control.dataset.enabled = String(enabled);
-    control.textContent = cmd === 'get_lamp' ? 'Get a lamp ↗' : (l.enabled ? 'Disable' : 'Enable') + (plural ? ' lamps' : ' lamp');
+    control.dataset.cmd = 'set_led';
+    control.disabled = setupBusy || (!l.enabled && !l.present && !wireless);
+    control.dataset.enabled = String(!l.enabled);
+    control.textContent = (l.enabled ? 'Disable' : 'Enable') + (plural ? ' lamps' : ' lamp');
     document.getElementById('brightnesscontrol').hidden = !wireless;
     renderBrightness(document.getElementById('brightness'), 'brightnessvalue', 'brightnesshint', l.brightness_percent ?? 100);
   }
@@ -601,6 +608,7 @@ function relTime(iso) {
 }
 
 function render() {
+  const focusedDismiss = document.activeElement?.dataset.cmd === 'clear_session' ? document.activeElement.id : null;
   document.getElementById('dashboardbtn').hidden = state.settings?.showDashboardButton !== true;
   const sessions = state.sessions;
   const counts = { needs_help: 0, active: 0, inactive: 0 };
@@ -702,12 +710,18 @@ function render() {
           ` data-id="${esc(s.id)}" title="Go to this session's terminal">` +
           `<span class="dot ${g.dot}"></span>` +
           `<div class="sinfo"><span class="sname">${badge}${esc(s.name)}</span>` +
-          `<span class="smeta">${meta}</span></div>${tail}</div>`;
+          `<span class="smeta">${meta}</span></div>${tail}` +
+          `<button class="dismissbtn" type="button" id="dismiss-${esc(s.id)}" data-cmd="clear_session" data-id="${esc(s.id)}"` +
+          ` aria-label="Dismiss ${esc(s.name)} from ClawLight" title="Dismiss from ClawLight until new activity. Keeps the conversation.">×</button></div>`;
       }
     }
     groupsEl.innerHTML = html;
   }
   groupsEl.dataset.view = view;
+  const sessionError = document.getElementById('sessionerror');
+  sessionError.textContent = configActionError;
+  sessionError.hidden = view !== 'sessions' || !configActionError;
+  if (view === 'sessions' && focusedDismiss) (document.getElementById(focusedDismiss) || settingsBtn).focus();
 
   renderUsage();
   renderLamp();
@@ -813,11 +827,15 @@ document.addEventListener('click', ev => {
     return;
   }
   const btn = ev.target.closest('[data-cmd]');
-  if (!btn) return;
+  if (!btn || btn.disabled) return;
   if (view === 'lamp') stopBrightnessPreview();
   const msg = { cmd: btn.dataset.cmd };
   if (btn.dataset.id !== undefined) msg.id = btn.dataset.id;
   if (btn.dataset.enabled !== undefined) msg.enabled = btn.dataset.enabled === 'true';
+  if (msg.cmd === 'clear_session') {
+    configActionError = '';
+    document.getElementById('sessionerror').hidden = true;
+  }
   if (lampSetupBusy() && ['add_lamp', 'forget_lamp', 'rename_lamp', 'identify_lamp', 'set_led'].includes(msg.cmd)) return;
   if (msg.cmd === 'identify_lamp') {
     if (!canIdentifyLamp(msg.id)) return;

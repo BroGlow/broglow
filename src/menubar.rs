@@ -23,7 +23,7 @@ use crate::config::BillingMode;
 use crate::popover::{Popover, PopoverMsg};
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 use crate::state::Status;
-use crate::state::{self, aggregate, read_hook_state, Aggregate, HookState};
+use crate::state::{self, aggregate, read_display_state, Aggregate, HookState};
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::usage;
 
@@ -303,7 +303,7 @@ enum UserEvent {
     StateChanged,
     /// Periodic re-evaluation. Session state can go stale with no file write to
     /// watch for — a session's Claude Code process can exit without a
-    /// SessionEnd hook (window closed, crash, SIGKILL), so `read_hook_state`
+    /// SessionEnd hook (window closed, crash, SIGKILL), so `read_display_state`
     /// reaps it only when something asks. This tick makes the tray icon (and an
     /// open popover) recompute on a timer so a stuck-red light clears itself.
     Tick,
@@ -402,7 +402,7 @@ pub fn run() -> anyhow::Result<()> {
     // TUI, so it's safe to always spawn.
     thread::spawn(|| crate::led::run_daemon());
 
-    let initial_state = read_hook_state();
+    let initial_state = read_display_state();
 
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     let mut dashboard_visible = config::read_config().show_dashboard_button;
@@ -537,7 +537,7 @@ pub fn run() -> anyhow::Result<()> {
 
         match event {
             Event::UserEvent(UserEvent::StateChanged) => {
-                let state = read_hook_state();
+                let state = read_display_state();
                 if let Some(tray) = tray_holder.as_ref() {
                     if let Ok(icon) = icon_for_state(&state) {
                         let _ = tray.set_icon(Some(icon));
@@ -554,7 +554,7 @@ pub fn run() -> anyhow::Result<()> {
                 }
             }
             Event::UserEvent(UserEvent::Tick) => {
-                let state = read_hook_state();
+                let state = read_display_state();
                 if let Some(tray) = tray_holder.as_ref() {
                     if let Ok(icon) = icon_for_state(&state) {
                         let _ = tray.set_icon(Some(icon));
@@ -583,7 +583,7 @@ pub fn run() -> anyhow::Result<()> {
                 } else {
                     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
                     if let Some((_, sid)) = ids.sessions.iter().find(|(mid, _)| *mid == ev.id) {
-                        let session = read_hook_state().sessions.get(sid).cloned();
+                        let session = read_display_state().sessions.get(sid).cloned();
                         let sid = sid.clone();
                         thread::spawn(move || {
                             if let Some(s) = session {
@@ -605,7 +605,7 @@ pub fn run() -> anyhow::Result<()> {
                 }
                 // The popover payload embeds the snapshot; refresh it so an
                 // open popover's usage section tracks the readout.
-                popover.push_state(&read_hook_state());
+                popover.push_state(&read_display_state());
             }
             #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::UserEvent(UserEvent::Tray(TrayIconEvent::Click {
@@ -617,7 +617,7 @@ pub fn run() -> anyhow::Result<()> {
                 if popover.is_visible() {
                     popover.hide();
                 } else if !popover.just_dismissed() {
-                    popover.open_at(rect, &read_hook_state());
+                    popover.open_at(rect, &read_display_state());
                 }
             }
             #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -629,7 +629,7 @@ pub fn run() -> anyhow::Result<()> {
                 PopoverMsg::AddLamp => {
                     if !popover.setup_busy {
                         popover.setup_busy = true;
-                        popover.push_state(&read_hook_state());
+                        popover.push_state(&read_display_state());
                         let proxy = setup_proxy.clone();
                         thread::spawn(move || {
                             let error = crate::ble::pair_from_app().err().map(|e| e.to_string());
@@ -645,12 +645,25 @@ pub fn run() -> anyhow::Result<()> {
                 | PopoverMsg::SetLampBrightness { .. }
                 | PopoverMsg::PreviewBrightness { .. }
                     if popover.setup_busy => {}
-                PopoverMsg::Ready => popover.push_state(&read_hook_state()),
+                PopoverMsg::Ready => popover.push_state(&read_display_state()),
                 PopoverMsg::Resize { height, dpr } => popover.on_resize(height, dpr),
                 PopoverMsg::Focus { id } => {
                     popover.hide();
-                    let state = read_hook_state();
+                    let state = read_display_state();
                     focus_session(&id, state.sessions.get(&id));
+                }
+                PopoverMsg::ClearSession { id } => {
+                    let error = state::clear_session(&id)
+                        .err()
+                        .map(|error| format!("Could not dismiss session: {error}"));
+                    let state = read_display_state();
+                    if let Some(tray) = tray_holder.as_ref() {
+                        if let Ok(icon) = icon_for_state(&state) {
+                            let _ = tray.set_icon(Some(icon));
+                        }
+                    }
+                    popover.push_state(&state);
+                    popover.config_action_result(error);
                 }
                 PopoverMsg::Dashboard => {
                     popover.hide();
@@ -671,7 +684,7 @@ pub fn run() -> anyhow::Result<()> {
                     // The config write also lands in the watched directory and
                     // triggers StateChanged, but update directly so the icon
                     // and popover can't lag behind the click.
-                    let state = read_hook_state();
+                    let state = read_display_state();
                     if let Some(tray) = tray_holder.as_ref() {
                         if let Ok(icon) = icon_for_state(&state) {
                             let _ = tray.set_icon(Some(icon));
@@ -684,7 +697,7 @@ pub fn run() -> anyhow::Result<()> {
                     let error = config::set_dashboard_button(enabled)
                         .err()
                         .map(|error| format!("Could not save Dashboard setting: {error}"));
-                    popover.push_state(&read_hook_state());
+                    popover.push_state(&read_display_state());
                     popover.config_action_result(error);
                 }
                 PopoverMsg::SetUsage { enabled, mode } => {
@@ -702,7 +715,7 @@ pub fn run() -> anyhow::Result<()> {
                     if let Some(tray) = tray_holder.as_ref() {
                         apply_readout(tray);
                     }
-                    popover.push_state(&read_hook_state());
+                    popover.push_state(&read_display_state());
                     popover.config_action_result(error);
                 }
                 PopoverMsg::SetLed { enabled } => {
@@ -715,21 +728,21 @@ pub fn run() -> anyhow::Result<()> {
                     // The LED daemon thread re-reads config on its own poll and
                     // (dis)connects within a couple of seconds; refresh the
                     // popover now so the footer indicator flips immediately.
-                    popover.push_state(&read_hook_state());
+                    popover.push_state(&read_display_state());
                     popover.config_action_result(error);
                 }
                 PopoverMsg::ForgetLamp { id } => {
                     let error = crate::ble::command(crate::ble::BleCommand::Remove { id })
                         .err()
                         .map(|error| format!("Could not forget lamp: {error}"));
-                    popover.push_state(&read_hook_state());
+                    popover.push_state(&read_display_state());
                     popover.config_action_result(error);
                 }
                 PopoverMsg::RenameLamp { id, name } => {
                     let error = crate::ble::command(crate::ble::BleCommand::Rename { id, name })
                         .err()
                         .map(|error| format!("Could not save lamp name: {error}"));
-                    popover.push_state(&read_hook_state());
+                    popover.push_state(&read_display_state());
                     popover.config_action_result(error);
                 }
                 PopoverMsg::IdentifyLamp { id } => {
@@ -745,7 +758,7 @@ pub fn run() -> anyhow::Result<()> {
                     })
                     .err()
                     .map(|error| format!("Could not save light brightness: {error}"));
-                    popover.push_state(&read_hook_state());
+                    popover.push_state(&read_display_state());
                     popover.config_action_result(error);
                 }
                 PopoverMsg::SetLampBrightness { id, percent } => {
@@ -755,7 +768,7 @@ pub fn run() -> anyhow::Result<()> {
                     })
                     .err()
                     .map(|error| format!("Could not save lamp brightness: {error}"));
-                    popover.push_state(&read_hook_state());
+                    popover.push_state(&read_display_state());
                     popover.config_action_result(error);
                 }
                 PopoverMsg::PreviewBrightness { id, percent } => {
@@ -766,10 +779,6 @@ pub fn run() -> anyhow::Result<()> {
                     } else {
                         crate::ble::preview_brightness(percent);
                     }
-                }
-                PopoverMsg::GetLamp => {
-                    popover.hide();
-                    open_url("https://clawlight.dev");
                 }
             },
             // Dismiss like a real popover: losing focus (clicking anywhere
@@ -841,22 +850,6 @@ fn focus_session(session_id: &str, session: Option<&state::SessionStatus>) {
             open_dashboard();
         }
     });
-}
-
-/// Open a URL (the "Get a lamp" footer link) in the default browser. Only the
-/// popover triggers this, so it's needed on macOS/Windows only.
-#[cfg(target_os = "macos")]
-fn open_url(url: &str) {
-    let _ = std::process::Command::new("open").arg(url).spawn();
-}
-
-#[cfg(target_os = "windows")]
-fn open_url(url: &str) {
-    // `start` treats its first quoted arg as the window title, so pass an empty
-    // one before the URL.
-    let _ = std::process::Command::new("cmd")
-        .args(["/C", "start", "", url])
-        .spawn();
 }
 
 fn open_dashboard() {

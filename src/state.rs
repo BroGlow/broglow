@@ -174,6 +174,28 @@ pub fn read_hook_state() -> HookState {
     state
 }
 
+/// Refresh titles when displaying sessions, even if a rename fires no hook.
+/// Only the snapshot changes: names must not reset activity times or statuses.
+/// Keep this out of the USB/BLE polling path, which needs statuses only.
+pub fn read_display_state() -> HookState {
+    let mut state = read_hook_state();
+    if state
+        .sessions
+        .values()
+        .any(|s| s.harness.as_deref() == Some("codex"))
+    {
+        let mut names = crate::codex::thread_names();
+        for (id, session) in &mut state.sessions {
+            if session.harness.as_deref() == Some("codex") {
+                if let Some(name) = names.remove(id) {
+                    session.name = Some(name);
+                }
+            }
+        }
+    }
+    state
+}
+
 /// Downgrade sessions that have ended to `Done`, in memory, before the caller
 /// aggregates or displays them. Two signals, cheapest first:
 ///
@@ -219,9 +241,10 @@ pub fn clear_session(session_id: &str) -> anyhow::Result<()> {
     }
     // Hold the same lock the hook backend uses so this read-modify-write can't
     // interleave with a concurrent hook and clobber its status update.
-    let _lock = acquire_state_lock();
+    let _lock =
+        acquire_state_lock().ok_or_else(|| anyhow::anyhow!("Could not lock session state"))?;
     let content = std::fs::read_to_string(&path)?;
-    let mut state: HookState = serde_json::from_str(&content).unwrap_or_default();
+    let mut state: HookState = serde_json::from_str(&content)?;
     if state.sessions.remove(session_id).is_none() {
         return Ok(());
     }
@@ -268,6 +291,104 @@ pub fn write_state_atomic(state: &HookState) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use crate::config::YellowMode;
+
+    #[cfg(unix)]
+    #[test]
+    fn codex_renames_refresh_without_hooks() {
+        // Follow the existing child-process test pattern: never change the runner's HOME.
+        if std::env::var_os("CLAWLIGHT_TEST_RENAME").is_none() {
+            let home = tempfile::tempdir().unwrap();
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "state::tests::codex_renames_refresh_without_hooks",
+                ])
+                .env("HOME", home.path())
+                .env("CODEX_HOME", home.path().join("codex"))
+                .env("CLAWLIGHT_TEST_RENAME", "1")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            return;
+        }
+
+        let mut original = HookState::default();
+        for (id, status, name, harness) in [
+            ("unnamed", Status::Active, None, Some("codex")),
+            ("paused", Status::Inactive, Some("Old title"), Some("codex")),
+            (
+                "approval",
+                Status::NeedsHelp,
+                Some("First prompt"),
+                Some("codex"),
+            ),
+            ("other", Status::Active, Some("Claude title"), None),
+        ] {
+            original.sessions.insert(
+                id.into(),
+                SessionStatus {
+                    status,
+                    last_updated: Utc::now().to_rfc3339(),
+                    project_path: Some("/project".into()),
+                    notification_type: None,
+                    name: name.map(str::to_string),
+                    terminal: None,
+                    harness: harness.map(str::to_string),
+                },
+            );
+        }
+        write_state_atomic(&original).unwrap();
+        let disk = std::fs::read(state_file_path()).unwrap();
+        let index = crate::codex::codex_home()
+            .unwrap()
+            .join("session_index.jsonl");
+        std::fs::create_dir_all(index.parent().unwrap()).unwrap();
+        assert_eq!(
+            read_display_state().sessions["paused"].name.as_deref(),
+            Some("Old title")
+        );
+
+        let mut entries = String::new();
+        for title in ["Generated name", "Renamed 日本語 🦀"] {
+            for id in ["unnamed", "paused", "approval", "other", "dismissed"] {
+                entries += &serde_json::json!({"id": id, "thread_name": title}).to_string();
+                entries.push('\n');
+            }
+            entries += "not json\n{\"id\":\"paused\",\"thread_name\":\"  \"}\n";
+            std::fs::write(&index, &entries).unwrap();
+            let refreshed = read_display_state();
+            let mut expected = original.clone();
+            for id in ["unnamed", "paused", "approval"] {
+                expected.sessions.get_mut(id).unwrap().name = Some(title.into());
+                assert_eq!(
+                    crate::menubar::display_name(id, &refreshed.sessions[id]),
+                    title
+                );
+                assert_eq!(
+                    crate::session::load_all_sessions(&refreshed)
+                        .iter()
+                        .find(|s| s.session_id == id)
+                        .unwrap()
+                        .name,
+                    title
+                );
+            }
+            assert_eq!(
+                serde_json::to_value(refreshed).unwrap(),
+                serde_json::to_value(expected).unwrap()
+            );
+            assert_eq!(std::fs::read(state_file_path()).unwrap(), disk);
+        }
+        std::fs::remove_file(index).unwrap();
+        assert_eq!(
+            serde_json::to_value(read_display_state()).unwrap(),
+            serde_json::to_value(original).unwrap()
+        );
+    }
 
     fn state_with(statuses: &[Status]) -> HookState {
         let mut state = HookState::default();

@@ -59,6 +59,10 @@ pub enum PopoverMsg {
     Focus {
         id: String,
     },
+    /// Dismiss a session from ClawLight until its next hook event.
+    ClearSession {
+        id: String,
+    },
     /// The Dashboard footer button.
     Dashboard,
     /// The Quit footer button.
@@ -116,9 +120,6 @@ pub enum PopoverMsg {
         #[serde(deserialize_with = "deserialize_brightness_percent")]
         percent: u8,
     },
-    /// The Lamp details link shown when no board is attached — opens the store /
-    /// setup page so a lampless user can get one.
-    GetLamp,
 }
 
 fn deserialize_brightness_percent<'de, D: serde::Deserializer<'de>>(
@@ -330,7 +331,7 @@ impl Popover {
 
     pub fn lamp_setup_result(&mut self, error: Option<String>) {
         self.setup_busy = false;
-        self.push_state(&crate::state::read_hook_state());
+        self.push_state(&crate::state::read_display_state());
         let error = serde_json::to_string(&error).expect("serialize setup error");
         let _ = self
             .webview
@@ -637,6 +638,20 @@ mod tests {
     use super::{base64, PopoverMsg};
     use crate::config::{BillingMode, YellowMode};
 
+    #[test]
+    fn dismiss_session_requires_an_id() {
+        assert!(matches!(
+            serde_json::from_str::<PopoverMsg>(r#"{"cmd":"clear_session","id":"codex-session"}"#).unwrap(),
+            PopoverMsg::ClearSession { id } if id == "codex-session"
+        ));
+        for payload in [
+            r#"{"cmd":"clear_session"}"#,
+            r#"{"cmd":"clear_session","id":null}"#,
+        ] {
+            assert!(serde_json::from_str::<PopoverMsg>(payload).is_err());
+        }
+    }
+
     /// Pins the IPC wire format the popover page's JS emits for the Settings
     /// view (`{cmd:'set_yellow_mode', mode:'...'}` in assets/popover.html).
     #[test]
@@ -706,8 +721,7 @@ mod tests {
     }
 
     /// Pins the IPC wire format the Lamp details control emits
-    /// (`{cmd:'set_led', enabled:...}` and `{cmd:'get_lamp'}` in
-    /// assets/popover.html): connect/disconnect the lamp, or open the store.
+    /// (`{cmd:'set_led', enabled:...}` in assets/popover.html).
     #[test]
     fn lamp_controls_parse_from_page_json() {
         assert!(matches!(
@@ -718,8 +732,6 @@ mod tests {
         assert!(matches!(msg, PopoverMsg::SetLed { enabled: true }));
         let msg: PopoverMsg = serde_json::from_str(r#"{"cmd":"set_led","enabled":false}"#).unwrap();
         assert!(matches!(msg, PopoverMsg::SetLed { enabled: false }));
-        let msg: PopoverMsg = serde_json::from_str(r#"{"cmd":"get_lamp"}"#).unwrap();
-        assert!(matches!(msg, PopoverMsg::GetLamp));
         let msg: PopoverMsg =
             serde_json::from_str(r#"{"cmd":"forget_lamp","id":"saved-lamp"}"#).unwrap();
         assert!(matches!(msg, PopoverMsg::ForgetLamp { id } if id == "saved-lamp"));

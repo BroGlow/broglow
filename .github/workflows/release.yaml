@@ -6,121 +6,146 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  # Gate the release on the full CI suite (fmt + clippy + tests, all OSes) run
-  # against the tagged commit. A red check aborts before anything is built or
-  # published. Reuses ci.yaml so the gate can never drift from PR/main CI.
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - run: python tests/package_macos.py
+      - name: Check release version and source
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python scripts/package-macos.py --release-tag "$RELEASE_TAG" --check-only
+      - name: Check and package the enclosure
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          python models/clawlight/package_prints.py --check
+          python scripts/export-web-model.py --check
+          mkdir -p dist
+          FILE="clawlight-enclosure-${RELEASE_TAG}.zip"
+          cp models/clawlight-print-pack.zip "dist/$FILE"
+          cd dist
+          sha256sum "$FILE" > "$FILE.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: enclosure
+          if-no-files-found: error
+          path: |
+            dist/clawlight-enclosure-${{ github.ref_name }}.zip
+            dist/clawlight-enclosure-${{ github.ref_name }}.zip.sha256
+
   check:
+    needs: source
     uses: ./.github/workflows/ci.yaml
 
-  build:
+  mac:
     needs: check
     strategy:
+      fail-fast: false
       matrix:
         include:
           - target: aarch64-apple-darwin
-            os: macos-latest
+            os: macos-15
           - target: x86_64-apple-darwin
-            os: macos-latest
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
+            os: macos-15-intel
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
         with:
-          targets: ${{ matrix.target }}
-
-      - name: Build
-        run: cargo build --release --locked --target ${{ matrix.target }}
-
-      - name: Package
-        shell: bash
+          python-version: '3.14'
+      - run: python -m pip install platformio==6.1.19
+      - name: Build native Mac app and C3 firmware
         run: |
-          BIN=clawlight
-          if [ "${{ runner.os }}" = "Windows" ]; then BIN=clawlight.exe; fi
-          cd target/${{ matrix.target }}/release
-          tar czf ../../../clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz "$BIN"
-          cd ../../..
-          FILE="clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz"
-          # macOS ships `shasum` but not `sha256sum`; Windows git-bash and Linux
-          # ship `sha256sum` but not `shasum`. Both print "<hash>  <file>".
-          if command -v shasum >/dev/null 2>&1; then
-            shasum -a 256 "$FILE" > "$FILE.sha256"
-          else
-            sha256sum "$FILE" > "$FILE.sha256"
-          fi
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+          cargo build --release --locked
+          pio run -d firmware/esp32-c3-supermini
+      - name: Package app, firmware and manual
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python scripts/package-macos.py --release-tag "$RELEASE_TAG"
+      - uses: actions/upload-artifact@v4
         with:
-          name: clawlight-${{ matrix.target }}
+          name: mac-${{ matrix.target }}
+          if-no-files-found: error
           path: |
-            clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
-            clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz.sha256
+            dist/clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+            dist/clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz.sha256
+
+  windows:
+    needs: check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build CLI
+        run: cargo build --release --locked --target x86_64-pc-windows-msvc
+      - name: Package CLI (no BLE or firmware)
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$(target/x86_64-pc-windows-msvc/release/clawlight.exe --version)" = "clawlight ${RELEASE_TAG#v}"
+          mkdir dist
+          FILE="clawlight-cli-${RELEASE_TAG}-x86_64-pc-windows-msvc.tar.gz"
+          cp LICENSE target/x86_64-pc-windows-msvc/release/LICENSE
+          tar czf "dist/$FILE" -C target/x86_64-pc-windows-msvc/release clawlight.exe LICENSE
+          cd dist
+          sha256sum "$FILE" > "$FILE.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-cli
+          if-no-files-found: error
+          path: dist/*
 
   release:
-    needs: build
+    needs:
+      - mac
+      - windows
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
-
+      - name: Verify every expected asset
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          for FILE in \
+            "clawlight-${RELEASE_TAG}-aarch64-apple-darwin.tar.gz" \
+            "clawlight-${RELEASE_TAG}-x86_64-apple-darwin.tar.gz" \
+            "clawlight-cli-${RELEASE_TAG}-x86_64-pc-windows-msvc.tar.gz" \
+            "clawlight-enclosure-${RELEASE_TAG}.zip"; do
+            test -s "$FILE"
+            sha256sum --check "$FILE.sha256"
+          done
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          draft: true
+          fail_on_unmatched_files: true
           files: |
             clawlight-*.tar.gz
-            clawlight-*.sha256
+            clawlight-*.tar.gz.sha256
+            clawlight-enclosure-*.zip
+            clawlight-enclosure-*.zip.sha256
+          body: |
+            Mac archives contain the native ClawLight app, ESP32-C3 SuperMini firmware and its source, checksums and operating guide. Choose aarch64 for Apple Silicon or x86_64 for Intel. Install with the included guide; the app is not Developer ID notarized.
+
+            The Windows archive is the CLI only: no BLE support or firmware. C6 firmware is not supported.
+
+            The enclosure ZIP contains the accepted release candidate: STL, STEP, CAD source, print guide and validation reports.
+
+            These assets passed automated checks; release builds do not establish fresh-machine permissions, physical lamp behavior or printed enclosure fit.
           generate_release_notes: true
-
-  update-homebrew:
-    needs: release
-    runs-on: ubuntu-latest
-    if: ${{ !contains(github.ref_name, '-') }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
-
-      - name: Extract version and SHA256 values
-        id: meta
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "sha256_arm64=$(awk '{print $1}' clawlight-${GITHUB_REF_NAME}-aarch64-apple-darwin.tar.gz.sha256)" >> "$GITHUB_OUTPUT"
-          echo "sha256_x86_64=$(awk '{print $1}' clawlight-${GITHUB_REF_NAME}-x86_64-apple-darwin.tar.gz.sha256)" >> "$GITHUB_OUTPUT"
-
-      - name: Generate Homebrew formula
-        run: |
-          sed -e 's/VERSION/${{ steps.meta.outputs.version }}/g' \
-              -e 's/SHA256_ARM64/${{ steps.meta.outputs.sha256_arm64 }}/g' \
-              -e 's/SHA256_X86_64/${{ steps.meta.outputs.sha256_x86_64 }}/g' \
-              homebrew/clawlight.rb.template > clawlight.rb
-
-      - name: Update Homebrew tap
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: |
-          FORMULA=$(base64 -w0 clawlight.rb)
-          # Look up the existing file SHA (empty on the first release).
-          SHA=$(gh api repos/clawlight/homebrew-tap/contents/Formula/clawlight.rb --jq '.sha' 2>/dev/null || true)
-          if [ -n "$SHA" ]; then
-            gh api -X PUT repos/clawlight/homebrew-tap/contents/Formula/clawlight.rb \
-              -f message="Update clawlight to ${{ steps.meta.outputs.version }}" \
-              -f content="$FORMULA" \
-              -f sha="$SHA"
-          else
-            gh api -X PUT repos/clawlight/homebrew-tap/contents/Formula/clawlight.rb \
-              -f message="Add clawlight ${{ steps.meta.outputs.version }}" \
-              -f content="$FORMULA"
-          fi

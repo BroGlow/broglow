@@ -2,8 +2,9 @@
 
 The short landing is plain HTML/CSS. The separate guide uses [MkDocs](https://www.mkdocs.org/)
 with [Material](https://squidfunk.github.io/mkdocs-material/) and
-[static-i18n](https://ultrabug.github.io/mkdocs-static-i18n/). This follows the original
-project's [landing](https://clawlight.dev/) / [docs](https://clawlight.dev/docs) split.
+[static-i18n](https://ultrabug.github.io/mkdocs-static-i18n/). These pages describe
+this independent project's app, C3 firmware and enclosure. References to other
+projects establish provenance; they are not installation or compatibility targets.
 
 ## Edit the guide
 
@@ -49,14 +50,14 @@ by a person or coding agent; they are not automatically translated. `AGENTS.md`
 routes future implementation work here, so the user need not relay changes between
 sessions. Run the checks below and the Pages build before committing.
 
-Changes to the hardware guide trigger the Website workflow, including PR checks.
+Changes to the website or documentation trigger the Website workflow, including PR checks.
 After Pages is enabled, a push to `main` rebuilds the published reference
 automatically. Locally, `mkdocs serve` watches the source guide; for the complete
 static preview, rerun the documented build command after edits.
 
 ## Build and preview
 
-Run these from the **clawlight repository root**. Python 3.10+ is required.
+Run these from the **clawlight repository root**. Python 3.14 is used in CI and verified locally.
 
 ```bash
 python3 -m venv site/.venv
@@ -74,6 +75,51 @@ pinned to compatible MkDocs 1.x / Material versions.
 For live documentation editing, `site/.venv/bin/mkdocs serve -f site/mkdocs.yaml`
 provides automatic refresh. That docs-only server does not serve the landing or
 the external downloads; use the repository-root preview above for the complete site.
+
+## Interactive 3D and AR
+
+The hero starts with a static render of our 1.0.0 enclosure release candidate.
+**Explore in 3D** loads the self-hosted
+`@google/model-viewer` 4.3.1 module from `vendor/` and our `assets/clawlight.glb`.
+No model or renderer is fetched until that click. Without JavaScript, or after a
+module/model failure, the image remains usable. Drag/pinch, mouse wheel, arrows
+and Page Up/Page Down use the component's camera controls; Reset view restores
+the initial camera. No automatic rotation or custom renderer is used.
+
+AR uses the component's `webxr`, `scene-viewer` and `quick-look` modes with
+`ar-scale="fixed"`. The GLB is exported in meters and needs no HTML scale transform.
+`ios-src` is deliberately omitted: Safari on iPhone/iPad generates USDZ on request.
+Other iOS browsers are not promised. WebXR needs HTTPS (loopback is sufficient for
+development); a phone cannot fetch a model from another device's localhost.
+The component exposes its AR button only on supported devices. These are the
+[official AR behaviors](https://modelviewer.dev/examples/augmentedreality/);
+actual placement and size on physical phones still need acceptance checks.
+
+`assets/clawlight-model.json` records the model's source and bounds. The model is
+our own enclosure release candidate, including illustrative electronics. The
+interactive export is a viewing aid; the separate enclosure archive provides
+printable CAD and STL. Keep release-candidate wording in both languages, and
+record final physical testing separately from release readiness. The exporter
+owns the GLB and metadata; do not edit generated geometry in the website. To regenerate it from a full checkout, activate your CAD Python
+environment and run:
+
+```bash
+python -m pip install -r models/clawlight/requirements.txt
+python scripts/export-web-model.py
+python scripts/export-web-model.py --check
+```
+
+Export requires the installed CAD skill at `~/.agents/skills/cad`; pass
+`--cad-skill /path/to/cad` if it is elsewhere. The source model remains untouched.
+`--check` uses only the Python standard library: it checks the committed GLB and
+provenance, plus every recorded source hash when the CAD tree is present. In a
+reduced source export without the CAD tree it explicitly skips unavailable
+source comparisons. The normal 1.0.0 source archive includes our CAD.
+Website CI runs that check. Ordinary site builds use the committed GLB and need no
+CAD libraries. Avoid Draco/KTX compression unless those optional codecs are also
+self-hosted. `vendor/README.md` records the pinned source, integrity and license.
+The Pages build copies `assets/` and `vendor/` along with `model-preview.js`; link
+checks include the model, module and poster URLs.
 
 ## Languages and behavior
 
@@ -95,6 +141,7 @@ Fonts are local system fonts; no external font service or analytics is configure
 
 ```bash
 node site/i18n.test.cjs
+node site/model-preview.test.cjs
 node site/docs-language.test.cjs
 node site/docs-copy.test.cjs
 site/.venv/bin/python site/pages.test.py
@@ -108,45 +155,76 @@ anchors, language links and downloads. Human navigation never opens raw Markdown
 
 ## Local downloads and factual limits
 
-Local preview downloads reference the authoritative files in `models/` and `dist/`; they are not
-copied into the website. Update both package and checksum links in **both**
-`guide/en/installation.md` and `guide/ru/installation.md` when replacing a package.
-Relative download paths follow the generated URL depth, including the extra `ru/`.
-The Mac package is an Apple Silicon build with C3 firmware, not an upstream release.
+The `<!-- mac-downloads -->` and `<!-- model-download -->` markers in both language
+sources are expanded by `pages.py`. Local previews use the newest complete Mac
+archive in `dist/` that has a sibling `.sha256`. They also link directly to
+`models/clawlight-print-pack.zip` when it exists, with instructions to open its
+`START_HERE.md` and `models/clawlight/PRINT_GUIDE.md`. If that archive is absent,
+the guide explains where to find the print instructions in a full source checkout.
+No archives are copied into the website. With no local Mac package, the guide
+links to the source-build instructions, so a clean checkout needs no ignored
+`dist/` files. Public builds link to this repository's Releases and source archive.
+Relative paths account for both language routes. A local package's `BUILD.json`
+identifies its architecture, date and source; a local preview does not rebuild it.
 The package includes the full manual and Codex setup guide; the website keeps
 the essential steps and agent prompts self-contained.
 
-Copy was checked against the implementation, hardware guide, print guide and
-upstream README on 2026-09-16. Mac USB power is supported; a power adapter and
-printed enclosure are optional. C3 is recommended, while other BLE SuperMini
-boards require suitable firmware/pins and an enclosure fit check. `connected`
+Copy was checked against the implementation, hardware guide and print guide;
+project-scope wording was corrected on 2026-09-18. Mac USB power is supported; a power adapter and
+printed enclosure are optional. The supplied firmware targets ESP32-C3 SuperMini;
+other chips are not supported by this package. `connected`
 means the service wrote to the indicated lamp; it does not prove LED operation
 or that Codex is sending hook events. Desktop delivery needs a real desktop task
 check; cloud/remote tasks and ordinary ChatGPT chats do not drive the local service.
 
-Use the hardware guide's latest results for current physical acceptance; its
-historical test entries remain dated. Website builds and tests do not count as
+Use the hardware guide's results for current physical acceptance. Website builds
+and tests do not count as
 hardware or installed-service checks.
 
-Images are the project's own CAD previews, copied into `assets/`:
+Images are the project's own CAD renders, copied into `assets/`. The owner has
+approved the enclosure and print package as the 1.0.0 release candidate, ready
+for release. Final physical assembly testing remains in progress; renders and
+website checks do not establish physical fit. Preview source files:
 
-- `clawlight.png`: `models/clawlight/preview/finished_20260916T173845Z.png`
-- `assembly.png`: `models/clawlight/preview/exploded_20260916T173845Z.png`
+- `clawlight.png`: rendered from `site/assets/clawlight.glb` with the pinned model-viewer and the hero camera; it depicts the same geometry as the interactive view.
+- `assembly.png`: `models/clawlight/preview/flat_floor_exploded_20260918T101601Z.png`
+
+Use only our own photos, screenshots, renders and original geometric artwork.
+Do not copy, hotlink or embed the referenced project's product media, screenshots,
+mascot artwork, or third-party reference photos/models. A source attribution link
+is not permission to use its imagery. No stock-photo or upstream-image placeholders.
+
+The guide's logo and favicon are our simple three-circle lamp SVG at
+`guide/assets/favicon.svg`; the landing uses the same geometric design as an
+inline favicon. The two CAD previews above and the GLB generated from our CAD are the site product visuals.
+Material's navigation, search and copy icons are UI controls supplied by the
+licensed theme, not product artwork. Keep theme/library license notices.
+
+For the photos and screenshots still to prepare, follow the
+[media checklist](../docs/media.md). Replace renders only with our own checked
+images, and keep render/photograph labels accurate. The public guide also includes
+any status icons referenced by the operating manual; those must use this project's
+own geometric lamp artwork.
 
 ## Publish to GitHub Pages
 
 The prepared [Website workflow](../.github/workflows/pages.yaml) publishes the
 landing at `https://OWNER.github.io/REPOSITORY/` and the guide at `docs/` beneath it.
-RU lives at `docs/ru/`. Relative navigation also works with a custom domain.
+RU lives at `docs/ru/`. All local navigation and asset paths are relative, so the
+same artifact works at a domain root, a repository prefix, or a Pages custom domain.
+Configure a custom domain in the repository's Pages settings; no source URL rewrite
+is needed.
 No `gh-pages` branch, committed generated HTML, or custom token is needed.
 
 When you are ready:
 
-1. Push the project to **your fork**, including the firmware, models and
-   `docs/hardware-setup.md` from their separate workstream. The source-download
-   fallback needs those files in the fork's default branch.
+1. Push the app, firmware, documentation and enclosure sources to **your repository**.
+   The source download needs those files in the default branch. Source archives
+   include our CAD; `.gitattributes` excludes retired reference directories and
+   historical documents. Old Git history still needs the release runbook's
+   source-publication step.
 2. In **Settings → Pages → Build and deployment → Source**, choose **GitHub Actions**.
-   Enable Actions in the fork if GitHub prompts you to do so.
+   Enable Actions in the repository if GitHub prompts you to do so.
 3. Open **Actions → Website → Run workflow** and select the default branch.
    Later website or hardware-guide changes on `main` publish automatically. If your default
    branch has another name, update the workflow's `push.branches` entry.
@@ -160,16 +238,16 @@ public preview. Only the default branch can deploy. The workflow uses GitHub's
 
 ### Downloads live in GitHub Releases
 
-The public guide links to **your fork's Releases**, taken from the workflow's
-repository context. It never advertises the upstream CLI-only archive as the BLE
-package. Until a BLE package is available, it offers the fork's source ZIP and an
-agent prompt that supports building from source.
+The public guide links to **this repository's Releases**, taken from the workflow's
+repository context, plus its source ZIP and an agent prompt that supports building
+from source. Publish the complete Mac/C3 package for the installation guide's
+prebuilt route; CLI-only archives do not contain the firmware and manual.
 
-When you have verified a BLE package, publish a release in your fork and attach:
-
-- The full `dist/clawlight-…-aarch64-apple-darwin-….tar.gz` package and its matching
-  `.tar.gz.sha256` from the packaging workflow in `docs/hardware-setup.md`.
-- `models/clawlight-print-pack.zip` for the enclosure download.
+When you have verified full Mac packages, publish them with matching `.sha256`
+files using the release runbook. Publish the enclosure separately as
+`clawlight-enclosure-vVERSION.zip` with a matching `.zip.sha256`. The 1.0.0
+release candidate contains the print package and guide; its release notes must
+state the final physical checks still pending.
 
 Keep the original package filename so its checksum file still names the correct
 archive. Explain the supported Mac/board and remaining hardware checks in the
@@ -177,15 +255,20 @@ release notes. The website links to the release list, so publishing a newer
 package does not require a website edit. See GitHub's
 [release-link documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/linking-to-releases).
 
-The existing upstream `release.yaml` produces CLI-only archives and also updates
-the upstream Homebrew tap; it is **not** the full BLE packaging workflow. For a
-manual BLE release, create a release tag outside its `v*` trigger (for example,
-`ble-2026-09-16`) unless you have separately adapted that workflow for your fork.
-This website preparation does not change or run the app release workflow.
+The release workflow produces complete Mac/C3 bundles for Apple Silicon and Intel:
+`clawlight-vVERSION-aarch64-apple-darwin.tar.gz` and
+`clawlight-vVERSION-x86_64-apple-darwin.tar.gz`, each with its `.sha256`.
+Windows CLI archives use a distinct `clawlight-cli-…` name and omit firmware and
+the operating guide. The website identifies the full Mac filenames explicitly;
+before the first complete release it offers the source-build route. The build
+guide identifies the separate enclosure ZIP and checksum, links to the print
+guide in the repository, and offers the source ZIP with CAD and STL as a fallback.
+See [the release runbook](../docs/releasing.md) for release checks and assets.
+Building this website does not publish an app release.
 
 ### Check the exact Pages artifact locally
 
-Replace `OWNER/REPOSITORY` with your future fork. No GitHub access is needed to build:
+Replace `OWNER/REPOSITORY` with this project's repository. No GitHub access is needed to build:
 
 ```bash
 site/.venv/bin/python site/pages.py --repository OWNER/REPOSITORY
@@ -199,9 +282,9 @@ it does not publish repository files, the Python environment, or local binaries.
 `pages.py` also supplies a small MkDocs hook: public builds rewrite local download
 links to Releases and add the source fallback, while ordinary local previews keep
 their direct local downloads. In the included reference, repository-file links
-open the fork on GitHub; local previews show their checkout paths. The small tray
-icons are embedded from `assets/icons/`. Models and packages are not copied into
-the Pages artifact. You can edit the same Markdown pages for both previews.
+open this repository on GitHub; local previews show their checkout paths. The small tray
+icons are embedded from this project's original artwork in `assets/icons/`. The enclosure GLB and its provenance metadata are included in the Pages artifact;
+editable CAD, print files and app packages are not. You can edit the same Markdown pages for both previews.
 
 The Pages build now also reads `docs/hardware-setup.md` and its referenced repository
 files, so build from a full checkout. Local builds, HTTP links at both root and

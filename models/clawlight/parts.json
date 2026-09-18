@@ -1,102 +1,90 @@
 {
   "01_mascot_orange": {
+    "file": "stl/01_mascot_orange.stl",
     "quantity": 1,
     "bounds_mm": [
-      70.00000000000001,
-      55.000000000000014,
-      40.000000000000014
+      57.80000000000002,
+      44.000000000000014,
+      27.40000000000001
     ],
-    "solid_volume_mm3": 97641.89847997112,
-    "assembly_label": "orange_mascot_four_feet_bent_arm"
+    "solid_volume_mm3": 42612.535553787064,
+    "assembly_label": "orange_mascot_four_feet_straight_pins_with_45_degree_haunches"
   },
-  "02_eye_left_black": {
-    "quantity": 1,
+  "02_eye_black_x2": {
+    "file": "stl/02_eye_black_x2.stl",
+    "quantity": 2,
     "bounds_mm": [
-      5.0000000000000036,
-      10.000000000000007,
-      4.150000000000003
+      4.000000000000003,
+      8.000000000000009,
+      3.3200000000000034
     ],
-    "solid_volume_mm3": 204.15688705507839,
+    "solid_volume_mm3": 103.78790789420148,
     "assembly_label": "black_eye_left"
   },
-  "03_eye_right_black": {
-    "quantity": 1,
-    "bounds_mm": [
-      5.000000000000005,
-      10.000000000000005,
-      4.150000000000003
-    ],
-    "solid_volume_mm3": 204.15688705507844,
-    "assembly_label": "black_eye_right"
-  },
-  "04_tower_black": {
-    "quantity": 1,
-    "bounds_mm": [
-      28.00000000000001,
-      76.00000000000001,
-      37.600000000000016
-    ],
-    "solid_volume_mm3": 22944.28029973607,
-    "assembly_label": "black_tower_open_rear"
-  },
-  "05_rear_cover_black": {
+  "03_tower_black": {
+    "file": "stl/03_tower_black.stl",
     "quantity": 1,
     "bounds_mm": [
       28.000000000000007,
-      76.00000000000003,
-      2.400000000000006
+      58.00000000000002,
+      25.000000000000014
     ],
-    "solid_volume_mm3": 3546.9379760359907,
-    "assembly_label": "black_rear_cover_three_screws"
+    "solid_volume_mm3": 11962.150491472403,
+    "assembly_label": "black_tower_open_rear_straight_hand_sockets"
   },
-  "06_LED_retainer_black": {
+  "04_rear_cover_black": {
+    "file": "stl/04_rear_cover_black.stl",
     "quantity": 1,
     "bounds_mm": [
-      9.55000000000001,
-      39.35,
-      5.150000000000008
+      28.000000000000004,
+      58.000000000000014,
+      2.4000000000000155
     ],
-    "solid_volume_mm3": 1164.960607630446,
+    "solid_volume_mm3": 2642.7159245505472,
+    "assembly_label": "black_flat_rear_cover_flush_USB_and_PCB_end_stops"
+  },
+  "05_LED_retainer_black": {
+    "file": "stl/05_LED_retainer_black.stl",
+    "quantity": 1,
+    "bounds_mm": [
+      9.200000000000014,
+      30.000000000000004,
+      4.950000000000009
+    ],
+    "solid_volume_mm3": 785.105644143156,
     "assembly_label": "black_LED_retainer_countersunk_screws_forward_flange_pads"
   },
-  "07_PCB_tray_black": {
+  "06_PCB_tray_black": {
+    "file": "stl/06_PCB_tray_black.stl",
     "quantity": 1,
     "bounds_mm": [
-      21.20000000000001,
-      26.95,
-      5.800000000000004
+      22.80000000000001,
+      23.450000000000006,
+      5.850000000000005
     ],
-    "solid_volume_mm3": 1288.4071249999986,
-    "assembly_label": "black_removable_PCB_tray"
+    "solid_volume_mm3": 969.223570679182,
+    "assembly_label": "black_sliding_PCB_tray_PETG_snap_clips"
   },
-  "00_fit_coupon": {
+  "01_USB_base_coupon": {
+    "file": "stl/coupons/01_USB_base_coupon.stl",
     "quantity": 1,
     "bounds_mm": [
-      68.00000019999999,
-      50.0000002,
-      8.800000000000004
+      28.000000000000007,
+      19.200000000000006,
+      25.00000000000001
     ],
-    "solid_volume_mm3": 9044.805244123212,
-    "assembly_label": "fit_coupon_LED_5p1_5p3_5p5_pilots_1p7_1p8_1p9_2p0"
+    "solid_volume_mm3": 5308.45951106639,
+    "assembly_label": "01_USB_base_coupon"
   },
-  "00b_coupon_cover_cap": {
+  "02_USB_cover_coupon": {
+    "file": "stl/coupons/02_USB_cover_coupon.stl",
     "quantity": 1,
     "bounds_mm": [
-      54.0000002,
-      8.000000199999999,
-      2.400000100000006
+      28.0,
+      19.200000000000006,
+      2.4000000000000075
     ],
-    "solid_volume_mm3": 958.6468444032522,
-    "assembly_label": "coupon_C_80_degree_countersunk_cap"
-  },
-  "00c_coupon_retainer_cap": {
-    "quantity": 1,
-    "bounds_mm": [
-      54.0000002,
-      8.000000199999999,
-      3.000000100000006
-    ],
-    "solid_volume_mm3": 1205.8537886853671,
-    "assembly_label": "coupon_R_80_degree_countersunk_cap"
+    "solid_volume_mm3": 919.4801302356273,
+    "assembly_label": "02_USB_cover_coupon"
   }
 }
