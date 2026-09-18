@@ -51,7 +51,7 @@ figure,p,h1,h2,dl,dd {
   width:min(1280px,calc(100% - 96px));
   margin-inline:auto;
 }
-.mono,.eyebrow,.edition,.signal-key,.build-steps>li>span {
+.mono,.eyebrow,.edition,.build-steps>li>span {
   font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
 }
 .skip-link {
@@ -172,7 +172,7 @@ h1 .accent {
   font-weight:400;
 }
 .hero-visual {
-  background:#f9fcfe;
+  background:#f3efe7;
   border-radius:var(--radius);
   overflow:hidden;
   align-self:stretch;
@@ -199,6 +199,7 @@ h1 .accent {
   width:100%;
   aspect-ratio:1.4;
   margin-block:auto;
+  background:radial-gradient(ellipse at 35% 25%,#fbf8f2,#e7dfd1);
 }
 .model-stage img {
   height:100%;
@@ -209,7 +210,7 @@ model-viewer {
   inset:0;
   width:100%;
   height:100%;
-  background:#f9fcfe;
+  background:transparent;
 }
 model-viewer[hidden],.model-stage img[hidden],.model-tools button[hidden] {
   display:none;
@@ -265,6 +266,7 @@ model-viewer[hidden],.model-stage img[hidden],.model-tools button[hidden] {
   border-bottom:1px solid var(--line);
   padding-block:24px;
   gap:25px;
+  margin-bottom:50px;
 }
 .agents-label {
   font-size:13px;
@@ -280,28 +282,24 @@ model-viewer[hidden],.model-stage img[hidden],.model-tools button[hidden] {
   font-weight:550;
   letter-spacing:-.4px;
 }
-.signals {
-  padding-block:90px 78px;
-}
-.section-heading {
-  text-align:center;
-  margin-bottom:36px;
-}
 h2 {
   font-size:clamp(31px,3.05vw,44px);
   line-height:1.15;
   letter-spacing:-1.25px;
   font-weight:550;
 }
-.section-heading p {
-  color:var(--muted);
-  margin-top:13px;
-  font-size:17px;
-}
 .signal-demo {
+  --bg:#f3efe7;
+  --ink:#27332b;
+  --muted:#536057;
+  --line:#c4cdc5;
+  --green:#36752d;
+  --yellow:#836200;
+  --red:#ab3828;
   padding:0;
-  margin:0;
+  margin:0 0 12px;
   border:0;
+  text-align:left;
 }
 .signal-demo legend {
   font-size:13px;
@@ -312,19 +310,21 @@ h2 {
 .signal-options {
   display:grid;
   grid-template-columns:repeat(4,1fr);
-  gap:12px;
+  gap:6px;
 }
 .signal-option {
   --signal:var(--green);
   position:relative;
   display:flex;
   align-items:center;
-  gap:12px;
-  padding:23px 21px;
+  gap:7px;
+  min-height:44px;
+  padding:10px 8px;
+  font-size:13px;
   border:1px solid var(--line);
   border-radius:10px;
   cursor:pointer;
-  color:#c3c9c0;
+  color:var(--ink);
   transition:background .18s,border-color .18s;
 }
 .signal-option.yellow {
@@ -334,7 +334,7 @@ h2 {
   --signal:var(--red);
 }
 .signal-option.off {
-  --signal:#b0b7ac;
+  --signal:#536057;
 }
 .signal-option input {
   position:absolute;
@@ -365,23 +365,14 @@ h2 {
   background:transparent;
   border:1px solid var(--signal);
 }
-.signal-key {
-  margin-left:auto;
-  opacity:.6;
-  font-size:12px;
-}
 .signal-message {
-  margin-top:20px;
-  display:flex;
-  justify-content:space-between;
-  align-items:baseline;
-  gap:20px;
-  min-height:58px;
+  margin-top:12px;
+  min-height:64px;
 }
 .signal-message p {
   display:none;
   color:var(--muted);
-  font-size:16px;
+  font-size:13px;
 }
 .signal-message strong {
   font-weight:500;
@@ -390,16 +381,11 @@ h2 {
 .signal-demo:has(input[value="working"]:checked) .message-working,.signal-demo:has(input[value="idle"]:checked) .message-idle,.signal-demo:has(input[value="needs-you"]:checked) .message-needs-you,.signal-demo:has(input[value="off"]:checked) .message-off {
   display:block;
 }
-.demo-note {
-  font-size:12px;
-  color:var(--muted);
-  white-space:nowrap;
-}
 .priority-note {
-  font-size:13px;
-  color:#929c90;
-  max-width:760px;
-  line-height:1.6;
+  margin:0 0 12px;
+  color:#626c65;
+  font-size:11px;
+  text-align:left;
 }
 .connection {
   background:#222721;
@@ -565,6 +551,9 @@ h2 {
   }
 }
 @media(max-width:1100px) {
+  .signal-options {
+    grid-template-columns:repeat(2,1fr);
+  }
   .wrap {
     width:calc(100% - 56px);
   }
@@ -595,10 +584,6 @@ h2 {
   }
   .build {
     gap:40px;
-  }
-  .signal-option {
-    padding:20px 15px;
-    gap:9px;
   }
 }
 @media(max-width:760px) {
@@ -675,45 +660,9 @@ h2 {
     gap:10px 28px;
     font-size:15px;
   }
-  .signals {
-    padding-block:58px;
-  }
-  .section-heading {
-    text-align:left;
-    margin-bottom:27px;
-  }
   h2 {
     font-size:33px;
     letter-spacing:-1px;
-  }
-  .section-heading p {
-    font-size:16px;
-  }
-  .signal-options {
-    grid-template-columns:repeat(2,1fr);
-    gap:10px;
-  }
-  .signal-option {
-    padding:19px 13px;
-    font-size:15px;
-  }
-  .signal-message {
-    flex-direction:column;
-    gap:14px;
-    min-height:120px;
-    justify-content:flex-start;
-    margin-top:23px;
-  }
-  .signal-message p {
-    font-size:15px;
-    max-width:390px;
-  }
-  .demo-note {
-    font-size:12px;
-  }
-  .priority-note {
-    font-size:12px;
-    margin-top:10px;
   }
   .connection-inner {
     grid-template-columns:1fr;

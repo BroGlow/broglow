@@ -8,6 +8,9 @@
   <title data-en="ClawLight DIY — your agent’s status at a glance">ClawLight DIY — статус агента одним взглядом</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23181a19'/%3E%3Ccircle cx='16' cy='8' r='3' fill='%23f07c6b'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23e9c665'/%3E%3Ccircle cx='16' cy='24' r='3' fill='%239ccb8e'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+    {"imports":{"three":"./vendor/three-0.183.0/three.module.min.js"}}
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#main" data-en="Skip to content">К содержимому</a>
@@ -35,19 +38,51 @@
         <a class="button" href="#build"><span data-en="Build your ClawLight">Собрать свой ClawLight</span> <span aria-hidden="true">↗</span></a>
       </div>
       <figure class="hero-visual">
-        <div class="model-stage">
-          <img id="model-poster" src="assets/clawlight.png" width="1400" height="1000" alt="Рендер: оранжевый пиксельный персонаж держит чёрную стойку с красным, жёлтым и зелёным светодиодами" data-en-alt="Render: an orange pixel character holds a black stand with red, yellow, and green LEDs" fetchpriority="high">
-          <model-viewer id="lamp-model" data-model-src="assets/clawlight.glb" poster="assets/clawlight.png" alt="3D-модель релиз-кандидата нашей лампы. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Our lamp's release-candidate 3D model. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="25deg 75deg 110%" shadow-intensity="0.5" interaction-prompt="none" loading="eager" ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" hidden>
+        <div class="model-stage" id="signals">
+          <img id="model-poster" src="assets/clawlight.png?v=working-soft-light" width="1400" height="1000" alt="Рендер состояния «Работает»: оранжевый персонаж, тёмная стойка и один горящий зелёный светодиод" data-en-alt="Working-state render: an orange character, dark tower, and one glowing green LED" fetchpriority="high">
+          <model-viewer id="lamp-model" data-model-src="assets/clawlight.glb" poster="assets/clawlight.png?v=working-soft-light" alt="3D-модель релиз-кандидата нашей лампы. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Our lamp's release-candidate 3D model. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="25deg 80deg 95%" shadow-intensity="0.8" exposure="0.85" interaction-prompt="none" loading="eager" ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" hidden>
+            <effect-composer render-mode="quality" msaa="2">
+              <bloom-effect strength="0.2" radius="0.6" threshold="0.9"></bloom-effect>
+              <color-grade-effect tonemapping="NEUTRAL"></color-grade-effect>
+            </effect-composer>
             <button type="button" slot="ar-button" class="model-button model-ar" data-en="View on your desk">Поставить на стол</button>
           </model-viewer>
         </div>
         <figcaption>
+          <fieldset class="signal-demo" aria-controls="lamp-model">
+            <legend data-en="Tap a signal to light the model">Выберите сигнал — он загорится на модели</legend>
+            <div class="signal-options">
+              <label class="signal-option green">
+                <input type="radio" name="signal" value="working" checked>
+                <span class="signal-dot" aria-hidden="true"></span><span data-en="Working">Работает</span>
+              </label>
+              <label class="signal-option yellow">
+                <input type="radio" name="signal" value="idle">
+                <span class="signal-dot" aria-hidden="true"></span><span data-en="Idle">Ждёт</span>
+              </label>
+              <label class="signal-option red">
+                <input type="radio" name="signal" value="needs-you">
+                <span class="signal-dot" aria-hidden="true"></span><span data-en="Needs you">Нужны вы</span>
+              </label>
+              <label class="signal-option off">
+                <input type="radio" name="signal" value="off">
+                <span class="signal-dot" aria-hidden="true"></span><span data-en="Off">Выключено</span>
+              </label>
+            </div>
+            <div class="signal-message" aria-live="polite">
+              <p class="message-working"><strong data-en="Work in progress.">Работа идёт.</strong> <span data-en="Your agent is handling a task. You can get on with yours.">Агент выполняет задачу. Можно заняться своей.</span></p>
+              <p class="message-idle"><strong data-en="Ready for the next task.">Пауза в работе.</strong> <span data-en="An open session is waiting for its next task.">Открытая сессия ждёт следующей задачи.</span></p>
+              <p class="message-needs-you"><strong data-en="Time to step in.">Пора подключиться.</strong> <span data-en="A session has reported that it needs attention, such as approval to continue.">Сессия сообщила, что ей нужно внимание, например разрешение на действие.</span></p>
+              <p class="message-off"><strong data-en="Lights off.">Свет выключен.</strong> <span data-en="No steady session light. Status clears after 10 seconds without updates; brief setup or waiting flashes can still appear.">Постоянный свет статуса выключен. Без обновлений статус сбрасывается через 10 секунд; короткие сигналы настройки или ожидания возможны.</span></p>
+            </div>
+          </fieldset>
+          <p class="priority-note" data-en="Red always takes priority. When some sessions are working and others are idle, you choose which takes priority in ClawLight settings.">Красный всегда важнее. Для одновременно работающих и ожидающих сессий приоритет выбирается в настройках ClawLight.</p>
           <div class="model-tools">
-            <button id="model-load" type="button" class="model-button" data-viewer-src="vendor/model-viewer-4.3.1.min.js" data-en="Explore in 3D" hidden>Посмотреть в 3D</button>
+            <button id="model-load" type="button" class="model-button" data-viewer-src="vendor/model-viewer-with-effects.js" data-en="Retry 3D" hidden>Загрузить 3D снова</button>
             <button id="model-reset" type="button" class="model-button" data-en="Reset view" hidden>Сбросить вид</button>
           </div>
           <p id="model-loading" role="status" data-en="Loading 3D…" hidden>Загружаем 3D…</p>
-          <p id="model-error" role="status" data-en="3D could not load. The image is still available; you can retry." hidden>Не удалось загрузить 3D. Изображение доступно; можно попробовать снова.</p>
+          <p id="model-error" role="status" data-en="3D could not load. This still image does not show the selected signal; try again." hidden>Не удалось загрузить 3D. На статичном изображении выбранный сигнал не отображается; попробуйте снова.</p>
           <p id="model-help" data-en="Drag or use arrow keys to rotate. Pinch, scroll, or use Page Up / Page Down to zoom." hidden>Вращайте мышью или стрелками. Масштаб — жестом, прокруткой или Page Up / Page Down.</p>
           <span class="mono" data-en="Enclosure · 1.0.0 release candidate">Корпус · релиз-кандидат 1.0.0</span>
           <p class="model-ar-note" data-en="For real-size AR, open in Safari on iPhone/iPad or a supported Android browser." >Для AR в натуральную величину откройте в Safari на iPhone/iPad или поддерживаемом браузере Android.</p>
@@ -59,42 +94,6 @@
       <span class="agents-label" data-en="One signal for your local coding sessions">Один сигнал для локальных сессий coding-агентов</span>
       <ul><li>Claude Code</li><li>Codex</li><li>opencode</li><li>Copilot CLI</li></ul>
     </div>
-
-    <section class="signals wrap" id="signals" aria-labelledby="signals-title">
-      <div class="section-heading">
-        <h2 id="signals-title" data-en="Let the colors tell you.">Всё понятно по цвету.</h2>
-        <p data-en="One less window to keep checking.">Без ещё одного окна, которое нужно проверять.</p>
-      </div>
-      <fieldset class="signal-demo">
-        <legend data-en="Try the signals">Попробуйте сигналы</legend>
-        <div class="signal-options">
-          <label class="signal-option green">
-            <input type="radio" name="signal" value="working" checked>
-            <span class="signal-dot" aria-hidden="true"></span><span data-en="Working">Работает</span><span class="signal-key">G</span>
-          </label>
-          <label class="signal-option yellow">
-            <input type="radio" name="signal" value="idle">
-            <span class="signal-dot" aria-hidden="true"></span><span data-en="Idle">Ждёт</span><span class="signal-key">Y</span>
-          </label>
-          <label class="signal-option red">
-            <input type="radio" name="signal" value="needs-you">
-            <span class="signal-dot" aria-hidden="true"></span><span data-en="Needs you">Нужны вы</span><span class="signal-key">R</span>
-          </label>
-          <label class="signal-option off">
-            <input type="radio" name="signal" value="off">
-            <span class="signal-dot" aria-hidden="true"></span><span data-en="Off">Выключено</span><span class="signal-key">N</span>
-          </label>
-        </div>
-        <div class="signal-message">
-          <p class="message-working"><strong data-en="Work in progress.">Работа идёт.</strong> <span data-en="Your agent is handling a task. You can get on with yours.">Агент выполняет задачу. Можно заняться своей.</span></p>
-          <p class="message-idle"><strong data-en="Ready for the next task.">Пауза в работе.</strong> <span data-en="An open session is waiting for its next task.">Открытая сессия ждёт следующей задачи.</span></p>
-          <p class="message-needs-you"><strong data-en="Time to step in.">Пора подключиться.</strong> <span data-en="A session has reported that it needs attention, such as approval to continue.">Сессия сообщила, что ей нужно внимание, например разрешение на действие.</span></p>
-          <p class="message-off"><strong data-en="Lights off.">Свет выключен.</strong> <span data-en="No steady session light. Status clears after 10 seconds without updates; brief setup or waiting flashes can still appear.">Постоянный свет статуса выключен. Без обновлений статус сбрасывается через 10 секунд; короткие сигналы настройки или ожидания возможны.</span></p>
-          <span class="demo-note" data-en="Signal preview">Демонстрация состояний</span>
-        </div>
-      </fieldset>
-      <p class="priority-note" data-en="Red always takes priority. When some sessions are working and others are idle, you choose which takes priority in ClawLight settings.">Красный всегда важнее. Для одновременно работающих и ожидающих сессий приоритет выбирается в настройках ClawLight.</p>
-    </section>
 
     <section class="connection" aria-labelledby="connection-title">
       <div class="wrap connection-inner">
@@ -138,6 +137,6 @@
     <div class="footer-links"><a href="docs/installation/"><span data-en="Install this project">Установить этот проект</span> <span aria-hidden="true">→</span></a><span data-en="DIY lamp · macOS">DIY-лампа · macOS</span></div>
   </footer>
   <script src="i18n.js"></script>
-  <script src="model-preview.js"></script>
+  <script type="module" src="model-preview.js"></script>
 </body>
 </html>

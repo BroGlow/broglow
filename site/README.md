@@ -65,9 +65,25 @@ use the repository-root server above to check the landing and local downloads.
 
 ## Interactive 3D and AR
 
-**Explore in 3D** loads the self-hosted `@google/model-viewer` 4.3.1 from `vendor/`
-and `assets/clawlight.glb`. The static render remains usable without JavaScript or
-if loading fails. Camera controls and Reset view use the component's native behavior.
+The 3D preview starts automatically with Working selected. Self-hosted
+`@google/model-viewer` 4.3.1 and the effects module share Three.js via a local import
+map (see `vendor/README.md`). Working, Idle and Needs you light only the green,
+yellow or red lens; Off dims all three and removes the glow. A restrained bloom
+keeps the lens color visible. One Three.js point light follows the active LED and
+casts its color onto nearby surfaces with distance falloff; Off disables it.
+The light attaches through the effects composer's public mesh selection, so it
+follows the model during rotation. The darker tower, warm stage and closer camera
+make the light easier to read.
+
+The selected signal applies before the first rendered frame and after retrying;
+Reset view preserves it. Automatic loading does not take keyboard focus. The
+matching Working-state poster remains visible while loading and without JavaScript.
+After a loading failure, **Retry 3D** is available; the still image cannot preview
+other signals. Camera controls and Reset view use the component's native behavior.
+The material mapping is checked against the exported GLB in `model-preview.test.cjs`.
+External Android Scene Viewer reloads the original GLB, so these live signal changes
+apply to the browser preview, not that external AR view. Bloom postprocessing is
+not available in AR modes, including WebXR.
 
 AR uses `webxr`, `scene-viewer` and `quick-look` with `ar-scale="fixed"`; the GLB
 uses meters. Safari on iPhone/iPad generates USDZ on demand (`ios-src` is omitted);
@@ -140,7 +156,7 @@ website checks and renders do not establish physical fit.
 
 Our asset sources:
 
-- `assets/clawlight.png`: `site/assets/clawlight.glb`, rendered with the pinned model-viewer and hero camera.
+- `assets/clawlight.png`: `site/assets/clawlight.glb`, rendered in the default Working state with the pinned model-viewer/effects and hero camera.
 - `assets/assembly.png`: `models/clawlight/preview/flat_floor_exploded_20260918T101601Z.png`.
 - `guide/assets/favicon.svg`: our three-circle lamp artwork, also used by the landing favicon. Tray icons come from `assets/icons/` in the repository root.
 
