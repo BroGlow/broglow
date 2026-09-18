@@ -284,7 +284,6 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
 fn build_fallback_menu(show_dashboard: bool) -> anyhow::Result<(Menu, MenuIds)> {
     let menu = Menu::new();
     let open_clawlight = MenuItem::new("Open Dashboard", true, None);
-    let settings = MenuItem::new("Settings…  (soon)", false, None);
     let quit = MenuItem::new("Quit clawlight", true, None);
     let ids = MenuIds {
         open_clawlight: open_clawlight.id().clone(),
@@ -292,9 +291,8 @@ fn build_fallback_menu(show_dashboard: bool) -> anyhow::Result<(Menu, MenuIds)> 
     };
     if show_dashboard {
         menu.append(&open_clawlight)?;
+        menu.append(&PredefinedMenuItem::separator())?;
     }
-    menu.append(&settings)?;
-    menu.append(&PredefinedMenuItem::separator())?;
     menu.append(&quit)?;
     Ok((menu, ids))
 }

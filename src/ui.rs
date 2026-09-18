@@ -311,18 +311,7 @@ fn render_hint_bar(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
             left.push(Span::raw(" "));
             left.push(Span::styled(*label, Style::default().fg(FOOT_FG)));
         }
-        let right = vec![
-            Span::styled(
-                if app.lamp_details {
-                    "Lamp details · live"
-                } else {
-                    "~/.claude/clawlight/state.json · live"
-                },
-                Style::default().fg(DIM),
-            ),
-            Span::raw(" "),
-        ];
-        justified_line(left, right, area.width)
+        Line::from(left)
     };
 
     frame.render_widget(

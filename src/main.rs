@@ -121,10 +121,7 @@ fn main() -> anyhow::Result<()> {
         Some(Commands::DashboardButton { visibility }) => {
             let enabled = visibility == "show";
             config::set_dashboard_button(enabled)?;
-            println!(
-                "Dashboard entry points {}. The tray app applies this automatically.",
-                if enabled { "shown" } else { "hidden" }
-            );
+            println!("Dashboard {}.", if enabled { "shown" } else { "hidden" });
             Ok(())
         }
         Some(Commands::Led { port }) => led::run(port),

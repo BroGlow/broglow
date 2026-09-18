@@ -211,13 +211,14 @@ test('lamp rows keep IDs and diagnostics collapsed and update without replacing 
   assert.equal(element('lampid-1').textContent, 'work-id');
   assert.equal(element('lampdetail').textContent, 'Worker detail');
   assert.ok(!/home-id|work-id|Write acknowledged/.test(element('lampsummary').textContent));
-  const summaries = [...list.innerHTML.matchAll(/<summary\b[^>]*>([\s\S]*?)<\/summary>/g)];
+  const summaries = [...list.innerHTML.matchAll(/<summary class="lampheading">([\s\S]*?)<\/summary>/g)];
   assert.equal(summaries.length, 2);
   assert.match(summaries[0][1], /Lamp 1/);
   assert.match(summaries[1][1], /Lamp 2/);
   assert.ok(summaries.every(([, text]) => !/home-id|work-id|Write acknowledged/.test(text)));
   const rows = [...list.innerHTML.matchAll(/<details\b[^>]*>([\s\S]*?)<\/details>/g)];
   rows.forEach(([, html], i) => {
+    assert.match(html, /<details class="lamptechnical"><summary>Connection details<\/summary>/);
     assert.match(html, new RegExp(`<dd[^>]*id="lampid-${i}"`));
     assert.match(html, new RegExp(`<dd[^>]*id="lampdiagnostic-${i}"`));
   });
@@ -311,7 +312,7 @@ test('Add lamp works with no saved lamp in USB or Bluetooth mode and respects pl
     click('lampbtn');
     assert.equal(element('lampsetup').hidden, false);
     assert.equal(element('lampadd').textContent, 'Add lamp');
-    assert.match(element('groups').innerHTML, /Connect one lamp by USB, then Add lamp\. Approve any macOS pairing request\./);
+    assert.match(element('groups').innerHTML, /Connect one lamp by USB\. Approve the macOS pairing request\./);
     click('lampadd');
     click('lampadd');
     assert.deepEqual(commands('add_lamp'), [{ cmd: 'add_lamp' }]);
@@ -381,7 +382,7 @@ test('Add lamp reports errors with retry and success without claiming a connecti
   update(lamp({ bluetooth_supported: true, state: 'searching',
     devices: [{ id: 'new-lamp', state: 'searching' }] }));
   context.window.__lampSetupResult(null);
-  assert.equal(result.textContent, 'Lamp added. Approve any macOS pairing request; connection status appears below.');
+  assert.equal(result.textContent, 'Lamp added.');
   assert.equal(result.attributes.role, 'status');
   assert.equal(element('lampadd').disabled, false);
   assert.equal(element('lampstate-0').textContent, 'Looking for lamp');
@@ -473,7 +474,7 @@ test('forget sends exactly the chosen saved ID, including absent and disabled la
     click('lampbtn');
     const list = element('lamplist'), groups = element('groups'), builds = groups.writes;
     assert.equal((list.innerHTML.match(/>Forget lamp<\/button>/g) || []).length, 2);
-    assert.match(list.innerHTML, /Stops ClawLight reconnecting\. Pairing stays on the lamp and Mac\./);
+    assert.doesNotMatch(list.innerHTML, /lampforgethelp/);
     assert.ok(!list.innerHTML.includes(devices[1].id), 'IDs are data, never markup');
     click('lampforget-1');
     assert.deepEqual(commands('forget_lamp'), [{ cmd: 'forget_lamp', id: devices[1].id }]);
@@ -533,7 +534,9 @@ test('Identify targets only the selected connected lamp, including at zero brigh
     { id: 'home-id', state: 'connected' }, { id: 'work-id', state: 'connected' },
   ] }));
   click('lampbtn');
-  assert.match(element('lamplist').innerHTML, /Scans red, yellow, green three times without changing its brightness setting\./);
+  assert.equal(element('lampidentifyhelp-1').textContent, '');
+  assert.equal(element('lampidentifyhelp-1').hidden, true);
+  assert.equal(element('lampbrightnesshint-1').hidden, true);
   assert.equal(element('lampidentify-1').disabled, false);
   click('lampidentify-1');
   click('lampidentify-0');
@@ -569,6 +572,9 @@ test('Identify requires that lamp to have a fresh enabled Bluetooth connection',
     click('lampidentify-0');
   }
   assert.match(element('lampidentifyhelp-0').textContent, /Update.*firmware/);
+  assert.equal(element('lampidentifyhelp-0').hidden, false);
+  update(lamp());
+  assert.equal(element('lampidentifyhelp-0').hidden, true);
   update(lamp({ transport: 'usb' }));
   assert.ok(!element('lamplist').innerHTML.includes('lampidentify'));
   click('lampidentify-0'); // A stale control cannot bypass the transport guard.
@@ -662,7 +668,7 @@ test('offline per-lamp saves never broadcast and All lamps resets effective valu
     context.document.activeElement = null;
     const all = element('brightness');
     assert.match(element('groups').innerHTML, /for="brightness">All lamps/);
-    assert.match(element('brightnesshint').textContent, /replaces individual brightness settings/);
+    assert.match(element('brightnesshint').textContent, /Replaces individual brightness settings/);
     all.value = '45';
     listeners.change({ target: all });
     assert.deepEqual(commands('set_brightness'), [{ cmd: 'set_brightness', percent: 45 }]);
@@ -732,7 +738,7 @@ test('brightness preview throttles live input to the latest value and commits on
   const { element, listeners, click, update, commands, advance } = popoverPage();
   update(lamp());
   click('lampbtn');
-  assert.match(element('brightnesshint').textContent, /All three lights.*2 seconds/);
+  assert.equal(element('brightnesshint').textContent, 'Replaces individual brightness settings.');
   const slider = element('brightness');
   listeners.pointerdown({ target: slider, pointerId: 1, button: 0 });
   assert.deepEqual(commands('preview_brightness'), [{ cmd: 'preview_brightness', percent: 100 }]);

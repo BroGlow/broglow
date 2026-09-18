@@ -217,7 +217,7 @@ summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outl
 .brightness { padding: 0 10px 12px; color: rgba(255,255,255,.8); font-size: 12px; }
 .brightness label { display: flex; justify-content: space-between; margin-bottom: 7px; }
 .brightness input { width: 100%; accent-color: #3577f6; }
-.brightness p, .lampforget p, .lampidentify p, .lampsetup p, .lampnameedit p { margin-top: 5px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.brightness p, .lampidentify p, .lampsetup p { margin-top: 5px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 body.win .brightness input { accent-color: #4cc2ff; }
 .pophead, .popfoot, .usec { flex-shrink: 0; }
 </style>
@@ -258,22 +258,19 @@ const GROUPS = [
 ];
 
 const YELLOW_OPTIONS = [
-  { value: 'any_inactive', title: 'Always show yellow',
-    desc: 'Yellow whenever any session is idle, even while others are working.' },
-  { value: 'active_wins', title: 'Green while working',
-    desc: 'Stay green while any session is working; yellow only when all are idle.' },
+  { value: 'any_inactive', title: 'Yellow when any session is idle' },
+  { value: 'active_wins', title: 'Green while any session is working' },
 ];
 
 // Usage tracking is opt-in. "Off" tracks nothing; the other two turn it on and
 // pick the readout. Turning it on lets clawlight read local Claude Code
 // transcripts (and, for plan %, its usage endpoint) — hence the off default.
 const USAGE_OPTIONS = [
-  { value: 'off', title: 'Off',
-    desc: "Don't track usage." },
+  { value: 'off', title: 'Off' },
   { value: 'plan', title: 'Plan percentages',
-    desc: 'Rate-limit view: how much of the 5-hour block and week is used.' },
+    desc: '5-hour and weekly limits.' },
   { value: 'api', title: 'API dollars',
-    desc: "Cost view: today's per-model tokens and API-equivalent dollars." },
+    desc: 'Estimated cost at API rates.' },
 ];
 
 const FAMILY_CLASS = { opus: 'mopus', sonnet: 'msonnet', haiku: 'mhaiku' };
@@ -393,7 +390,7 @@ window.__lampSetupResult = error => {
   lampSetupPending = false;
   if (state.lamp) state.lamp.setup_busy = false;
   lampSetupError = error || '';
-  lampSetupMessage = error ? '' : 'Lamp added. Approve any macOS pairing request; connection status appears below.';
+  lampSetupMessage = error ? '' : 'Lamp added.';
   render();
 };
 
@@ -459,13 +456,16 @@ function renderBrightness(slider, outputId, hintId, percent) {
   const candidates = (state.lamp?.devices || []).filter(device => targeted ?
     device.id === slider.dataset.brightnessId : device.state === 'connected');
   const needsUpdate = candidates.length > 0 && candidates.every(device => device.brightness_supported === false);
-  document.getElementById(hintId).textContent = state.lamp?.transport !== 'ble' ? 'Brightness control requires Bluetooth.' :
-    lampSetupBusy() || lampActionPending() ? 'Brightness controls are paused while a lamp action finishes.' :
-    (needsUpdate ? 'Update lamp firmware to preview brightness. You can still save a setting.' :
-      canPreviewBrightness(slider.dataset.brightnessId) ?
-      'All three lights' + (targeted ? ' on this lamp' : '') + ' preview this level, then return to status after 2 seconds.' :
-      state.lamp.enabled ? (targeted ? 'Connect this lamp to preview.' : 'Connect a lamp to preview.') : 'Enable a lamp to preview.') +
-    (targeted ? ' Saved only for this lamp.' : ' Sets every lamp and replaces individual brightness settings.');
+  const hint = document.getElementById(hintId);
+  hint.textContent = state.lamp?.transport !== 'ble' ? 'Brightness control requires Bluetooth.' :
+    lampSetupBusy() || lampActionPending() ? 'Lamp action in progress.' :
+    needsUpdate ? 'Update firmware to preview brightness.' :
+    canPreviewBrightness(slider.dataset.brightnessId) ? '' :
+    state.lamp.enabled ? (targeted ? 'Connect this lamp to preview.' : 'Connect a lamp to preview.') : 'Enable a lamp to preview.';
+  if (!targeted && state.lamp?.transport === 'ble') {
+    hint.textContent += (hint.textContent ? ' ' : '') + 'Replaces individual brightness settings.';
+  }
+  hint.hidden = !hint.textContent;
 }
 
 /* Connection comes from worker writes, never from a nearby advertisement or
@@ -489,7 +489,7 @@ function renderLamp() {
     label += ' off';
   }
   el.className = 'pbtn pbtnghost lampbtn' + (connected ? ' lon' : '');
-  el.title = `${label} — ${lampState(connected ? 'connected' : status === 'connected' ? 'unavailable' : status)}. View lamp details.`;
+  el.title = `${label} — ${lampState(connected ? 'connected' : status === 'connected' ? 'unavailable' : status)}`;
   el.setAttribute('aria-label', el.title);
   el.setAttribute('aria-expanded', String(view === 'lamp'));
   el.innerHTML = (dot ? `<span class="dot ${dot}" aria-hidden="true"></span>` : '') + esc(label);
@@ -520,19 +520,18 @@ function renderLamp() {
         `<span class="lampstate" id="lampstate-${i}"></span>` +
         `<span class="lampchevron" aria-hidden="true">›</span></summary>` +
         (wireless ? `<div class="lampnameedit"><label for="lampname-${i}">Name</label><div class="lampnamefields">` +
-          `<input id="lampname-${i}" type="text" autocomplete="off" aria-describedby="lampnamehelp-${i}">` +
-          `<button class="pbtn" type="button" id="lampsave-${i}">Save</button></div>` +
-          `<p id="lampnamehelp-${i}">Up to 40 characters. Leave blank for an automatic name.</p></div>` +
+          `<input id="lampname-${i}" type="text" autocomplete="off" placeholder="Automatic name">` +
+          `<button class="pbtn" type="button" id="lampsave-${i}">Save</button></div></div>` +
           `<div class="lampidentify"><button class="pbtn" type="button" id="lampidentify-${i}" aria-describedby="lampidentifyhelp-${i}">Identify</button>` +
-          `<p id="lampidentifyhelp-${i}">Scans red, yellow, green three times without changing its brightness setting.</p></div>` +
+          `<p id="lampidentifyhelp-${i}" hidden></p></div>` +
           `<div class="brightness"><label for="lampbrightness-${i}">Light brightness<output id="lampbrightnessvalue-${i}" for="lampbrightness-${i}"></output></label>` +
           `<input id="lampbrightness-${i}" type="range" min="0" max="100" step="1" value="100" aria-describedby="lampbrightnesshint-${i}">` +
           `<p id="lampbrightnesshint-${i}"></p></div>` : '') +
+        `<details class="lamptechnical"><summary>Connection details</summary>` +
         `<dl><dt>${wireless ? 'Device ID' : 'Connection'}</dt><dd class="lampid" id="lampid-${i}"></dd>` +
-        `<dt>Diagnostic</dt><dd id="lampdiagnostic-${i}"></dd></dl>` +
+        `<dt>Diagnostic</dt><dd id="lampdiagnostic-${i}"></dd></dl></details>` +
         (wireless ? `<div class="lampforget"><button class="pbtn pbtnghost" type="button" id="lampforget-${i}" ` +
-          `aria-label="Forget lamp ${i + 1}" aria-describedby="lampforgethelp-${i}">Forget lamp</button>` +
-          `<p id="lampforgethelp-${i}">Stops ClawLight reconnecting. Pairing stays on the lamp and Mac.</p></div>` : '') +
+          `aria-label="Forget lamp ${i + 1}">Forget lamp</button></div>` : '') +
         `</details>`
       ).join('');
       list.dataset.ids = ids;
@@ -562,8 +561,9 @@ function renderLamp() {
         identify.dataset.id = device.id;
         identify.disabled = !canIdentifyLamp(device.id);
         identify.textContent = pendingIdentifyId === device.id ? 'Sending…' : 'Identify';
-        document.getElementById('lampidentifyhelp-' + i).textContent = device.brightness_supported === false ?
-          'Update this lamp’s firmware to use Identify.' : 'Scans red, yellow, green three times without changing its brightness setting.';
+        const identifyHint = document.getElementById('lampidentifyhelp-' + i);
+        identifyHint.textContent = device.brightness_supported === false ? 'Update firmware to use Identify.' : '';
+        identifyHint.hidden = !identifyHint.textContent;
         const input = document.getElementById('lampname-' + i);
         input.dataset.lampNameId = device.id;
         input.disabled = setupBusy || lampActionPending();
@@ -641,7 +641,7 @@ function render() {
     if (groupsEl.dataset.view !== 'lamp') {
       groupsEl.innerHTML = `<div class="grplabel">Lamps</div>` +
         `<div class="lampsetup" id="lampsetup"><button class="pbtn" type="button" id="lampadd" aria-describedby="lampsetuphint">Add lamp</button>` +
-        `<p id="lampsetuphint">Connect one lamp by USB, then Add lamp. Approve any macOS pairing request.</p>` +
+        `<p id="lampsetuphint">Connect one lamp by USB. Approve the macOS pairing request.</p>` +
         `<p id="lampsetupresult" role="status" hidden></p></div>` +
         `<div class="lamptop"><span id="lampsummary" role="status"></span><span id="lamptransport"></span></div>` +
         `<div class="lamplist" id="lamplist"></div>` +
@@ -666,21 +666,20 @@ function render() {
       `<label class="optrow" for="showdashboard">` +
       `<input type="checkbox" id="showdashboard" aria-describedby="dashboardhint">` +
       `<span class="sinfo"><span class="sname">Show Dashboard button</span>` +
-      `<span class="smeta setdesc" id="dashboardhint">Open the terminal session monitor from the app.</span></span></label>` +
+      `<span class="smeta setdesc" id="dashboardhint">Terminal session monitor.</span></span></label>` +
       `<p class="lamperror" id="settingserror" role="alert" hidden></p>` +
-      `<div class="grplabel">Yellow light when sessions are mixed</div>` +
+      `<div class="grplabel">Mixed sessions</div>` +
       YELLOW_OPTIONS.map(o =>
         `<div class="optrow" data-yellow="${o.value}">` +
         `<span class="radio${o.value === mode ? ' rsel' : ''}"></span>` +
-        `<div class="sinfo"><span class="sname">${o.title}</span>` +
-        `<span class="smeta setdesc">${o.desc}</span></div></div>`
+        `<div class="sinfo"><span class="sname">${o.title}</span></div></div>`
       ).join('') +
       `<div class="grplabel">Usage tracking</div>` +
       USAGE_OPTIONS.map(o =>
         `<div class="optrow" data-usage="${o.value}">` +
         `<span class="radio${o.value === usage ? ' rsel' : ''}"></span>` +
         `<div class="sinfo"><span class="sname">${o.title}</span>` +
-        `<span class="smeta setdesc">${o.desc}</span></div></div>`
+        (o.desc ? `<span class="smeta setdesc">${o.desc}</span>` : '') + `</div></div>`
       ).join('');
     const dashboardToggle = document.getElementById('showdashboard');
     dashboardToggle.checked = state.settings?.showDashboardButton === true;
@@ -701,18 +700,18 @@ function render() {
       html += `<div class="grplabel">${g.label}</div>`;
       for (const s of rows) {
         const help = s.status === 'needs_help';
-        const meta = esc(s.project) + (help ? ' · waiting for input' : '');
+        const meta = esc(s.project);
         const tail = help
           ? `<button class="focusbtn" data-cmd="focus" data-id="${esc(s.id)}">Focus</button>`
           : `<span class="time">${relTime(s.lastUpdated)}</span>`;
         const badge = s.badge ? `<span class="badge">${esc(s.badge)}</span>` : '';
         html += `<div class="srow${help ? ' helprow' : ''}" data-cmd="focus"` +
-          ` data-id="${esc(s.id)}" title="Go to this session's terminal">` +
+          ` data-id="${esc(s.id)}" title="Open session">` +
           `<span class="dot ${g.dot}"></span>` +
           `<div class="sinfo"><span class="sname">${badge}${esc(s.name)}</span>` +
           `<span class="smeta">${meta}</span></div>${tail}` +
           `<button class="dismissbtn" type="button" id="dismiss-${esc(s.id)}" data-cmd="clear_session" data-id="${esc(s.id)}"` +
-          ` aria-label="Dismiss ${esc(s.name)} from ClawLight" title="Dismiss from ClawLight until new activity. Keeps the conversation.">×</button></div>`;
+          ` aria-label="Dismiss ${esc(s.name)} from ClawLight" title="Dismiss until new activity">×</button></div>`;
       }
     }
     groupsEl.innerHTML = html;

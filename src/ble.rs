@@ -139,7 +139,7 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
         }
         Ok(())
     })?;
-    println!("Saved lamp settings. The installed tray service applies them automatically.");
+    println!("Saved lamp settings.");
     Ok(())
 }
 
@@ -459,7 +459,14 @@ mod mac {
             let adapter = adapter(&keep).await?;
             let result = async {
                 start(&adapter, &keep).await?;
-                wait(async { sleep(Duration::from_secs(8)).await; Ok(()) }, &keep).await?;
+                wait(
+                    async {
+                        sleep(Duration::from_secs(8)).await;
+                        Ok(())
+                    },
+                    &keep,
+                )
+                .await?;
                 let mut found = 0;
                 for p in adapter.peripherals().await? {
                     if let Some(props) = p.properties().await? {
@@ -469,9 +476,10 @@ mod mac {
                         }
                     }
                 }
-                println!("{found} advertised lamp(s). Select the intended ID; the worker verifies its writable characteristic on connection.");
+                println!("Found {found} lamp(s). Add one with `clawlight ble add <ID>`.");
                 Ok(())
-            }.await;
+            }
+            .await;
             let _ = timeout(Duration::from_secs(1), adapter.stop_scan()).await;
             result
         })
@@ -648,7 +656,7 @@ mod mac {
                 remember(latest, id.clone());
                 Ok(())
             })?;
-            println!("Remembered lamp {id}. The tray service will connect automatically; approve any macOS pairing request for this lamp. Existing saved lamps are retained.");
+            println!("Remembered lamp {id}. The tray service will connect automatically; approve any macOS pairing request for this lamp.");
             Ok(())
         })();
         if result.is_err() {
