@@ -29,6 +29,7 @@ __pycache__/
 # Disposable CAD render iterations. Keep the selected documentation images;
 # update these exceptions when promoting a new render into the guides.
 /models/clawlight/preview/*_20??????T??????Z.png
+!/models/clawlight/preview/wider-coupon_20260918T214232Z.png
 !/models/clawlight/preview/finished_20260916T173845Z.png
 !/models/clawlight/preview/exploded_20260916T173845Z.png
 !/models/clawlight/preview/assembly_20260917T162054Z.png

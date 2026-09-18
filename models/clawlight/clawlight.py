@@ -88,22 +88,23 @@ PCB_REAR = PCB_FRONT+PCB_LENGTH
 PCB_BOTTOM = 2.8
 PCB_TOP = PCB_BOTTOM+PCB_THICKNESS
 PCB_FLOOR_GAP = PCB_BOTTOM-BASE_FLOOR_THICKNESS
-PCB_SIDE_CLEARANCE = 0.10
+PCB_SIDE_CLEARANCE = 0.60  # Trial: old printed opening measured 17.5 mm for an 18 mm PCB.
 PCB_END_CLEARANCE = 0.25
-PCB_TOP_CLEARANCE = 0.10
-PCB_RAIL_LOWER_OVERLAP = 0.60  # Narrow bearing strip leaves GPIO solder pads accessible.
-PCB_RAIL_UPPER_OVERLAP = 0.30
+PCB_TOP_CLEARANCE = 0.40
+PCB_RAIL_LOWER_OVERLAP = 0.80  # Retain 0.2 mm bearing at maximum lateral float.
+PCB_RAIL_UPPER_OVERLAP = -0.20  # Signed: recessed tips open an 18.4 mm throat; corners retain the PCB.
 PCB_RAIL_ROOF_THICKNESS = 1.0
 PCB_RAIL_TOP = PCB_TOP+PCB_TOP_CLEARANCE+PCB_RAIL_ROOF_THICKNESS
 PCB_RAIL_ENTRY_CHAMFER = 0.25
 PCB_RAIL_EDGE_CHAMFER = 0.10
 PCB_FRONT_STOP_Y = PCB_FRONT-PCB_END_CLEARANCE
-PCB_CORNER_LENGTH = 2.5  # Across each non-USB end corner; the middle 13 mm stays open.
+PCB_CORNER_LENGTH = 2.0  # Shorter holders clear the same bare corner patches at +/-0.6 mm float.
 PCB_CORNER_OVERLAP = 0.60
 PCB_CORNER_ENTRY_CHAMFER = 0.15
 # User-requested corner holders assume these small patches are free of components.
-PCB_CORNER_COMPONENT_CLEARANCE = 0.20
+PCB_CORNER_CLEAR_WIDTH = 2.7  # Existing provisional hardware envelope; never grow it to fit holders.
 PCB_CORNER_CLEAR_DEPTH = 1.0
+PCB_INSERTION_CEILING = PCB_TOP+PCB_TOP_HEIGHT+PCB_TOP_CLEARANCE+0.1
 USB_WIDTH, USB_HEIGHT = 8.9, 3.1
 USB_SEATING_Z_OFFSET = 0.2  # Latest print: lower the previous +1.2 mm correction by 1 mm.
 USB_CENTER_ABOVE_PCB = USB_HEIGHT/2 + USB_SEATING_Z_OFFSET
@@ -254,7 +255,7 @@ def eye(x):
 
 
 def cover_screw_boss(x,z):
-    """Short full-diameter screw land with a 45-degree lead-in from its side wall."""
+    """Short screw land with a 45-degree lead-in and lower PCB clearance."""
     if z<BASE_HEIGHT:
         wall_x=INNER_LEFT if x<TOWER_X else INNER_RIGHT
     else:
@@ -268,7 +269,13 @@ def cover_screw_boss(x,z):
                                  (tip,REAR,z-COVER_BOSS_DIAMETER/2),
                                  (root,REAR,z-COVER_BOSS_DIAMETER/2)],close=True))
     ramp=extrude(face,amount=COVER_BOSS_DIAMETER,dir=(0,0,1))
-    return cy(x,z,start,REAR,COVER_BOSS_DIAMETER) & ramp
+    boss = cy(x,z,start,REAR,COVER_BOSS_DIAMETER) & ramp
+    if z < BASE_HEIGHT:
+        # Relieve 0.3 mm below the lower bosses for the increased PCB float;
+        # the 1.9 mm pilot retains at least 1.55 mm of radial material.
+        boss &= box(x-COVER_BOSS_DIAMETER,x+COVER_BOSS_DIAMETER,start,REAR,
+                    PCB_INSERTION_CEILING,z+COVER_BOSS_DIAMETER)
+    return boss
 
 
 def tower():
@@ -399,7 +406,7 @@ def led_retainer():
 
 
 def pcb_guides():
-    """Wall-braced side channels and two short far-end corner holders."""
+    """Loose side channels with recessed roofs; far-end corners and cover locate the PCB."""
     left = TOWER_X-PCB_WIDTH/2
     wall = INNER_LEFT-BOOLEAN_OVERLAP
     tip = left+PCB_RAIL_UPPER_OVERLAP
@@ -453,7 +460,7 @@ def electronics():
                 PCB_BOTTOM+PCB_THICKNESS+PCB_TOP_HEIGHT)
     # Preserve the central end-component envelope, relieving only the two
     # explicitly assumed bare corner patches for the new retaining lips.
-    corner_width=PCB_CORNER_LENGTH+PCB_CORNER_COMPONENT_CLEARANCE
+    corner_width=PCB_CORNER_CLEAR_WIDTH
     for x0,x1 in ((left,left+corner_width),(right-corner_width,right)):
         upper-=box(x0,x1,front,front+PCB_CORNER_CLEAR_DEPTH,
                    PCB_TOP-BOOLEAN_OVERLAP,PCB_TOP+PCB_TOP_HEIGHT+BOOLEAN_OVERLAP)

@@ -1,6 +1,6 @@
 {
-  "purpose": "Offline slicing validation for reinforced PCB guides with the 0.25 mm entry chamfer limited to the three C-slot mouth edges per rail, preserving wall/floor roots through the rear seam. User-confirmed A1 mini, PETG Basic, 0.4 mm nozzle and 0.2 mm layers. Tower and USB base coupon freshly sliced; five unchanged mesh records retained only after exact SHA-256 verification. Five unique main STLs make six pieces including two eyes; two USB coupons make eight physical pieces overall. No G-code delivered. Current physical hardware fit is unverified, including assumed component-free PCB corners.",
-  "checked_at_utc": "2026-09-18T19:53:30.000562+00:00",
+  "purpose": "Wider PCB fit trial after measured 17.5 mm printed opening rejected 18 mm PCB. Two changed STLs freshly sliced; five unchanged records retained only after exact hash matches. Physical fit remains unverified.",
+  "checked_at_utc": "2026-09-18T21:41:49.709963+00:00",
   "slicer": "Bambu Studio 02.07.01.62, macOS CLI",
   "reference_profile": {
     "machine": "Bambu Lab A1 mini 0.4 nozzle",
@@ -26,41 +26,22 @@
     "extruders": 1,
     "orientation": "STL face-down/back-down orientation retained; XY position arranged per part"
   },
+  "changed_part_profile_overrides": {
+    "extrusion_width_mm": 0.4,
+    "main_acceleration_mm_s2": 1000,
+    "main_speed_mm_s": 100,
+    "limits": "First layer, bridge, overhang and volumetric limits retained; actual print speed can be lower."
+  },
   "result": {
     "files_checked": 7,
     "successful": 7,
     "geometry_warnings": 0,
     "files_with_support_toolpaths": 0,
-    "filament_changes": 0,
-    "floating_or_unsupported_region_warnings": 0,
     "repair_warnings": 0,
-    "files_resliced_this_revision": 2,
-    "files_reused_with_matching_sha256": 5,
-    "routine_cli_diagnostic_count_this_recheck": 6,
+    "floating_or_unsupported_region_warnings": 0,
     "nonfatal_slicer_diagnostic_count": 0,
-    "nonfatal_slicer_warning_count": 0,
-    "nonfatal_slicer_error_log_count": 0
-  },
-  "physical_coupon_feedback": {
-    "source": "User report, 2026-09-17",
-    "printer": "Bambu Lab A1 mini",
-    "material": "PETG Basic",
-    "nozzle_mm": 0.4,
-    "layer_mm": 0.2,
-    "screw_pilot_mm_selected": 1.9,
-    "screw_pilots_mm_reported_holding": [
-      1.8,
-      1.9,
-      2.0
-    ],
-    "cover_and_retainer_screw_heads_flush": true,
-    "led_bore_mm_selected": 5.1,
-    "all_leds_fit_selected_bore": true,
-    "led_bores_mm_reported_loose": [
-      5.3,
-      5.5
-    ],
-    "full_enclosure_physical_fit_verified": false
+    "files_resliced_this_revision": 2,
+    "files_reused_with_matching_sha256": 5
   },
   "parts": [
     {
@@ -109,24 +90,19 @@
     },
     {
       "file": "stl/03_tower_black.stl",
-      "sha256": "f6df97d3df2e90efffb0cf6c908bc531489a3ec462d90712de622337efb17f4a",
+      "sha256": "26bbe8e0c66973524c2f50858ebebfa1eda99701c7dfac1032fcb3a1a3bc76af",
       "status": "success",
       "quantity": 1,
-      "triangles": 15930,
-      "solid_volume_cm3": 8.627365275237809,
-      "estimated_filament_g": 9.907161712646484,
-      "estimated_print_seconds": 2646.2353515625,
-      "estimate_basis": "One copy sliced separately; quantities are applied only in totals.",
-      "support_toolpaths": false,
-      "filament_changes": 0,
       "geometry_warnings": [],
-      "floating_or_unsupported_region_warnings": 0,
+      "support_toolpaths": false,
       "repair_warnings": 0,
-      "sliced_plates": 1,
+      "floating_or_unsupported_region_warnings": 0,
       "slicer_log_diagnostics": [],
-      "rechecked_at_utc": "2026-09-18T19:53:30.000562+00:00",
-      "slice_evidence_directory": "/private/tmp/clawlight-slice-rail-mouth-chamfer-20260918/03_tower_black",
-      "slice_evidence_stage": "Reinforced PCB guides with entry chamfer limited to the three C-slot mouth edges"
+      "triangles": 15666,
+      "estimated_filament_g": 9.436136245727539,
+      "estimated_print_seconds": 3509.01806640625,
+      "slice_evidence_directory": "/private/tmp/clawlight-slice-wider-20260919/03_tower_black",
+      "profile": "0.4 mm lines, 1000 mm/s^2 main acceleration, 100 mm/s main speeds; first-layer/bridge and volumetric limits retained"
     },
     {
       "file": "stl/04_rear_cover_black.stl",
@@ -172,24 +148,19 @@
     },
     {
       "file": "stl/coupons/01_USB_base_coupon.stl",
-      "sha256": "016e0e790babe8ddf62968806fdd25259b639d4fa665140ec89bece06dc0f93c",
+      "sha256": "863ee17079b925f9e3ce9d67d269d0c676db82523148d7ae4e069b8dc867db80",
       "status": "success",
       "quantity": 1,
-      "triangles": 3188,
-      "solid_volume_cm3": 4.064250364397487,
-      "estimated_filament_g": 4.706769943237305,
-      "estimated_print_seconds": 2186.28662109375,
-      "estimate_basis": "One copy sliced separately; quantities are applied only in totals.",
-      "support_toolpaths": false,
-      "filament_changes": 0,
       "geometry_warnings": [],
-      "floating_or_unsupported_region_warnings": 0,
+      "support_toolpaths": false,
       "repair_warnings": 0,
-      "sliced_plates": 1,
+      "floating_or_unsupported_region_warnings": 0,
       "slicer_log_diagnostics": [],
-      "rechecked_at_utc": "2026-09-18T19:53:30.000562+00:00",
-      "slice_evidence_directory": "/private/tmp/clawlight-slice-rail-mouth-chamfer-20260918/01_USB_base_coupon",
-      "slice_evidence_stage": "Reinforced PCB guides with entry chamfer limited to the three C-slot mouth edges"
+      "triangles": 2924,
+      "estimated_filament_g": 4.6164231300354,
+      "estimated_print_seconds": 2493.5673828125,
+      "slice_evidence_directory": "/private/tmp/clawlight-slice-wider-20260919/01_USB_base_coupon",
+      "profile": "0.4 mm lines, 1000 mm/s^2 main acceleration, 100 mm/s main speeds; first-layer/bridge and volumetric limits retained"
     },
     {
       "file": "stl/coupons/02_USB_cover_coupon.stl",
@@ -214,748 +185,73 @@
       "reused_from_first_compact_candidate": true
     }
   ],
-  "totals": {
-    "estimated_filament_g": 28.866822689771652,
-    "estimated_print_seconds": 9883.176086425781,
-    "unique_stl_files": 7,
-    "physical_pieces": 8,
-    "separately_sliced_plates": 7,
-    "estimated_separate_piece_jobs": 8,
-    "includes_coupon": true
-  },
-  "notes": [
-    "Tower and USB base coupon were freshly sliced. Mascot, eyes, rear cover, one-screw LED retainer and USB cover coupon retain exact SHA-identical slice/component-check evidence; their records are unchanged.",
-    "The long integral cover pushers are removed. A flat LED retainer carries three short flange pads and a rigid upper tab engaging the tower roof pocket; one lower screw secures it. It is a sliding rigid tab, not a flexible snap. Retainer bounds are 7.1 x 26.6 x 3.75 mm; print the rear screw-head face on the bed.",
-    "Retainer plate thickness is 3.0 mm. Upper tab engagement is 1.0 mm, nominal pocket clearance 0.25 mm, and release drop 1.3 mm. The retainer and pad edges have 0.15 mm chamfers. Rear cover returns to 24 x 45.5 x 2.4 mm.",
-    "The measured 8.5 mm total plastic LED length includes its 1.2 mm flange, giving a 7.3 mm barrel. Seats remain at Y=3.8 mm, giving 3.25\u20133.50 mm dome projection with 0.25 mm axial play. Tower collars extend 1.4 mm beyond the 2.4 mm front wall.",
-    "LED centers remain Z=27.0, 33.5 and 40.0 mm at 6.5 mm pitch. Measured barrel diameter stays 4.75 mm, bores stay 5.1 mm, and 0.4 mm entry lead-ins leave 0.6 mm between adjacent mouths.",
-    "Tower export stays 24 x 45.5 x 25 mm with a 14 mm-wide upright. Mascot remains 47.3 x 35.75 x 20.5 mm; one eye is 3.25 x 6.5 x 2.6975 mm, quantity two. Screw pilots are 1.9 mm and hand locating pin/socket sizes are 3.0/3.3 mm.",
-    "Integral PCB side rails have a 45-degree top haunch back to the base walls. The 0.25 mm rear entry chamfer is limited to the three C-slot mouth edges per rail, retaining material at the rail/wall/floor roots through the rear seam. Two short C-section returns capture the non-USB end corners, each 2.5 mm wide with nominal 0.60 mm PCB overlap, 0.15 mm entry chamfer and 0.10 mm top clearance; the middle 13 mm stays open. PCB bottom remains Z=2.8 mm over the 2.0 mm floor. USB throat is unchanged at 9.15 x 3.20 mm, Z=5.25 mm, with 0.15 mm corner bevels and 0.20 mm entry chamfers on both sides.",
-    "Far-end corner capture assumes component-free corner patches. The provisional top-component envelope excludes a 2.7 mm-wide by 1.0 mm-deep patch at each non-USB corner; these patches are not measured hardware clearance or physical fit validation.",
-    "All seven current meshes passed actual-extrusion component checks and sampled layer connectivity. No entirely missing components or sampled isolated layer starts were found. These checks do not establish full local support, strength or hardware fit.",
-    "All current slices returned Success with code 0. No geometry, support, repair, floating-region or nonroutine algorithm diagnostics were reported. Historical USB-cover ZFiller is absent from current evidence.",
-    "Slicer arrangement can rotate parts in the bed plane. Extrusion checks resolve 0/90/180/270-degree XY rotation against first-layer extrusion. Partial top layers are sampled inside remaining material with STL floating-point tolerance in layer counting.",
-    "Main assembly has five unique files and six physical pieces including two eyes; USB test adds two coupon pieces. Separate-copy estimates include startup and purge; grouped-plate estimates differ.",
-    "Physical coupon choices remain hardware dimension references. Earlier tray-based fit feedback does not validate the compact assembly, integrated PCB guides, deeper LED seats or current retainer and corner captures; physical fit remains unverified.",
-    "No G-code is delivered. Bambu PETG Basic brand/profile and Textured PEI validation plate are explicit assumptions; retain the established settings and plate used for successful physical coupons."
-  ],
-  "totals_without_coupons": {
-    "estimated_filament_g": 23.442567318677902,
-    "estimated_print_seconds": 7102.3572998046875,
-    "unique_stl_files": 5,
-    "physical_pieces": 6,
-    "separately_sliced_plates": 5,
-    "estimated_separate_piece_jobs": 6
-  },
-  "user_measured_hardware_mm": {
-    "led_barrel_diameter": 4.75,
-    "led_flange_diameter": 5.4,
-    "led_flange_thickness": 1.2,
-    "pcb_width": 18.0,
-    "pcb_length": 22.4,
-    "pcb_thickness": 0.7,
-    "pcb_length_including_usb": 23.9,
-    "usb_rear_overhang": 1.5,
-    "usb_shell_width": 8.9,
-    "usb_shell_height": 3.1,
-    "led_total_plastic_length": 8.5,
-    "led_barrel_length_excluding_flange": 7.3
-  },
-  "integral_hand_joint": {
-    "pin_diagonal_mm": 3.0,
-    "socket_diagonal_mm": 3.3,
-    "pin_X_projection_mm": 1.8,
-    "socket_X_depth_mm": 2.0,
-    "socket_fit_physical_test_completed": true,
-    "physical_test_result": "Single-pin coupon fits for positioning, not friction retention; optional glue for permanent assembly.",
-    "two_pin_assembly_physical_test_completed": false
-  },
-  "quantity_metadata": "parts.json",
-  "slicer_diagnostic_review": {
-    "diagnostics": [],
-    "source_review": [],
-    "toolpath_checks": [],
-    "result": "All seven current mesh slices returned Success with code 0: two fresh runs and five SHA-identical retained records. No nonroutine diagnostics; historical USB ZFiller is absent.",
-    "limitation": "Successful slicing and component/connectivity checks do not prove full local support, dimensional fit or physical strength."
-  },
-  "totals_one_copy_of_each_stl": {
-    "estimated_filament_g": 28.733573973178864,
-    "estimated_print_seconds": 9413.677215576172,
-    "unique_stl_files": 7,
-    "physical_pieces": 7,
-    "separately_sliced_plates": 7,
-    "estimated_separate_piece_jobs": 7
-  },
-  "usb_test_set": {
-    "estimated_filament_g": 5.42425537109375,
-    "estimated_print_seconds": 2780.8187866210938,
-    "unique_stl_files": 2,
-    "physical_pieces": 2,
-    "separately_sliced_plates": 2,
-    "estimated_separate_piece_jobs": 2,
-    "files": [
-      "stl/coupons/01_USB_base_coupon.stl",
-      "stl/coupons/02_USB_cover_coupon.stl"
-    ]
-  },
-  "file_organization_updated": "2026-09-18: tower and USB base coupon refined to preserve rail/wall/floor roots with a mouth-only entry chamfer. Inventory stays seven unique current STLs, six physical main pieces and two USB coupons.",
-  "tight_usb_revision": {
-    "previous_aperture_width_height_mm": [
-      9.3,
-      3.5
-    ],
-    "current_aperture_width_height_mm": [
-      9.15,
-      3.2
-    ],
-    "per_side_clearance_x_z_mm": [
-      0.125,
-      0.05
-    ],
-    "corner_chamfer_mm": 0.15,
-    "entry_chamfer_each_side_mm": 0.2,
-    "aperture_center_z_mm": 5.25,
-    "previous_revision_user_report": "Earlier tray-based assembly fits nicely; this is not physical validation of the integrated-guide revision.",
-    "current_revision_printed": false,
-    "current_opening_physical_fit_verified": false,
-    "corner_clearance_basis": "Ideal rectangular measured shell envelope; nominal throat clearance perpendicular to the 45-degree corner bevel.",
-    "nominal_corner_clearance_mm": 0.017677669529663684,
-    "physical_fit_context": "Compact assembly and current reinforced PCB guides/corner captures are unprinted; earlier tray-based feedback does not validate them."
-  },
-  "integrated_pcb_revision": {
-    "separate_tray_removed": true,
-    "retired_file": "stl/06_PCB_tray_black.stl",
-    "pcb_bottom_previous_z_mm": 4.6,
-    "pcb_bottom_z_mm": 2.8,
-    "base_floor_thickness_mm": 2.0,
-    "pcb_to_floor_gap_mm": 0.8,
-    "provisional_underside_envelope_mm": 0.6,
-    "provisional_underside_clearance_mm": 0.2,
-    "guide_type": "Integral C-shaped PCB edge guides with 45-degree top haunches, two short non-USB corner returns and cover rear stops",
-    "per_side_clearance_mm": 0.1,
-    "top_clearance_mm": 0.1,
-    "lower_bearing_overlap_mm": 0.6,
-    "upper_capture_overlap_mm": 0.3,
-    "guide_roof_thickness_mm": 1.0,
-    "entry_chamfer_mm": 0.25,
-    "upper_edge_chamfer_mm": 0.1,
-    "usb_center_previous_z_mm": 7.05,
-    "usb_center_z_mm": 5.25,
-    "usb_aperture_width_height_mm": [
-      9.15,
-      3.2
-    ],
-    "usb_per_side_clearance_x_z_mm": [
-      0.125,
-      0.05
-    ],
-    "usb_corner_chamfer_mm": 0.15,
-    "usb_entry_chamfer_each_side_mm": 0.2,
-    "nominal_rectangular_shell_corner_clearance_mm": 0.017677669529663684,
-    "enclosure_depth_mm": 27.4,
-    "mascot_depth_mm": 20.5,
-    "physical_fit_verified": false,
-    "resliced_files": [
-      "stl/03_tower_black.stl",
-      "stl/coupons/01_USB_base_coupon.stl"
-    ],
-    "reused_files": [
-      "stl/01_mascot_orange.stl",
-      "stl/02_eye_black_x2.stl",
-      "stl/04_rear_cover_black.stl",
-      "stl/05_LED_retainer_black.stl",
-      "stl/coupons/02_USB_cover_coupon.stl"
-    ]
-  },
-  "proportion_revision": {
-    "mascot_scale": 0.65,
-    "mascot_depth_mm": 20.5,
-    "enclosure_depth_mm": 27.4,
-    "upright_width_mm": 14.0,
-    "led_measured_barrel_diameter_mm": 4.75,
-    "led_bore_diameter_mm": 5.1,
-    "led_pitch_mm": 6.5,
-    "led_bore_lead_in_mm": 0.4,
-    "led_entry_mouth_gap_mm": 0.6,
-    "screw_pilot_diameter_mm": 1.9,
-    "hand_pin_socket_diagonals_mm": [
-      3.0,
-      3.3
-    ],
-    "led_centers_z_mm": [
-      27.0,
-      33.5,
-      40.0
-    ],
-    "led_stack_raise_from_first_compact_mm": 7.0,
-    "tower_height_mm": 45.5,
-    "eye_tongue_corner_chamfer_mm": 0.325,
-    "eye_tongue_entry_chamfer_mm": 0.1625,
-    "current_bounds_mm": {
-      "01_mascot_orange": [
-        47.30000000000001,
-        35.75000000000001,
-        20.500000000000007
-      ],
-      "02_eye_black_x2": [
-        3.250000000000003,
-        6.500000000000005,
-        2.6975000000000025
-      ],
-      "03_tower_black": [
-        24.000000000000004,
-        45.500000000000014,
-        25.00000000000001
-      ],
-      "04_rear_cover_black": [
-        24.000000000000007,
-        45.5,
-        2.400000000000006
-      ],
-      "05_LED_retainer_black": [
-        7.100000000000005,
-        26.600000000000005,
-        3.750000000000006
-      ],
-      "01_USB_base_coupon": [
-        24.000000000000004,
-        14.000000000000005,
-        25.000000000000007
-      ],
-      "02_USB_cover_coupon": [
-        24.000000000000004,
-        14.000000000000004,
-        2.400000000000002
-      ]
-    },
-    "previous_bounds_mm": {
-      "01_mascot_orange": [
-        57.80000000000001,
-        44.000000000000014,
-        24.40000000000001
-      ],
-      "02_eye_black_x2": [
-        4.000000000000003,
-        8.000000000000009,
-        3.3200000000000034
-      ],
-      "03_tower_black": [
-        28.000000000000007,
-        58.00000000000002,
-        25.000000000000014
-      ],
-      "04_rear_cover_black": [
-        28.000000000000004,
-        58.000000000000014,
-        2.4000000000000155
-      ],
-      "05_LED_retainer_black": [
-        9.200000000000014,
-        30.000000000000004,
-        4.950000000000009
-      ],
-      "01_USB_base_coupon": [
-        28.000000000000007,
-        19.200000000000006,
-        25.00000000000001
-      ],
-      "02_USB_cover_coupon": [
-        28.0,
-        19.200000000000006,
-        2.4000000000000075
-      ]
-    },
-    "all_main_parts_require_reprint": false,
-    "current_revision_physically_verified": false,
-    "resliced_files": [
-      "stl/03_tower_black.stl",
-      "stl/coupons/01_USB_base_coupon.stl"
-    ],
-    "reused_files": [
-      "stl/01_mascot_orange.stl",
-      "stl/02_eye_black_x2.stl",
-      "stl/04_rear_cover_black.stl",
-      "stl/05_LED_retainer_black.stl",
-      "stl/coupons/02_USB_cover_coupon.stl"
-    ],
-    "reprint_context": "Compared with the immediately prior one-screw tab-retainer design: reprint tower and USB base coupon; all five other mesh files are byte-identical."
-  },
-  "current_toolpath_validation": {
-    "extrusion_components": {
-      "method": "Read actual positive-E model G1 paths and sampled G2/G3 arcs; rasterize each STL layer midpoint at 0.1 mm (partial top layers sampled within remaining material), check every connected component >=0.08 mm2 receives extrusion within 0.3 mm. Checks entire absent components and missing whole layers only; does not prove complete local coverage or physical strength. Coordinates use slicer XY arrangement translation and 0/90/180/270 degree in-plane rotation selected by bounding-box axes and first-layer extrusion fit; automatic 3D orientation stays disabled.",
-      "parts": [
-        {
-          "file": "stl/01_mascot_orange.stl",
-          "slice_rotation_deg": 0,
-          "first_layer_alignment_scores": [
-            {
-              "angle": 0,
-              "mean_distance_outside_first_layer_mm": 0.0,
-              "fraction_within_0_3mm": 1.0
-            },
-            {
-              "angle": 180,
-              "mean_distance_outside_first_layer_mm": 1.4478301967887686,
-              "fraction_within_0_3mm": 0.5936599423631124
-            }
-          ],
-          "layers": 103,
-          "components_checked": 103,
-          "missing_entire_components": [],
-          "model_extrusion_volume_mm3": 8701.888900885966,
-          "stl_volume_mm3": 20995.05314208086,
-          "extrusion_volume_by_feature_mm3": {
-            "Inner wall": 3142.3630678288428,
-            "Outer wall": 1491.9444653834935,
-            "Gap infill": 9.622041508731376,
-            "Bottom surface": 137.80410673742907,
-            "Internal solid infill": 1057.976053049131,
-            "Sparse infill": 2273.1275833699833,
-            "Floating vertical shell": 111.34636690025899,
-            "Bridge": 293.7937800445928,
-            "Top surface": 183.91143606343627
+  "toolpath_validation": {
+    "method": "Read actual positive-E model G1 paths and sampled G2/G3 arcs; rasterize each STL layer midpoint at 0.1 mm (partial top layers sampled within remaining material), check every connected component >=0.08 mm2 receives extrusion within 0.3 mm. Checks entire absent components and missing whole layers only; does not prove complete local coverage or physical strength. Coordinates use slicer XY arrangement translation and 0/90/180/270 degree in-plane rotation selected by bounding-box axes and first-layer extrusion fit; automatic 3D orientation stays disabled.",
+    "parts": [
+      {
+        "file": "stl/03_tower_black.stl",
+        "slice_rotation_deg": 180,
+        "first_layer_alignment_scores": [
+          {
+            "angle": 0,
+            "mean_distance_outside_first_layer_mm": 0.06686550791656196,
+            "fraction_within_0_3mm": 0.9793587174348697
           },
-          "sha256": "4088b47fa7115391a32542355baa139494e40863864c9370ac2436e923ada4be",
-          "evidence_directory": "/private/tmp/clawlight-slice-proportions-20260918"
-        },
-        {
-          "file": "stl/02_eye_black_x2.stl",
-          "slice_rotation_deg": 0,
-          "first_layer_alignment_scores": [
-            {
-              "angle": 0,
-              "mean_distance_outside_first_layer_mm": 0.0,
-              "fraction_within_0_3mm": 1.0
-            },
-            {
-              "angle": 180,
-              "mean_distance_outside_first_layer_mm": 0.0,
-              "fraction_within_0_3mm": 1.0
-            }
-          ],
-          "layers": 13,
-          "components_checked": 13,
-          "missing_entire_components": [],
-          "model_extrusion_volume_mm3": 49.49276356563959,
-          "stl_volume_mm3": 55.669442155462754,
-          "extrusion_volume_by_feature_mm3": {
-            "Inner wall": 23.768899281474077,
-            "Outer wall": 16.243421719439173,
-            "Gap infill": 0.23631894425851036,
-            "Internal solid infill": 6.78056176522207,
-            "Top surface": 2.463561855245741
-          },
-          "sha256": "f359a0b093c473b2433ca5a7c3785376105a9ab09b3c02ae31882567b03433eb",
-          "evidence_directory": "/private/tmp/clawlight-slice-proportions-20260918"
-        },
-        {
-          "file": "stl/03_tower_black.stl",
-          "slice_rotation_deg": 180,
-          "first_layer_alignment_scores": [
-            {
-              "angle": 0,
-              "mean_distance_outside_first_layer_mm": 0.048123585415245376,
-              "fraction_within_0_3mm": 0.9840503672612801
-            },
-            {
-              "angle": 180,
-              "mean_distance_outside_first_layer_mm": 0.0,
-              "fraction_within_0_3mm": 1.0
-            }
-          ],
-          "layers": 125,
-          "components_checked": 157,
-          "missing_entire_components": [],
-          "model_extrusion_volume_mm3": 7868.622194014488,
-          "stl_volume_mm3": 8627.36527523765,
-          "extrusion_volume_by_feature_mm3": {
-            "Inner wall": 3382.480649700351,
-            "Outer wall": 2355.314405408098,
-            "Bottom surface": 80.07385406899748,
-            "Gap infill": 542.4936241229236,
-            "Internal solid infill": 1151.8438859869466,
-            "Top surface": 155.87460462224598,
-            "Sparse infill": 46.619053044999745,
-            "Floating vertical shell": 15.131796647902156,
-            "Bridge": 138.79032041198272
-          },
-          "sha256": "f6df97d3df2e90efffb0cf6c908bc531489a3ec462d90712de622337efb17f4a",
-          "evidence_directory": "/private/tmp/clawlight-slice-rail-mouth-chamfer-20260918"
-        },
-        {
-          "file": "stl/04_rear_cover_black.stl",
-          "slice_rotation_deg": 0,
-          "first_layer_alignment_scores": [
-            {
-              "angle": 0,
-              "mean_distance_outside_first_layer_mm": 0.0,
-              "fraction_within_0_3mm": 1.0
-            },
-            {
-              "angle": 180,
-              "mean_distance_outside_first_layer_mm": 1.135929007897546,
-              "fraction_within_0_3mm": 0.5181001633097442
-            }
-          ],
-          "layers": 12,
-          "components_checked": 12,
-          "missing_entire_components": [],
-          "model_extrusion_volume_mm3": 1443.50196814873,
-          "stl_volume_mm3": 1619.1988177964795,
-          "extrusion_volume_by_feature_mm3": {
-            "Outer wall": 181.54538433541967,
-            "Inner wall": 307.7798928296019,
-            "Gap infill": 13.957081032773274,
-            "Bottom surface": 76.52202242922469,
-            "Internal solid infill": 593.1611273565167,
-            "Top surface": 127.80631209412182,
-            "Sparse infill": 26.471810736141347,
-            "Floating vertical shell": 10.142568559387719,
-            "Bridge": 106.11576877554769
-          },
-          "sha256": "78c66c0e4e20e9d40ac3880ee4e4e5820121022d0cae532a6bea754f88d66e5a",
-          "evidence_directory": "/private/tmp/clawlight-slice-tab-retainer-20260918"
-        },
-        {
-          "file": "stl/coupons/01_USB_base_coupon.stl",
-          "slice_rotation_deg": 0,
-          "first_layer_alignment_scores": [
-            {
-              "angle": 0,
-              "mean_distance_outside_first_layer_mm": 0.0,
-              "fraction_within_0_3mm": 1.0
-            },
-            {
-              "angle": 180,
-              "mean_distance_outside_first_layer_mm": 0.003795522193865638,
-              "fraction_within_0_3mm": 1.0
-            }
-          ],
-          "layers": 125,
-          "components_checked": 125,
-          "missing_entire_components": [],
-          "model_extrusion_volume_mm3": 3708.309705564555,
-          "stl_volume_mm3": 4064.2503643974655,
-          "extrusion_volume_by_feature_mm3": {
-            "Inner wall": 1592.5064383086865,
-            "Outer wall": 999.9177680385568,
-            "Bottom surface": 43.04227863217932,
-            "Internal solid infill": 618.3528951841926,
-            "Sparse infill": 16.63062399574183,
-            "Floating vertical shell": 3.8467191976972046,
-            "Bridge": 65.89772401583096,
-            "Gap infill": 298.39926946270685,
-            "Top surface": 69.7159887289422
-          },
-          "sha256": "016e0e790babe8ddf62968806fdd25259b639d4fa665140ec89bece06dc0f93c",
-          "evidence_directory": "/private/tmp/clawlight-slice-rail-mouth-chamfer-20260918"
-        },
-        {
-          "file": "stl/coupons/02_USB_cover_coupon.stl",
-          "slice_rotation_deg": 270,
-          "first_layer_alignment_scores": [
-            {
-              "angle": 90,
-              "mean_distance_outside_first_layer_mm": 0.011515106494867101,
-              "fraction_within_0_3mm": 0.9887882708063821
-            },
-            {
-              "angle": 270,
-              "mean_distance_outside_first_layer_mm": 0.0,
-              "fraction_within_0_3mm": 1.0
-            }
-          ],
-          "layers": 12,
-          "components_checked": 12,
-          "missing_entire_components": [],
-          "model_extrusion_volume_mm3": 516.8820865023395,
-          "stl_volume_mm3": 559.8576934215489,
-          "extrusion_volume_by_feature_mm3": {
-            "Outer wall": 119.34770542852388,
-            "Inner wall": 181.02978811260814,
-            "Gap infill": 13.935241073344608,
-            "Bottom surface": 17.78552008821739,
-            "Internal solid infill": 113.18684048568106,
-            "Top surface": 51.030700796773445,
-            "Sparse infill": 3.9506514275334426,
-            "Floating vertical shell": 3.441886205247843,
-            "Bridge": 13.173752884410211
-          },
-          "sha256": "a4a87380aa7f0727a0fd273943988de96992f870fd3819dfa48494a0f75d3b6e",
-          "evidence_directory": "/private/tmp/clawlight-slice-proportions-20260918"
-        },
-        {
-          "file": "stl/05_LED_retainer_black.stl",
-          "slice_rotation_deg": 270,
-          "first_layer_alignment_scores": [
-            {
-              "angle": 90,
-              "mean_distance_outside_first_layer_mm": 1.0490144546649145,
-              "fraction_within_0_3mm": 0.46583442838370565
-            },
-            {
-              "angle": 270,
-              "mean_distance_outside_first_layer_mm": 0.0,
-              "fraction_within_0_3mm": 1.0
-            }
-          ],
-          "layers": 19,
-          "components_checked": 27,
-          "missing_entire_components": [],
-          "model_extrusion_volume_mm3": 298.4162507527456,
-          "stl_volume_mm3": 332.6957644555522,
-          "extrusion_volume_by_feature_mm3": {
-            "Inner wall": 151.42769543817695,
-            "Outer wall": 89.49599260106349,
-            "Gap infill": 7.9167207118882414,
-            "Internal solid infill": 22.793918273278805,
-            "Sparse infill": 8.522058001471322,
-            "Floating vertical shell": 3.3108223958570417,
-            "Top surface": 14.949043331008909
-          },
-          "sha256": "d49c6190ff2e88303778350970d711a3c7ecd9c628f7f5a4edd30b813bff3437",
-          "evidence_directory": "/private/tmp/clawlight-slice-tab-retainer-20260918"
+          {
+            "angle": 180,
+            "mean_distance_outside_first_layer_mm": 0.0,
+            "fraction_within_0_3mm": 1.0
+          }
+        ],
+        "layers": 125,
+        "components_checked": 157,
+        "missing_entire_components": [],
+        "model_extrusion_volume_mm3": 7491.802365032661,
+        "stl_volume_mm3": 8565.348416468247,
+        "extrusion_volume_by_feature_mm3": {
+          "Inner wall": 3021.310907505006,
+          "Outer wall": 2230.2880699998977,
+          "Bottom surface": 89.37755652151868,
+          "Gap infill": 766.1677850870655,
+          "Internal solid infill": 933.814897531552,
+          "Top surface": 154.06073345436494,
+          "Sparse infill": 135.19795977260915,
+          "Floating vertical shell": 15.323762194378208,
+          "Bridge": 146.26069296625184
         }
-      ]
-    },
-    "layer_connectivity": {
-      "method": "Rasterize STL cross-sections at 0.2 mm layer midpoints (partial top layers sampled within remaining material) onto a 0.1 mm grid; each connected component >=0.08 mm2 above the first layer must intersect the preceding midpoint cross-section. Detects sampled isolated layer starts; does not establish full local support or physical print strength.",
-      "parts": [
-        {
-          "file": "stl/01_mascot_orange.stl",
-          "layers": 103,
-          "components_after_first_layer": 102,
-          "unconnected_components": [],
-          "sha256": "4088b47fa7115391a32542355baa139494e40863864c9370ac2436e923ada4be",
-          "evidence_directory": "/private/tmp/clawlight-slice-proportions-20260918"
-        },
-        {
-          "file": "stl/02_eye_black_x2.stl",
-          "layers": 13,
-          "components_after_first_layer": 12,
-          "unconnected_components": [],
-          "sha256": "f359a0b093c473b2433ca5a7c3785376105a9ab09b3c02ae31882567b03433eb",
-          "evidence_directory": "/private/tmp/clawlight-slice-proportions-20260918"
-        },
-        {
-          "file": "stl/03_tower_black.stl",
-          "layers": 125,
-          "components_after_first_layer": 156,
-          "unconnected_components": [],
-          "sha256": "f6df97d3df2e90efffb0cf6c908bc531489a3ec462d90712de622337efb17f4a",
-          "evidence_directory": "/private/tmp/clawlight-slice-rail-mouth-chamfer-20260918"
-        },
-        {
-          "file": "stl/04_rear_cover_black.stl",
-          "layers": 12,
-          "components_after_first_layer": 11,
-          "unconnected_components": [],
-          "sha256": "78c66c0e4e20e9d40ac3880ee4e4e5820121022d0cae532a6bea754f88d66e5a",
-          "evidence_directory": "/private/tmp/clawlight-slice-tab-retainer-20260918"
-        },
-        {
-          "file": "stl/coupons/01_USB_base_coupon.stl",
-          "layers": 125,
-          "components_after_first_layer": 124,
-          "unconnected_components": [],
-          "sha256": "016e0e790babe8ddf62968806fdd25259b639d4fa665140ec89bece06dc0f93c",
-          "evidence_directory": "/private/tmp/clawlight-slice-rail-mouth-chamfer-20260918"
-        },
-        {
-          "file": "stl/coupons/02_USB_cover_coupon.stl",
-          "layers": 12,
-          "components_after_first_layer": 11,
-          "unconnected_components": [],
-          "sha256": "a4a87380aa7f0727a0fd273943988de96992f870fd3819dfa48494a0f75d3b6e",
-          "evidence_directory": "/private/tmp/clawlight-slice-proportions-20260918"
-        },
-        {
-          "file": "stl/05_LED_retainer_black.stl",
-          "layers": 19,
-          "components_after_first_layer": 26,
-          "unconnected_components": [],
-          "sha256": "d49c6190ff2e88303778350970d711a3c7ecd9c628f7f5a4edd30b813bff3437",
-          "evidence_directory": "/private/tmp/clawlight-slice-tab-retainer-20260918"
+      },
+      {
+        "file": "stl/coupons/01_USB_base_coupon.stl",
+        "slice_rotation_deg": 0,
+        "first_layer_alignment_scores": [
+          {
+            "angle": 0,
+            "mean_distance_outside_first_layer_mm": 0.0,
+            "fraction_within_0_3mm": 1.0
+          },
+          {
+            "angle": 180,
+            "mean_distance_outside_first_layer_mm": 0.0035918404980467946,
+            "fraction_within_0_3mm": 1.0
+          }
+        ],
+        "layers": 125,
+        "components_checked": 125,
+        "missing_entire_components": [],
+        "model_extrusion_volume_mm3": 3636.032115691127,
+        "stl_volume_mm3": 4002.2336793994327,
+        "extrusion_volume_by_feature_mm3": {
+          "Inner wall": 1435.3539314788775,
+          "Outer wall": 949.5879904330963,
+          "Bottom surface": 46.54254102854329,
+          "Internal solid infill": 718.0757855272028,
+          "Sparse infill": 17.113436226591798,
+          "Floating vertical shell": 4.078828898673757,
+          "Bridge": 78.22948392693698,
+          "Top surface": 68.81788052948463,
+          "Gap infill": 318.23223764172377
         }
-      ]
-    },
-    "limitation": "Rasterized layer-midpoint checks detect sampled isolated starts and entirely absent components; they do not certify local support, guide strength or physical fit of the unmeasured PCB corner patches."
-  },
-  "proportion_savings": {
-    "totals": {
-      "previous_estimated_filament_g": 42.133991569280624,
-      "current_estimated_filament_g": 28.866822689771652,
-      "filament_saved_g": 13.267168879508972,
-      "filament_saved_percent": 31.48804180513935,
-      "previous_estimated_print_seconds": 11298.705749511719,
-      "current_estimated_print_seconds": 9883.176086425781,
-      "time_saved_seconds": 1415.5296630859375,
-      "time_saved_percent": 12.528246105949883
-    },
-    "totals_without_coupons": {
-      "previous_estimated_filament_g": 35.122529953718185,
-      "current_estimated_filament_g": 23.442567318677902,
-      "filament_saved_g": 11.679962635040283,
-      "filament_saved_percent": 33.25490119997408,
-      "previous_estimated_print_seconds": 8368.484558105469,
-      "current_estimated_print_seconds": 7102.3572998046875,
-      "time_saved_seconds": 1266.1272583007812,
-      "time_saved_percent": 15.129707768588132
-    },
-    "usb_test_set": {
-      "previous_estimated_filament_g": 7.011461615562439,
-      "current_estimated_filament_g": 5.42425537109375,
-      "filament_saved_g": 1.587206244468689,
-      "filament_saved_percent": 22.63730918737074,
-      "previous_estimated_print_seconds": 2930.22119140625,
-      "current_estimated_print_seconds": 2780.8187866210938,
-      "time_saved_seconds": 149.40240478515625,
-      "time_saved_percent": 5.098673275018401
-    },
-    "estimate_basis": "Same reference profile and separate-copy jobs, including two eyes. Compared with the prior integrated-guide revision preserved in the rollback report; grouped-plate results will differ."
-  },
-  "tab_retainer_revision": {
-    "cover_pushers_removed": true,
-    "retainer_file": "stl/05_LED_retainer_black.stl",
-    "retainer_export_bounds_mm": [
-      7.100000000000005,
-      26.600000000000005,
-      3.750000000000006
-    ],
-    "retainer_screw_count": 1,
-    "retainer_screw_x_z_mm": [
-      32.5,
-      20.5
-    ],
-    "retention_type": "Rigid upper sliding tab in tower roof pocket plus one lower screw",
-    "upper_tab_engagement_mm": 1.0,
-    "nominal_pocket_clearance_mm": 0.25,
-    "release_drop_mm": 1.3,
-    "retainer_plate_thickness_mm": 3.0,
-    "retainer_y_range_mm": [
-      5.25,
-      9.0
-    ],
-    "retainer_chamfer_mm": 0.15,
-    "print_bed_face": "Rear screw-head face",
-    "measured_led_total_plastic_length_mm": 8.5,
-    "flange_thickness_mm": 1.2,
-    "barrel_length_excluding_flange_mm": 7.3,
-    "led_seat_y_mm": 3.8,
-    "collar_depth_beyond_front_wall_mm": 1.4,
-    "collar_outer_diameter_mm": 6.3,
-    "led_projection_range_mm": [
-      3.25,
-      3.5
-    ],
-    "axial_play_mm": 0.25,
-    "led_centers_z_mm": [
-      27.0,
-      33.5,
-      40.0
-    ],
-    "physical_fit_verified": false
-  },
-  "estimate_change_vs_integral_cover_pushers": {
-    "totals": {
-      "previous_estimated_filament_g": 28.581697523593903,
-      "current_estimated_filament_g": 28.866822689771652,
-      "filament_change_g": 0.28512516617774963,
-      "previous_estimated_print_seconds": 9866.536254882812,
-      "current_estimated_print_seconds": 9883.176086425781,
-      "time_change_seconds": 16.63983154296875
-    },
-    "totals_without_coupons": {
-      "previous_estimated_filament_g": 23.241067469120026,
-      "current_estimated_filament_g": 23.442567318677902,
-      "filament_change_g": 0.2014998495578766,
-      "previous_estimated_print_seconds": 7089.815124511719,
-      "current_estimated_print_seconds": 7102.3572998046875,
-      "time_change_seconds": 12.54217529296875
-    },
-    "usb_test_set": {
-      "previous_estimated_filament_g": 5.340630054473877,
-      "current_estimated_filament_g": 5.42425537109375,
-      "filament_change_g": 0.08362531661987305,
-      "previous_estimated_print_seconds": 2776.7211303710938,
-      "current_estimated_print_seconds": 2780.8187866210938,
-      "time_change_seconds": 4.09765625
-    },
-    "estimate_basis": "Same reference profile and separate-copy jobs. The current design adds a separate retainer job; grouped-plate estimates differ."
-  },
-  "pcb_guide_reinforcement_revision": {
-    "rear_entry_chamfer_mm": 0.25,
-    "rear_entry_chamfer_scope": "Three C-slot mouth edges per rail only",
-    "wall_and_floor_roots_preserved_to_rear_seam": true,
-    "side_rail_top_haunch_degrees": 45.0,
-    "non_usb_end_corner_lips": 2,
-    "corner_width_mm": 2.5,
-    "corner_overlap_mm": 0.6,
-    "corner_entry_chamfer_mm": 0.15,
-    "nominal_chamfered_overlap_land_mm": 0.45,
-    "central_end_open_width_mm": 13.0,
-    "pcb_top_clearance_mm": 0.1,
-    "pcb_side_clearance_mm": 0.1,
-    "pcb_bottom_z_mm": 2.8,
-    "base_floor_thickness_mm": 2.0,
-    "assumed_component_free_corner_patch_width_mm": 2.7,
-    "assumed_component_free_corner_patch_depth_mm": 1.0,
-    "component_patch_is_unmeasured_assumption": true,
-    "physical_fit_verified": false,
-    "resliced_files": [
-      "stl/03_tower_black.stl",
-      "stl/coupons/01_USB_base_coupon.stl"
-    ],
-    "reused_files": [
-      "stl/01_mascot_orange.stl",
-      "stl/02_eye_black_x2.stl",
-      "stl/04_rear_cover_black.stl",
-      "stl/05_LED_retainer_black.stl",
-      "stl/coupons/02_USB_cover_coupon.stl"
+      }
     ]
-  },
-  "estimate_change_vs_previous_guides": {
-    "totals": {
-      "previous_estimated_filament_g": 28.698765724897385,
-      "current_estimated_filament_g": 28.866822689771652,
-      "filament_change_g": 0.16805696487426758,
-      "previous_estimated_print_seconds": 9881.242492675781,
-      "current_estimated_print_seconds": 9883.176086425781,
-      "time_change_seconds": 1.93359375
-    },
-    "totals_without_coupons": {
-      "previous_estimated_filament_g": 23.358135670423508,
-      "current_estimated_filament_g": 23.442567318677902,
-      "filament_change_g": 0.08443164825439453,
-      "previous_estimated_print_seconds": 7104.5213623046875,
-      "current_estimated_print_seconds": 7102.3572998046875,
-      "time_change_seconds": -2.1640625
-    },
-    "usb_test_set": {
-      "previous_estimated_filament_g": 5.340630054473877,
-      "current_estimated_filament_g": 5.42425537109375,
-      "filament_change_g": 0.08362531661987305,
-      "previous_estimated_print_seconds": 2776.7211303710938,
-      "current_estimated_print_seconds": 2780.8187866210938,
-      "time_change_seconds": 4.09765625
-    },
-    "estimate_basis": "Same reference profile and separate-copy jobs. Compared with the immediately prior thin-rail, one-screw tab-retainer design; grouped-plate estimates differ."
-  },
-  "rail_mouth_chamfer_refinement": {
-    "entry_chamfer_mm": 0.25,
-    "chamfered_edges_per_rail": 3,
-    "wall_and_floor_roots_preserved_to_rear_seam": true,
-    "resliced_files": [
-      "stl/03_tower_black.stl",
-      "stl/coupons/01_USB_base_coupon.stl"
-    ],
-    "reused_files": [
-      "stl/01_mascot_orange.stl",
-      "stl/02_eye_black_x2.stl",
-      "stl/04_rear_cover_black.stl",
-      "stl/05_LED_retainer_black.stl",
-      "stl/coupons/02_USB_cover_coupon.stl"
-    ],
-    "physical_fit_verified": false
   }
 }

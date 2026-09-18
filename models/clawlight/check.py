@@ -75,9 +75,11 @@ def screw_checks(parts,report):
             skin=m.cy(x,z,floor-m.SCREW_TIP_WALL,floor,m.SCREW_PILOT_DIAMETER)
             assert abs(overlap(skin,shell)-skin.volume)<1e-5, name+' missing tip-protection skin'
             if name=='05_rear_cover_black':
-                cap=m.cy(x,z,m.COVER_BOSS_FRONT,floor,m.COVER_BOSS_DIAMETER)
-                assert abs(overlap(cap,shell)-cap.volume)<1e-5, 'Short screw boss has no full-diameter blind cap'
-                annulus=m.cy(x,z,floor,mount,m.COVER_BOSS_DIAMETER)-pilot
+                safe_diameter=min(m.COVER_BOSS_DIAMETER,2*(z-m.PCB_INSERTION_CEILING)) if z<m.BASE_HEIGHT else m.COVER_BOSS_DIAMETER
+                assert (safe_diameter-m.SCREW_PILOT_DIAMETER)/2>=1.55-1e-8, 'PCB relief thins a screw pilot wall'
+                cap=m.cy(x,z,m.COVER_BOSS_FRONT,floor,safe_diameter)
+                assert abs(overlap(cap,shell)-cap.volume)<1e-5, 'Short screw boss has no protected blind cap'
+                annulus=m.cy(x,z,floor,mount,safe_diameter)-pilot
                 assert abs(overlap(annulus,shell)-annulus.volume)<1e-5, 'Short screw boss lost pilot wall thickness'
                 boss=m.cover_screw_boss(x,z)
                 assert boss.is_valid and len(boss.solids())==1
@@ -116,8 +118,10 @@ def screw_checks(parts,report):
     screw_count=len(m.COVER_SCREWS)+len(m.LED_SCREWS)
     report['screws']['cover_bosses']={
         'count':len(m.COVER_SCREWS),'diameter_mm':m.COVER_BOSS_DIAMETER,
-        'full_cylinder_length_mm':m.REAR-m.COVER_BOSS_FRONT,
-        'blind_cap_mm':m.SCREW_TIP_WALL,'pilot_radial_wall_mm':(m.COVER_BOSS_DIAMETER-m.SCREW_PILOT_DIAMETER)/2,
+        'axial_land_length_mm':m.REAR-m.COVER_BOSS_FRONT,
+        'blind_cap_mm':m.SCREW_TIP_WALL,
+        'minimum_pilot_wall_mm':min(min(m.COVER_BOSS_DIAMETER/2,z-m.PCB_INSERTION_CEILING) if z<m.BASE_HEIGHT else m.COVER_BOSS_DIAMETER/2 for _,z in m.COVER_SCREWS)-m.SCREW_PILOT_DIAMETER/2,
+        'lower_boss_floor_z_mm':m.PCB_INSERTION_CEILING,
         'support_ramp_degrees':45,'print_growth_axis':'+Y',
         'physical_strength':'Thread dimensions retained; wall-supported bosses need a printed tightening test',
     }
@@ -336,9 +340,9 @@ def pcb_guide_checks(parts,report):
     triangle=m.profile([(x0,m.PCB_RAIL_TOP+.05),(tip-.15,m.PCB_RAIL_TOP+.05),
                         (x0,m.PCB_RAIL_TOP+tip-x0-.05)],corner_end+.2,m.REAR-.4)
     wall_bridge=m.box(m.INNER_LEFT-.05,m.INNER_LEFT+.05,corner_end+.2,m.REAR-.4,
-                      m.PCB_RAIL_TOP+.2,m.PCB_RAIL_TOP+.8)
+                      m.PCB_RAIL_TOP+.2,m.PCB_RAIL_TOP+.5)
     rear_wall_bridge=m.box(m.INNER_LEFT-.05,m.INNER_LEFT+.05,m.REAR-.1,m.REAR,
-                           m.PCB_RAIL_TOP+.2,m.PCB_RAIL_TOP+.8)
+                           m.PCB_RAIL_TOP+.2,m.PCB_RAIL_TOP+.5)
     for probe in (triangle,wall_bridge,rear_wall_bridge):
         for mirrored in (False,True):
             actual=probe.mirror(Plane.YZ.offset(m.TOWER_X)) if mirrored else probe
@@ -347,7 +351,7 @@ def pcb_guide_checks(parts,report):
     haunch_faces=[f for f in guides.faces()
                   if abs(abs(f.normal_at().X)-sqrt(.5))<1e-6
                   and abs(f.normal_at().Z-sqrt(.5))<1e-6
-                  and f.bounding_box().size.Z>.8
+                  and f.bounding_box().size.Z>.6
                   and f.bounding_box().size.Y>m.REAR-corner_end-1]
     assert len(haunch_faces)==2, 'Both side rails need broad 45-degree reinforcing faces'
 
@@ -357,8 +361,8 @@ def pcb_guide_checks(parts,report):
     clear(m.box(left+m.PCB_CORNER_LENGTH,right-m.PCB_CORNER_LENGTH,
                 m.WALL+.01,corner_end,m.PCB_TOP+m.PCB_TOP_CLEARANCE,
                 m.PCB_TOP+m.PCB_TOP_HEIGHT),shell,'Central 13 mm component opening is blocked')
-    # These probes lie beyond the side rail's 0.3 mm upper land, so the old
-    # rails alone cannot satisfy the corner-retention assertions.
+    # These probes lie beyond the recessed side roofs, so the side rails
+    # alone cannot satisfy the corner-retention assertions.
     corner_patches=[]
     for mirrored in (False,True):
         bearing=m.box(left+.5,left+m.PCB_CORNER_LENGTH-.2,
@@ -373,7 +377,7 @@ def pcb_guide_checks(parts,report):
             corner=corner.mirror(Plane.YZ.offset(m.TOWER_X))
         assert abs(overlap(bearing,shell)-bearing.volume)<1e-5, 'Far-corner lip lacks a flat capture land at maximum rear endplay'
         for dx,dy,dz in itertools.product((-m.PCB_SIDE_CLEARANCE,m.PCB_SIDE_CLEARANCE),
-                                          (-m.PCB_END_CLEARANCE,m.PCB_END_CLEARANCE),(-.1,.2)):
+                                          (-m.PCB_END_CLEARANCE,m.PCB_END_CLEARANCE),(-.1,m.PCB_TOP_CLEARANCE+.1)):
             assert overlap(corner.translate((dx,dy,dz)),shell)>1e-5, 'A far corner escapes its upper or lower retaining lip'
         # Verify that the mouth chamfer opens both lips yet preserves material behind it.
         for z0,z1 in ((m.PCB_BOTTOM-.05,m.PCB_BOTTOM-.025),
@@ -393,7 +397,8 @@ def pcb_guide_checks(parts,report):
                        m.PCB_TOP,m.PCB_TOP+m.PCB_TOP_HEIGHT)
     top=electronics['top']
     assert abs(overlap(top,original_top)-top.volume)<1e-5, 'Top proxy added material beyond its original envelope'
-    relieved_width=m.PCB_CORNER_LENGTH+m.PCB_CORNER_COMPONENT_CLEARANCE
+    relieved_width=m.PCB_CORNER_CLEAR_WIDTH
+    assert abs(relieved_width-2.7)<1e-8, 'Do not enlarge the provisional bare PCB patches to fit the holders'
     expected_removed=2*(relieved_width-.5)*(m.PCB_CORNER_CLEAR_DEPTH-.5)*m.PCB_TOP_HEIGHT
     assert abs(original_top.volume-top.volume-expected_removed)<1e-5, 'Top component proxy changed outside its two declared corner reliefs'
     for x0,x1 in ((left+.5,left+relieved_width),(right-relieved_width,right-.5)):
@@ -431,33 +436,37 @@ def pcb_guide_checks(parts,report):
             for shape in (shell,cover):
                 clear(moved,shape,'Seated PCB endplay / '+name)
     for dx,dy,dz in itertools.product((-m.PCB_SIDE_CLEARANCE,m.PCB_SIDE_CLEARANCE),
-                                      (-m.PCB_END_CLEARANCE,m.PCB_END_CLEARANCE),(-.1,.2)):
+                                      (-m.PCB_END_CLEARANCE,m.PCB_END_CLEARANCE),(-.1,m.PCB_TOP_CLEARANCE+.1)):
         assert overlap(pcb.translate((dx,dy,dz)),shell)>1e-5, 'PCB escapes lower or upper guide capture'
-    for dx in (-.2,.2):
+    for dx in (-m.PCB_SIDE_CLEARANCE-.1,m.PCB_SIDE_CLEARANCE+.1):
         assert overlap(pcb.translate((dx,0,0)),shell)>1e-5, 'PCB lateral guide stop missing'
     assert overlap(pcb.translate((0,-.35,0)),shell)>1e-5, 'PCB far-end stops missing'
     assert overlap(pcb.translate((0,.35,0)),cover)>1e-5, 'Cover does not stop PCB withdrawal'
 
-    roof_capture=m.PCB_RAIL_UPPER_OVERLAP-m.PCB_SIDE_CLEARANCE
     lower_capture=m.PCB_RAIL_LOWER_OVERLAP-m.PCB_SIDE_CLEARANCE
-    assert roof_capture>=.2-1e-8 and lower_capture>=.5-1e-8
+    assert lower_capture>=.2-1e-8
+    # The old printed 17.5 mm throat blocked an 18 mm board. Upper side tips
+    # must now sit outside its outline; corner lips provide vertical capture.
+    throat_width=m.PCB_WIDTH-2*m.PCB_RAIL_UPPER_OVERLAP
+    assert throat_width>=18.4-1e-8
+    assert m.PCB_WIDTH+2*m.PCB_SIDE_CLEARANCE>=19.2-1e-8
+    assert m.PCB_THICKNESS+m.PCB_TOP_CLEARANCE>=1.1-1e-8
+    clear(m.box(left-.2,right+.2,corner_end+.1,m.REAR,
+                m.PCB_TOP+m.PCB_TOP_CLEARANCE,m.PCB_RAIL_TOP),shell,'PCB throat is narrower than 18.4 mm')
     for side in (-1,1):
         # Check real bearing lands at maximum lateral PCB travel behind the lead-in.
         def band(inset0,inset1,y0,y1,z0,z1):
             edge=left if side==-1 else right
             x0,x1=sorted((edge-side*inset0,edge-side*inset1))
             return m.box(x0,x1,y0,y1,z0,z1)
-        for reach,z0,z1 in ((m.PCB_RAIL_LOWER_OVERLAP,m.PCB_BOTTOM-.1,m.PCB_BOTTOM),
-                            (m.PCB_RAIL_UPPER_OVERLAP,m.PCB_TOP+m.PCB_TOP_CLEARANCE,
-                             m.PCB_TOP+m.PCB_TOP_CLEARANCE+.1)):
-            land=band(m.PCB_SIDE_CLEARANCE+.01,reach-.01,
-                      m.PCB_FRONT+.1,m.REAR-m.PCB_RAIL_ENTRY_CHAMFER-.1,z0,z1)
-            assert abs(overlap(land,shell)-land.volume)<1e-5, 'PCB guide capture land is missing or chamfered away'
+        land=band(m.PCB_SIDE_CLEARANCE+.01,m.PCB_RAIL_LOWER_OVERLAP-.01,
+                  corner_end+.1,m.REAR-m.PCB_RAIL_ENTRY_CHAMFER-.1,m.PCB_BOTTOM-.1,m.PCB_BOTTOM)
+        assert abs(overlap(land,shell)-land.volume)<1e-5, 'PCB lower bearing is missing or chamfered away'
         # The mouth opens both slot lips and returns to full lands behind the bevel.
-        for z0,z1 in ((m.PCB_BOTTOM-.05,m.PCB_BOTTOM-.025),
-                      (m.PCB_TOP+m.PCB_TOP_CLEARANCE+.025,m.PCB_TOP+m.PCB_TOP_CLEARANCE+.05)):
-            clear(band(.15,.2,m.REAR-.05,m.REAR-.025,z0,z1),shell,'PCB slot entry chamfer missing')
-            behind=band(.15,.2,m.REAR-m.PCB_RAIL_ENTRY_CHAMFER-.1,
+        for inset0,inset1,z0,z1 in ((.15,.2,m.PCB_BOTTOM-.05,m.PCB_BOTTOM-.025),
+                      (-.4,-.35,m.PCB_TOP+m.PCB_TOP_CLEARANCE+.025,m.PCB_TOP+m.PCB_TOP_CLEARANCE+.05)):
+            clear(band(inset0,inset1,m.REAR-.05,m.REAR-.025,z0,z1),shell,'PCB slot entry chamfer missing')
+            behind=band(inset0,inset1,m.REAR-m.PCB_RAIL_ENTRY_CHAMFER-.1,
                         m.REAR-m.PCB_RAIL_ENTRY_CHAMFER-.05,z0,z1)
             assert abs(overlap(behind,shell)-behind.volume)<1e-6, 'PCB entry chamfer consumes the bearing land behind it'
     pocket=m.box(m.COVER_POCKET_LEFT,m.COVER_POCKET_RIGHT,m.REAR,m.COVER_POCKET_BACK,
@@ -470,7 +479,9 @@ def pcb_guide_checks(parts,report):
         'provisional_underside_to_floor_mm':underside_gap,
         'side_clearance_mm':m.PCB_SIDE_CLEARANCE,'top_clearance_mm':m.PCB_TOP_CLEARANCE,
         'slot_height_mm':m.PCB_THICKNESS+m.PCB_TOP_CLEARANCE,
-        'roof_capture_at_lateral_limit_mm':roof_capture,
+        'upper_throat_width_mm':throat_width,
+        'channel_width_mm':m.PCB_WIDTH+2*m.PCB_SIDE_CLEARANCE,
+        'vertical_retention':'Far-end corner lips; rear cover locates USB after centering the loose PCB',
         'wall_haunch_angle_degrees':45,
         'added_triangle_probe_volume_per_side_mm3':triangle.volume,
         'positive_wall_bridge_probe_volume_per_side_mm3':wall_bridge.volume,
@@ -485,9 +496,9 @@ def pcb_guide_checks(parts,report):
         'rear_entry_chamfer_mm':m.PCB_RAIL_ENTRY_CHAMFER,
         'endplay_mm':[-m.PCB_END_CLEARANCE,m.PCB_END_CLEARANCE],
         'continuous_hardware_sweeps':sweeps,'swept_rear_faces':swept_faces,'insertion_translation_y_mm':[-m.PCB_END_CLEARANCE,30],
-        'physical_fit':'Reinforced integral guides, corner holders and lowered board are unprinted; the two 2.7 x 1.0 mm top corner clear patches are assumed, not measured. Other solder/component envelopes remain provisional',
+        'physical_fit':'Widened trial is unprinted. Previous coupon opening measured 17.5 mm and rejected the 18 mm PCB. The same two 2.7 x 1.0 mm bare corner patches and other component/solder envelopes remain provisional',
     }
-    report['checks'].append('Flat 2 mm floor, added 45-degree side haunches with positive wall union, two 2.5 mm far-corner holders, 13 mm central opening and actual side/corner capture lands and lead-ins verified')
+    report['checks'].append('Flat 2 mm floor, 45-degree wall braces, 18.4 mm upper throat, 19.2 mm channel, 1.1 mm slot, lower bearing and two 2 mm far-corner retaining lips verified')
     report['checks'].append('All PCB/component/USB envelopes clear the continuous rear insertion sweep at every lateral/vertical float extreme; seated endplay clears the closed cover and motion beyond guide clearances meets physical stops')
 
 

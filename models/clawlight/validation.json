@@ -29,7 +29,7 @@
     "03_tower_black": {
       "watertight": true,
       "components": 1,
-      "triangles": 15930,
+      "triangles": 15666,
       "dimensions_mm": [
         24.0,
         45.5,
@@ -65,7 +65,7 @@
     "01_USB_base_coupon": {
       "watertight": true,
       "components": 1,
-      "triangles": 3188,
+      "triangles": 2924,
       "dimensions_mm": [
         24.0,
         14.0,
@@ -100,7 +100,7 @@
     "Rear socket gusset has a continuous solid support strip from the wall; its local front-down faces have at most 45-degree overhangs",
     "Both formerly open shoulders contain continuous 2 mm reinforced strips from the front wall to the rear seam",
     "Cover has a continuous 1 mm skin and solid PCB stops; modeled USB stays flush to 0.5 mm proud across endplay (physical axial discrepancy unresolved); above-bed downward faces meet the 45-degree limit",
-    "Flat 2 mm floor, added 45-degree side haunches with positive wall union, two 2.5 mm far-corner holders, 13 mm central opening and actual side/corner capture lands and lead-ins verified",
+    "Flat 2 mm floor, 45-degree wall braces, 18.4 mm upper throat, 19.2 mm channel, 1.1 mm slot, lower bearing and two 2 mm far-corner retaining lips verified",
     "All PCB/component/USB envelopes clear the continuous rear insertion sweep at every lateral/vertical float extreme; seated endplay clears the closed cover and motion beyond guide clearances meets physical stops",
     "Measured 8.5 mm total LED length includes the flange; flat front collar rings and short retainer pads limit protrusion to 3.25\u20133.5 mm across LED radial travel",
     "One lower screw prevents release while the rigid roof key blocks pull and rotation; roof skin, printable pocket ramp, hand-haunch clearance and continuous drop-then-rearward service motion including lead envelopes verified",
@@ -140,9 +140,10 @@
     "cover_bosses": {
       "count": 3,
       "diameter_mm": 5.6,
-      "full_cylinder_length_mm": 6.357526077778264,
+      "axial_land_length_mm": 6.357526077778264,
       "blind_cap_mm": 0.8,
-      "pilot_radial_wall_mm": 1.8499999999999999,
+      "minimum_pilot_wall_mm": 1.55,
+      "lower_boss_floor_z_mm": 8.0,
       "support_ramp_degrees": 45,
       "print_growth_axis": "+Y",
       "physical_strength": "Thread dimensions retained; wall-supported bosses need a printed tightening test"
@@ -201,25 +202,27 @@
     "pcb_bottom_z_mm": 2.8,
     "pcb_to_floor_mm": 0.7999999999999998,
     "provisional_underside_to_floor_mm": 0.19999999999999973,
-    "side_clearance_mm": 0.1,
-    "top_clearance_mm": 0.1,
-    "slot_height_mm": 0.7999999999999999,
-    "roof_capture_at_lateral_limit_mm": 0.19999999999999998,
+    "side_clearance_mm": 0.6,
+    "top_clearance_mm": 0.4,
+    "slot_height_mm": 1.1,
+    "upper_throat_width_mm": 18.4,
+    "channel_width_mm": 19.2,
+    "vertical_retention": "Far-end corner lips; rear cover locates USB after centering the loose PCB",
     "wall_haunch_angle_degrees": 45,
-    "added_triangle_probe_volume_per_side_mm3": 12.681625000000002,
-    "positive_wall_bridge_probe_volume_per_side_mm3": 1.2030000000000163,
-    "rear_seam_wall_bridge_probe_volume_per_side_mm3": 0.006000000000000167,
+    "added_triangle_probe_volume_per_side_mm3": 3.9097500000000234,
+    "positive_wall_bridge_probe_volume_per_side_mm3": 0.6015000000000081,
+    "rear_seam_wall_bridge_probe_volume_per_side_mm3": 0.0030000000000000833,
     "far_corner_holder_count": 2,
-    "far_corner_length_across_board_mm": 2.5,
+    "far_corner_length_across_board_mm": 2.0,
     "far_corner_nominal_overlap_y_mm": 0.6,
     "far_corner_full_land_at_rear_limit_mm": 0.19999999999999998,
-    "central_front_opening_mm": 13.0,
+    "central_front_opening_mm": 14.0,
     "bare_corner_component_assumption_mm": [
       2.7,
       1.0
     ],
     "top_component_proxy_removed_volume_mm3": 8.8,
-    "lower_bearing_at_lateral_limit_mm": 0.5,
+    "lower_bearing_at_lateral_limit_mm": 0.20000000000000007,
     "rear_entry_chamfer_mm": 0.25,
     "endplay_mm": [
       -0.25,
@@ -231,7 +234,7 @@
       -0.25,
       30
     ],
-    "physical_fit": "Reinforced integral guides, corner holders and lowered board are unprinted; the two 2.7 x 1.0 mm top corner clear patches are assumed, not measured. Other solder/component envelopes remain provisional"
+    "physical_fit": "Widened trial is unprinted. Previous coupon opening measured 17.5 mm and rejected the 18 mm PCB. The same two 2.7 x 1.0 mm bare corner patches and other component/solder envelopes remain provisional"
   },
   "compact_layout": {
     "mascot_body_width_height_depth_mm": [
