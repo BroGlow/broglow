@@ -63,6 +63,8 @@ pub enum PopoverMsg {
     ClearSession {
         id: String,
     },
+    /// Dismiss only sessions that are still paused when the command is handled.
+    ClearPaused,
     /// The Dashboard footer button.
     Dashboard,
     /// The Quit footer button.
@@ -640,6 +642,10 @@ mod tests {
 
     #[test]
     fn dismiss_session_requires_an_id() {
+        assert!(matches!(
+            serde_json::from_str::<PopoverMsg>(r#"{"cmd":"clear_paused"}"#).unwrap(),
+            PopoverMsg::ClearPaused
+        ));
         assert!(matches!(
             serde_json::from_str::<PopoverMsg>(r#"{"cmd":"clear_session","id":"codex-session"}"#).unwrap(),
             PopoverMsg::ClearSession { id } if id == "codex-session"

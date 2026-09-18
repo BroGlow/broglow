@@ -111,6 +111,46 @@ test('sessions dismiss without focusing, show failures, and return on fresh host
   assert.equal(element('aggline').textContent, 'No live sessions');
 });
 
+test('Clear paused appears only with yellow sessions and waits for host state, including failures', () => {
+  const { context, element, click, commands } = popoverPage();
+  const sessions = ['active', 'inactive', 'needs_help', 'inactive'].map((status, i) => ({
+    id: 'session-' + i, name: 'Task ' + i, project: 'project', status,
+    lastUpdated: new Date().toISOString(),
+  }));
+  const refresh = sessions => context.window.__setState({ aggregate: 'red', sessions, settings: {}, lamp: lamp() });
+  refresh(sessions);
+  assert.equal((element('groups').innerHTML.match(/>Clear paused<\/button>/g) || []).length, 1);
+  assert.match(element('groups').innerHTML, /Paused<\/div><button[^>]*type="button"[^>]*data-cmd="clear_paused"/);
+  const button = element('clearpaused');
+  button.dataset.cmd = 'clear_paused';
+  button.focus();
+  refresh(sessions);
+  assert.equal(context.document.activeElement, button);
+  click(button.id);
+  assert.deepEqual(commands('clear_paused'), [{ cmd: 'clear_paused' }]);
+  assert.equal(commands('clear_session').length, 0, 'The host checks current statuses in one action');
+  assert.equal(commands('focus').length, 0);
+  assert.equal(commands('hide').length, 0);
+  assert.match(element('groups').innerHTML, /dismiss-session-1/, 'No optimistic removal');
+  context.window.__configActionResult('Could not dismiss sessions: <locked>');
+  assert.equal(element('sessionerror').textContent, 'Could not dismiss sessions: <locked>');
+  assert.equal(element('sessionerror').innerHTML, '');
+  assert.equal(element('sessionerror').hidden, false);
+  click(button.id);
+  assert.equal(element('sessionerror').hidden, true);
+  refresh(sessions.filter(s => s.status !== 'inactive'));
+  context.window.__configActionResult(null);
+  const remaining = element('groups').innerHTML;
+  assert.match(remaining, /dismiss-session-0/);
+  assert.match(remaining, /dismiss-session-2/);
+  assert.doesNotMatch(remaining, /dismiss-session-[13]|Clear paused/);
+  refresh([]);
+  assert.doesNotMatch(element('groups').innerHTML, /Clear paused/);
+  refresh(sessions);
+  click('settingsbtn');
+  assert.doesNotMatch(element('groups').innerHTML, /Clear paused/);
+});
+
 test('dashboard stays hidden unless explicitly enabled and follows live settings', () => {
   const { context, element } = popoverPage();
   assert.equal(element('dashboardbtn').hidden, true);

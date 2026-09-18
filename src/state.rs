@@ -235,6 +235,16 @@ fn reap_ended_sessions(state: &mut HookState, now: DateTime<Utc>, is_alive: impl
 }
 
 pub fn clear_session(session_id: &str) -> anyhow::Result<()> {
+    clear_sessions_matching(|id, _| id == session_id)
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
+pub fn clear_paused_sessions() -> anyhow::Result<()> {
+    // Check under the state lock so a session that resumed since rendering survives.
+    clear_sessions_matching(|_, session| session.status == Status::Inactive)
+}
+
+fn clear_sessions_matching(matches: impl Fn(&str, &SessionStatus) -> bool) -> anyhow::Result<()> {
     let path = state_file_path();
     if !path.exists() {
         return Ok(());
@@ -245,7 +255,9 @@ pub fn clear_session(session_id: &str) -> anyhow::Result<()> {
         acquire_state_lock().ok_or_else(|| anyhow::anyhow!("Could not lock session state"))?;
     let content = std::fs::read_to_string(&path)?;
     let mut state: HookState = serde_json::from_str(&content)?;
-    if state.sessions.remove(session_id).is_none() {
+    let count = state.sessions.len();
+    state.sessions.retain(|id, session| !matches(id, session));
+    if state.sessions.len() == count {
         return Ok(());
     }
 

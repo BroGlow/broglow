@@ -28,3 +28,5 @@ rename. No new prompt is needed; the session's status and activity time stay the
 Use **×** beside a session in ClawLight to dismiss it from the list and lamp status.
 The Codex conversation stays intact and reappears automatically on a new prompt or
 other activity. Just opening the conversation does not restore it.
+**Clear paused** beside the Paused heading does this for all yellow sessions at
+once. Green working sessions and red sessions that need help stay in the list.

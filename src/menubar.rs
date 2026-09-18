@@ -650,10 +650,15 @@ pub fn run() -> anyhow::Result<()> {
                     let state = read_display_state();
                     focus_session(&id, state.sessions.get(&id));
                 }
-                PopoverMsg::ClearSession { id } => {
-                    let error = state::clear_session(&id)
+                PopoverMsg::ClearSession { .. } | PopoverMsg::ClearPaused => {
+                    let result = if let PopoverMsg::ClearSession { id } = msg {
+                        state::clear_session(&id)
+                    } else {
+                        state::clear_paused_sessions()
+                    };
+                    let error = result
                         .err()
-                        .map(|error| format!("Could not dismiss session: {error}"));
+                        .map(|error| format!("Could not dismiss sessions: {error}"));
                     let state = read_display_state();
                     if let Some(tray) = tray_holder.as_ref() {
                         if let Ok(icon) = icon_for_state(&state) {

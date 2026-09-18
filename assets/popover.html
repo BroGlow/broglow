@@ -65,6 +65,8 @@ body.win .pop {
   color: rgba(255,255,255,.35); padding: 6px 10px 3px 10px;
 }
 body.win .grplabel { color: rgba(255,255,255,.45); }
+.grphead { display: flex; align-items: center; justify-content: space-between; padding-right: 4px; }
+.grphead .pbtn { font-size: 11px; padding: 3px 6px; }
 
 .srow { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; cursor: pointer; }
 .srow:active { filter: brightness(.85); }
@@ -87,7 +89,7 @@ body.win .badge { color: #c9a0ff; background: rgba(201,160,255,.16); }
   cursor: pointer;
 }
 .dismissbtn:hover { background: rgba(255,255,255,.12); color: #fff; }
-.dismissbtn:focus-visible { outline: 2px solid #71a4ff; outline-offset: 1px; }
+.dismissbtn:focus-visible, #clearpaused:focus-visible { outline: 2px solid #71a4ff; outline-offset: 1px; }
 
 .focusbtn {
   font-size: 11px; font-weight: 600; color: #fff; background: #3577f6;
@@ -608,7 +610,7 @@ function relTime(iso) {
 }
 
 function render() {
-  const focusedDismiss = document.activeElement?.dataset.cmd === 'clear_session' ? document.activeElement.id : null;
+  const focusedDismiss = ['clear_session', 'clear_paused'].includes(document.activeElement?.dataset.cmd) ? document.activeElement.id : null;
   document.getElementById('dashboardbtn').hidden = state.settings?.showDashboardButton !== true;
   const sessions = state.sessions;
   const counts = { needs_help: 0, active: 0, inactive: 0 };
@@ -697,7 +699,9 @@ function render() {
       const rows = sessions.filter(s => s.status === g.status);
       if (!rows.length) continue;
       rows.sort((a, b) => Date.parse(b.lastUpdated) - Date.parse(a.lastUpdated));
-      html += `<div class="grplabel">${g.label}</div>`;
+      html += `<div class="grphead"><div class="grplabel">${g.label}</div>` +
+        (g.status === 'inactive' ? `<button class="pbtn pbtnghost" type="button" id="clearpaused" data-cmd="clear_paused"` +
+          ` title="Dismiss all paused sessions until new activity">Clear paused</button>` : '') + `</div>`;
       for (const s of rows) {
         const help = s.status === 'needs_help';
         const meta = esc(s.project);
@@ -831,7 +835,7 @@ document.addEventListener('click', ev => {
   const msg = { cmd: btn.dataset.cmd };
   if (btn.dataset.id !== undefined) msg.id = btn.dataset.id;
   if (btn.dataset.enabled !== undefined) msg.enabled = btn.dataset.enabled === 'true';
-  if (msg.cmd === 'clear_session') {
+  if (msg.cmd === 'clear_session' || msg.cmd === 'clear_paused') {
     configActionError = '';
     document.getElementById('sessionerror').hidden = true;
   }

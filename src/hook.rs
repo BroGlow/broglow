@@ -87,6 +87,7 @@ fn dismissed_session_returns_on_activity() {
         .unwrap()
     };
     crate::state::clear_session("missing").unwrap();
+    crate::state::clear_paused_sessions().unwrap();
     assert!(!state_file_path().exists());
     event("working", "working");
     event("paused", "idle");
@@ -121,8 +122,29 @@ fn dismissed_session_returns_on_activity() {
         ),
         crate::state::Aggregate::None
     );
+    event("paused-1", "idle");
+    event("paused-2", "idle");
+    event("resumed", "idle");
+    event("resumed", "resumed"); // Resumed after the UI showed it as paused.
+    event("working", "working");
+    event("approval", "needs_input");
+    event("finished", "working");
+    event("finished", "ended");
+    let original = read();
+    crate::state::clear_paused_sessions().unwrap();
+    let cleared = read();
+    assert!(cleared["sessions"].get("paused-1").is_none());
+    assert!(cleared["sessions"].get("paused-2").is_none());
+    for id in ["resumed", "working", "approval", "finished"] {
+        assert_eq!(cleared["sessions"][id], original["sessions"][id]);
+    }
+    crate::state::clear_paused_sessions().unwrap();
+    assert_eq!(read(), cleared);
+    event("paused-1", "resumed");
+    assert_eq!(read()["sessions"]["paused-1"]["status"], "active");
     std::fs::write(state_file_path(), "invalid JSON").unwrap();
     assert!(crate::state::clear_session("paused").is_err());
+    assert!(crate::state::clear_paused_sessions().is_err());
     assert_eq!(
         std::fs::read_to_string(state_file_path()).unwrap(),
         "invalid JSON"
