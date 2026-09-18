@@ -150,8 +150,9 @@ Component heights of **0.6 mm below / 4 mm above** the PCB remain modeling assum
 
 ## Generate from source
 
-Use **Python 3.14** on a fresh source checkout or the extracted full enclosure
-package, starting in the directory containing `Cargo.toml`. No Codex, agent skill,
+Use **macOS 15 on Apple Silicon with Python 3.14**, the verified generation
+platform, on a fresh source checkout or the extracted full enclosure package.
+Start in the directory containing `Cargo.toml`. No Codex, agent skill,
 PlatformIO, connected board or running app is required. Install the pinned
 [requirements.txt](requirements.txt) and run the same command used by release CI:
 
@@ -161,9 +162,12 @@ python3.14 -m venv .venv-cad
 .venv-cad/bin/python scripts/package-enclosure.py
 ```
 
-On Windows, use `py -3.14 -m venv .venv-cad` and replace `.venv-cad/bin/python`
-with `.venv-cad/Scripts/python.exe`. The CAD environment `.venv-cad/` and the
-output directory `dist/enclosure/` are ignored.
+The CAD environment `.venv-cad/` and output directory `dist/enclosure/` are ignored.
+Local Python 3.14.2 and 3.14.6 builds reproduced all seven reviewed STL hashes.
+Other platforms may tessellate differently: Linux produced different STL bytes
+with the same dependency pins and failed the strict evidence check. Use the
+verified platform, or obtain real slicing evidence for another platform's meshes
+before adding its support. Windows generation is not verified.
 
 The command starts an isolated build under `dist/enclosure/source/`, exports the
 current printable parts and coupons, and calls `gen_step()` for the additional
@@ -199,7 +203,8 @@ Copy this request while the agent is working in the source checkout:
 
 ```text
 Generate the enclosure release artifacts from this checkout's CAD source. Follow
-PRINT_GUIDE.en.md's pinned Python 3.14 environment and run scripts/package-enclosure.py.
+PRINT_GUIDE.en.md's macOS 15 Apple Silicon platform and pinned Python 3.14
+environment, then run scripts/package-enclosure.py.
 Export all printable STLs and all four STEP views, generate dimensions, run full
 CAD/mesh and packaging checks, and verify the reviewed slicer evidence against
 the generated meshes. Investigate any mismatch; do not replace evidence with

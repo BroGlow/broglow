@@ -10,7 +10,8 @@ permissions:
 
 jobs:
   source:
-    runs-on: ubuntu-latest
+    # Match the platform of the reviewed STL/slicer evidence exactly.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
