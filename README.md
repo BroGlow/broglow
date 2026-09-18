@@ -2,29 +2,23 @@
 
 # ClawLight
 
-A local coding-session monitor with a menu-bar app, terminal dashboard and optional
-ESP32-C3 status lamp. It integrates Claude Code, opencode, Codex and GitHub Copilot
-CLI. The lamp shows working, idle and needs-input states over USB or Bluetooth LE.
-
-We are preparing **1.0.0**.
+A local session monitor for Claude Code, opencode, Codex and GitHub Copilot CLI,
+with a menu-bar app, terminal dashboard and optional ESP32-C3 status lamp.
+The lamp shows working, idle and needs-input states over USB or Bluetooth LE.
+Version **1.0.0** is in preparation.
 
 ## Start here
 
 - **Install or update:** [setup manual](docs/hardware-setup.md#install-or-update-the-mac-service).
 - **Connect a flashed lamp:** [USB-assisted setup](docs/hardware-setup.md#usb-assisted-setup).
 - **Build/wire a C3:** [hardware guide](docs/hardware-setup.md#wiring-and-resistor-choice).
+- **Print the optional enclosure:** [printing and assembly](models/clawlight/PRINT_GUIDE.en.md).
 - **Publish a release or website:** [maintainer runbook](docs/releasing.md) in the source repository.
 
-The release workflow builds complete Mac packages for Apple Silicon and Intel:
-app executable, C3 firmware, manuals, licenses and checksums. Windows archives
-are labeled **CLI-only**. BLE lamp control is macOS-only. Linux users build from
-source. Local runtime validation has used Apple Silicon; other machines need
-separate acceptance checks. See [verified behavior and limits](docs/hardware-setup.md#repeatable-checks-and-results).
-
-The enclosure release candidate is ready for the **1.0.0** release. Its separate
-print package includes STL, STEP, source and the print guide; see
-[printing and assembly](models/clawlight/PRINT_GUIDE.en.md) in the source checkout.
-The app and wired C3 lamp can also be used without a printed case.
+Mac packages include the app, C3 firmware and manuals; Windows archives are
+**CLI-only**, and Linux builds from source. BLE control is macOS-only.
+Apple Silicon has been tested locally; see [verification limits](docs/hardware-setup.md#repeatable-checks-and-results)
+for other machines. The enclosure is a separate 1.0.0 release-candidate download.
 
 ## Install
 
@@ -61,11 +55,9 @@ Cloud tasks and ordinary ChatGPT conversations do not emit this Mac's local hook
 
 ## Use it
 
-Click the menu-bar icon for sessions and **Lamps**. Add a lamp over USB, name it,
-set its brightness or forget it. A connected indication requires a recent
-acknowledged write. Several saved lamps are supported; an absent lamp does not
-block the others. Session **×** dismisses a row until new activity, keeping the
-conversation in its coding app.
+Click the menu-bar icon for sessions and **Lamps**: add a lamp over USB, name it
+or adjust its brightness. Multiple saved lamps work independently.
+Session **×** hides a row until new activity; the conversation stays in its coding app.
 
 ```text
 clawlight --version          Identify the installed release
@@ -76,13 +68,11 @@ clawlight dashboard-button show   Enable optional dashboard shortcuts
 clawlight uninstall          Remove hooks, autostart and ClawLight settings
 ```
 
-The lamp's colors represent aggregate session state: needs input takes priority;
-Settings controls whether mixed working/idle sessions show yellow or green.
-The app starts at login after installation. The [manual](docs/hardware-setup.md)
-contains recovery, firmware upload, pairing and diagnostics.
+The app starts at login. Needs input takes color priority; Settings controls
+whether mixed working/idle sessions show yellow or green. See the
+[manual](docs/hardware-setup.md) for firmware, pairing and troubleshooting.
 
 ## License
 
-[MIT](LICENSE). Dependency license notices are included in distributed packages.
-Project media use our own photos, screenshots, diagrams and renders. See the
-[photo checklist and media policy](docs/media.md).
+[MIT](LICENSE). Packages include dependency notices. See the [media policy](docs/media.md)
+for project images.

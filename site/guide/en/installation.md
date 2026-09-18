@@ -18,61 +18,48 @@ been tested on hardware; Intel builds still need installation and Bluetooth chec
 
 ## Set it up with your coding agent
 
-Unpack the package or source archive, open that folder in Codex or another coding agent, and
-paste this request. For a prebuilt package, keep its checksum file nearby. Detailed manual
-steps are in `docs/hardware-setup.md` inside the folder.
+Unpack the package or source archive, open it in your coding agent, and paste this
+request. Keep the package's checksum file nearby. Prefer manual setup? Follow the
+[installation steps](hardware.md#install-or-update-the-mac-service).
 
 ```text
-Help me set up ClawLight using docs/hardware-setup.md. If this is a prebuilt package, verify its
-checksums; if it is a source checkout, follow the source build instructions. Back up existing
-settings in this folder's private .recovery/ directory and keep one menu bar service.
-Verify in a fresh terminal that clawlight resolves to
-this project's installed build from outside the project; configure PATH only if needed, preserving
-shell settings and avoiding duplicate entries. Identify my actual board before hardware commands.
-This project's firmware targets ESP32-C3 SuperMini. Verify the actual chip and
-stop before flashing if the board does not match. Flash only if needed and keep existing pairings. Tell me when to connect the
-cable or approve a macOS dialog. Use Lamps → Add lamp with one USB-connected lamp, or the
-documented ble pair command; retain all saved lamps, names and brightness preferences.
-Check that the background service reaches the intended lamp. For
-Codex, guide me through reviewing and trusting the six ClawLight hooks via /hooks in the CLI
-with the same CODEX_HOME as the app; leave approval to me. Verify a real local task in the CLI
-or desktop app changes from Working to Idle/Paused in ClawLight; BLE status alone is not
-enough. For desktop use, validate in the desktop app.
+Set up ClawLight following the Agent runbook in docs/hardware-setup.md.
+Choose the package or source path, verify checksums for a package, and back up settings
+in .recovery/. Preserve hooks, lamp names, brightness and bonds; keep one tray service.
+Verify the board is an ESP32-C3 SuperMini before hardware commands; flash only if needed.
+Use Lamps → Add lamp with one USB-connected lamp. Leave macOS and Codex /hooks approval
+to me; for Codex, use the same CODEX_HOME as the app.
+Verify clawlight works from a fresh terminal outside the project, the background service
+reaches my lamp, and a real local agent task changes from Working to Idle/Paused.
+If I use Codex desktop, test a desktop task. Report any unverified physical checks.
 ```
 
 <a name="path"></a>
 
 ## Run ClawLight from any folder
 
-ClawLight is installed once for your Mac user account at `~/.cargo/bin/clawlight`.
-You do not need to open the project folder to run it. Prebuilt installs do not need Cargo.
-In a fresh Terminal, check:
+ClawLight installs to `~/.cargo/bin/clawlight`; prebuilt installs do not need Cargo.
+In a fresh terminal outside the project, check:
 
 --8<-- "docs/hardware-setup.md:path-check"
 
-The first result should point to your `~/.cargo/bin/clawlight`. If it does, no changes are
-needed. If the command is missing or a different ClawLight copy comes first, add this line **once**
-to `~/.zshrc` (macOS's default zsh), preserving its existing settings:
+If the first result is not `~/.cargo/bin/clawlight`, add this line **once** to
+`~/.zshrc` (default macOS shell), preserving existing settings:
 
 --8<-- "docs/hardware-setup.md:path-setup"
 
-Open a new Terminal and repeat the checks. Running `export` only in the current terminal
-does not configure future terminals. Rust may already set this up through `~/.cargo/env`;
-avoid duplicate entries. For another shell, use its startup file.
-
-`clawlight install` sets up hooks and the tray service; it does not configure `PATH`.
-Scripts and agent subprocesses may not load your shell settings: use
-`"$HOME/.cargo/bin/clawlight"` there or set their `PATH`. The login service already uses
-an absolute executable path and does not depend on your terminal's `PATH`.
+Open a new terminal and repeat the checks. Avoid duplicates if Rust already configured
+`~/.cargo/env`; use the matching startup file for other shells. `clawlight install`
+does not set `PATH`. Scripts can use `"$HOME/.cargo/bin/clawlight"` directly;
+the login service already uses an absolute path.
 
 <a name="pairing"></a>
 
 ## Pair once, then place it on your desk
 
-Connect one flashed lamp to your Mac with a USB data cable. Click the lamp status at the
-bottom of the menu-bar popup, then **Lamps → Add lamp**. Allow ClawLight to use Bluetooth
-and approve any macOS pairing prompt. Add lamps one at a time; existing saved lamps remain
-in the list. No Bluetooth device ID needs to be entered.
+Connect one flashed lamp with a USB data cable. Open the lamp status in the menu-bar
+popup, then **Lamps → Add lamp**. Allow Bluetooth and approve macOS pairing prompts.
+Add lamps one at a time; existing lamps stay saved.
 
 The Terminal alternative is:
 
@@ -81,33 +68,26 @@ clawlight ble pair
 clawlight ble status
 ```
 
-“Lamp added” means it was remembered; wait for **Connected** on the intended lamp's row.
-That means the background service has sent it a status update.
-This does not test the LEDs themselves. Keep it powered from your Mac or use a USB adapter.
-ClawLight retries connections while its service is running, lamp control and Bluetooth are
-enabled, and the powered lamp is nearby.
+Wait for **Connected** on the intended lamp's row: “Lamp added” only means saved.
+Connected confirms a status write, not visible LED operation. Keep the lamp powered
+from your Mac or a USB adapter; ClawLight reconnects while the service, lamp control
+and Bluetooth are on and the lamp is nearby.
 
 <a name="controls"></a>
 
 ## Adjust brightness and manage lamps
 
-Click the lamp status at the bottom of the menu-bar popup to open **Lamps**.
-Expand a lamp's row to manage it:
+Open **Lamps** and expand a row:
 
-- Save a name of up to 40 characters, such as “Desk” or “Office”. Save a blank name to
-  restore its automatic label. Names are remembered on this Mac.
-- **Identify** lights all three LEDs on only that connected lamp for two seconds at
-  full brightness. It returns to the current session status without changing saved settings.
-- Use the row's **Light brightness** slider (0–100%) for that lamp. Use **All lamps**
-  to set one uniform brightness for every saved lamp, replacing individual levels.
-- **Forget lamp** removes that lamp from this Mac's saved list; other lamps and Bluetooth
-  bonds remain unchanged.
+- **Name:** up to 40 characters, saved on this Mac; blank restores the automatic label.
+- **Identify:** lights that connected lamp's three LEDs at full brightness for two
+  seconds, then returns to session status without changing settings.
+- **Light brightness:** 0–100% for that lamp. **All lamps** replaces every saved lamp's
+  individual level. Preview ends two seconds after the last change.
+- **Forget lamp:** removes it from this Mac; other lamps and Bluetooth bonds remain.
 
-Brightness changes preview all three LEDs on the affected connected lamps, then return to
-session status two seconds after the last preview. At 0% the controlled LEDs stay dark
-while Bluetooth remains connected; **Identify** can still briefly light the selected lamp.
-You can save brightness while a lamp is offline or control is disabled; it applies on the
-next connection without enabling lamp control by itself.
+At 0%, LEDs stay dark while Bluetooth remains connected; **Identify** still works.
+Offline brightness changes apply on reconnection without enabling lamp control.
 
 The terminal dashboard is optional: show its shortcut under
 **Settings → Appearance → Show Dashboard button**.

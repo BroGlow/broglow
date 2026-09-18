@@ -39,6 +39,8 @@ plugins:
             Install and connect: Установка и подключение
             Codex: Codex
             Troubleshooting: Диагностика
+            Reference: Справочники
+            Maintainers: Для разработчиков
             Hardware reference: Техническое руководство
             Printing and assembly: Печать и сборка
             Firmware reference: Справочник прошивки
@@ -50,12 +52,14 @@ nav:
   - Install and connect: installation.md
   - Codex: codex.md
   - Troubleshooting: troubleshooting.md
-  - Hardware reference: hardware.md
-  - Printing and assembly: printing.md
-  - Firmware reference: firmware.md
-  - Release and publication: releasing.md
-  - Images and photos: media.md
-  - Enclosure design: enclosure.md
+  - Reference:
+      - Hardware reference: hardware.md
+      - Printing and assembly: printing.md
+      - Firmware reference: firmware.md
+      - Enclosure design: enclosure.md
+  - Maintainers:
+      - Release and publication: releasing.md
+      - Images and photos: media.md
 markdown_extensions:
   - attr_list
   - pymdownx.superfences
