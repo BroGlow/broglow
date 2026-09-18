@@ -16,8 +16,11 @@ System Settings → Privacy & Security → Bluetooth. For a new lamp, connect it
 and use **Lamps → Add lamp**; approve the macOS prompt and wait for **Connected**.
 In **Lamps**, expand the intended lamp's row and check its **Light brightness**:
 0% keeps the controlled LEDs dark even when connected. Move that slider to preview all three,
-or use **Identify** for a two-second full-brightness check of that connected lamp without
-changing its saved level. **All lamps** replaces individual brightness levels with one shared value.
+or use **Identify** for three red → yellow → green passes on that connected lamp at 100%,
+250 ms per LED (2.25 seconds total), then the latest status and saved brightness return.
+Identify never changes preferences. Older firmware silently ignores this scan mode;
+it needs a matching firmware update, which updating the app does not perform.
+**All lamps** replaces individual brightness levels with one shared value.
 The session color clears after 10 seconds without updates; a disconnected lamp may resume a
 quiet waiting pulse. It needs an awake Mac running ClawLight. If a color is still missing or
 faint, disconnect power before checking that LED's polarity, resistor, contacts and shared GND.
@@ -29,7 +32,9 @@ Want a hand? Open the project or unpacked package in your coding agent and paste
 Help me find out why my ClawLight stays dark using docs/hardware-setup.md in this project or
 package. Start with agent sessions, hooks, the background service, Bluetooth status, and
 the intended lamp's saved brightness (0% is intentionally dark). Check its row's brightness
-preview or Identify; preserve other lamps, names and preferences. If setup is needed, use
+preview or Identify (three red/yellow/green passes); if firmware lacks the scan mode,
+report that a matching firmware update is needed. Preserve other lamps, names and preferences.
+If setup is needed, use
 Lamps → Add lamp with one USB-connected lamp and let me approve macOS prompts. For
 Codex, check hook trust with the same CODEX_HOME as the app and verify that a real local task
 appears in ClawLight. Guide me through /hooks approval if needed; leave approval to me.

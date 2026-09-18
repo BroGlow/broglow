@@ -524,7 +524,7 @@ function renderLamp() {
           `<button class="pbtn" type="button" id="lampsave-${i}">Save</button></div>` +
           `<p id="lampnamehelp-${i}">Up to 40 characters. Leave blank for an automatic name.</p></div>` +
           `<div class="lampidentify"><button class="pbtn" type="button" id="lampidentify-${i}" aria-describedby="lampidentifyhelp-${i}">Identify</button>` +
-          `<p id="lampidentifyhelp-${i}">Lights this lamp for 2 seconds without changing its brightness setting.</p></div>` +
+          `<p id="lampidentifyhelp-${i}">Scans red, yellow, green three times without changing its brightness setting.</p></div>` +
           `<div class="brightness"><label for="lampbrightness-${i}">Light brightness<output id="lampbrightnessvalue-${i}" for="lampbrightness-${i}"></output></label>` +
           `<input id="lampbrightness-${i}" type="range" min="0" max="100" step="1" value="100" aria-describedby="lampbrightnesshint-${i}">` +
           `<p id="lampbrightnesshint-${i}"></p></div>` : '') +
@@ -563,7 +563,7 @@ function renderLamp() {
         identify.disabled = !canIdentifyLamp(device.id);
         identify.textContent = pendingIdentifyId === device.id ? 'Sending…' : 'Identify';
         document.getElementById('lampidentifyhelp-' + i).textContent = device.brightness_supported === false ?
-          'Update this lamp’s firmware to use Identify.' : 'Lights this lamp for 2 seconds without changing its brightness setting.';
+          'Update this lamp’s firmware to use Identify.' : 'Scans red, yellow, green three times without changing its brightness setting.';
         const input = document.getElementById('lampname-' + i);
         input.dataset.lampNameId = device.id;
         input.disabled = setupBusy || lampActionPending();

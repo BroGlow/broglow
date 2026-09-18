@@ -199,7 +199,11 @@ pub fn run(_: &Config) -> anyhow::Result<()> {
     anyhow::bail!("BLE control is supported on macOS only")
 }
 #[cfg(target_os = "macos")]
-pub(crate) use mac::{preview_brightness, preview_lamp_brightness, run};
+pub(crate) use mac::{identify_lamp, preview_brightness, preview_lamp_brightness, run};
+#[cfg(target_os = "windows")]
+pub(crate) fn identify_lamp(_: &str) -> anyhow::Result<()> {
+    anyhow::bail!("Bluetooth lamp identification is supported on macOS only")
+}
 #[cfg(target_os = "windows")]
 pub(crate) fn preview_brightness(_: u8) {}
 #[cfg(target_os = "windows")]
@@ -238,22 +242,33 @@ mod mac {
     const HEARTBEAT: Duration = Duration::from_secs(2);
     const OP_TIMEOUT: Duration = Duration::from_secs(10);
     const PREVIEW_DURATION: Duration = Duration::from_secs(2);
+    const IDENTIFY_DURATION: Duration = Duration::from_millis(2250);
     static PREVIEW: Mutex<BTreeMap<Option<Uuid>, BrightnessPreview>> = Mutex::new(BTreeMap::new());
     static PREVIEW_CHANGED: Notify = Notify::const_new();
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     struct BrightnessPreview {
         percent: u8,
+        identify: bool,
         requested_at: StdInstant,
     }
 
     impl BrightnessPreview {
         fn active_at(self, now: StdInstant) -> bool {
+            // Expire queued requests before reconnect; firmware owns the full effect.
             now.saturating_duration_since(self.requested_at) < PREVIEW_DURATION
         }
 
+        fn duration(self) -> Duration {
+            if self.identify {
+                IDENTIFY_DURATION
+            } else {
+                PREVIEW_DURATION
+            }
+        }
+
         fn payload(self) -> [u8; 2] {
-            [self.percent, 1]
+            [self.percent, if self.identify { 2 } else { 1 }]
         }
     }
 
@@ -262,10 +277,18 @@ mod mac {
         if percent > 100 {
             return;
         }
-        store_preview(None, percent);
+        store_preview(None, percent, false);
     }
 
     pub(crate) fn preview_lamp_brightness(id: &str, percent: u8) -> Result<()> {
+        request_lamp_preview(id, percent, false)
+    }
+
+    pub(crate) fn identify_lamp(id: &str) -> Result<()> {
+        request_lamp_preview(id, 100, true)
+    }
+
+    fn request_lamp_preview(id: &str, percent: u8, identify: bool) -> Result<()> {
         let target = Uuid::parse_str(id)?;
         let id = target.to_string();
         anyhow::ensure!(percent <= 100, "Brightness must be between 0 and 100");
@@ -288,11 +311,11 @@ mod mac {
             device.brightness_supported != Some(false),
             "Update this lamp's C3 firmware to use Identify or brightness preview"
         );
-        store_preview(Some(target), percent);
+        store_preview(Some(target), percent, identify);
         Ok(())
     }
 
-    fn store_preview(target: Option<Uuid>, percent: u8) {
+    fn store_preview(target: Option<Uuid>, percent: u8, identify: bool) {
         let now = StdInstant::now();
         let mut previews = PREVIEW.lock().unwrap_or_else(|error| error.into_inner());
         previews.retain(|_, preview| preview.active_at(now));
@@ -300,6 +323,7 @@ mod mac {
             target,
             BrightnessPreview {
                 percent,
+                identify,
                 requested_at: now,
             },
         );
@@ -324,7 +348,10 @@ mod mac {
         current: Option<BrightnessPreview>,
         now: StdInstant,
     ) -> Option<BrightnessPreview> {
-        current.filter(|preview| Some(*preview) != last && preview.active_at(now))
+        current.filter(|preview| {
+            last.is_none_or(|last| preview.requested_at > last.requested_at)
+                && preview.active_at(now)
+        })
     }
 
     fn radio_lock() -> Result<std::fs::File> {
@@ -911,12 +938,16 @@ mod mac {
                 let detail = if brightness_characteristic.is_some() {
                     if let Some((preview, _)) = last_preview
                         .get()
-                        .filter(|(_, written)| written.elapsed() < PREVIEW_DURATION)
+                        .filter(|(preview, written)| written.elapsed() < preview.duration())
                     {
-                        format!(
-                            "Status acknowledged; brightness preview {}%",
-                            preview.percent
-                        )
+                        if preview.identify {
+                            "Status acknowledged; Identify scan requested".into()
+                        } else {
+                            format!(
+                                "Status acknowledged; brightness preview {}%",
+                                preview.percent
+                            )
+                        }
                     } else {
                         format!("Status acknowledged; brightness {brightness}% applied")
                     }
@@ -991,6 +1022,7 @@ mod mac {
             let now = StdInstant::now();
             let preview = BrightnessPreview {
                 percent: 25,
+                identify: false,
                 requested_at: now,
             };
             assert_eq!(pending_preview(None, Some(preview), now), Some(preview));
@@ -1009,6 +1041,23 @@ mod mac {
             assert_eq!(
                 pending_preview(Some(preview), Some(renewed), renewed.requested_at),
                 Some(renewed)
+            );
+            let identify = BrightnessPreview {
+                percent: 100,
+                identify: true,
+                requested_at: now,
+            };
+            assert_eq!(identify.payload(), [100, 2]);
+            assert_eq!(identify.duration(), IDENTIFY_DURATION);
+            assert_eq!(pending_preview(Some(identify), Some(identify), now), None);
+            assert_eq!(
+                pending_preview(None, Some(identify), now + PREVIEW_DURATION),
+                None
+            );
+            // A newer slider request supersedes an older Identify request.
+            assert_eq!(
+                pending_preview(Some(renewed), Some(identify), renewed.requested_at),
+                None
             );
         }
 
@@ -1070,6 +1119,9 @@ mod mac {
             let rejects = |id: &str, percent| {
                 let before = std::fs::read(&path).unwrap();
                 assert!(preview_lamp_brightness(id, percent).is_err());
+                if percent <= 100 {
+                    assert!(identify_lamp(id).is_err());
+                }
                 assert_eq!(std::fs::read(&path).unwrap(), before);
             };
             rejects("invalid", 100);
@@ -1091,6 +1143,14 @@ mod mac {
             preview_lamp_brightness(&names[0], 75).unwrap();
             assert_eq!(current_preview(ids[0]).unwrap().percent, 75);
             assert_eq!(current_preview(ids[1]).unwrap().percent, 50);
+            identify_lamp(&names[0]).unwrap();
+            assert_eq!(current_preview(ids[0]).unwrap().payload(), [100, 2]);
+            assert_eq!(current_preview(ids[1]).unwrap().payload(), [50, 1]);
+            let previous = current_preview(ids[0]);
+            identify_lamp(&names[0]).unwrap();
+            assert!(
+                pending_preview(previous, current_preview(ids[0]), StdInstant::now()).is_some()
+            );
             assert_eq!(std::fs::read(&path).unwrap(), configured);
 
             let mut devices = connected();
@@ -1177,12 +1237,12 @@ mod mac {
                     // Back-to-back targeted requests must both survive until their
                     // workers run, rather than overwriting one shared event.
                     preview_lamp_brightness(&names[0], 0).unwrap();
-                    preview_lamp_brightness(&names[1], 100).unwrap();
+                    identify_lamp(&names[1]).unwrap();
                     let mut lamps = Vec::new();
                     for _ in 0..2 {
                         let (lamp, payload) =
                             timeout(POLL / 2, received.recv()).await.unwrap().unwrap();
-                        assert_eq!(payload, Some([if lamp == 0 { 0 } else { 100 }, 1]));
+                        assert_eq!(payload, Some(if lamp == 0 { [0, 1] } else { [100, 2] }));
                         lamps.push(lamp);
                     }
                     lamps.sort();

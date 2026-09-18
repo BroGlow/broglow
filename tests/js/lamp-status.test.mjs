@@ -533,7 +533,7 @@ test('Identify targets only the selected connected lamp, including at zero brigh
     { id: 'home-id', state: 'connected' }, { id: 'work-id', state: 'connected' },
   ] }));
   click('lampbtn');
-  assert.match(element('lamplist').innerHTML, /Lights this lamp for 2 seconds without changing its brightness setting\./);
+  assert.match(element('lamplist').innerHTML, /Scans red, yellow, green three times without changing its brightness setting\./);
   assert.equal(element('lampidentify-1').disabled, false);
   click('lampidentify-1');
   click('lampidentify-0');
@@ -545,8 +545,8 @@ test('Identify targets only the selected connected lamp, including at zero brigh
   assert.equal(element('lampidentify-1').disabled, false);
   click('lampidentify-1');
   context.window.__configActionResult(null);
-  assert.equal(element('lampidentify-1').textContent, 'Identify', 'Acknowledgement does not claim a visible flash');
-  assert.equal(element('lampsave-0').disabled, false, 'No artificial two-second lock after the result');
+  assert.equal(element('lampidentify-1').textContent, 'Identify', 'Acknowledgement does not claim a visible scan');
+  assert.equal(element('lampsave-0').disabled, false, 'No artificial animation lock after the result');
   element('lampname-0').value = 'Home';
   click('lampsave-0');
   click('lampidentify-1');

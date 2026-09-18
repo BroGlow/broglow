@@ -71,12 +71,13 @@ uint32_t confirmedGeneration = 0;
 bool connectionPulse = false;
 uint32_t connectionPulseStarted = 0, statusPatternStarted = 0,
          indicationStarted = 0;
-bool startup = true, preview = false;
+bool startup = true, preview = false, previewIdentify = false;
 uint32_t startupStarted = 0, previewStarted = 0, previewGeneration = 0;
 uint8_t previewPercent = 0;
 enum class Indication {
   Startup,
   Preview,
+  Identify,
   Status,
   Pairing,
   Unpaired,
@@ -170,6 +171,7 @@ struct BleBrightness {
   uint8_t percent;
   uint32_t generation;
   uint32_t received;
+  bool identify;
 };
 QueueHandle_t bleConnections;
 QueueHandle_t bleStatuses;
@@ -228,11 +230,13 @@ class BrightnessCallbacks : public BLECharacteristicCallbacks {
     const std::string value = characteristic->getValue();
     characteristic->setValue(
         std::string());  // Empty prepared writes must not replay a value.
-    if ((value.size() != 1 && (value.size() != 2 || value[1] != 1)) ||
+    if ((value.size() != 1 &&
+         (value.size() != 2 || (value[1] != 1 && value[1] != 2))) ||
         static_cast<uint8_t>(value[0]) > 100)
       return;
     const BleBrightness setting{static_cast<uint8_t>(value[0]),
-                                bleGeneration.load(), millis()};
+                                bleGeneration.load(), millis(),
+                                value.size() == 2 && value[1] == 2};
     xQueueOverwrite(value.size() == 1 ? bleBrightness : blePreviews, &setting);
   }
 } brightnessCallbacks;
@@ -246,6 +250,7 @@ void applyPendingBrightness() {
   if (xQueueReceive(blePreviews, &setting, 0) == pdTRUE &&
       setting.generation == bleGeneration.load() && bleLinkConnected.load()) {
     preview = true;
+    previewIdentify = setting.identify;
     previewPercent = setting.percent;
     previewStarted = setting.received;
     previewGeneration = setting.generation;
@@ -297,13 +302,15 @@ void renderIndication() {
       (!hasStatus || !bleLinkConnected.load() || !authenticated.load() ||
        previewGeneration != bleGeneration.load() ||
        confirmedGeneration != previewGeneration ||
-       static_cast<uint32_t>(now - previewStarted) >= 2000))
+       static_cast<uint32_t>(now - previewStarted) >=
+           (previewIdentify ? 2250 : 2000)))
     preview = false;
   const Indication next =
-      startup           ? Indication::Startup
-      : preview         ? Indication::Preview
-      : connectionPulse ? Indication::Connected
-      : hasStatus       ? Indication::Status
+      startup                      ? Indication::Startup
+      : preview && previewIdentify ? Indication::Identify
+      : preview                    ? Indication::Preview
+      : connectionPulse            ? Indication::Connected
+      : hasStatus                  ? Indication::Status
       : bleConnected && confirmedGeneration == bleGeneration.load()
           ? Indication::Stale
       : pairingOpen()                      ? Indication::Pairing
@@ -341,8 +348,11 @@ void renderIndication() {
         builtin = BUILTIN_LED_BRIGHTNESS;
       break;
     }
+    case Indication::Identify:
     case Indication::Pairing: {
-      const uint32_t phase = now - pairingStarted.load();
+      const uint32_t phase =
+          now - (indication == Indication::Identify ? previewStarted
+                                                    : pairingStarted.load());
       red = phase / 250 % 3 == 0 ? 255 : 0;
       yellow = phase / 250 % 3 == 1 ? 255 : 0;
       green = phase / 250 % 3 == 2 ? 255 : 0;
@@ -365,8 +375,11 @@ void renderIndication() {
     case Indication::Stale:
       break;
   }
-  outputLeds(red, yellow, green, builtin,
-             indication == Indication::Preview ? previewPercent : brightness);
+  outputLeds(
+      red, yellow, green, builtin,
+      indication == Indication::Preview || indication == Indication::Identify
+          ? previewPercent
+          : brightness);
 }
 
 const char* indicationName() {
@@ -375,6 +388,8 @@ const char* indicationName() {
       return "startup";
     case Indication::Preview:
       return "preview";
+    case Indication::Identify:
+      return "identify";
     case Indication::Status:
       return "status";
     case Indication::Pairing:

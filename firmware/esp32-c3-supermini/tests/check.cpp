@@ -314,10 +314,10 @@ void brightnessAt(uint32_t time, uint8_t percent) {
   brightnessCharacteristic.write(std::string(1, static_cast<char>(percent)));
   loop();
 }
-void previewAt(uint32_t time, uint8_t percent) {
+void previewAt(uint32_t time, uint8_t percent, uint8_t mode = 1) {
   now = time;
   brightnessCharacteristic.write(
-      std::string{static_cast<char>(percent), '\x01'});
+      std::string{static_cast<char>(percent), static_cast<char>(mode)});
   loop();
 }
 void connectPeer() {
@@ -733,7 +733,7 @@ void previewChecks() {
   now = 6400;
   assert(!brightnessCharacteristic.write(std::string("\x64\1", 2), false));
   for (const auto& bytes :
-       {std::string(), std::string("\x64\0", 2), std::string("\x64\2", 2),
+       {std::string(), std::string("\x64\0", 2), std::string("\x64\3", 2),
         std::string("\x65\1", 2), std::string("\xff\1", 2),
         std::string("\x64\1\1", 3)}) {
     brightnessCharacteristic.write(bytes);
@@ -773,6 +773,82 @@ void previewChecks() {
   checkAt(receipt + 1999, 64, 64, 64, BUILTIN_LED_BRIGHTNESS / 4);
   checkAt(receipt + 2000, 0, 0, 255, -1);
   checkAt(receipt + 9500, 0, 0, 0, 0);
+}
+
+void identifyChecks() {
+  bondedBoot();
+  connectPeer();
+  brightnessAt(100, 0);
+  previewAt(150, 100, 2);
+  expectLamp(0, 0, 0, 0);  // Identify also requires a confirmed connection.
+  statusAt(200, "G");
+  previewAt(1000, 100, 2);
+  for (uint32_t step = 0; step < 9; ++step) {
+    const uint32_t time = 1000 + step * 250;
+    const int red = step % 3 == 0 ? 255 : 0;
+    const int yellow = step % 3 == 1 ? 255 : 0;
+    const int green = step % 3 == 2 ? 255 : 0;
+    checkAt(time, red, yellow, green, BUILTIN_LED_BRIGHTNESS);
+    if (step == 3) {
+      statusAt(time + 100, "R");
+      brightnessAt(time + 150, 50);
+    }
+    checkAt(time + 249, red, yellow, green, 0);
+  }
+  checkAt(3250, 128, 0, 0,
+          0);  // Restore the latest status and saved brightness.
+  previewAt(4000, 100, 2);
+  checkAt(4499, 0, 255, 0, 0);
+  previewAt(4500, 100, 2);  // Repeated requests restart at red.
+  expectLamp(255, 0, 0, BUILTIN_LED_BRIGHTNESS);
+  now = 4600;
+  assert(!brightnessCharacteristic.write(std::string("\x64\2", 2), false));
+  for (const auto& bytes :
+       {std::string(), std::string("\x64\0", 2), std::string("\x64\3", 2),
+        std::string("\x65\2", 2), std::string("\xff\2", 2),
+        std::string("\x64\2\2", 3)}) {
+    brightnessCharacteristic.write(bytes);
+    loop();
+  }
+  checkAt(4750, 0, 255, 0, BUILTIN_LED_BRIGHTNESS);
+  checkAt(6749, 0, 0, 255, 0);
+  checkAt(6750, 128, 0, 0, 0);
+  previewAt(7000, 100, 2);
+  disconnectPeer();
+  loop();
+  expectLamp(128, 0, 0);  // Disconnect cancels the scan immediately.
+  connectPeer();
+  statusAt(7200, "N");
+  checkAt(7450, 0, 0, 0, 0);
+  now = 7500;
+  brightnessCharacteristic.write(std::string("\x64\2", 2));
+  disconnectPeer();
+  connectPeer();
+  statusAt(7501, "G");
+  checkAt(7751, 0, 0, 128, 0);  // An obsolete queued scan cannot reappear.
+  statusAt(8000, "G");
+  previewAt(8100, 100, 2);
+  previewAt(8200, 25);
+  checkAt(10199, 64, 64, 64, BUILTIN_LED_BRIGHTNESS / 4);
+  checkAt(10200, 0, 0, 128, 0);  // A brightness preview replaces the scan.
+  now = 12000;
+  brightnessCharacteristic.write(std::string("\x64\2", 2));
+  checkAt(14250, 0, 0, 128, -1);  // Scan expiry starts at receipt.
+  previewAt(17750, 100, 2);
+  checkAt(17999, 255, 0, 0, 0);
+  checkAt(18000, 0, 0, 0, 0);  // Identify cannot extend status freshness.
+  previewAt(18100, 100, 2);
+  expectLamp(0, 0, 0, 0);
+  statusAt(19000, "N");
+  previewAt(19100, 100, 2);
+  BLEDevice::security->onAuthenticationComplete({false, 5});
+  loop();
+  expectLamp(0, 0, 0, 0);
+  const uint32_t receipt = UINT32_MAX - 500;
+  statusAt(receipt - 500, "G");
+  previewAt(receipt, 25, 2);
+  checkAt(receipt + 2249, 0, 0, 64, 0);
+  checkAt(receipt + 2250, 0, 0, 128, -1);
 }
 
 void connectDuringStatusRead(QueueHandle_t queue) {
@@ -849,6 +925,8 @@ int main(int argc, char** argv) {
     startupChecks(true);
   else if (scenario == "preview")
     previewChecks();
+  else if (scenario == "identify")
+    identifyChecks();
   else if (scenario == "races")
     callbackRaceChecks();
   else if (scenario == "gatt-change")

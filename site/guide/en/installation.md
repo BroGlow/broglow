@@ -31,6 +31,8 @@ Use Lamps → Add lamp with one USB-connected lamp. Leave macOS and Codex /hooks
 to me; for Codex, use the same CODEX_HOME as the app.
 Verify clawlight works from a fresh terminal outside the project, the background service
 reaches my lamp, and a real local agent task changes from Working to Idle/Paused.
+Check Identify scans red/yellow/green three times and restores the status and saved brightness;
+if firmware lacks this mode, report that a matching firmware update is needed.
 If I use Codex desktop, test a desktop task. Report any unverified physical checks.
 ```
 
@@ -80,14 +82,17 @@ and Bluetooth are on and the lamp is nearby.
 Open **Lamps** and expand a row:
 
 - **Name:** up to 40 characters, saved on this Mac; blank restores the automatic label.
-- **Identify:** lights that connected lamp's three LEDs at full brightness for two
-  seconds, then returns to session status without changing settings.
+- **Identify:** scans that connected lamp's red → yellow → green LEDs three times,
+  one at a time at 100%, 250 ms per LED (2.25 seconds total), then restores the latest
+  status and saved brightness without changing settings.
 - **Light brightness:** 0–100% for that lamp. **All lamps** replaces every saved lamp's
   individual level. Preview ends two seconds after the last change.
 - **Forget lamp:** removes it from this Mac; other lamps and Bluetooth bonds remain.
 
 At 0%, LEDs stay dark while Bluetooth remains connected; **Identify** still works.
 Offline brightness changes apply on reconnection without enabling lamp control.
+Identify needs matching firmware; older firmware silently ignores the scan mode.
+Updating the app does not flash the board; see the [firmware update steps](hardware.md#build-and-identify-the-board).
 
 The terminal dashboard is optional: show its shortcut under
 **Settings → Appearance → Show Dashboard button**.

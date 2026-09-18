@@ -746,7 +746,7 @@ pub fn run() -> anyhow::Result<()> {
                     popover.config_action_result(error);
                 }
                 PopoverMsg::IdentifyLamp { id } => {
-                    let error = crate::ble::preview_lamp_brightness(&id, 100)
+                    let error = crate::ble::identify_lamp(&id)
                         .err()
                         .map(|error| format!("Could not identify lamp: {error}"));
                     popover.config_action_result(error);
