@@ -1,0 +1,78 @@
+{
+  "packages": [
+    {
+      "name": "@google/model-viewer-effects",
+      "version": "1.5.0",
+      "tarball": "https://registry.npmjs.org/@google/model-viewer-effects/-/model-viewer-effects-1.5.0.tgz",
+      "integrity": "sha512-1yWCIs66BW+MUzE9rAMP4SngTT6GIm4fqske4HUGioPa4LBZhmdD6d2aD3f7Ns9MNHIizNrgjeNK7MdaLSKdIg=="
+    },
+    {
+      "name": "postprocessing",
+      "version": "6.39.5",
+      "tarball": "https://registry.npmjs.org/postprocessing/-/postprocessing-6.39.5.tgz",
+      "integrity": "sha512-YmH+t74J2X1lwYjKzK/tgs9C9kqWWPB9JwZiDF5mEf4BdCEAmEFbO8lXBA7NM0/j4g+x6FgD/Tt5/kT7ogbEDA=="
+    },
+    {
+      "name": "lit",
+      "version": "3.3.3",
+      "tarball": "https://registry.npmjs.org/lit/-/lit-3.3.3.tgz",
+      "integrity": "sha512-fycuvZg/hkpozL00lm1pEJH5nN/lr9ZXd6mJI2HSN4+Bzc+LDNdEApJ6HFbPkdFNHLvOplIIuJvxkS4XUxqirw=="
+    },
+    {
+      "name": "lit-html",
+      "version": "3.3.3",
+      "tarball": "https://registry.npmjs.org/lit-html/-/lit-html-3.3.3.tgz",
+      "integrity": "sha512-el8M6jK2o3RXBnrSHX3ZKrsN8zEV63pSExTO1wYJz7QndGYZ8353e2a5PPX+qHe2aGayfnchQmkAojaWAREOIA=="
+    },
+    {
+      "name": "lit-element",
+      "version": "4.2.2",
+      "tarball": "https://registry.npmjs.org/lit-element/-/lit-element-4.2.2.tgz",
+      "integrity": "sha512-aFKhNToWxoyhkNDmWZwEva2SlQia+jfG0fjIWV//YeTaWrVnOxD89dPKfigCUspXFmjzOEUQpOkejH5Ly6sG0w=="
+    },
+    {
+      "name": "@lit/reactive-element",
+      "version": "2.1.2",
+      "tarball": "https://registry.npmjs.org/@lit/reactive-element/-/reactive-element-2.1.2.tgz",
+      "integrity": "sha512-pbCDiVMnne1lYUIaYNN5wrwQXDtHaYtg7YEFPeW+hws6U47WeFvISGUWekPGKWOP1ygrs0ef0o1VJMk1exos5A=="
+    },
+    {
+      "name": "@lit-labs/ssr-dom-shim",
+      "version": "1.5.1",
+      "tarball": "https://registry.npmjs.org/@lit-labs/ssr-dom-shim/-/ssr-dom-shim-1.5.1.tgz",
+      "integrity": "sha512-Aou5UdlSpr5whQe8AA/bZG0jMj96CoJIWbGfZ91qieWu5AWUMKw8VR/pAkQkJYvBNhmCcWnZlyyk5oze8JIqYA=="
+    },
+    {
+      "name": "@esbuild/darwin-arm64",
+      "version": "0.25.11",
+      "tarball": "https://registry.npmjs.org/@esbuild/darwin-arm64/-/darwin-arm64-0.25.11.tgz",
+      "integrity": "sha512-VekY0PBCukppoQrycFxUqkCojnTQhdec0vevUL/EDOCnXd9LKWqD/bHwMPzigIJXPhC59Vd1WFIL57SKs2mg4w=="
+    },
+    {
+      "name": "@google/model-viewer",
+      "version": "4.3.1",
+      "tarball": "https://registry.npmjs.org/@google/model-viewer/-/model-viewer-4.3.1.tgz",
+      "integrity": "sha512-GP+inXhAtY31E8rILVmByA6z8CZZjdlNajddppyI1/j1eIaSQiZcMRaUqTFe7+jv4mzRzwKIOiKBud0apiv+WQ=="
+    },
+    {
+      "name": "three",
+      "version": "0.183.0",
+      "tarball": "https://registry.npmjs.org/three/-/three-0.183.0.tgz",
+      "integrity": "sha512-G6SH2jfefIVa2YI4JL2VbgQhrrbp1A8dRc7lr3PW827kdVyaX2RgH6M5FmjmdVFLgSHppyg3OYOZdTfWElle+g=="
+    }
+  ],
+  "effects_entrypoint": "@google/model-viewer-effects/lib/model-viewer-effects.js",
+  "effects_source_sha256": "8561c19fb0ce6f88839466b5a73a5747ef5d7b0dc16a94748b97eacd9d2acc51",
+  "build_command": "esbuild node_modules/@google/model-viewer-effects/lib/model-viewer-effects.js --bundle --format=esm --platform=browser --target=es2020 --external:three --minify --legal-comments=inline --outfile=model-viewer-effects-1.5.0.min.js",
+  "files_sha256": {
+    "model-viewer-module-4.3.1.min.js": "d2add4a16aee1098f26146a6f040311ca45f19c8085f3842b98ecbe8067b6cce",
+    "model-viewer-effects-1.5.0.min.js": "183cde9cfaa32d44e1486ad935d8999cab13ff361682a351ae9b17a5a82ab02d",
+    "three-0.183.0/three.module.min.js": "e3ec4d5d223c0119f754150a3d9deef16139074ea17b073e93bbce315ad16eda",
+    "three-0.183.0/three.core.min.js": "c5f69a04c70de8c95152040c286a3c8a0489603b019dfd61b34c451e3371c4fd",
+    "three-LICENSE": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc",
+    "model-viewer-effects-LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "postprocessing-LICENSE": "b7650918449bd5fb011ce30ce0e5bcda27aa9639db1fb3aef8c67c32945237f2",
+    "lit-LICENSE": "45d31799d0db956cc3eb5469346abbd9b7025babc5ff29fab10d7095da992ef1",
+    "lit-html-LICENSE": "2b66f9390afde29edfe4314daff93f01fb182e1178053e228120178987e5db75"
+  }
+}
