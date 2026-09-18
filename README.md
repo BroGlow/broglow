@@ -7,6 +7,25 @@ with a menu-bar app, terminal dashboard and optional ESP32-C3 status lamp.
 The lamp shows working, idle and needs-input states over USB or Bluetooth LE.
 Version **1.0.0** is in preparation.
 
+## Why this version?
+
+This version extends [the original ClawLight](https://github.com/clawlight/clawlight-cli)
+with wireless lamp control, a customizable DIY build and everyday desktop improvements.
+
+| What’s better | What you gain |
+| --- | --- |
+| **Wireless lamp connection** | Place your lamp within Bluetooth range without a data cable running to your Mac. |
+| **Adjustable brightness** | Keep the light comfortable for your room, with a separate brightness setting for each lamp. |
+| **Remembered lamps** | Save and name your lamps, so your home and office setups are easy to recognize. |
+| **Find your lamp** | Make a selected lamp flash with one click, so you know which one you’re controlling. |
+| **Clear paused sessions** | Clear the clutter in one click. Active work and requests for your attention stay visible; your conversations stay safe. |
+| **Open the right Codex task** | Supports local tasks in the Codex desktop app: jump straight from the monitor to the conversation you need. |
+| **Make it yours** | Print and customize your own enclosure using the included design files. |
+| **Guides in two languages** | Follow setup and assembly instructions in English or Russian. |
+
+Wireless control and direct Codex task opening are available on macOS.
+The lamp still needs power and is designed for DIY assembly.
+
 ## Start here
 
 - **Install or update:** [setup manual](docs/hardware-setup.md#install-or-update-the-mac-service).
