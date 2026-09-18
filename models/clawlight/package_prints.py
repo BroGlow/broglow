@@ -26,9 +26,9 @@ def main():
     for part in slices['parts']:
         assert hashlib.sha256((MODEL/part['file']).read_bytes()).hexdigest() == part['sha256'], \
             f"Stale slicer evidence: {part['file']}"
-    guide = (MODEL/'PRINT_GUIDE.md').read_text()
+    guide = '\n'.join((MODEL/name).read_text() for name in ('PRINT_GUIDE.en.md', 'PRINT_GUIDE.md'))
     for link in re.findall(r'\]\(([^)]+)\)', guide):
-        if '://' not in link:
+        if '://' not in link and not link.startswith('#'):
             assert (MODEL/link.split('#')[0]).exists(), link
     readme = '''# Claw Light — enclosure release candidate
 
@@ -65,8 +65,48 @@ Reprint the base, cover and tray together; modeled USB projection is 0..0.5 mm.
 Inspect USB cover coupon walls/infill: its successful slice logged an internal
 ZFiller diagnostic. No entire missing layers or components were found.
 Physical fit needs testing with the revised USB fixture and tray.
-The full package includes PRINT_GUIDE.md, STEP files, source and check reports.
+The full package includes PRINT_GUIDE.en.md and PRINT_GUIDE.md, STEP files, source and check reports.
 The Mac app and prebuilt firmware are separate release downloads.
+'''
+    readme_ru = '''<a name="claw-light-enclosure-release-candidate"></a>
+
+# Claw Light — релиз-кандидат корпуса
+
+A1 Mini / PETG Basic / сопло 0,4 мм / слой 0,2 мм.
+Используйте экспортированные ориентации, масштаб 100%, 3 стенки, 15% заполнения,
+5 верхних/нижних слоёв, без поддержек. Отключите автоматическую ориентацию.
+
+01_mascot_orange.stl
+02_eye_black_x2.stl       — в файле один глаз; напечатайте ДВЕ копии
+03_tower_black.stl
+04_rear_cover_black.stl
+05_LED_retainer_black.stl
+06_PCB_tray_black.stl
+coupons/01_USB_base_coupon.stl
+coupons/02_USB_cover_coupon.stl
+
+Напечатайте по одному экземпляру, кроме глаза (x2). Основная сборка: семь деталей.
+Для проверки USB напечатайте оба пробника и лоток 06.
+Используйте настоящую плату/кабель и два самореза DIN 7982 ST2.2 x 6,5.
+Проверенный лоток затем можно установить в окончательную сборку.
+
+Проверенные пробники LED/саморезов и соединения руки удалены. Их проверенные
+размеры сохранены: отверстие LED 5,1 мм, пилот самореза 1,9 мм, гнездо руки 3,3 мм.
+Штифты руки позиционируют детали; для постоянного крепления используйте клей.
+Задний язычок глаза: фаски углов 0,4 мм и входной кромки 0,2 мм.
+Печатайте глаз лицом вниз, монтажным язычком вверх; нужны две копии.
+
+Версия с плоским дном: дно 2,0 мм без центральной выборки; на крышке нет выступов.
+Лоток и окно USB опущены на 0,8 мм; измеренная поправка USB +1,2 мм
+относительно платы сохранена. Окно 9,3 x 3,5 мм, входные фаски 0,2 мм
+с обеих сторон; внутренний периметр, край выборки и входы винтовых отверстий
+имеют фаски 0,2 мм; глубина корпуса 27,4 мм, выступающих пальцев направляющих нет.
+Перепечатайте основание, крышку и лоток вместе; выступ USB в модели — 0..0,5 мм.
+Проверьте стенки/заполнение крышки USB-пробника: успешная нарезка выдала внутреннее
+сообщение ZFiller. Целые пропущенные слои или компоненты не обнаружены.
+Физическую посадку нужно проверить с изменённым USB-пробником и лотком.
+Полный комплект содержит PRINT_GUIDE.en.md и PRINT_GUIDE.md, STEP, исходники и отчёты проверок.
+Приложение Mac и готовая прошивка скачиваются отдельно из релиза.
 '''
     packs = {
         'clawlight-compact-STL.zip': [(f, str(f.relative_to(MODEL/'stl'))) for f in files],
@@ -74,7 +114,8 @@ The Mac app and prebuilt firmware are separate release downloads.
                                      if f.parent.name == 'coupons' or f.stem == '06_PCB_tray_black'],
     }
     reference_files = [
-        'docs/hardware-setup.md', 'docs/firmware-reference.md',
+        'docs/hardware-setup.md', 'docs/hardware-setup.ru.md',
+        'docs/firmware-reference.md', 'docs/firmware-reference.ru.md',
         'firmware/esp32-c3-supermini/platformio.ini',
         'firmware/esp32-c3-supermini/src/main.cpp',
         'firmware/esp32-c3-supermini/src/led-test.cpp',
@@ -121,18 +162,50 @@ Use the new tray with both new coupon parts; do not mix with the earlier set.
 Inspect cover-coupon walls/infill before printing: its successful slice logged
 one internal ZFiller diagnostic, retained in the full report.
 '''
+            text_ru = '''<a name="usb-fit-test-enclosure-release-candidate"></a>
+
+# Примерка USB — релиз-кандидат корпуса
+
+Напечатайте по одному: 06_PCB_tray_black.stl, coupons/01_USB_base_coupon.stl
+и coupons/02_USB_cover_coupon.stl. Лоток затем используется в окончательной сборке.
+A1 Mini / PETG Basic / сопло 0,4 мм / слой 0,2 мм; 3 стенки, 15% заполнения,
+5 верхних/нижних слоёв. Сохраните экспортированные ориентации, масштаб 100%, без поддержек.
+Используйте настоящую плату/кабель и два самореза DIN 7982 ST2.2 x 6,5.
+Проверьте извлечение лотка, закрытие крышки, совпадение USB и полную посадку кабеля.
+Версия: плоское дно 2,0 мм, без выступов крышки, глубина 27,4 мм. Лоток и окно USB
+опущены на 0,8 мм; измеренная поправка +1,2 мм относительно платы сохранена.
+На внутренних кромках крышки и обоих входах USB теперь фаски 0,2 мм.
+Используйте новый лоток с обеими новыми частями пробника; не смешивайте их с прежним комплектом.
+Перед печатью проверьте стенки/заполнение крышки пробника: при успешной нарезке выдано
+одно внутреннее сообщение ZFiller, сохранённое в полном отчёте.
+'''
         else:
             text = readme
+            text_ru = readme_ru
+        language_links = '[English](START_HERE.md) | [Русский](START_HERE.ru.md)\n\n'
+        text = language_links + text
+        text_ru = language_links + text_ru
+        if name == 'clawlight-print-pack.zip':
+            text += '\n[Full print guide](models/clawlight/PRINT_GUIDE.en.md)\n'
+            text_ru += '\n[Полное руководство по печати](models/clawlight/PRINT_GUIDE.md)\n'
+        manuals = {'START_HERE.md': text, 'START_HERE.ru.md': text_ru}
+        entry_names = {*manuals, *(target for _, target in entries)}
+        for filename, content in manuals.items():
+            for link in re.findall(r'\]\(([^)]+)\)', content):
+                if '://' not in link and not link.startswith('#'):
+                    assert link.split('#')[0] in entry_names, f'Missing entry-manual link: {name}/{filename} -> {link}'
         if not args.check:
             with ZipFile(path, 'w', ZIP_DEFLATED) as archive:
-                archive.writestr('START_HERE.md', text)
+                for filename, content in manuals.items():
+                    archive.writestr(filename, content)
                 for f, target in entries:
                     archive.write(f, target)
         with ZipFile(path) as archive:
             assert archive.testzip() is None, f'Corrupt archive: {path}'
-            expected = ['START_HERE.md', *(target for _, target in entries)]
+            expected = [*manuals, *(target for _, target in entries)]
             assert sorted(archive.namelist()) == sorted(expected), f'Stale archive inventory: {path}'
-            assert archive.read('START_HERE.md') == text.encode(), f'Stale printing instructions: {path}'
+            for filename, content in manuals.items():
+                assert archive.read(filename) == content.encode(), f'Stale printing instructions: {path}/{filename}'
             for f, target in entries:
                 assert hashlib.sha256(archive.read(target)).digest() == hashlib.sha256(f.read_bytes()).digest(), \
                     f'Stale archive content: {path.name}/{target}'

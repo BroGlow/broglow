@@ -1,3 +1,5 @@
+[English](CLAUDE.md) | [Русский](CLAUDE.ru.md)
+
 # clawlight
 
 Follow the standalone product scope in [AGENTS.md](AGENTS.md).

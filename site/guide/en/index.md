@@ -1,12 +1,16 @@
 <a href="../">Back to the project</a>
 
-# Build your lamp { #build }
+<a name="build"></a>
+
+# Build your lamp
 
 ClawLight includes an app, ESP32-C3 firmware and a printable enclosure.
 
 Already assembled? [Install ClawLight and connect the lamp](installation.md).
 
-## Choose your parts { #parts }
+<a name="parts"></a>
+
+## Choose your parts
 
 <!-- model-download -->
 
@@ -22,7 +26,9 @@ Already assembled? [Install ClawLight and connect the lamp](installation.md).
 
 Verify the actual chip before flashing; the supplied firmware targets ESP32-C3 only.
 
-## Wire up the LEDs { #wiring }
+<a name="wiring"></a>
+
+## Wire up the LEDs
 
 Disconnect USB power. Connect each pin through its own resistor to the LED’s anode (+).
 All cathodes (−) go to GND; do not connect the LEDs to 5V.

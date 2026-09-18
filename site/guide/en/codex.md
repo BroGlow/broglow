@@ -1,6 +1,8 @@
 <a href="../../">Back to the project</a>
 
-# Connect Codex { #codex-setup }
+<a name="codex-setup"></a>
+
+# Connect Codex
 
 Installing ClawLight adds hooks, but Codex still needs your approval before running them.
 

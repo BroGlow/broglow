@@ -1,3 +1,5 @@
+[English](README.md) | [Русский](README.ru.md)
+
 # model-viewer
 
 Self-hosted browser bundle from `@google/model-viewer` **4.3.1**:

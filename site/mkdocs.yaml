@@ -5,7 +5,9 @@ site_dir: docs
 hooks:
   - pages.py
 watch:
-  - ../docs/hardware-setup.md
+  - ../docs
+  - ../models/clawlight/PRINT_GUIDE.md
+  - ../models/clawlight/PRINT_GUIDE.en.md
 theme:
   name: material
   custom_dir: overrides
@@ -37,13 +39,23 @@ plugins:
             Install and connect: Установка и подключение
             Codex: Codex
             Troubleshooting: Диагностика
-            Hardware reference: Техническое руководство (EN)
+            Hardware reference: Техническое руководство
+            Printing and assembly: Печать и сборка
+            Firmware reference: Справочник прошивки
+            Release and publication: Выпуск и публикация
+            Images and photos: Изображения и фотографии
+            Enclosure design: Конструкция корпуса
 nav:
   - Build: index.md
   - Install and connect: installation.md
   - Codex: codex.md
   - Troubleshooting: troubleshooting.md
   - Hardware reference: hardware.md
+  - Printing and assembly: printing.md
+  - Firmware reference: firmware.md
+  - Release and publication: releasing.md
+  - Images and photos: media.md
+  - Enclosure design: enclosure.md
 markdown_extensions:
   - attr_list
   - pymdownx.superfences

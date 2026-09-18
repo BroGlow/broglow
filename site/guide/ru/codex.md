@@ -1,6 +1,8 @@
 <a href="../../../">О проекте</a>
 
-# Подключите Codex { #codex-setup }
+<a name="codex-setup"></a>
+
+# Подключите Codex
 
 Установка ClawLight добавляет hooks, но для их запуска Codex нужно ваше разрешение.
 

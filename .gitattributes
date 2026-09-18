@@ -7,5 +7,5 @@
 # Retired reference directories and historical handoffs stay out of archives;
 # these exclusions do not change old Git history.
 /references export-ignore
-/docs/ble-implementation-handoff.md export-ignore
-/docs/start-ble-implementation.md export-ignore
+/docs/ble-implementation-handoff*.md export-ignore
+/docs/start-ble-implementation*.md export-ignore

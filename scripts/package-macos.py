@@ -148,6 +148,7 @@ def main():
         shutil.copy2(framework / "libraries/BLE/LICENSE", destination / "BLE-LICENSE.txt")
         (destination / "DEPENDENCIES.md").write_text(
             "# Firmware dependencies\n\n"
+            "[English](DEPENDENCIES.md) | [Русский](DEPENDENCIES.ru.md)\n\n"
             "This firmware uses Arduino-ESP32 2.0.17 (LGPL-2.1-or-later; see ARDUINO-LICENSE.md)\n"
             "and its ESP32 BLE Arduino library (see BLE-LICENSE.txt).\n"
             "Pinned framework source: https://github.com/espressif/arduino-esp32/tree/2.0.17\n"
@@ -155,6 +156,18 @@ def main():
             "The project's C3 source, PlatformIO configuration and host checks are included.\n"
             "Build with PlatformIO Core 6.1.19: `pio run -d firmware/esp32-c3-supermini`.\n"
             "The pinned framework and SDK contain additional third-party components and notices.\n"
+        )
+        (destination / "DEPENDENCIES.ru.md").write_text(
+            "# Зависимости прошивки\n\n"
+            "[English](DEPENDENCIES.md) | [Русский](DEPENDENCIES.ru.md)\n\n"
+            "Прошивка использует Arduino-ESP32 2.0.17 (LGPL-2.1-or-later; см. ARDUINO-LICENSE.md)\n"
+            "и библиотеку ESP32 BLE Arduino (см. BLE-LICENSE.txt).\n"
+            "Исходники закреплённой версии: https://github.com/espressif/arduino-esp32/tree/2.0.17\n"
+            "Исходники ESP-IDF: https://github.com/espressif/esp-idf/tree/v4.4.7\n\n"
+            "Исходники C3, конфигурация PlatformIO и проверки прошивки включены в пакет.\n"
+            "Сборка через PlatformIO Core 6.1.19: `pio run -d firmware/esp32-c3-supermini`.\n"
+            "Закреплённые версии фреймворка и SDK содержат дополнительные сторонние компоненты\n"
+            "и их лицензионные уведомления.\n"
         )
         manifest = {
             "chip": "esp32c3", "flash_mode": "dio", "flash_freq": "40m", "flash_size": "4MB",
@@ -166,9 +179,13 @@ def main():
         for filename in ("README.md", "LICENSE", "CLAUDE.md", "AGENTS.md",
                          "docs/hardware-setup.md", "docs/firmware-reference.md",
                          "docs/releasing.md", "docs/media.md"):
-            destination = package / filename
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(ROOT / filename, destination)
+            translations = [Path(filename)]
+            if filename.endswith(".md"):
+                translations.append(Path(filename).with_suffix(".ru.md"))
+            for doc in translations:
+                destination = package / doc
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ROOT / doc, destination)
         shutil.copytree(ROOT / "assets/icons", package / "assets/icons")
         provenance = {
             "packaged_at_utc": now.isoformat(), "package_version_from_source": version,

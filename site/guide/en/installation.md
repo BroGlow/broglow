@@ -1,8 +1,12 @@
 <a href="../../">Back to the project</a>
 
-# Install and connect { #install }
+<a name="install"></a>
 
-## Install ClawLight and the firmware { #installation }
+# Install and connect
+
+<a name="installation"></a>
+
+## Install ClawLight and the firmware
 
 Use this project's complete Mac package, which includes the app, ESP32-C3 firmware
 and operating guide. Choose the build for your Mac's processor. Apple Silicon has
@@ -10,7 +14,9 @@ been tested on hardware; Intel builds still need installation and Bluetooth chec
 
 <!-- mac-downloads -->
 
-## Set it up with your coding agent { #agent-setup }
+<a name="agent-setup"></a>
+
+## Set it up with your coding agent
 
 Unpack the package or source archive, open that folder in Codex or another coding agent, and
 paste this request. For a prebuilt package, keep its checksum file nearby. Detailed manual
@@ -34,7 +40,9 @@ or desktop app changes from Working to Idle/Paused in ClawLight; BLE status alon
 enough. For desktop use, validate in the desktop app.
 ```
 
-## Run ClawLight from any folder { #path }
+<a name="path"></a>
+
+## Run ClawLight from any folder
 
 ClawLight is installed once for your Mac user account at `~/.cargo/bin/clawlight`.
 You do not need to open the project folder to run it. Prebuilt installs do not need Cargo.
@@ -57,7 +65,9 @@ Scripts and agent subprocesses may not load your shell settings: use
 `"$HOME/.cargo/bin/clawlight"` there or set their `PATH`. The login service already uses
 an absolute executable path and does not depend on your terminal's `PATH`.
 
-## Pair once, then place it on your desk { #pairing }
+<a name="pairing"></a>
+
+## Pair once, then place it on your desk
 
 Connect one flashed lamp to your Mac with a USB data cable. Click the lamp status at the
 bottom of the menu-bar popup, then **Lamps → Add lamp**. Allow ClawLight to use Bluetooth
@@ -77,7 +87,9 @@ This does not test the LEDs themselves. Keep it powered from your Mac or use a U
 ClawLight retries connections while its service is running, lamp control and Bluetooth are
 enabled, and the powered lamp is nearby.
 
-## Adjust brightness and manage lamps { #controls }
+<a name="controls"></a>
+
+## Adjust brightness and manage lamps
 
 Click the lamp status at the bottom of the menu-bar popup to open **Lamps**.
 Expand a lamp's row to manage it:

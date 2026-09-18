@@ -1,6 +1,8 @@
 <a href="../../">Back to the project</a>
 
-# If the lamp stays dark { #troubleshooting }
+<a name="troubleshooting"></a>
+
+# If the lamp stays dark
 
 Without live sessions, there is no steady session light. Brief startup, pairing or waiting
 indications can still appear. Start a new local task in a supported

@@ -26,7 +26,7 @@ for locale in ("en", "ru"):
         else:
             assert "https://github.com/example/lamp/releases" in public
             assert "clawlight-enclosure-vVERSION.zip" in public and ".sha256" in public
-            assert "https://github.com/example/lamp/blob/HEAD/models/clawlight/PRINT_GUIDE.md" in public
+            assert "(printing.md)" in public
             assert "https://github.com/example/lamp/archive/HEAD.zip" in public
             assert "1.0.0" in public and "clawlight-print-pack.zip" not in public
         with TemporaryDirectory() as temporary:
@@ -44,31 +44,49 @@ for locale in ("en", "ru"):
                 assert f"dist/{archive.name})" in local and f"dist/{archive.name}.sha256)" in local
             else:
                 assert "clawlight-print-pack.zip" not in local and "{ download }" not in local
-                assert "models/clawlight/PRINT_GUIDE.md" in local
+                guide = "PRINT_GUIDE.md" if locale == "ru" else "PRINT_GUIDE.en.md"
+                start = "START_HERE.ru.md" if locale == "ru" else "START_HERE.md"
+                assert f"models/clawlight/{guide}" in local and "(printing.md)" in local
                 models = Path(temporary) / "models"
                 models.mkdir()
                 (models / "clawlight-print-pack.zip").touch()
                 local = on_page_markdown(source, page=page, config=SimpleNamespace(repo_url=None))
                 prefix = "../../../" if locale == "ru" else "../../"
                 assert f"]({prefix}models/clawlight-print-pack.zip){{ download }}" in local
-                assert "START_HERE.md" in local and "models/clawlight/PRINT_GUIDE.md" in local
+                assert start in local and f"models/clawlight/{guide}" in local
         pages.SITE = SITE
 
 print("PASS: separate Mac/enclosure downloads and source fallback in both languages, including clean checkouts")
 
 config = on_config(load_config(str(SITE / "mkdocs.yaml")))
+# GitHub-readable named anchors become native heading IDs after snippet expansion.
+with TemporaryDirectory() as temporary:
+    source = Path(temporary) / "section.md"
+    source.write_text('<a name="stable-section"></a>\n\n## Переведённый раздел\n\n'
+                      '```html\n<a name="code-example"></a>\n\n## Literal example\n```\n')
+    renderer = markdown.Markdown(
+        extensions=["pymdownx.snippets", "fenced_code", "attr_list", "toc", pages.SectionAnchors()],
+        extension_configs={"pymdownx.snippets": {"base_path": [temporary], "check_paths": True}},
+    )
+    rendered = renderer.convert('--8<-- "section.md"')
+    assert rendered.count('id="stable-section"') == 1 and '<a name=' not in rendered
+    assert renderer.toc_tokens[0]["id"] == "stable-section"
+    assert renderer.toc_tokens[0]["name"] == "Переведённый раздел"
+    assert '<a name="code-example"></a>' in unescape(rendered)
+    assert '## Literal example' in rendered and '{ #code-example }' not in rendered
 master = (SITE.parent / "docs/hardware-setup.md").read_text()
 for section, expected in (("lamp-wiring", "GPIO3"), ("path-check", "command -v clawlight"),
                           ("path-setup", 'export PATH=')):
-    directive = f'--8<-- "docs/hardware-setup.md:{section}"'
-    rendered = markdown.markdown(directive, extensions=config.markdown_extensions,
-                                 extension_configs=config.mdx_configs)
-    assert expected in unescape(re.sub(r"<[^>]+>", "", rendered))
     for locale in ("en", "ru"):
+        suffix = ".ru" if locale == "ru" else ""
+        directive = f'--8<-- "docs/hardware-setup{suffix}.md:{section}"'
+        rendered = markdown.markdown(directive, extensions=config.markdown_extensions,
+                                     extension_configs=config.mdx_configs)
+        assert expected in unescape(re.sub(r"<[^>]+>", "", rendered))
         page_name = "index" if section == "lamp-wiring" else "installation"
         assert directive in (SITE / "guide" / locale / f"{page_name}.md").read_text()
 
-# Changing the source changes the included diagram, without editing either translation.
+# Changing a manual changes its included diagram without editing the quick guide.
 with TemporaryDirectory() as temporary:
     guide = Path(temporary) / "hardware.md"
     for value in ("220", "470"):
@@ -85,6 +103,20 @@ public = on_page_content(sample, page=page, config=SimpleNamespace(repo_url="htt
 assert 'href="../' not in local and "firmware/esp32-c3-supermini" in local
 assert 'https://github.com/example/lamp/tree/HEAD/firmware/esp32-c3-supermini' in public
 assert 'data:image/png;base64,' in local and 'href="#camera-2026"' in public
+for locale, suffix in (("en", ""), ("ru", ".ru")):
+    page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/hardware.md"))
+    other = "" if suffix else ".ru"
+    sample = (f'<a href="firmware-reference{suffix}.md#commands">Firmware</a>'
+              f'<a href="hardware-setup{other}.md#wiring-and-resistor-choice">Language</a>')
+    for repo in (None, "https://github.com/example/lamp"):
+        result = on_page_content(sample, page=page, config=SimpleNamespace(repo_url=repo))
+        assert 'href="../firmware/#commands"' in result
+        expected = "../../hardware/" if suffix else "../ru/hardware/"
+        assert f'href="{expected}#wiring-and-resistor-choice"' in result
+        resolved = '<a href="../media/">Images</a>'
+        assert on_page_content(resolved, page=page, config=SimpleNamespace(repo_url=repo)) == resolved
+        bar = '<p><a href="./">English</a> | <a href="media.ru.md">Русский</a></p>\n'
+        assert on_page_content(bar, page=page, config=SimpleNamespace(repo_url=repo)) == ""
 try:
     on_page_content('<a href="../../outside.md">Bad</a>', page=page, config=SimpleNamespace(repo_url=None))
 except ValueError:

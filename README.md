@@ -1,3 +1,5 @@
+[English](README.md) | [Русский](README.ru.md)
+
 # ClawLight
 
 A local coding-session monitor with a menu-bar app, terminal dashboard and optional
@@ -21,7 +23,7 @@ separate acceptance checks. See [verified behavior and limits](docs/hardware-set
 
 The enclosure release candidate is ready for the **1.0.0** release. Its separate
 print package includes STL, STEP, source and the print guide; see
-[printing and assembly](models/clawlight/PRINT_GUIDE.md) in the source checkout.
+[printing and assembly](models/clawlight/PRINT_GUIDE.en.md) in the source checkout.
 The app and wired C3 lamp can also be used without a printed case.
 
 ## Install

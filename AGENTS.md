@@ -1,5 +1,7 @@
 # ClawLight agent entry points
 
+[English](AGENTS.md) | [Русский](AGENTS.ru.md)
+
 ClawLight combines a CLI, desktop app, ESP32-C3 SuperMini firmware and printable
 enclosure for local coding-agent workflows. Describe its features and supported
 hardware directly. Keep attribution in license notices. Protect existing settings,
@@ -32,9 +34,11 @@ or connect does not imply publishing a release or reflashing a working board.
 
 For **hardware-guide edits or changes to setup, wiring, controls, or status behavior**,
 follow [website documentation maintenance](site/README.md#keep-the-instructions-in-sync)
-in the same change. The website includes the hardware reference and shared command
-blocks directly; review both quick-guide languages for affected summaries, then
-build and check the local and Pages documentation before finishing.
+in the same change. Keep English and Russian versions of every project guide and
+developer document in sync. The website includes the matching language source;
+preserve section IDs, commands and technical values across translations. Run
+`site/.venv/bin/python site/check-translations.py`, then build and check local and
+Pages documentation before finishing. Dependency license texts remain verbatim.
 
 For **YAML edits**, use block-style sequences throughout the project: one item per
 line, including `needs` and workflow matrices. Inline arrays are not our style.

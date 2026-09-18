@@ -1,5 +1,7 @@
 # ClawLight DIY website
 
+[English](README.md) | [Русский](README.ru.md)
+
 The short landing is plain HTML/CSS. The separate guide uses [MkDocs](https://www.mkdocs.org/)
 with [Material](https://squidfunk.github.io/mkdocs-material/) and
 [static-i18n](https://ultrabug.github.io/mkdocs-static-i18n/). These pages describe
@@ -15,7 +17,9 @@ Edit ordinary Markdown files; generated HTML is never edited or committed.
 | Installation, agent prompt and Bluetooth | `guide/en/installation.md` | `guide/ru/installation.md` |
 | Codex integration | `guide/en/codex.md` | `guide/ru/codex.md` |
 | Troubleshooting and agent prompt | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
-| Full hardware reference | `../docs/hardware-setup.md` | Same source, marked as English |
+| Full hardware reference | `../docs/hardware-setup.md` | `../docs/hardware-setup.ru.md` |
+| Firmware, releases, images, enclosure design | `../docs/NAME.md` | `../docs/NAME.ru.md` |
+| Printing and assembly | `../models/clawlight/PRINT_GUIDE.en.md` | `../models/clawlight/PRINT_GUIDE.md` |
 
 Navigation and theme settings live in `mkdocs.yaml`. To add a page, add the same
 filename in both language folders and add its entry to `nav` (and its Russian
@@ -24,24 +28,29 @@ adds the copy button. Tables and links use normal Markdown.
 
 ## Keep the instructions in sync
 
-Edit **`docs/hardware-setup.md` once** for the detailed operating reference. The
-website's Hardware reference page includes that file directly using the existing
-PyMdown Snippets extension. It is rebuilt in both language routes; the Russian
-route clearly labels the full reference as English. The source remains ordinary
-Markdown, readable in GitHub and included in app packages.
+Maintain the full manual in **`docs/hardware-setup.md`** (English) and
+**`docs/hardware-setup.ru.md`** (Russian). Each website route includes its matching
+source through PyMdown Snippets. Firmware, release, media, enclosure and print
+pages follow the same pattern; no language falls back to the other.
+The same Markdown sources are readable in the repository and included in packages.
 
-The wiring diagram and PATH commands in both quick guides also come from named
-sections of that file. For example:
+The wiring diagram and PATH commands in each quick guide come from named sections
+of that language's manual, for example:
 
 ```text
---8<-- "docs/hardware-setup.md:lamp-wiring"
+--8<-- "docs/hardware-setup.ru.md:lamp-wiring"
 ```
 
-Invisible `start:lamp-wiring` / `end:lamp-wiring` comments delimit the shared block.
-The same pattern supplies `path-check` and `path-setup`. Change the original block;
-do not paste a second copy into the website. Missing sections fail the build.
-Both quick guides refer to the diagram for resistor values, and the landing links
-to current test results instead of keeping a separate acceptance summary.
+Keep the `start:lamp-wiring` / `end:lamp-wiring`, `path-check` and `path-setup`
+markers in both manuals. Translate prose, comments and diagram labels; keep
+commands, GPIOs, resistor values and protocol fields equivalent. Missing sections
+fail the build. Translated headings retain the same explicit section IDs as their
+counterparts, so bookmarks and language switching stay on the same section.
+
+Every authored project document has an English/Russian counterpart, including
+repository instructions and package manuals. `check-translations.py` checks file
+coverage, heading anchors and included page sources; it rejects English fallback
+pages. Preserve dependency license notices verbatim.
 
 For a behavior change, review the affected short explanations and agent prompts
 in **both** `guide/en/` and `guide/ru/` in the same change. These summaries are edited
@@ -139,6 +148,7 @@ Fonts are local system fonts; no external font service or analytics is configure
 ## Check changes
 
 ```bash
+site/.venv/bin/python site/check-translations.py
 node site/i18n.test.cjs
 node site/model-preview.test.cjs
 node site/docs-language.test.cjs
@@ -158,7 +168,7 @@ The `<!-- mac-downloads -->` and `<!-- model-download -->` markers in both langu
 sources are expanded by `pages.py`. Local previews use the newest complete Mac
 archive in `dist/` that has a sibling `.sha256`. They also link directly to
 `models/clawlight-print-pack.zip` when it exists, with instructions to open its
-`START_HERE.md` and `models/clawlight/PRINT_GUIDE.md`. If that archive is absent,
+`START_HERE.md` / `START_HERE.ru.md` and the English or Russian print guide. If that archive is absent,
 the guide explains where to find the print instructions in a full source checkout.
 No archives are copied into the website. With no local Mac package, the guide
 links to the source-build instructions, so a clean checkout needs no ignored
@@ -276,13 +286,14 @@ landing, generated docs and their assets. The Pages workflow uploads this folder
 it does not publish repository files, the Python environment, or local binaries.
 `pages.py` also supplies a small MkDocs hook: public builds rewrite local download
 links to Releases and add the source fallback, while ordinary local previews keep
-their direct local downloads. In the included reference, repository-file links
-open this repository on GitHub; local previews show their checkout paths. The small tray
+their direct local downloads. In included references, links to translated guides stay on the website in the
+selected language. Other repository-file links open GitHub in public builds;
+local previews show their checkout paths. The small tray
 icons are embedded from this project's original artwork in `assets/icons/`. The enclosure GLB and its provenance metadata are included in the Pages artifact;
 editable CAD, print files and app packages are not. You can edit the same Markdown pages for both previews.
 
-The Pages build now also reads `docs/hardware-setup.md` and its referenced repository
-files, so build from a full checkout. Local builds, HTTP links at both root and
+The Pages build reads both language versions under `docs/` and the print guides,
+so build from a full checkout. Local builds, HTTP links at both root and
 repository-prefixed URLs, and language/copy tests are verified. GitHub Actions,
 the public Pages URL and release downloads need verification after you publish.
 No repository, release or public site was created by this preparation.
