@@ -542,7 +542,8 @@ def export_all():
         metadata[name] = {'file':f'stl/{name}.stl','quantity':print_quantity(name),'bounds_mm':list(p.bounding_box().size),
                           'solid_volume_mm3':s.volume,'assembly_label':s.label}
     for name,c in coupon_parts().items():
-        export_stl(c,str(OUT/'stl'/'coupons'/f'{name}.stl'),tolerance=0.02,angular_tolerance=0.05)
+        # Re-anchor coupons exactly as in the reviewed slicer export.
+        export_stl(print_pose(name,c),str(OUT/'stl'/'coupons'/f'{name}.stl'),tolerance=0.02,angular_tolerance=0.05)
         metadata[name] = {'file':f'stl/coupons/{name}.stl','quantity':1,'bounds_mm':list(c.bounding_box().size),
                           'solid_volume_mm3':c.volume,'assembly_label':c.label}
     export_step(gen_step(),str(OUT/'clawlight.step'))
