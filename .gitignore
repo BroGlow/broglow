@@ -26,6 +26,12 @@ __pycache__/
 /models/**/.*.step.glb
 /models/**/.*.generation.lock.json
 
+# Ad hoc CAD inspection output and revision-specific render jobs.
+# Keep new runs under dist/enclosure/; these paths cover older commands.
+/models/clawlight/cad-inspection.json
+/models/clawlight/usb-coupon-inspection.json
+/models/clawlight/preview/*snapshot-job.json
+
 # Disposable CAD render iterations. Keep the selected documentation images;
 # update these exceptions when promoting a new render into the guides.
 /models/clawlight/preview/*_20??????T??????Z.png
