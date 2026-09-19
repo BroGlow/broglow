@@ -9,6 +9,8 @@
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleVersion</key><string>{{VERSION}}</string>
     <key>CFBundleShortVersionString</key><string>{{VERSION}}</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2026 Suren Khorenyan. See LICENSE for additional notices.</string>
     <key>LSUIElement</key><true/>
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>ClawLight sends your coding session status to your selected Bluetooth traffic light.</string>

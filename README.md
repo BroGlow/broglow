@@ -7,6 +7,8 @@ with a menu-bar app, terminal dashboard and optional ESP32-C3 status lamp.
 The lamp shows working, idle and needs-input states over USB or Bluetooth LE.
 Version **1.0.0** is in preparation.
 
+Maintained by **Suren Khorenyan**. Copyright notices are in [LICENSE](LICENSE).
+
 ## Why this version?
 
 This version extends [the original ClawLight](https://github.com/clawlight/clawlight-cli)

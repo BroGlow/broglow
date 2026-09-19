@@ -1,4 +1,6 @@
 site_name: ClawLight DIY
+site_author: Suren Khorenyan
+copyright: Copyright &copy; 2026 Suren Khorenyan
 docs_dir: guide
 # Only this generated subtree is cleaned; the landing stays in site/index.html.
 site_dir: docs
