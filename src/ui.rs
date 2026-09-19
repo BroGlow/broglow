@@ -76,7 +76,7 @@ fn render_lamp_details(frame: &mut Frame, app: &App, area: ratatui::layout::Rect
     );
 }
 
-/// `clawlight v0.8.0` on the left; live count chips and LED state on the right.
+/// The app name and version on the left; live count chips and LED state on the right.
 fn render_header(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     let working = count(app, Status::Active);
     let paused = count(app, Status::Inactive);

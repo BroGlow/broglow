@@ -3,7 +3,7 @@ use std::fs::File;
 use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
-use fs4::fs_std::FileExt;
+
 use serde::{Deserialize, Serialize};
 
 const STALE_AFTER_HOURS: i64 = 24;
@@ -281,7 +281,7 @@ pub fn acquire_state_lock() -> Option<File> {
         .truncate(false)
         .open(&lock_path)
         .ok()?;
-    file.lock_exclusive().ok()?;
+    file.lock().ok()?;
     Some(file)
 }
 

@@ -200,7 +200,6 @@ pub fn run_daemon() -> ! {
 
 #[cfg(target_os = "macos")]
 pub(crate) fn worker_lease() -> anyhow::Result<std::fs::File> {
-    use fs4::fs_std::FileExt;
     let path = config::config_file_path().with_file_name(".lamp.lock");
     std::fs::create_dir_all(path.parent().unwrap())?;
     let file = std::fs::OpenOptions::new()
@@ -209,10 +208,8 @@ pub(crate) fn worker_lease() -> anyhow::Result<std::fs::File> {
         .read(true)
         .write(true)
         .open(path)?;
-    anyhow::ensure!(
-        file.try_lock_exclusive()?,
-        "Lamp worker is still stopping; try again shortly"
-    );
+    file.try_lock()
+        .map_err(|e| anyhow::anyhow!("Lamp worker is still stopping; try again shortly: {e}"))?;
     Ok(file)
 }
 

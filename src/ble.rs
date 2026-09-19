@@ -222,7 +222,6 @@ mod mac {
         ScanFilter, WriteType,
     };
     use btleplug::platform::{Adapter, Manager, Peripheral};
-    use fs4::fs_std::FileExt;
     use futures_util::{future::LocalBoxFuture, stream::FuturesUnordered, FutureExt, StreamExt};
     use std::cell::{Cell, RefCell};
     use std::{
@@ -367,10 +366,9 @@ mod mac {
             .read(true)
             .write(true)
             .open(path)?;
-        anyhow::ensure!(
-            file.try_lock_exclusive()?,
-            "Bluetooth is busy; disable the lamp and wait before scanning"
-        );
+        file.try_lock().map_err(|e| {
+            anyhow::anyhow!("Bluetooth is busy; disable the lamp and wait before scanning: {e}")
+        })?;
         Ok(file)
     }
 
@@ -585,10 +583,9 @@ mod mac {
             .read(true)
             .write(true)
             .open(lock_path)?;
-        anyhow::ensure!(
-            _setup.try_lock_exclusive()?,
-            "Lamp setup is already running; wait for it to finish"
-        );
+        _setup.try_lock().map_err(|e| {
+            anyhow::anyhow!("Lamp setup is already running; wait for it to finish: {e}")
+        })?;
         let (original_bytes, original, paused) = {
             let _config_lock = config::acquire_config_lock()?;
             let original_bytes = match std::fs::read(config::config_file_path()) {

@@ -85,7 +85,6 @@ fn dashboard_visibility_persists_without_touching_other_settings_or_installing()
 #[cfg(unix)]
 #[test]
 fn concurrent_settings_commands_preserve_disjoint_edits() {
-    use fs4::fs_std::FileExt;
     use std::process::Stdio;
 
     let home = tempfile::tempdir().unwrap();
@@ -106,7 +105,7 @@ fn concurrent_settings_commands_preserve_disjoint_edits() {
         .write(true)
         .open(dir.join(".config.lock"))
         .unwrap();
-    lock.lock_exclusive().unwrap();
+    lock.lock().unwrap();
     let edits = [
         vec!["ble", "rename", first, "Home"],
         vec!["ble", "rename", second, "Office"],
@@ -278,16 +277,14 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
     assert!(String::from_utf8_lossy(&failed.get_output().stderr).contains("Opening USB lamp"));
     assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
     {
-        use fs4::fs_std::FileExt;
         let lock = std::fs::File::open(dir.join(".pair.lock")).unwrap();
-        assert!(lock.try_lock_exclusive().unwrap());
+        lock.try_lock().unwrap();
         let failed = invoke();
         assert!(String::from_utf8_lossy(&failed.get_output().stderr)
             .contains("Lamp setup is already running"));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
     }
     {
-        use fs4::fs_std::FileExt;
         use std::process::Stdio;
         use std::time::{Duration, Instant};
 
@@ -300,7 +297,7 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
             .write(true)
             .open(dir.join(".lamp.lock"))
             .unwrap();
-        worker.lock_exclusive().unwrap();
+        worker.lock().unwrap();
         let child = std::process::Command::new(clawlight().get_program())
             .env("HOME", home.path())
             .args(["ble", "pair", "--port"])

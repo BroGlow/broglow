@@ -585,7 +585,8 @@ pub fn focus(
 /// First visible, unowned top-level window belonging to a process.
 #[cfg(target_os = "windows")]
 fn main_window_of(pid: u32) -> Option<windows_sys::Win32::Foundation::HWND> {
-    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
+    use windows_sys::core::BOOL;
+    use windows_sys::Win32::Foundation::{HWND, LPARAM};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetWindow, GetWindowThreadProcessId, IsWindowVisible, GW_OWNER,
     };

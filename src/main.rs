@@ -102,7 +102,6 @@ fn main() -> anyhow::Result<()> {
         Some(Commands::Menubar) => {
             #[cfg(target_os = "macos")]
             let _instance_lock = {
-                use fs4::fs_std::FileExt;
                 std::fs::create_dir_all(hook_dir())?;
                 let lock = std::fs::OpenOptions::new()
                     .create(true)
@@ -110,10 +109,9 @@ fn main() -> anyhow::Result<()> {
                     .read(true)
                     .write(true)
                     .open(hook_dir().join(".menubar.lock"))?;
-                anyhow::ensure!(
-                    lock.try_lock_exclusive()?,
-                    "A ClawLight tray service is already running"
-                );
+                lock.try_lock().map_err(|e| {
+                    anyhow::anyhow!("A ClawLight tray service is already running: {e}")
+                })?;
                 lock
             };
             menubar::run()

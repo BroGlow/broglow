@@ -5,7 +5,6 @@
 
 use std::path::PathBuf;
 
-use fs4::fs_std::FileExt;
 use serde::{Deserialize, Serialize};
 
 /// How an `Inactive` (idle) session affects the aggregate light when other
@@ -197,7 +196,7 @@ pub fn acquire_config_lock() -> anyhow::Result<std::fs::File> {
         .read(true)
         .write(true)
         .open(path)?;
-    file.lock_exclusive()?;
+    file.lock()?;
     Ok(file)
 }
 

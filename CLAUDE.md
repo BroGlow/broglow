@@ -106,7 +106,7 @@ operation: record those acceptance checks separately.
   USB-assisted `pair` requires exact INFO identity before PAIR and matches the
   service plus full six-byte base MAC in manufacturer data (`0xffff`). No automatic
   USB takeover, no name-only target selection, and no bypass of macOS consent.
-  Keep btleplug 0.13.0 locked: its macOS write-error propagation fixes dropped
+  Keep btleplug 0.13.1 locked: its macOS write-error propagation fixes dropped
   CoreBluetooth NSError failures during pairing. A longer host timeout cannot
   extend the macOS system pairing alert (about 30 seconds observed).
 - **notification.rs** — desktop notifications (macOS `osascript`; else `notify-rust`).
