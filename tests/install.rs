@@ -35,6 +35,23 @@ fn read_settings(home: &TempDir) -> Value {
 }
 
 #[test]
+fn headless_tray_does_not_register_hooks() {
+    let home = TempDir::new().unwrap();
+    Command::cargo_bin("clawlight")
+        .expect("binary built")
+        .arg("menubar")
+        .env("HOME", home.path())
+        .env_remove("DISPLAY")
+        .env_remove("WAYLAND_DISPLAY")
+        .assert()
+        .failure();
+    assert!(
+        !home.path().join(".claude/settings.json").exists(),
+        "a failed tray launch must not recreate hooks during uninstall"
+    );
+}
+
+#[test]
 fn install_registers_hooks_and_uninstall_reverts_them() {
     let home = TempDir::new().unwrap();
 
