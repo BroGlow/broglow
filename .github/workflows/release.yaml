@@ -63,7 +63,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
-      - run: python -m pip install platformio==6.1.19
+      - run: python -m pip install platformio==6.2.0
       - name: Build native Mac app and C3 firmware
         run: |
           cargo build --release --locked

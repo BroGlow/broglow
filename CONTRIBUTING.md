@@ -48,7 +48,7 @@ Python files; stage any formatting changes before committing again. CI runs
 `black --check --diff .` and fails if formatting is needed. Keep Black's version
 in `requirements-dev.txt` and `prek.toml` in sync.
 
-Firmware uses clang-format 18.1.8 with the repository's Google-style configuration.
+Firmware uses clang-format 23.1.1 with the repository's Google-style configuration.
 YAML sequences use block style: one item per line, including workflow `needs`
 and matrices.
 

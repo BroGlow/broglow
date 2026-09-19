@@ -121,7 +121,7 @@ def main():
     framework = args.platformio_core / "packages/framework-arduinoespressif32"
     framework_version = json.loads((framework / "package.json").read_text())["version"]
     require(
-        framework_version.startswith("3.20017."),
+        framework_version.startswith("4.20017."),
         "Expected pinned Arduino-ESP32 2.0.17.",
     )
     segments = [
@@ -221,7 +221,7 @@ def main():
             "Pinned framework source: https://github.com/espressif/arduino-esp32/tree/2.0.17\n"
             "ESP-IDF source: https://github.com/espressif/esp-idf/tree/v4.4.7\n\n"
             "The project's C3 source, PlatformIO configuration and host checks are included.\n"
-            "Build with PlatformIO Core 6.1.19: `pio run -d firmware/esp32-c3-supermini`.\n"
+            "Build with PlatformIO Core 6.2.0: `pio run -d firmware/esp32-c3-supermini`.\n"
             "The pinned framework and SDK contain additional third-party components and notices.\n"
         )
         (destination / "DEPENDENCIES.ru.md").write_text(
@@ -232,7 +232,7 @@ def main():
             "Исходники закреплённой версии: https://github.com/espressif/arduino-esp32/tree/2.0.17\n"
             "Исходники ESP-IDF: https://github.com/espressif/esp-idf/tree/v4.4.7\n\n"
             "Исходники C3, конфигурация PlatformIO и проверки прошивки включены в пакет.\n"
-            "Сборка через PlatformIO Core 6.1.19: `pio run -d firmware/esp32-c3-supermini`.\n"
+            "Сборка через PlatformIO Core 6.2.0: `pio run -d firmware/esp32-c3-supermini`.\n"
             "Закреплённые версии фреймворка и SDK содержат дополнительные сторонние компоненты\n"
             "и их лицензионные уведомления.\n"
         )
