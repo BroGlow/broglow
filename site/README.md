@@ -204,7 +204,7 @@ labels accurate and theme/library license notices intact.
 
 The [Website workflow](../.github/workflows/pages.yaml) publishes the landing at
 `https://OWNER.github.io/REPOSITORY/` and guides at `docs/` and `docs/ru/`.
-Site/docs changes on `main` deploy automatically; adjust `push.branches` for another
+Site/docs changes on `master` deploy automatically; adjust `push.branches` for another
 default branch. PRs check without deploying. Configure custom domains in Pages
 settings; relative paths support both domain roots and repository prefixes.
 

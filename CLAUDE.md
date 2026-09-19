@@ -310,7 +310,7 @@ See the hardware guide for flashing commands and the confirmed hardware state.
 
 ## CI
 
-`.github/workflows/ci.yaml` runs on PRs and pushes to main: `cargo fmt --check`,
+`.github/workflows/ci.yaml` runs on PRs and pushes to master: `cargo fmt --check`,
 then clippy (`-D warnings`) + `cargo test` on ubuntu/macos/windows. The tests/
 suite drives the *compiled binary* end-to-end: Claude hook events on stdin →
 `state.json` assertions, the auto-namer against a fake `claude` on PATH

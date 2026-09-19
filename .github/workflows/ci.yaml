@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - master
   pull_request:
   # Lets release.yaml reuse this exact suite as a pre-release gate.
   workflow_call:
@@ -11,7 +11,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
-# One run per branch/PR; superseded PR runs are cancelled, main runs never are.
+# One run per branch/PR; superseded PR runs are cancelled, master runs never are.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

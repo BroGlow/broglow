@@ -389,7 +389,7 @@ GPIO8 по умолчанию управляет одноцветным LED с �
 
 ## CI
 
-`.github/workflows/ci.yaml` запускается для PR и отправок в main:
+`.github/workflows/ci.yaml` запускается для PR и отправок в master:
 `cargo fmt --check`, затем clippy (`-D warnings`) и `cargo test` на
 ubuntu/macos/windows. Тесты в tests/ проверяют *собранный исполняемый файл*
 сквозным образом: события хуков Claude в stdin → проверки `state.json`;
