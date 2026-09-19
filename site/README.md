@@ -212,7 +212,8 @@ settings; relative paths support both domain roots and repository prefixes.
 
 Public downloads use this repository's Releases with a source-build fallback.
 Publish full Mac/C3 bundles and the separate enclosure ZIP with matching checksums;
-CLI-only bundles omit firmware and manuals. See the [release runbook](../docs/releasing.md)
+Windows bundles include the graphical tray app and CLI but omit the installer,
+firmware and manuals. See the [release runbook](../docs/releasing.md)
 for filenames, checks and publication steps. Preserve archive names and state
 pending physical checks in release notes. Building the website does not publish
 an app release.

@@ -87,9 +87,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - name: Build CLI
+      - name: Build Windows tray app and CLI
         run: cargo build --release --locked --target x86_64-pc-windows-msvc
-      - name: Package CLI (no BLE or firmware)
+      - name: Package Windows tray app and CLI (no BLE or firmware)
         shell: bash
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -104,7 +104,7 @@ jobs:
           sha256sum "$FILE" > "$FILE.sha256"
       - uses: actions/upload-artifact@v7
         with:
-          name: windows-cli
+          name: windows-app
           if-no-files-found: error
           path: dist/*
 
@@ -145,7 +145,7 @@ jobs:
           body: |
             Mac archives contain the native ClawLight app, ESP32-C3 SuperMini firmware and its source, checksums and operating guide. Choose aarch64 for Apple Silicon or x86_64 for Intel. Install with the included guide; the app is not Developer ID notarized.
 
-            The Windows archive is the CLI only: no BLE support or firmware.
+            The Windows archive contains the graphical system-tray app and CLI in clawlight.exe, with USB lamp support. In PowerShell, run `.\clawlight.exe install` from its permanent folder to register hooks, enable startup at login and launch the tray app. Use `.\clawlight.exe menubar` to launch the tray interface directly, or `.\clawlight.exe` for the terminal dashboard. No installer, BLE support, firmware or manuals are included.
 
             The enclosure ZIP contains the accepted release candidate: STL, STEP, CAD source, print guide and validation reports.
 
