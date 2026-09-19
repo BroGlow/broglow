@@ -30,15 +30,9 @@
 
 ## Сборка / тестирование / установка
 
-```bash
-cargo build              # отладочная сборка
-cargo test               # модульные и сквозные тесты (tests/) собранного исполняемого файла
-cargo clippy             # проверка кода (CI требует -D warnings)
-cargo fmt                # форматирование (CI проверяет --check)
-cargo install --path .   # сборка и установка в ~/.cargo/bin/clawlight
-clawlight install        # регистрация хуков в ~/.claude/settings.json и автозапуска при входе
-clawlight uninstall      # отмена установки и удаление ~/.claude/clawlight
-```
+При изменении исходников следуйте [CONTRIBUTING.ru.md](CONTRIBUTING.ru.md): там
+описаны окружение, форматирование, хуки и проверки. [Команды сборки и тестирования](CONTRIBUTING.ru.md#build-and-test)
+общие для людей и агентов, участвующих в разработке.
 
 `clawlight install` идемпотентна и также запускает или перезапускает фоновую
 службу трея. Повторяйте её после `cargo install`, чтобы служба использовала

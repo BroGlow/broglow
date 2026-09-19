@@ -39,7 +39,6 @@
 - **Подключение прошитой лампы:** [настройка через USB](docs/hardware-setup.ru.md#usb-assisted-setup).
 - **Сборка и подключение C3:** [руководство по устройству](docs/hardware-setup.ru.md#wiring-and-resistor-choice).
 - **Печать необязательного корпуса:** [печать и сборка](models/clawlight/PRINT_GUIDE.md).
-- **Публикация релиза или сайта:** [инструкция для сопровождающих](docs/releasing.ru.md) в репозитории исходников.
 
 Пакеты Mac содержат приложение, прошивку C3 и руководства; архивы Windows —
 **CLI-only**, а на Linux приложение собирают из исходников. BLE доступен только
@@ -64,8 +63,8 @@ cargo install --locked --path .
 "$HOME/.cargo/bin/clawlight" install
 ```
 
-На Linux перед компиляцией установите системные библиотеки разработки из
-`.github/workflows/ci.yaml`. На Windows используйте Rust MSVC, добавьте собранный
+На Linux перед компиляцией установите [системные библиотеки разработки](CONTRIBUTING.ru.md#development-setup).
+На Windows используйте Rust MSVC, добавьте собранный
 исполняемый файл в PATH, затем выполните `clawlight install`.
 Установка приложения не прошивает плату.
 
@@ -106,25 +105,12 @@ clawlight uninstall          Удалить хуки, автозапуск и н
 Settings выбирает жёлтый или зелёный при сочетании работы и ожидания.
 Прошивка, сопряжение и диагностика описаны в [руководстве](docs/hardware-setup.ru.md).
 
-<a name="python-formatting"></a>
+<a name="contributing"></a>
 
-## Форматирование Python
+## Участие в проекте
 
-Из корня репозитория установите инструменты разработки и включите хук коммита:
-
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r requirements-dev.txt
-prek install
-black .
-```
-
-Black применяет стандартный стиль ко всем Python-файлам. Хук prek форматирует Python-файлы,
-добавленные в индекс; CI запускает `black --check --diff .` и завершается с ошибкой,
-если требуется форматирование. Для локальной проверки всех отслеживаемых файлов
-запустите `prek run --all-files`. Сохраняйте одинаковую версию Black
-в `requirements-dev.txt` и `prek.toml`.
+Будем рады сообщениям об ошибках, идеям, улучшениям документации и кода.
+Начните с [руководства для участников](CONTRIBUTING.ru.md).
 
 <a name="license"></a>
 

@@ -32,7 +32,6 @@ The lamp still needs power and is designed for DIY assembly.
 - **Connect a flashed lamp:** [USB-assisted setup](docs/hardware-setup.md#usb-assisted-setup).
 - **Build/wire a C3:** [hardware guide](docs/hardware-setup.md#wiring-and-resistor-choice).
 - **Print the optional enclosure:** [printing and assembly](models/clawlight/PRINT_GUIDE.en.md).
-- **Publish a release or website:** [maintainer runbook](docs/releasing.md) in the source repository.
 
 Mac packages include the app, C3 firmware and manuals; Windows archives are
 **CLI-only**, and Linux builds from source. BLE control is macOS-only.
@@ -53,8 +52,8 @@ cargo install --locked --path .
 "$HOME/.cargo/bin/clawlight" install
 ```
 
-On Linux, install the system development libraries listed in
-`.github/workflows/ci.yaml` before compiling. On Windows, use the Rust MSVC
+On Linux, install the [system development libraries](CONTRIBUTING.md#development-setup)
+before compiling. On Windows, use the Rust MSVC
 toolchain and put the built executable on PATH, then run `clawlight install`.
 No board is flashed by app installation.
 
@@ -91,22 +90,10 @@ The app starts at login. Needs input takes color priority; Settings controls
 whether mixed working/idle sessions show yellow or green. See the
 [manual](docs/hardware-setup.md) for firmware, pairing and troubleshooting.
 
-## Python formatting
+## Contributing
 
-From the repository root, install the development tools and enable the commit hook:
-
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r requirements-dev.txt
-prek install
-black .
-```
-
-Black uses its default style for all Python files. The prek hook formats staged Python
-files; CI runs `black --check --diff .` and fails if formatting is needed.
-Run `prek run --all-files` to check every tracked file locally.
-Keep Black's version in `requirements-dev.txt` and `prek.toml` in sync.
+Bug reports, ideas, documentation improvements and code contributions are welcome.
+See the [contributing guide](CONTRIBUTING.md) to get started.
 
 ## License
 

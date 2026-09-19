@@ -25,15 +25,9 @@ Cross-platform: macOS, Windows, Linux. MIT licensed.
 
 ## Build / test / install
 
-```bash
-cargo build              # debug build
-cargo test               # unit tests + end-to-end tests (tests/) of the built binary
-cargo clippy             # lint (CI enforces -D warnings)
-cargo fmt                # format (CI enforces --check)
-cargo install --path .   # build + install to ~/.cargo/bin/clawlight
-clawlight install        # register hooks in ~/.claude/settings.json + login autostart
-clawlight uninstall      # reverse install and delete ~/.claude/clawlight
-```
+For source changes, follow [CONTRIBUTING.md](CONTRIBUTING.md) for development
+setup, formatting, hooks and checks. The [build and test commands](CONTRIBUTING.md#build-and-test)
+are shared by human and agent contributors.
 
 `clawlight install` is idempotent and also (re)starts the tray daemon, so re-run it
 after `cargo install` to make the running daemon pick up a new binary. On macOS it

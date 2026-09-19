@@ -252,6 +252,7 @@ def main():
         )
         for filename in (
             "README.md",
+            "CONTRIBUTING.md",
             "LICENSE",
             "CLAUDE.md",
             "AGENTS.md",
