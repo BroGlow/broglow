@@ -99,12 +99,13 @@ From the repository root, install the development tools and enable the commit ho
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements-dev.txt
-pre-commit install
+prek install -f
 black .
 ```
 
-Black uses its default style for all Python files. The hook formats staged Python
+Black uses its default style for all Python files. The prek hook formats staged Python
 files; CI runs `black --check --diff .` and fails if formatting is needed.
+Run `prek run --all-files` to check every tracked file locally.
 Keep Black's version in `requirements-dev.txt` and `.pre-commit-config.yaml` in sync.
 
 ## License

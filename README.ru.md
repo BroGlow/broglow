@@ -116,13 +116,14 @@ Settings выбирает жёлтый или зелёный при сочета
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements-dev.txt
-pre-commit install
+prek install -f
 black .
 ```
 
-Black применяет стандартный стиль ко всем Python-файлам. Хук форматирует Python-файлы,
+Black применяет стандартный стиль ко всем Python-файлам. Хук prek форматирует Python-файлы,
 добавленные в индекс; CI запускает `black --check --diff .` и завершается с ошибкой,
-если требуется форматирование. Сохраняйте одинаковую версию Black
+если требуется форматирование. Для локальной проверки всех отслеживаемых файлов
+запустите `prek run --all-files`. Сохраняйте одинаковую версию Black
 в `requirements-dev.txt` и `.pre-commit-config.yaml`.
 
 <a name="license"></a>
