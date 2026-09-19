@@ -40,8 +40,8 @@ Three.js 0.183.0 no longer exports; rebuilding with the compatible postprocessin
 release avoids modifying Three.js or adding a compatibility shim.
 
 The build pins Lit **3.3.3**, lit-html **3.3.3**, lit-element **4.2.2**,
-@lit/reactive-element **2.1.2**, @lit-labs/ssr-dom-shim **1.5.1**, and esbuild
-**0.25.11**. Archives were downloaded directly from the official npm registry and
+@lit/reactive-element **2.1.2**, @lit-labs/ssr-dom-shim **1.6.0**, and esbuild
+**0.28.2**. Archives were downloaded directly from the official npm registry and
 verified against their SHA-512 integrity before extraction. Exact source URLs,
 integrity values, the build command and output SHA-256 hashes are recorded in
 [`bloom-provenance.json`](bloom-provenance.json). All build work stayed in ignored
