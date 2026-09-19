@@ -31,39 +31,6 @@ __pycache__/
 /models/clawlight/cad-inspection.json
 /models/clawlight/coupon-inspection.json
 /models/clawlight/usb-coupon-inspection.json
-/models/clawlight/preview/*snapshot-job.json
 
-# Disposable CAD render iterations. Keep the selected documentation images;
-# update these exceptions when promoting a new render into the guides.
-/models/clawlight/preview/*_20??????T??????Z.png
-!/models/clawlight/preview/wider-coupon_20260918T214232Z.png
-!/models/clawlight/preview/upper-grip-coupon_20260918T222950Z.png
-!/models/clawlight/preview/finished_20260916T173845Z.png
-!/models/clawlight/preview/exploded_20260916T173845Z.png
-!/models/clawlight/preview/assembly_20260917T162054Z.png
-!/models/clawlight/preview/finished_20260917T162054Z.png
-!/models/clawlight/preview/front_20260917T162054Z.png
-!/models/clawlight/preview/service_20260917T162054Z.png
-!/models/clawlight/preview/exploded_20260917T162054Z.png
-!/models/clawlight/preview/rear_20260917T162054Z.png
-!/models/clawlight/preview/hand_pins_20260917T162054Z.png
-!/models/clawlight/preview/hand_joint_coupon_20260917T162054Z.png
-!/models/clawlight/preview/pcb_tray_20260917T154504Z.png
-!/models/clawlight/preview/cover_20260917T154504Z.png
-!/models/clawlight/preview/coupon_20260917T154504Z.png
-!/models/clawlight/preview/eye_chamfers_20260918T085846Z.png
-!/models/clawlight/preview/retainer_front_20260917T203403Z.png
-!/models/clawlight/preview/retainer_rear_20260917T203403Z.png
-!/models/clawlight/preview/flat_floor_open_20260918T101601Z.png
-!/models/clawlight/preview/flat_floor_cover_inside_20260918T101601Z.png
-!/models/clawlight/preview/flat_floor_usb_20260918T101601Z.png
-!/models/clawlight/preview/flat_floor_finished_20260918T101601Z.png
-!/models/clawlight/preview/flat_floor_exploded_20260918T101601Z.png
-!/models/clawlight/preview/flat_floor_coupons_20260918T101601Z.png
-
-!/models/clawlight/preview/cover_chamfers_coupons_20260918T102410Z.png
-!/models/clawlight/preview/cover_chamfers_cover_inside_20260918T102410Z.png
-!/models/clawlight/preview/cover_chamfers_exploded_20260918T102410Z.png
-!/models/clawlight/preview/cover_chamfers_finished_20260918T102410Z.png
-!/models/clawlight/preview/cover_chamfers_open_20260918T102410Z.png
-!/models/clawlight/preview/cover_chamfers_usb_20260918T102410Z.png
+# Generated CAD renders, dimensions and disposable preview files.
+/models/clawlight/preview/

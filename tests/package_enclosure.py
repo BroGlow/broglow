@@ -36,23 +36,28 @@ with tempfile.TemporaryDirectory(prefix="clawlight-enclosure-check-") as folder:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("source\n")
     model = root / package.MODEL
-    (model / "PRINT_GUIDE.en.md").write_text(
-        "[Review](preview/review.png)\n[Dimensions](preview/dimensions.png)\n"
-    )
+    (model / "PRINT_GUIDE.en.md").write_text("[Dimensions](preview/dimensions.png)\n")
+    # A fresh checkout has no preview directory; staging creates it for dimensions.
+    files = package.source_files()
+    stage = package.prepare_source(root / "dist/enclosure", files)
+    assert (stage / package.MODEL / "preview").is_dir()
     (model / "preview").mkdir()
     (model / "preview/review.png").write_bytes(b"review")
     (model / "preview/dimensions.png").write_bytes(b"stale dimensions")
     (model / "private.py").write_text("private analysis")
     (model / "old.STL").write_bytes(b"stale geometry")
     (model / "validation.json").write_text("stale report")
-    (root / ".gitignore").write_text("dist/\n")
-    files = package.source_files()
-    assert package.MODEL / "preview/review.png" in files
+    (root / ".gitignore").write_bytes(
+        (Path(__file__).resolve().parents[1] / ".gitignore").read_bytes()
+    )
+    assert package.source_files() == files
+    assert not any("preview" in path.parts for path in files)
     assert all(
         path.name not in ("private.py", "old.STL", "validation.json", "dimensions.png")
         for path in files
     )
     stage = package.prepare_source(root / "dist/enclosure", files)
+    assert not any((stage / package.MODEL / "preview").iterdir())
     assert not (stage / package.MODEL / "old.STL").exists()
     assert not (stage / package.MODEL / "private.py").exists()
     (stage / package.MODEL / "stale.step").write_bytes(b"old generated part")
@@ -97,6 +102,10 @@ with tempfile.TemporaryDirectory(prefix="clawlight-enclosure-check-") as folder:
         "models/clawlight/cad-inspection.json",
         "models/clawlight/coupon-inspection.json",
         "models/clawlight/USB-COUPON-INSPECTION.JSON",
+        "models/clawlight/preview/review.png",
+        "models/clawlight/preview/arbitrary.PNG",
+        "models/clawlight/preview/nested/draft.SVG",
+        "models/clawlight/preview/nested/recipe.py",
         "models/clawlight/preview/snapshot-job.json",
         "models/clawlight/preview/base-fit-snapshot-job.json",
         "models/clawlight/preview/cover-chamfers-snapshot-job.json",
@@ -113,6 +122,13 @@ with tempfile.TemporaryDirectory(prefix="clawlight-enclosure-check-") as folder:
         "references/clawlight/ar-component-bounds.json",
         "references/clawlight/ar-model-metadata.json",
         "references/clawlight/sources.json",
+        "assets/icons/clawd-green.png",
+        "assets/icons/clawd-none.png",
+        "assets/icons/clawd-red.png",
+        "assets/icons/clawd-yellow.png",
+        "site/assets/clawlight.png",
+        "site/assets/assembly.png",
+        "site/guide/assets/favicon.svg",
         "config.json",
         "tests/fixtures/cad-inspection.json",
     ]
@@ -125,18 +141,37 @@ with tempfile.TemporaryDirectory(prefix="clawlight-enclosure-check-") as folder:
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"generated")
-    git("add", *retired)
+    assert set(git("check-ignore", *retired).splitlines()) == set(retired)
+    assert not subprocess.run(
+        ["git", "check-ignore", "--no-index", *preserved], cwd=root, capture_output=True
+    ).stdout
+    case_variant = "MODELS/CLAWLIGHT/PREVIEW/nested/forced.PNG"
+    path = root / case_variant
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"generated")
+    git("add", "-f", *retired)
+    git(
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        "100644",
+        git("hash-object", "-w", str(path)),
+        case_variant,
+    )
+    retired.append(case_variant)
     rejected_artifacts = subprocess.run(
         [sys.executable, str(guard)], text=True, capture_output=True
     )
     assert rejected_artifacts.returncode != 0
-    assert all(name in rejected_artifacts.stderr for name in retired)
-    git("rm", "--cached", *retired, "models/clawlight/old.STL")
+    assert all(
+        name in rejected_artifacts.stderr for name in retired
+    ), rejected_artifacts.stderr
+    git("rm", "--cached", *retired)
     accepted = subprocess.run(
         [sys.executable, str(guard)], text=True, capture_output=True
     )
     assert accepted.returncode == 0, accepted.stderr
-    assert "models/clawlight/preview/review.png" in git("ls-files")
+    assert "models/clawlight/preview/review.png" not in git("ls-files")
     for name in retired + ["models/clawlight/old.STL"]:
         (root / name).unlink()
     git("add", ".")
@@ -149,5 +184,5 @@ with tempfile.TemporaryDirectory(prefix="clawlight-enclosure-check-") as folder:
     (model / "clawlight.py").symlink_to(model / "private.py")
     rejected(package.source_files, "unsafe source input")
 print(
-    "PASS: isolated staging, release guards, mixed-case artifacts and scoped CAD JSON tracking"
+    "PASS: preview-free staging, release guards, folder ignores and forced-artifact rejection"
 )

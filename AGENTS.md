@@ -23,6 +23,10 @@ Keep editable sources and reviewed evidence in Git; distribute generated files
 as release assets with checksums. After generation, verify output paths with
 `git check-ignore`; before committing, run `python3 scripts/check-generated-artifacts.py`.
 
+Keep the entire `models/clawlight/preview/` directory ignored and untracked, including
+renders, dimension diagrams and render recipes. Keep selected app/site assets and
+reviewed validation data in Git. Generate release diagrams under `dist/enclosure/`.
+
 For **enclosure generation, release packaging, distribution, or website publication**,
 follow [the release runbook](docs/releasing.md) and its manual/agent generation
 procedure. Generate enclosure deliverables under ignored `dist/enclosure/`.

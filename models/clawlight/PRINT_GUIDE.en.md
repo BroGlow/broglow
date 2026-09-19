@@ -223,10 +223,10 @@ commit, tag or publish the outputs.
 
 [Slicer validation](slicer-validation.json) records the current STL hashes and reference-profile checks. The extended-rail coupon passed the user’s physical fit test on **2026-09-19**, and the model set is finalized. Keep the successful coupon’s material, plate and orientation. Slicing and coupon fit do not establish complete wired-assembly fit or retention strength.
 
-Current CAD render: [extended upper-rail coupon](preview/upper-grip-coupon_20260918T222950Z.png). This coupon’s physical fit was accepted on **2026-09-19**.
+Current design: extended upper-rail coupon. This coupon’s physical fit was accepted on **2026-09-19**.
 
-Previous CAD render: [wide coupon that slides in but lifts too easily](preview/wider-coupon_20260918T214232Z.png). Superseded by the accepted extended-rail version.
+Previous design: wide coupon that slides in but lifts too easily. Superseded by the accepted extended-rail version.
 
-Earlier revision previews: [reinforced tower](preview/reinforced_pcb_tower_20260918T195328Z.png), [seated PCB](preview/reinforced_pcb_seated_20260918T195328Z.png), [far-end corner holder](preview/reinforced_pcb_corner_holders_20260918T195328Z.png), [unchanged flat LED retainer](preview/keyed_retainer_part_20260918T192958Z.png), [unchanged rear cover](preview/keyed_retainer_cover_20260918T192958Z.png).
+The earlier revision introduced the reinforced tower and far-end corner holders; the flat LED retainer and rear cover remain unchanged.
 
 For local viewing, open the [assembly](clawlight.step), [view with electronics](appearance.step), or [exploded assembly](exploded.step) in a CAD viewer. These relative links also work in the unpacked print package; STEP and STL dimensions are in millimeters.

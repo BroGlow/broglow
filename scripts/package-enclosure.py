@@ -47,16 +47,6 @@ def source_files():
         *(Path(name) for name in prints.REFERENCE_FILES),
         *(MODEL / name for name in CAD_FILES),
     }
-    for guide in ("PRINT_GUIDE.en.md", "PRINT_GUIDE.md"):
-        for link in re.findall(r"\]\(([^)]+)\)", (ROOT / MODEL / guide).read_text()):
-            path = Path(link.split("#")[0])
-            if (
-                path.parts
-                and path.parts[0] == "preview"
-                and path.suffix in (".png", ".svg")
-            ):
-                if path.name not in ("dimensions.png", "dimensions.svg"):
-                    files.add(MODEL / path)
     for path in files:
         source = ROOT / path
         release.require(

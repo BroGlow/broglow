@@ -178,7 +178,7 @@ website checks and renders do not establish physical fit.
 Our asset sources:
 
 - `assets/clawlight.png`: `site/assets/clawlight.glb`, rendered in the default Working state with the pinned model-viewer/effects and hero camera.
-- `assets/assembly.png`: `models/clawlight/preview/flat_floor_exploded_20260918T101601Z.png`.
+- `assets/assembly.png`: retained exploded-assembly CAD render from 2026-09-18 10:16:01 UTC (flat-floor revision); preserved unchanged as the website asset, not regenerated during the preview cleanup.
 - `guide/assets/favicon.svg`: our three-circle lamp artwork, also used by the landing favicon. Tray icons come from `assets/icons/` in the repository root.
 
 Follow the [media policy and photo checklist](../docs/media.md). Keep render/photo

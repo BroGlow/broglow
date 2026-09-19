@@ -298,10 +298,10 @@ USB-пробник высотой 14 мм проверяет только пла
             ".svg",
         ) and f.name not in ("parts.json", "validation.json", "slicer-validation.json"):
             continue
-        if (
-            f.parent.name == "preview"
-            and f.name not in ("dimensions.png", "dimensions.svg")
-            and f.relative_to(MODEL).as_posix() not in guide
+        relative = f.relative_to(MODEL)
+        if relative.parts[0] == "preview" and relative.as_posix() not in (
+            "preview/dimensions.png",
+            "preview/dimensions.svg",
         ):
             continue
         full.append((f, f.relative_to(ROOT).as_posix()))
