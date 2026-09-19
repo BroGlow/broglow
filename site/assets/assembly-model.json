@@ -1,0 +1,61 @@
+{
+  "source": "models/clawlight/exploded.py",
+  "status": "release_candidate",
+  "purpose": "Web/AR visualization of the enclosure release candidate",
+  "source_sha256": {
+    "models/clawlight/exploded.py": "7b35e999cf6b1a531c964a4a22dd41fb720dad59b488dc92228e54e065b8905a",
+    "models/clawlight/clawlight.py": "4a69a4feda3df2e110e9c6ca00263e971b28f2f714e0a66c70e801c9cf606886",
+    "models/clawlight/hand_joint.py": "031ee6d6fb650a14932008af05faca70a37432f1488e6805c67a1480f0a9abfe",
+    "models/clawlight/requirements.txt": "7e19cc593c31f82d94efbe33f846e2eb5201ddc004dc3ebb93d5930c32ee9116"
+  },
+  "source_changed_during_export": false,
+  "exporter": {
+    "tool": "cad/scripts/step --glb",
+    "build123d": "0.12.0",
+    "linear_deflection_mm": 0.08,
+    "angular_deflection_radians": 0.2
+  },
+  "cad_bounds_mm": {
+    "min": [
+      -24.5,
+      -17.490962,
+      -0.0
+    ],
+    "max": [
+      85.0,
+      62.65,
+      54.1
+    ]
+  },
+  "up_axis": "Y",
+  "units": "metres",
+  "glb_bounds_m": [
+    [
+      -0.024500000402331353,
+      -4.1633365077804595e-18,
+      -0.06264999980628491
+    ],
+    [
+      0.08500000178813935,
+      0.054100001454353334,
+      0.017494463395327328
+    ]
+  ],
+  "labels": [
+    "orange_mascot_four_feet_straight_pins_with_45_degree_haunches",
+    "black_eye_left",
+    "black_eye_right",
+    "black_tower_open_rear_straight_hand_sockets",
+    "black_flat_rear_cover_USB_and_PCB_end_stops",
+    "black_LED_retainer_rigid_roof_tab_one_lower_screw",
+    "REFERENCE_ONLY_provisional_PCB",
+    "REFERENCE_ONLY_USB_shell",
+    "REFERENCE_ONLY_LED_0",
+    "REFERENCE_ONLY_LED_1",
+    "REFERENCE_ONLY_LED_2"
+  ],
+  "triangles": 12102,
+  "materials": 7,
+  "bytes": 435256,
+  "glb_sha256": "0aaf0f3ca7651c7ee999d383538b541cb6fe34192e9c88509cb0d8f406aa2d94"
+}

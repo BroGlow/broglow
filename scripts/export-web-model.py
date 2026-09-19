@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export the current CAD appearance to an ordinary GLB without changing CAD outputs.
+"""Export the current CAD appearance or exploded view to a web GLB.
 
 Run with the CAD Python environment (models/clawlight/requirements.txt) and the
 installed CAD skill. Only gen_step() is invoked; generator main/export_all is not.
@@ -131,16 +131,21 @@ def main():
     parser.add_argument("--mesh-tolerance", type=float, default=0.08)
     parser.add_argument("--mesh-angular-tolerance", type=float, default=0.2)
     parser.add_argument(
+        "--exploded", action="store_true", help="Export the assembly explorer."
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
         help="Verify the committed GLB/provenance using only Python stdlib.",
     )
     args = parser.parse_args()
+    source = "exploded" if args.exploded else "appearance"
+    asset = "assembly" if args.exploded else "clawlight"
     destination = ROOT / "site/assets"
     if args.check:
         sources_checked = check(
-            json.loads((destination / "clawlight-model.json").read_text()),
-            glb_facts(destination / "clawlight.glb"),
+            json.loads((destination / f"{asset}-model.json").read_text()),
+            glb_facts(destination / f"{asset}.glb"),
             allow_missing_sources=True,
         )
         print("PASS: GLB structure, hash, meter scale/Y-up and self-contained assets")
@@ -157,19 +162,19 @@ def main():
         / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     )
     snapshot.mkdir(parents=True)
-    names = ("appearance.py", "clawlight.py", "hand_joint.py", "requirements.txt")
+    names = (f"{source}.py", "clawlight.py", "hand_joint.py", "requirements.txt")
     inputs = {name: (MODEL / name).read_bytes() for name in names}
     for name, data in inputs.items():
         (snapshot / name).write_bytes(data)
     assert all(
         (MODEL / name).read_bytes() == data for name, data in inputs.items()
     ), "CAD changed while copying; retry"
-    step = snapshot / "appearance.step"
+    step = snapshot / f"{source}.step"
     subprocess.run(
         [
             sys.executable,
             str(args.cad_skill / "scripts/step"),
-            str(snapshot / "appearance.py"),
+            str(snapshot / f"{source}.py"),
             "--output",
             str(step),
             "--glb",
@@ -205,7 +210,7 @@ def main():
         len(mesh["labels"]) == summary["leafOccurrenceCount"]
     ), "Assembly inventory changed; review labels"
     metadata = {
-        "source": "models/clawlight/appearance.py",
+        "source": f"models/clawlight/{source}.py",
         "status": "release_candidate",
         "purpose": "Web/AR visualization of the enclosure release candidate",
         "source_sha256": {
@@ -227,8 +232,8 @@ def main():
         **mesh,
     }
     check(metadata, mesh)
-    shutil.copy2(glb, destination / "clawlight.glb")
-    (destination / "clawlight-model.json").write_text(
+    shutil.copy2(glb, destination / f"{asset}.glb")
+    (destination / f"{asset}-model.json").write_text(
         json.dumps(metadata, indent=2) + "\n"
     )
     print(json.dumps(metadata, indent=2))
