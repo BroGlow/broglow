@@ -4,6 +4,7 @@ Print both crops; the base has integral PCB guides.
 Fit the actual PCB and close with two production DIN 7982 screws. The open
 top provides access without changing the USB interface or fixed PCB guides.
 """
+
 from build123d import Compound, Solid
 from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCP.TopLoc import TopLoc_Location
@@ -21,13 +22,20 @@ def coupon_parts():
     assert m.PCB_RAIL_TOP < COUPON_HEIGHT
     production = m.parts()
     result = {}
-    for source, name in (('04_tower_black', '01_USB_base_coupon'),
-                         ('05_rear_cover_black', '02_USB_cover_coupon')):
+    for source, name in (
+        ("04_tower_black", "01_USB_base_coupon"),
+        ("05_rear_cover_black", "02_USB_cover_coupon"),
+    ):
         shape = production[source]
         bounds = shape.bounding_box()
-        crop = m.box(bounds.min.X-CROP_MARGIN, bounds.max.X+CROP_MARGIN,
-                     bounds.min.Y-CROP_MARGIN, bounds.max.Y+CROP_MARGIN,
-                     bounds.min.Z-CROP_MARGIN, COUPON_HEIGHT)
+        crop = m.box(
+            bounds.min.X - CROP_MARGIN,
+            bounds.max.X + CROP_MARGIN,
+            bounds.min.Y - CROP_MARGIN,
+            bounds.max.Y + CROP_MARGIN,
+            bounds.min.Z - CROP_MARGIN,
+            COUPON_HEIGHT,
+        )
         # Keep the cut rim square: every surviving production surface stays intact.
         result[name] = m.label(m.print_pose(source, shape & crop), name)
     return result
@@ -35,7 +43,7 @@ def coupon_parts():
 
 def gen_step():
     base, cover = coupon_parts().values()
-    cover = cover.translate((base.bounding_box().max.X+LAYOUT_GAP, 0, 0))
+    cover = cover.translate((base.bounding_box().max.X + LAYOUT_GAP, 0, 0))
     # Bake each print transform into a copy of its geometry. This keeps nested
     # Boolean placements out of the STEP fixture without changing print parts.
     leaves = []
@@ -45,15 +53,16 @@ def gen_step():
         unlocated = solid.wrapped.Located(TopLoc_Location())
         baked = Solid(BRepBuilderAPI_Transform(unlocated, transform, True).Shape())
         leaves.append(m.label(baked, shape.label))
-    return Compound(children=leaves,
-                    label='USB_fit_fixture_production_base_and_cover_print_layout')
+    return Compound(
+        children=leaves, label="USB_fit_fixture_production_base_and_cover_print_layout"
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     for name, shape in coupon_parts().items():
         assert shape.is_valid and len(shape.solids()) == 1 and shape.volume > 0, name
         bounds = shape.bounding_box()
         assert abs(bounds.min.Z) < 1e-6, name
-        assert abs(bounds.size.X-m.BASE_WIDTH) < 1e-6, name
-        assert abs(bounds.size.Y-COUPON_HEIGHT) < 1e-6, name
-        print(f'{name}: valid single solid, bed Z=0, size={tuple(bounds.size)} mm')
+        assert abs(bounds.size.X - m.BASE_WIDTH) < 1e-6, name
+        assert abs(bounds.size.Y - COUPON_HEIGHT) < 1e-6, name
+        print(f"{name}: valid single solid, bed Z=0, size={tuple(bounds.size)} mm")

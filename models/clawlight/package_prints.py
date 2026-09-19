@@ -1,4 +1,5 @@
 """Package the current print inventory; run after clawlight.py and check.py."""
+
 import argparse
 import hashlib
 import json
@@ -10,55 +11,96 @@ from zipfile import ZIP_DEFLATED, ZipFile
 MODEL = Path(__file__).resolve().parent
 ROOT = MODEL.parent.parent
 REFERENCE_FILES = [
-    'Cargo.toml', 'scripts/package-enclosure.py', 'scripts/package-macos.py',
-    'docs/hardware-setup.md', 'docs/hardware-setup.ru.md',
-    'docs/firmware-reference.md', 'docs/firmware-reference.ru.md',
-    'firmware/esp32-c3-supermini/platformio.ini',
-    'firmware/esp32-c3-supermini/src/main.cpp',
-    'firmware/esp32-c3-supermini/src/led-test.cpp',
-    'firmware/esp32-c3-supermini/tests/check.cpp',
-    'firmware/esp32-c3-supermini/tests/check.py',
-    *(f'assets/icons/clawd-{color}.png' for color in ('none', 'green', 'yellow', 'red')),
+    "Cargo.toml",
+    "scripts/package-enclosure.py",
+    "scripts/package-macos.py",
+    "docs/hardware-setup.md",
+    "docs/hardware-setup.ru.md",
+    "docs/firmware-reference.md",
+    "docs/firmware-reference.ru.md",
+    "firmware/esp32-c3-supermini/platformio.ini",
+    "firmware/esp32-c3-supermini/src/main.cpp",
+    "firmware/esp32-c3-supermini/src/led-test.cpp",
+    "firmware/esp32-c3-supermini/tests/check.cpp",
+    "firmware/esp32-c3-supermini/tests/check.py",
+    *(
+        f"assets/icons/clawd-{color}.png"
+        for color in ("none", "green", "yellow", "red")
+    ),
 ]
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--check', action='store_true', help='Verify existing archives without writing files.')
-    parser.add_argument('--output-dir', type=Path, default=ROOT/'dist/enclosure',
-                        help='Directory for generated ZIP files (default: dist/enclosure).')
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Verify existing archives without writing files.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=ROOT / "dist/enclosure",
+        help="Directory for generated ZIP files (default: dist/enclosure).",
+    )
     args = parser.parse_args()
     output = args.output_dir.resolve()
     if not args.check:
         output.mkdir(parents=True, exist_ok=True)
-    metadata = json.loads((MODEL/'parts.json').read_text())
-    validation = json.loads((MODEL/'validation.json').read_text())
-    slices = json.loads((MODEL/'slicer-validation.json').read_text())
-    files = sorted((MODEL/'stl').rglob('*.stl'))
-    assert validation['status'] == 'passed'
-    assert files and len(files) == len(metadata), 'Missing or duplicate printable parts'
-    assert {f.relative_to(MODEL).as_posix() for f in files} == {p['file'] for p in metadata.values()}
-    assert len(slices['parts']) == len(files)
-    assert {p['file'] for p in slices['parts']} == {p['file'] for p in metadata.values()}
-    assert slices['result']['files_checked'] == slices['result']['successful'] == len(files)
-    for field in ('geometry_warnings', 'files_with_support_toolpaths', 'repair_warnings',
-                  'floating_or_unsupported_region_warnings', 'nonfatal_slicer_diagnostic_count'):
-        assert slices['result'][field] == 0, f'Slicer evidence reports {field}'
-    for name in ('clawlight', 'appearance', 'exploded', 'usb_coupon'):
-        step = MODEL/f'{name}.step'
-        assert step.is_file() and step.stat().st_size, f'Missing required STEP view: {step}'
-    for part in slices['parts']:
-        assert part['status'] == 'success', f"Failed slicer evidence: {part['file']}"
-        assert not any(part[field] for field in ('geometry_warnings', 'support_toolpaths',
-                       'repair_warnings', 'floating_or_unsupported_region_warnings', 'slicer_log_diagnostics')), \
-            f"Slicer evidence reports warnings: {part['file']}"
-        assert hashlib.sha256((MODEL/part['file']).read_bytes()).hexdigest() == part['sha256'], \
-            f"Stale slicer evidence: {part['file']}"
-    guide = '\n'.join((MODEL/name).read_text() for name in ('PRINT_GUIDE.en.md', 'PRINT_GUIDE.md'))
-    for link in re.findall(r'\]\(([^)]+)\)', guide):
-        if '://' not in link and not link.startswith('#'):
-            assert (MODEL/link.split('#')[0]).exists(), link
-    readme = '''# Claw Light — enclosure release candidate
+    metadata = json.loads((MODEL / "parts.json").read_text())
+    validation = json.loads((MODEL / "validation.json").read_text())
+    slices = json.loads((MODEL / "slicer-validation.json").read_text())
+    files = sorted((MODEL / "stl").rglob("*.stl"))
+    assert validation["status"] == "passed"
+    assert files and len(files) == len(metadata), "Missing or duplicate printable parts"
+    assert {f.relative_to(MODEL).as_posix() for f in files} == {
+        p["file"] for p in metadata.values()
+    }
+    assert len(slices["parts"]) == len(files)
+    assert {p["file"] for p in slices["parts"]} == {
+        p["file"] for p in metadata.values()
+    }
+    assert (
+        slices["result"]["files_checked"]
+        == slices["result"]["successful"]
+        == len(files)
+    )
+    for field in (
+        "geometry_warnings",
+        "files_with_support_toolpaths",
+        "repair_warnings",
+        "floating_or_unsupported_region_warnings",
+        "nonfatal_slicer_diagnostic_count",
+    ):
+        assert slices["result"][field] == 0, f"Slicer evidence reports {field}"
+    for name in ("clawlight", "appearance", "exploded", "usb_coupon"):
+        step = MODEL / f"{name}.step"
+        assert (
+            step.is_file() and step.stat().st_size
+        ), f"Missing required STEP view: {step}"
+    for part in slices["parts"]:
+        assert part["status"] == "success", f"Failed slicer evidence: {part['file']}"
+        assert not any(
+            part[field]
+            for field in (
+                "geometry_warnings",
+                "support_toolpaths",
+                "repair_warnings",
+                "floating_or_unsupported_region_warnings",
+                "slicer_log_diagnostics",
+            )
+        ), f"Slicer evidence reports warnings: {part['file']}"
+        assert (
+            hashlib.sha256((MODEL / part["file"]).read_bytes()).hexdigest()
+            == part["sha256"]
+        ), f"Stale slicer evidence: {part['file']}"
+    guide = "\n".join(
+        (MODEL / name).read_text() for name in ("PRINT_GUIDE.en.md", "PRINT_GUIDE.md")
+    )
+    for link in re.findall(r"\]\(([^)]+)\)", guide):
+        if "://" not in link and not link.startswith("#"):
+            assert (MODEL / link.split("#")[0]).exists(), link
+    readme = """# Claw Light — enclosure release candidate
 
 A1 Mini / PETG Basic / 0.4 mm nozzle / 0.2 mm layers.
 Use exported orientations, 100% scale, 3 walls, 15% infill,
@@ -139,8 +181,8 @@ Print both eyes front-face down, mounting tongues upward.
 Inspect USB cover-coupon walls and infill before printing; current checks are in the slicer report.
 The full package includes both print guides, STEP files, source and check reports.
 The Mac app and prebuilt firmware are separate release downloads.
-'''
-    readme_ru = '''<a name="claw-light-enclosure-release-candidate"></a>
+"""
+    readme_ru = """<a name="claw-light-enclosure-release-candidate"></a>
 
 # Claw Light — релиз-кандидат корпуса
 
@@ -227,40 +269,61 @@ USB-пробник высотой 14 мм проверяет только пла
 Перед печатью просмотрите стенки и заполнение крышки USB-пробника; текущие проверки — в отчёте слайсера.
 Полный комплект содержит оба руководства, STEP, исходники и отчёты.
 Приложение Mac и готовая прошивка скачиваются отдельно из релиза.
-'''
+"""
     packs = {
-        'clawlight-compact-STL.zip': [(f, f.relative_to(MODEL/'stl').as_posix()) for f in files],
-        'clawlight-USB-fit-test.zip': [(f, f.relative_to(MODEL/'stl').as_posix()) for f in files
-                                     if f.parent.name == 'coupons'],
+        "clawlight-compact-STL.zip": [
+            (f, f.relative_to(MODEL / "stl").as_posix()) for f in files
+        ],
+        "clawlight-USB-fit-test.zip": [
+            (f, f.relative_to(MODEL / "stl").as_posix())
+            for f in files
+            if f.parent.name == "coupons"
+        ],
     }
-    full = [(ROOT/name, name) for name in REFERENCE_FILES]
-    if (ROOT/'BUILD.json').is_file():
-        full.append((ROOT/'BUILD.json', 'BUILD.json'))
-    for f in sorted(MODEL.rglob('*')):
-        if not f.is_file() or any(x.startswith('.') or x == '__pycache__' for x in f.relative_to(MODEL).parts):
+    full = [(ROOT / name, name) for name in REFERENCE_FILES]
+    if (ROOT / "BUILD.json").is_file():
+        full.append((ROOT / "BUILD.json", "BUILD.json"))
+    for f in sorted(MODEL.rglob("*")):
+        if not f.is_file() or any(
+            x.startswith(".") or x == "__pycache__" for x in f.relative_to(MODEL).parts
+        ):
             continue
-        if f.suffix not in ('.py', '.step', '.stl', '.md', '.txt', '.png', '.svg') and \
-                f.name not in ('parts.json', 'validation.json', 'slicer-validation.json'):
+        if f.suffix not in (
+            ".py",
+            ".step",
+            ".stl",
+            ".md",
+            ".txt",
+            ".png",
+            ".svg",
+        ) and f.name not in ("parts.json", "validation.json", "slicer-validation.json"):
             continue
-        if (f.parent.name == 'preview' and f.name not in ('dimensions.png', 'dimensions.svg')
-                and f.relative_to(MODEL).as_posix() not in guide):
+        if (
+            f.parent.name == "preview"
+            and f.name not in ("dimensions.png", "dimensions.svg")
+            and f.relative_to(MODEL).as_posix() not in guide
+        ):
             continue
         full.append((f, f.relative_to(ROOT).as_posix()))
-    packs['clawlight-print-pack.zip'] = full
+    packs["clawlight-print-pack.zip"] = full
     full_names = {target for _, target in full}
     for source, target in full:
-        if source.suffix != '.md':
+        if source.suffix != ".md":
             continue
-        for link in re.findall(r'\]\(([^)]+)\)', source.read_text()):
-            if '://' in link or link.startswith('#'):
+        for link in re.findall(r"\]\(([^)]+)\)", source.read_text()):
+            if "://" in link or link.startswith("#"):
                 continue
-            resolved = posixpath.normpath(posixpath.join(posixpath.dirname(target), link.split('#')[0]))
-            assert resolved in full_names, f'Missing linked package file: {target} -> {link}'
+            resolved = posixpath.normpath(
+                posixpath.join(posixpath.dirname(target), link.split("#")[0])
+            )
+            assert (
+                resolved in full_names
+            ), f"Missing linked package file: {target} -> {link}"
     for name, entries in packs.items():
-        entries = [(ROOT/'LICENSE', 'LICENSE'), *entries]
-        path = output/name
-        if name == 'clawlight-USB-fit-test.zip':
-            text = '''# USB fit test — enclosure release candidate
+        entries = [(ROOT / "LICENSE", "LICENSE"), *entries]
+        path = output / name
+        if name == "clawlight-USB-fit-test.zip":
+            text = """# USB fit test — enclosure release candidate
 
 Print coupons/01_USB_base_coupon.stl and coupons/02_USB_cover_coupon.stl.
 Coupon width 24 mm, height 14 mm. PCB guides and USB retain the low-board geometry.
@@ -297,8 +360,8 @@ Check screws in the retained short bosses (6.36 mm section, 5.56 mm pilot,
 0.8 mm closed end, diameters 5.6/1.9 mm, 45-degree side-wall ramps).
 Inspect cover-coupon walls and infill in the slicer before printing.
 A successful coupon test does not replace final wiring and assembly checks.
-'''
-            text_ru = '''<a name="usb-fit-test-enclosure-release-candidate"></a>
+"""
+            text_ru = """<a name="usb-fit-test-enclosure-release-candidate"></a>
 
 # Примерка USB — релиз-кандидат корпуса
 
@@ -337,42 +400,55 @@ USB-проём 9,15 x 3,20 мм на Z=5,25 мм, входные фаски 0,2 
 дно 0,8 мм, диаметры 5,6/1,9 мм, скосы от стенок 45 градусов.
 Перед печатью просмотрите стенки и заполнение крышки в слайсере.
 Удачная примерка пробника не заменяет проверку проводки и окончательной сборки.
-'''
+"""
         else:
             text = readme
             text_ru = readme_ru
-        language_links = '[English](START_HERE.md) | [Русский](START_HERE.ru.md)\n\n'
+        language_links = "[English](START_HERE.md) | [Русский](START_HERE.ru.md)\n\n"
         text = language_links + text
         text_ru = language_links + text_ru
-        if name == 'clawlight-print-pack.zip':
-            text += '\n[Full print guide](models/clawlight/PRINT_GUIDE.en.md)\n'
-            text_ru += '\n[Полное руководство по печати](models/clawlight/PRINT_GUIDE.md)\n'
-        manuals = {'START_HERE.md': text, 'START_HERE.ru.md': text_ru}
+        if name == "clawlight-print-pack.zip":
+            text += "\n[Full print guide](models/clawlight/PRINT_GUIDE.en.md)\n"
+            text_ru += (
+                "\n[Полное руководство по печати](models/clawlight/PRINT_GUIDE.md)\n"
+            )
+        manuals = {"START_HERE.md": text, "START_HERE.ru.md": text_ru}
         entry_names = {*manuals, *(target for _, target in entries)}
         for filename, content in manuals.items():
-            for link in re.findall(r'\]\(([^)]+)\)', content):
-                if '://' not in link and not link.startswith('#'):
-                    assert link.split('#')[0] in entry_names, f'Missing entry-manual link: {name}/{filename} -> {link}'
+            for link in re.findall(r"\]\(([^)]+)\)", content):
+                if "://" not in link and not link.startswith("#"):
+                    assert (
+                        link.split("#")[0] in entry_names
+                    ), f"Missing entry-manual link: {name}/{filename} -> {link}"
         if not args.check:
-            with ZipFile(path, 'w', ZIP_DEFLATED) as archive:
+            with ZipFile(path, "w", ZIP_DEFLATED) as archive:
                 for filename, content in manuals.items():
                     archive.writestr(filename, content)
                 for f, target in entries:
                     archive.write(f, target)
         with ZipFile(path) as archive:
-            assert archive.testzip() is None, f'Corrupt archive: {path}'
+            assert archive.testzip() is None, f"Corrupt archive: {path}"
             expected = [*manuals, *(target for _, target in entries)]
-            assert sorted(archive.namelist()) == sorted(expected), f'Stale archive inventory: {path}'
+            assert sorted(archive.namelist()) == sorted(
+                expected
+            ), f"Stale archive inventory: {path}"
             for filename, content in manuals.items():
-                assert archive.read(filename) == content.encode(), f'Stale printing instructions: {path}/{filename}'
+                assert (
+                    archive.read(filename) == content.encode()
+                ), f"Stale printing instructions: {path}/{filename}"
             for f, target in entries:
-                assert hashlib.sha256(archive.read(target)).digest() == hashlib.sha256(f.read_bytes()).digest(), \
-                    f'Stale archive content: {path.name}/{target}'
-        print('Verified:', path)
+                assert (
+                    hashlib.sha256(archive.read(target)).digest()
+                    == hashlib.sha256(f.read_bytes()).digest()
+                ), f"Stale archive content: {path.name}/{target}"
+        print("Verified:", path)
     if not args.check:
-        for name in ('clawlight-hand-joint-test.zip', 'clawlight-fit-coupon-DIN7982-2.2x6.5.zip'):
-            (output/name).unlink(missing_ok=True)
+        for name in (
+            "clawlight-hand-joint-test.zip",
+            "clawlight-fit-coupon-DIN7982-2.2x6.5.zip",
+        ):
+            (output / name).unlink(missing_ok=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

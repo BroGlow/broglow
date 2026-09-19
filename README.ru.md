@@ -106,6 +106,25 @@ clawlight uninstall          Удалить хуки, автозапуск и н
 Settings выбирает жёлтый или зелёный при сочетании работы и ожидания.
 Прошивка, сопряжение и диагностика описаны в [руководстве](docs/hardware-setup.ru.md).
 
+<a name="python-formatting"></a>
+
+## Форматирование Python
+
+Из корня репозитория установите инструменты разработки и включите хук коммита:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+pre-commit install
+black .
+```
+
+Black применяет стандартный стиль ко всем Python-файлам. Хук форматирует Python-файлы,
+добавленные в индекс; CI запускает `black --check --diff .` и завершается с ошибкой,
+если требуется форматирование. Сохраняйте одинаковую версию Black
+в `requirements-dev.txt` и `.pre-commit-config.yaml`.
+
 <a name="license"></a>
 
 ## Лицензия

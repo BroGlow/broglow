@@ -91,6 +91,22 @@ The app starts at login. Needs input takes color priority; Settings controls
 whether mixed working/idle sessions show yellow or green. See the
 [manual](docs/hardware-setup.md) for firmware, pairing and troubleshooting.
 
+## Python formatting
+
+From the repository root, install the development tools and enable the commit hook:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+pre-commit install
+black .
+```
+
+Black uses its default style for all Python files. The hook formats staged Python
+files; CI runs `black --check --diff .` and fails if formatting is needed.
+Keep Black's version in `requirements-dev.txt` and `.pre-commit-config.yaml` in sync.
+
 ## License
 
 [MIT](LICENSE). Packages include dependency notices. See the [media policy](docs/media.md)
