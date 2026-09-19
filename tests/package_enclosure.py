@@ -94,6 +94,17 @@ with tempfile.TemporaryDirectory(prefix="clawlight-enclosure-check-") as folder:
             Path(__file__).resolve().parents[1] / "scripts/check-generated-artifacts.py"
         ).read_bytes()
     )
+    retired_media = [
+        "site/assets/assembly.png",
+        "site/vendor/model-viewer-4.3.1.min.js",
+        "references/clawlight/claw-light-ar.usdz",
+        "references/clawlight/claw-light-ar.glb",
+        "references/clawlight/store-photo.jpg",
+        "references/clawlight/product-photo.JPG",
+        "references/clawlight/ar-reference-views.png",
+        "docs/screenshots/opencode-tui.png",
+        "docs/screenshots/opencode-popover.png",
+    ]
     retired = [
         "retired/old.ZIP",
         "elsewhere/part.StP",
@@ -111,7 +122,7 @@ with tempfile.TemporaryDirectory(prefix="clawlight-enclosure-check-") as folder:
         "models/clawlight/preview/cover-chamfers-snapshot-job.json",
         "models/clawlight/preview/flat-floor-snapshot-job.json",
         "models/clawlight/preview/TIGHT-USB-SNAPSHOT-JOB.JSON",
-    ]
+    ] + retired_media
     preserved = [
         "models/clawlight/parts.json",
         "models/clawlight/validation.json",
@@ -127,7 +138,18 @@ with tempfile.TemporaryDirectory(prefix="clawlight-enclosure-check-") as folder:
         "assets/icons/clawd-red.png",
         "assets/icons/clawd-yellow.png",
         "site/assets/clawlight.png",
-        "site/assets/assembly.png",
+        "site/assets/assembly.glb",
+        "site/assets/assembly-model.json",
+        "site/assets/clawlight.glb",
+        "site/vendor/model-viewer-with-effects.js",
+        "site/vendor/model-viewer-module-4.3.1.min.js",
+        "site/vendor/model-viewer-effects-1.5.0.min.js",
+        "site/vendor/three-0.183.0/three.module.min.js",
+        "site/vendor/three-0.183.0/three.core.min.js",
+        "site/vendor/model-viewer-LICENSE",
+        "site/vendor/qrcode-generator-2.0.4.js",
+        "references/clawlight/new-photo.jpg",
+        "docs/screenshots/new-screen.png",
         "site/guide/assets/favicon.svg",
         "config.json",
         "tests/fixtures/cad-inspection.json",
@@ -150,15 +172,20 @@ with tempfile.TemporaryDirectory(prefix="clawlight-enclosure-check-") as folder:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"generated")
     git("add", "-f", *retired)
-    git(
-        "update-index",
-        "--add",
-        "--cacheinfo",
-        "100644",
-        git("hash-object", "-w", str(path)),
-        case_variant,
-    )
-    retired.append(case_variant)
+    case_variants = [case_variant, *(name.upper() for name in retired_media)]
+    assert set(
+        git("check-ignore", "--no-index", *case_variants[1:]).splitlines()
+    ) == set(case_variants[1:])
+    for name in case_variants:
+        git(
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            "100644",
+            git("hash-object", "-w", str(path)),
+            name,
+        )
+    retired.extend(case_variants)
     rejected_artifacts = subprocess.run(
         [sys.executable, str(guard)], text=True, capture_output=True
     )
@@ -173,7 +200,7 @@ with tempfile.TemporaryDirectory(prefix="clawlight-enclosure-check-") as folder:
     assert accepted.returncode == 0, accepted.stderr
     assert "models/clawlight/preview/review.png" not in git("ls-files")
     for name in retired + ["models/clawlight/old.STL"]:
-        (root / name).unlink()
+        (root / name).unlink(missing_ok=True)
     git("add", ".")
     git("commit", "-m", "check source tracking policy")
     git("tag", "-f", "v1.2.3")

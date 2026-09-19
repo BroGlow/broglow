@@ -24,8 +24,8 @@ Both modules use one shared Three.js **0.183.0** through the page's import map:
 ```
 
 `three.module.min.js` and its sibling `three.core.min.js` are unmodified upstream
-files; `three-LICENSE` contains their MIT license. The older standalone
-`model-viewer-4.3.1.min.js` bundle is not loaded alongside the effects entrypoint.
+files; `three-LICENSE` contains their MIT license. Only the modular viewer and
+its effects entrypoint are shipped.
 
 The current model uses plain glTF geometry/materials, so optional remote Draco,
 KTX2 and Lottie decoders in the library are not used. Keep exports uncompressed
