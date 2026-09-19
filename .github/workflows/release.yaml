@@ -13,8 +13,8 @@ jobs:
     # Match the platform of the reviewed STL/slicer evidence exactly.
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.14'
       - run: python tests/package_macos.py
@@ -32,7 +32,7 @@ jobs:
           python scripts/package-enclosure.py --release-tag "$RELEASE_TAG"
           python scripts/export-web-model.py --check
           test -z "$(git status --porcelain --untracked-files=normal)"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: enclosure
           if-no-files-found: error
@@ -58,9 +58,9 @@ jobs:
             os: macos-15-intel
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.14'
       - run: python -m pip install platformio==6.2.0
@@ -72,7 +72,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: python scripts/package-macos.py --release-tag "$RELEASE_TAG"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: mac-${{ matrix.target }}
           if-no-files-found: error
@@ -85,7 +85,7 @@ jobs:
       - check
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Build CLI
         run: cargo build --release --locked --target x86_64-pc-windows-msvc
@@ -102,7 +102,7 @@ jobs:
           tar czf "dist/$FILE" -C target/x86_64-pc-windows-msvc/release clawlight.exe LICENSE
           cd dist
           sha256sum "$FILE" > "$FILE.sha256"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-cli
           if-no-files-found: error
@@ -116,7 +116,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
       - name: Verify every expected asset
@@ -133,7 +133,7 @@ jobs:
             sha256sum --check "$FILE.sha256"
           done
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           draft: true
           fail_on_unmatched_files: true
