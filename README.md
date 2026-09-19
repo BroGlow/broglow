@@ -16,14 +16,16 @@ with wireless lamp control, a customizable DIY build and everyday desktop improv
 
 | What’s better | What you gain |
 | --- | --- |
-| **Wireless lamp connection** | Place your lamp within Bluetooth range without a data cable running to your Mac. |
-| **Adjustable brightness** | Keep the light comfortable for your room, with a separate brightness setting for each lamp. |
-| **Remembered lamps** | Save and name your lamps, so your home and office setups are easy to recognize. |
-| **Find your lamp** | Make a selected lamp flash with one click, so you know which one you’re controlling. |
-| **Clear paused sessions** | Clear the clutter in one click. Active work and requests for your attention stay visible; your conversations stay safe. |
-| **Open the right Codex task** | Supports local tasks in the Codex desktop app: jump straight from the monitor to the conversation you need. |
-| **Make it yours** | Print and customize your own enclosure using the included design files. |
-| **Guides in two languages** | Follow setup and assembly instructions in English or Russian. |
+| **Wireless lamp connection** | Place your lamp within Bluetooth range without a data cable to your Mac. |
+| **Codex desktop (ChatGPT app) support** | Jump directly to the right conversation; renamed tasks stay recognizable. |
+| **Clear paused sessions** | Remove clutter in one click while keeping active work and approval requests visible. |
+| **Brightness with live preview** | Adjust each lamp to a comfortable level and see the result before saving. |
+| **Setup from the app** | Connect the correct lamp through guided USB-assisted setup. |
+| **Clear connection status** | Know whether each lamp is receiving updates or needs attention. |
+| **Remembered, named lamps** | Keep home and office lamps configured and easy to recognize. |
+| **Print and customize the enclosure** | Choose the appearance and adapt the design to your preferences. |
+| **Identify a lamp** | Flash the selected lamp to confirm which one you’re controlling. |
+| **Interactive assembly guide** | Rotate and zoom the separated parts to understand how they fit together. |
 
 Wireless control and direct Codex task opening are available on macOS.
 The lamp still needs power and is designed for DIY assembly.
