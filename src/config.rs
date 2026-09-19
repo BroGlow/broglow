@@ -134,10 +134,12 @@ fn deserialize_lamp_brightness<'de, D: serde::Deserializer<'de>>(
 }
 
 impl Config {
+    #[cfg(any(target_os = "macos", target_os = "windows", test))]
     pub fn led_brightness_percent(&self) -> u8 {
         self.led_brightness.min(100)
     }
 
+    #[cfg(any(target_os = "macos", target_os = "windows", test))]
     pub fn lamp_brightness_percent(&self, id: &str) -> u8 {
         self.lamp_brightness
             .get(id)
