@@ -17,6 +17,38 @@ import { PointLight } from "three";
   const local = document.querySelector("#ar-local");
   const qrError = document.querySelector("#ar-qr-error");
   const signals = document.querySelector(".signal-demo");
+  const assembly = document.querySelector("#assembly-model");
+  const assemblyLoading = document.querySelector("#assembly-loading");
+  const assemblyError = document.querySelector("#assembly-error");
+  const assemblyRetry = document.querySelector("#assembly-retry");
+  const assemblyReset = document.querySelector("#assembly-reset");
+  const assemblyOrbit = assembly.getAttribute("camera-orbit");
+  const assemblySrc = assembly.getAttribute("src");
+  let assemblyFailures = 0;
+  function failAssembly() {
+    assemblyLoading.hidden = true;
+    assemblyError.hidden = false;
+    assemblyRetry.hidden = false;
+    assemblyReset.hidden = true;
+  }
+  assemblyLoading.hidden = false;
+  assembly.addEventListener("error", failAssembly);
+  assembly.addEventListener("load", () => {
+    assemblyLoading.hidden = assemblyError.hidden = assemblyRetry.hidden = true;
+    assemblyReset.hidden = false;
+  });
+  assemblyRetry.addEventListener("click", () => {
+    assemblyError.hidden = assemblyRetry.hidden = true;
+    assemblyLoading.hidden = false;
+    assembly.src = `${assemblySrc}?retry=${++assemblyFailures}`;
+    loadModel();
+  });
+  assemblyReset.addEventListener("click", () => {
+    assembly.cameraOrbit = assemblyOrbit;
+    assembly.cameraTarget = "auto auto auto";
+    assembly.jumpCameraToGoal();
+    assembly.shadowRoot?.querySelector('[role="img"][tabindex="0"]')?.focus();
+  });
   // Lens material indices in clawlight.glb; the regression test checks the LED nodes.
   const lenses = [
     { mode: "working", index: 4, color: [0.08, 1, 0.02] },
@@ -123,7 +155,10 @@ import { PointLight } from "three";
     script.type = "module";
     script.src = retryUrl(load.dataset.viewerSrc);
     script.addEventListener("load", showModel, { once: true });
-    script.addEventListener("error", fail, { once: true });
+    script.addEventListener("error", () => {
+      fail();
+      if (!customElements.get("model-viewer")) failAssembly();
+    }, { once: true });
     document.head.append(script);
   }
   load.addEventListener("click", () => {

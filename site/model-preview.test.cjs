@@ -38,8 +38,11 @@ function page(defined = false, href = 'https://example.com/clawlight/', qrFailur
     };
   }
   const ids = ['lamp-model', 'model-poster', 'model-load', 'model-reset', 'model-loading', 'model-error', 'model-help',
-    'model-space', 'ar-dialog', 'ar-close', 'ar-qr', 'ar-link', 'ar-local', 'ar-qr-error'];
+    'model-space', 'ar-dialog', 'ar-close', 'ar-qr', 'ar-link', 'ar-local', 'ar-qr-error',
+    'assembly-model', 'assembly-loading', 'assembly-error', 'assembly-retry', 'assembly-reset'];
   const nodes = Object.fromEntries(ids.map(id => [id, element()]));
+  const assemblyTag = html.match(/<model-viewer id="assembly-model"[^>]+>/)[0];
+  nodes['assembly-model'].getAttribute = name => assemblyTag.match(new RegExp(`${name}="([^"]+)"`))?.[1];
   const signals = element();
   const radios = [...Object.keys(lensIndices), 'off'].map((value, index) => ({
     ...element(), value, name: 'signal', checked: index === 0,
@@ -111,6 +114,7 @@ function page(defined = false, href = 'https://example.com/clawlight/', qrFailur
     assert.equal(selector, '[role="img"][tabindex="0"]');
     return camera;
   } };
+  nodes['assembly-model'].shadowRoot = { querySelector: () => nodes['assembly-model'] };
   nodes['model-poster'].hidden = false;
   nodes['lamp-model'].dataset.modelSrc = 'assets/clawlight.glb';
   nodes['model-load'].dataset.viewerSrc = html.match(/data-viewer-src="([^"]+)"/)[1];
@@ -353,6 +357,41 @@ for (const href of ['http://localhost:8080/site/', 'http://preview.localhost/sit
   assert.equal(local.nodes['ar-local'].hidden, false, href);
   assert.equal(local.qrValues.length, 0, 'Do not generate an unusable QR');
 }
+
+const assemblyPage = page(true);
+const assemblyNodes = assemblyPage.nodes;
+const assembly = assemblyNodes['assembly-model'];
+assert.match(html, /id="assembly-model"[^>]+camera-controls[^>]+touch-action="pan-y"/);
+assert.doesNotMatch(html, /assembly\.png/, 'The exploded still image is removed');
+assert.equal(assemblyNodes['assembly-loading'].hidden, false);
+assembly.emit('load');
+assert.equal(assemblyNodes['assembly-loading'].hidden, true);
+assert.equal(assemblyNodes['assembly-reset'].hidden, false);
+assemblyNodes['assembly-reset'].emit('click');
+assert.equal(assembly.cameraOrbit, assembly.getAttribute('camera-orbit'));
+assert.equal(assembly.cameraTarget, 'auto auto auto');
+assert.equal(assembly.reset, true);
+assert.equal(assembly.focused, true, 'Reset restores keyboard camera control');
+assembly.emit('error');
+assert.equal(assemblyNodes['assembly-error'].hidden, false);
+assert.equal(assemblyNodes['assembly-retry'].hidden, false);
+assert.equal(assemblyNodes['assembly-reset'].hidden, true);
+assemblyNodes['assembly-retry'].emit('click');
+assert.equal(assembly.src, 'assets/assembly.glb?retry=1');
+assert.equal(assemblyPage.scripts.length, 0, 'Assembly retry reuses the shared component');
+assembly.emit('load');
+assert.equal(assemblyNodes['assembly-error'].hidden, true);
+const missingComponent = page();
+missingComponent.scripts[0].emit('error');
+assert.equal(missingComponent.nodes['assembly-error'].hidden, false);
+missingComponent.nodes['assembly-retry'].emit('click');
+assert.equal(missingComponent.scripts.length, 2, 'Assembly retry reloads a failed shared component');
+assert.equal(missingComponent.scripts[1].src, 'vendor/model-viewer-with-effects.js?retry=1');
+const assemblyGlb = readFileSync(`${__dirname}/assets/assembly.glb`);
+const assemblyGltf = JSON.parse(assemblyGlb.subarray(20, 20 + assemblyGlb.readUInt32LE(12)));
+assert.deepEqual(assemblyGltf.nodes.filter(n => n.mesh !== undefined).map(n => n.name).sort(),
+  gltf.nodes.filter(n => n.mesh !== undefined).map(n => n.name).sort(), 'Explorer preserves every assembly part');
+console.log('PASS: assembly explorer inventory, reset, loading failures and shared-component retry');
 
 const qrError = page(false, 'https://example.com/', true);
 qrError.nodes['model-space'].emit('click');

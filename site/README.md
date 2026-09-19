@@ -67,6 +67,13 @@ use the repository-root server above to check the landing and local downloads.
 
 ## Interactive 3D and AR
 
+The build section has a rotatable assembly explorer in place of the exploded
+still image. It reuses the self-hosted model-viewer with `assets/assembly.glb`,
+loaded lazily, and supports drag, keyboard rotation, zoom, Reset view and retry
+after loading errors. Its separated parts expose the LED retainer and mounting
+points. Signal effects and AR remain in the hero. Without JavaScript, the page
+directs visitors to enable it.
+
 The 3D preview starts automatically with Working selected. Self-hosted
 `@google/model-viewer` 4.3.1 and the effects module share Three.js via a local import
 map (see `vendor/README.md`). Working, Idle and Needs you light only the green,
@@ -101,7 +108,7 @@ other iOS browsers are unverified. WebXR requires HTTPS or loopback, and a phone
 cannot reach another device's localhost. Physical phone placement and size still
 need acceptance checks. See the [component's AR reference](https://modelviewer.dev/examples/augmentedreality/).
 
-The model depicts our 1.0.0 enclosure release candidate with illustrative
+The model depicts our 1.0.0 enclosure with illustrative
 electronics. Use the separate enclosure package for printing. Source hashes and
 bounds live in `assets/clawlight-model.json`; regenerate both outputs rather than
 editing them. From a full checkout, activate the CAD Python environment and run:
@@ -110,6 +117,8 @@ editing them. From a full checkout, activate the CAD Python environment and run:
 python -m pip install -r models/clawlight/requirements.txt
 python scripts/export-web-model.py
 python scripts/export-web-model.py --check
+python scripts/export-web-model.py --exploded
+python scripts/export-web-model.py --exploded --check
 ```
 
 Export needs the CAD skill at `~/.agents/skills/cad` or `--cad-skill /path/to/cad`.
@@ -178,7 +187,7 @@ website checks and renders do not establish physical fit.
 Our asset sources:
 
 - `assets/clawlight.png`: `site/assets/clawlight.glb`, rendered in the default Working state with the pinned model-viewer/effects and hero camera.
-- `assets/assembly.png`: retained exploded-assembly CAD render from 2026-09-18 10:16:01 UTC (flat-floor revision); preserved unchanged as the website asset, not regenerated during the preview cleanup.
+- `assets/assembly.glb`: separated assembly from `models/clawlight/exploded.py`; source hashes and bounds are recorded in `assets/assembly-model.json`. Regenerate with `--exploded` when its CAD source changes.
 - `guide/assets/favicon.svg`: our three-circle lamp artwork, also used by the landing favicon. Tray icons come from `assets/icons/` in the repository root.
 
 Follow the [media policy and photo checklist](../docs/media.md). Keep render/photo

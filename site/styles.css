@@ -526,15 +526,18 @@ h2 {
   overflow:hidden;
   border-radius:var(--radius);
 }
-.assembly-visual img {
-  width:100%;
-  padding-block:25px 0;
+.assembly-visual .model-stage {
+  aspect-ratio:1;
+  background:#f9fcfe;
 }
 .assembly-visual figcaption {
   color:#5b665d;
   padding:15px 22px 25px;
   text-align:center;
   font-size:13px;
+}
+.assembly-visual figcaption p {
+  margin-bottom:10px;
 }
 .build-copy>p {
   margin-top:21px;

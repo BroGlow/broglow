@@ -67,6 +67,7 @@ jobs:
           node site/docs-copy.test.cjs
           python site/pages.test.py
           python scripts/export-web-model.py --check
+          python scripts/export-web-model.py --exploded --check
       - name: Build and check the complete website
         env:
           WEBSITE_REPOSITORY: ${{ github.repository }}

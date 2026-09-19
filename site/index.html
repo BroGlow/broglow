@@ -41,7 +41,7 @@
       <figure class="hero-visual" id="view-in-space">
         <div class="model-stage" id="signals">
           <img id="model-poster" src="assets/clawlight.png?v=working-soft-light" width="1400" height="1000" alt="Рендер состояния «Работает»: оранжевый персонаж, тёмная стойка и один горящий зелёный светодиод" data-en-alt="Working-state render: an orange character, dark tower, and one glowing green LED" fetchpriority="high">
-          <model-viewer id="lamp-model" data-model-src="assets/clawlight.glb" poster="assets/clawlight.png?v=working-soft-light" alt="3D-модель релиз-кандидата нашей лампы. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Our lamp's release-candidate 3D model. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="25deg 80deg 95%" shadow-intensity="0.8" exposure="0.85" interaction-prompt="none" loading="eager" ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" hidden>
+          <model-viewer id="lamp-model" data-model-src="assets/clawlight.glb" poster="assets/clawlight.png?v=working-soft-light" alt="3D-модель нашей лампы. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Our lamp's 3D model. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="25deg 80deg 95%" shadow-intensity="0.8" exposure="0.85" interaction-prompt="none" loading="eager" ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" hidden>
             <effect-composer render-mode="quality" msaa="2">
               <bloom-effect strength="0.2" radius="0.6" threshold="0.9"></bloom-effect>
               <color-grade-effect tonemapping="NEUTRAL"></color-grade-effect>
@@ -86,7 +86,6 @@
           <p id="model-loading" role="status" data-en="Loading 3D…" hidden>Загружаем 3D…</p>
           <p id="model-error" role="status" data-en="3D could not load. This still image does not show the selected signal; try again." hidden>Не удалось загрузить 3D. На статичном изображении выбранный сигнал не отображается; попробуйте снова.</p>
           <p id="model-help" data-en="Drag or use arrow keys to rotate. Pinch, scroll, or use Page Up / Page Down to zoom." hidden>Вращайте мышью или стрелками. Масштаб — жестом, прокруткой или Page Up / Page Down.</p>
-          <span class="mono" data-en="Enclosure · 1.0.0 release candidate">Корпус · релиз-кандидат 1.0.0</span>
           <p class="model-ar-note" data-en="For real-size AR, open in Safari on iPhone/iPad or a supported Android browser." >Для AR в натуральную величину откройте в Safari на iPhone/iPad или поддерживаемом браузере Android.</p>
         </figcaption>
       </figure>
@@ -114,12 +113,24 @@
 
     <section class="build wrap" id="build" aria-labelledby="build-title">
       <figure class="assembly-visual">
-        <img src="assets/assembly.png" width="1400" height="1000" alt="Разнесённая 3D-модель: корпус, крышка, стойка светофора и крепления для самостоятельной сборки" data-en-alt="Exploded 3D model: enclosure, lid, traffic light stand, and mounting parts for DIY assembly" loading="lazy">
-        <figcaption data-en="Enclosure · 1.0.0 release candidate.">Корпус · релиз-кандидат 1.0.0.</figcaption>
+        <div class="model-stage">
+          <model-viewer id="assembly-model" src="assets/assembly.glb" alt="Разнесённая сборка: корпус, крышка, держатель светодиодов и плата. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Separated assembly: enclosure, rear cover, LED retainer and board. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="-35deg 65deg 105%" shadow-intensity="0.5" exposure="0.85" interaction-prompt="auto" loading="lazy" aria-describedby="assembly-help"></model-viewer>
+        </div>
+        <figcaption>
+          <p data-en="Explore the assembly">Рассмотрите сборку</p>
+          <p id="assembly-help" data-en="Drag or use arrow keys to rotate. Pinch, scroll, or use Page Up / Page Down to zoom.">Вращайте мышью или стрелками. Масштаб — жестом, прокруткой или Page Up / Page Down.</p>
+          <p id="assembly-loading" role="status" data-en="Loading 3D…" hidden>Загружаем 3D…</p>
+          <p id="assembly-error" role="status" data-en="The assembly could not load. Try again or open the setup guide." hidden>Не удалось загрузить сборку. Попробуйте снова или откройте инструкцию.</p>
+          <div class="model-tools">
+            <button id="assembly-retry" type="button" class="model-button" data-en="Retry 3D" hidden>Загрузить 3D снова</button>
+            <button id="assembly-reset" type="button" class="model-button" data-en="Reset view" hidden>Сбросить вид</button>
+          </div>
+          <noscript><p>Для 3D включите JavaScript. / Enable JavaScript to explore the assembly.</p></noscript>
+        </figcaption>
       </figure>
       <div class="build-copy">
         <h2 id="build-title"><span data-en="A small project.">Небольшой проект.</span><br><span data-en="Something real.">Настоящая вещь.</span></h2>
-        <p data-en="An ESP32-C3 SuperMini board, three LEDs, and one resistor per LED. The 3D-printable enclosure is ready for the 1.0.0 release.">Плата ESP32-C3 SuperMini, три светодиода и по одному резистору на каждый. Корпус для 3D-печати готов к выпуску 1.0.0.</p>
+        <p data-en="An ESP32-C3 SuperMini board, three LEDs, and one resistor per LED. The enclosure is available for 3D printing.">Плата ESP32-C3 SuperMini, три светодиода и по одному резистору на каждый. Корпус можно напечатать на 3D-принтере.</p>
         <ol class="build-steps">
           <li><span>01</span><div><strong data-en="Choose your parts">Выберите детали</strong><p data-en="Choose the board and LEDs, then download the optional enclosure print package.">Выберите плату и светодиоды, затем скачайте комплект для печати корпуса — он необязателен.</p></div></li>
           <li><span>02</span><div><strong data-en="Wire it up">Соберите электронику</strong><p data-en="Follow the setup guide for wiring and firmware.">Схема подключения и прошивка — в пошаговой инструкции.</p></div></li>
@@ -128,7 +139,7 @@
         <div class="build-links" id="setup">
           <a class="text-link" href="docs/"><span data-en="Open the setup guide">Открыть инструкцию</span> <span aria-hidden="true">→</span></a>
         </div>
-        <p class="project-note"><span data-en="These renders show our enclosure release candidate. The print package is ready for release; final physical assembly testing is in progress.">На рендерах — релиз-кандидат нашего корпуса. Комплект для печати готов к выпуску; финальная физическая проверка сборки продолжается.</span> <a href="docs/hardware/#repeatable-checks-and-results" data-en="Current hardware test results">Актуальные результаты проверки устройства</a>.</p>
+        <p class="project-note"><a href="docs/hardware/#repeatable-checks-and-results" data-en="Current hardware test results">Актуальные результаты проверки устройства</a>.</p>
       </div>
     </section>
 
