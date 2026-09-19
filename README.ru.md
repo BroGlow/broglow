@@ -116,7 +116,7 @@ Settings выбирает жёлтый или зелёный при сочета
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements-dev.txt
-prek install -f
+prek install
 black .
 ```
 
@@ -124,7 +124,7 @@ Black применяет стандартный стиль ко всем Python-
 добавленные в индекс; CI запускает `black --check --diff .` и завершается с ошибкой,
 если требуется форматирование. Для локальной проверки всех отслеживаемых файлов
 запустите `prek run --all-files`. Сохраняйте одинаковую версию Black
-в `requirements-dev.txt` и `.pre-commit-config.yaml`.
+в `requirements-dev.txt` и `prek.toml`.
 
 <a name="license"></a>
 
