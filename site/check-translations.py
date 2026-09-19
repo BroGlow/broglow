@@ -48,6 +48,7 @@ pairs = [
     (ROOT / name, ROOT / Path(name).with_suffix(".ru.md"))
     for name in (
         "README.md",
+        "CONTRIBUTING.md",
         "AGENTS.md",
         "CLAUDE.md",
         "site/README.md",
