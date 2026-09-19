@@ -1,7 +1,7 @@
 """Assembled view; measured outlines with provisional component/USB envelopes, not a print file."""
 
 from build123d import Compound
-from clawlight import parts, electronics
+from broglow import parts, electronics
 
 
 def gen_step():

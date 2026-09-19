@@ -19,10 +19,10 @@ import { pathToFileURL } from "node:url";
 const pluginFile = process.env.PLUGIN_FILE;
 const sessionId = process.env.SESSION_ID;
 const firstEvent = process.env.FIRST_EVENT || "session.created";
-const statePath = join(process.env.HOME, ".claude", "clawlight", "state.json");
+const statePath = join(process.env.HOME, ".claude", "broglow", "state.json");
 
 const mod = await import(pathToFileURL(pluginFile));
-const hooks = await mod.clawlight({ directory: "/tmp/exit-proj" });
+const hooks = await mod.broglow({ directory: "/tmp/exit-proj" });
 
 // Build the event that first introduces this session, matching how opencode
 // shapes each type's properties.

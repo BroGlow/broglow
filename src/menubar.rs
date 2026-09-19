@@ -27,10 +27,10 @@ use crate::state::{self, aggregate, read_display_state, Aggregate, HookState};
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::usage;
 
-pub(crate) const ICON_GREEN: &[u8] = include_bytes!("../assets/icons/clawd-green.png");
-pub(crate) const ICON_YELLOW: &[u8] = include_bytes!("../assets/icons/clawd-yellow.png");
-pub(crate) const ICON_RED: &[u8] = include_bytes!("../assets/icons/clawd-red.png");
-pub(crate) const ICON_NONE: &[u8] = include_bytes!("../assets/icons/clawd-none.png");
+pub(crate) const ICON_GREEN: &[u8] = include_bytes!("../assets/icons/broglow-green.png");
+pub(crate) const ICON_YELLOW: &[u8] = include_bytes!("../assets/icons/broglow-yellow.png");
+pub(crate) const ICON_RED: &[u8] = include_bytes!("../assets/icons/broglow-red.png");
+pub(crate) const ICON_NONE: &[u8] = include_bytes!("../assets/icons/broglow-none.png");
 
 /// Tray icon for the current hook state, resolving inactive-vs-active through
 /// the user's yellow-mode setting.
@@ -56,7 +56,7 @@ fn icon_for(agg: Aggregate) -> anyhow::Result<Icon> {
 // ---------------------------------------------------------------------------
 
 /// Whether a tray daemon is already running (launchd-managed or foreground).
-/// Matched on the command line (`… clawlight menubar`) so the TUI process
+/// Matched on the command line (`… broglow menubar`) so the TUI process
 /// itself never counts.
 #[cfg(unix)]
 pub fn is_running() -> bool {
@@ -77,7 +77,7 @@ fn is_menubar_cmdline(line: &str) -> bool {
     let Some(bin) = parts.next() else {
         return false;
     };
-    (bin == "clawlight" || bin.ends_with("/clawlight")) && parts.next() == Some("menubar")
+    (bin == "broglow" || bin.ends_with("/broglow")) && parts.next() == Some("menubar")
 }
 
 /// Windows: the daemon holds a named mutex for its lifetime (see
@@ -88,7 +88,7 @@ pub fn is_running() -> bool {
     use windows_sys::Win32::System::Threading::OpenMutexW;
     const SYNCHRONIZE: u32 = 0x0010_0000;
 
-    let name: Vec<u16> = "Local\\clawlight-menubar"
+    let name: Vec<u16> = "Local\\broglow-menubar"
         .encode_utf16()
         .chain(std::iter::once(0))
         .collect();
@@ -141,7 +141,7 @@ pub fn ensure_running() -> String {
 
     // No launchd agent (never installed) or non-macOS: spawn directly.
     let Ok(exe) = std::env::current_exe() else {
-        return "Couldn't locate the clawlight binary.".to_string();
+        return "Couldn't locate the broglow binary.".to_string();
     };
     let mut cmd = std::process::Command::new(exe);
     cmd.arg("menubar")
@@ -150,9 +150,7 @@ pub fn ensure_running() -> String {
         .stderr(std::process::Stdio::null());
     crate::spawn::configure_detached(&mut cmd);
     match cmd.spawn() {
-        Ok(_) => {
-            "Started the tray daemon (run `clawlight install` for login autostart).".to_string()
-        }
+        Ok(_) => "Started the tray daemon (run `broglow install` for login autostart).".to_string(),
         Err(e) => format!("Couldn't start the tray daemon: {e}"),
     }
 }
@@ -181,7 +179,7 @@ pub(crate) fn project_label(s: &state::SessionStatus) -> String {
 }
 
 struct MenuIds {
-    open_clawlight: MenuId,
+    open_broglow: MenuId,
     quit: MenuId,
     /// Menu id → session id for the per-session rows (Linux native menu
     /// only); clicking one focuses that session's terminal window.
@@ -262,15 +260,15 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
     }
 
     menu.append(&PredefinedMenuItem::separator())?;
-    let open_clawlight = MenuItem::new("Open clawlight", true, None);
+    let open_broglow = MenuItem::new("Open BroGlow", true, None);
     let quit = MenuItem::new("Quit", true, None);
     let ids = MenuIds {
-        open_clawlight: open_clawlight.id().clone(),
+        open_broglow: open_broglow.id().clone(),
         quit: quit.id().clone(),
         sessions: session_ids,
     };
     if config::read_config().show_dashboard_button {
-        menu.append(&open_clawlight)?;
+        menu.append(&open_broglow)?;
     }
     menu.append(&quit)?;
 
@@ -283,14 +281,14 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 fn build_fallback_menu(show_dashboard: bool) -> anyhow::Result<(Menu, MenuIds)> {
     let menu = Menu::new();
-    let open_clawlight = MenuItem::new("Open Dashboard", true, None);
-    let quit = MenuItem::new("Quit clawlight", true, None);
+    let open_broglow = MenuItem::new("Open Dashboard", true, None);
+    let quit = MenuItem::new("Quit BroGlow", true, None);
     let ids = MenuIds {
-        open_clawlight: open_clawlight.id().clone(),
+        open_broglow: open_broglow.id().clone(),
         quit: quit.id().clone(),
     };
     if show_dashboard {
-        menu.append(&open_clawlight)?;
+        menu.append(&open_broglow)?;
         menu.append(&PredefinedMenuItem::separator())?;
     }
     menu.append(&quit)?;
@@ -346,22 +344,22 @@ fn apply_readout(tray: &tray_icon::TrayIcon) {
     #[cfg(target_os = "windows")]
     {
         let tooltip = match text {
-            Some(t) => format!("clawlight — {t}"),
-            None => "clawlight".to_string(),
+            Some(t) => format!("BroGlow — {t}"),
+            None => "BroGlow".to_string(),
         };
         let _ = tray.set_tooltip(Some(tooltip));
     }
 }
 
-pub fn run() -> anyhow::Result<()> {
+pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
     // Guard against running a second tray daemon (e.g. re-running
-    // `clawlight install`, or a user manually launching `clawlight menubar`
+    // `broglow install`, or a user manually launching `broglow menubar`
     // while the autostart instance is already up). Two daemons means two
     // tray icons and two LED/net background threads fighting over the same
     // serial port.
     #[cfg(target_os = "windows")]
     if !acquire_single_instance_lock() {
-        println!("clawlight tray is already running — not starting a second instance.");
+        println!("broglow tray is already running — not starting a second instance.");
         return Ok(());
     }
 
@@ -375,7 +373,7 @@ pub fn run() -> anyhow::Result<()> {
     let mut event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
 
     // If the daemon is up but the hooks were never registered (e.g. launched
-    // manually before `clawlight install`), wire them in so sessions report
+    // manually before `broglow install`), wire them in so sessions report
     // status. Hooks only — never autostart from here, or we'd spawn a duplicate
     // tray (see first_run_setup_daemon).
     crate::first_run_setup_daemon();
@@ -415,7 +413,7 @@ pub fn run() -> anyhow::Result<()> {
     let mut tray_builder = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
         .with_icon(icon_for_state(&initial_state)?)
-        .with_tooltip("clawlight");
+        .with_tooltip("BroGlow");
     // Left click opens the popover; the native menu stays on right click.
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     {
@@ -449,7 +447,7 @@ pub fn run() -> anyhow::Result<()> {
     // would push it off-screen above the monitor, where per-monitor DPI
     // assignment is ambiguous and flip-flops.
     #[cfg(any(target_os = "macos", target_os = "windows"))]
-    if std::env::var_os("CLAWLIGHT_POPOVER_DEBUG").is_some() {
+    if std::env::var_os("BROGLOW_POPOVER_DEBUG").is_some() {
         #[cfg(target_os = "macos")]
         let anchor_y = 0.0;
         #[cfg(target_os = "windows")]
@@ -518,6 +516,16 @@ pub fn run() -> anyhow::Result<()> {
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
+        // Finder/Spotlight should reveal the controls, including an already-running app.
+        #[cfg(target_os = "macos")]
+        if matches!(event, Event::Reopen { .. })
+            || (_show_on_launch && matches!(event, Event::NewEvents(tao::event::StartCause::Init)))
+        {
+            if let Some(rect) = tray_holder.as_ref().and_then(|tray| tray.rect()) {
+                popover.open_at(rect, &read_display_state());
+            }
+        }
+
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         if matches!(
             event,
@@ -575,7 +583,7 @@ pub fn run() -> anyhow::Result<()> {
                 }
             }
             Event::UserEvent(UserEvent::Menu(ev)) => {
-                if ev.id == ids.open_clawlight {
+                if ev.id == ids.open_broglow {
                     open_dashboard();
                 } else if ev.id == ids.quit {
                     tray_holder.take();
@@ -869,7 +877,7 @@ fn launch_dashboard() {
     let _ = std::process::Command::new("osascript")
         .args([
             "-e",
-            "tell application \"Terminal\" to do script \"clawlight\"",
+            "tell application \"Terminal\" to do script \"broglow\"",
             "-e",
             "tell application \"Terminal\" to activate",
         ])
@@ -879,12 +887,12 @@ fn launch_dashboard() {
 /// Launch the TUI dashboard in a fresh console window. Prefers Windows Terminal
 /// (`wt`) when available, falling back to a plain console via `cmd /c start`.
 /// Uses the running executable's own path so it works before install puts
-/// `clawlight` on PATH.
+/// `broglow` on PATH.
 #[cfg(target_os = "windows")]
 fn launch_dashboard() {
     let exe = std::env::current_exe()
         .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| "clawlight".to_string());
+        .unwrap_or_else(|_| "broglow".to_string());
 
     if std::process::Command::new("wt")
         .args(["-w", "0", "nt", &exe])
@@ -904,7 +912,7 @@ fn launch_dashboard() {
 fn launch_dashboard() {
     let exe = std::env::current_exe()
         .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| "clawlight".to_string());
+        .unwrap_or_else(|_| "broglow".to_string());
     // Best effort across common Linux terminal emulators.
     for term in ["x-terminal-emulator", "gnome-terminal", "konsole", "xterm"] {
         if std::process::Command::new(term)
@@ -926,7 +934,7 @@ fn acquire_single_instance_lock() -> bool {
     use windows_sys::Win32::System::Threading::CreateMutexW;
 
     // UTF-16, NUL-terminated, "Local\" scope keeps it per-session.
-    let name: Vec<u16> = "Local\\clawlight-menubar"
+    let name: Vec<u16> = "Local\\broglow-menubar"
         .encode_utf16()
         .chain(std::iter::once(0))
         .collect();

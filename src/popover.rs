@@ -59,7 +59,7 @@ pub enum PopoverMsg {
     Focus {
         id: String,
     },
-    /// Dismiss a session from ClawLight until its next hook event.
+    /// Dismiss a session from BroGlow until its next hook event.
     ClearSession {
         id: String,
     },
@@ -171,7 +171,7 @@ struct LampPayload {
     names: std::collections::BTreeMap<String, String>,
     bluetooth_supported: bool,
     setup_busy: bool,
-    /// A clawlight board is attached over USB right now.
+    /// A broglow board is attached over USB right now.
     present: bool,
     /// LED mirroring is turned on in config (the daemon drives the board).
     enabled: bool,
@@ -213,7 +213,7 @@ pub struct Popover {
     /// Windows: last time on_window_resized re-asserted the wanted size.
     #[cfg(target_os = "windows")]
     enforced_at: Option<Instant>,
-    /// CLAWLIGHT_POPOVER_DEBUG: the popover was force-opened without user
+    /// BROGLOW_POPOVER_DEBUG: the popover was force-opened without user
     /// interaction, so macOS revokes our activation; don't treat the
     /// resulting focus loss as a dismissal.
     debug: bool,
@@ -226,7 +226,7 @@ impl Popover {
     ) -> anyhow::Result<Self> {
         #[allow(unused_mut)]
         let mut builder = WindowBuilder::new()
-            .with_title("clawlight")
+            .with_title("BroGlow")
             .with_decorations(false)
             .with_resizable(false)
             .with_always_on_top(true)
@@ -247,7 +247,7 @@ impl Popover {
             // click on a button should act, not just focus the window.
             .with_accept_first_mouse(true)
             .with_ipc_handler(move |req| {
-                if std::env::var_os("CLAWLIGHT_POPOVER_DEBUG").is_some() {
+                if std::env::var_os("BROGLOW_POPOVER_DEBUG").is_some() {
                     eprintln!("popover ipc: {}", req.body());
                 }
                 if let Ok(msg) = serde_json::from_str::<PopoverMsg>(req.body()) {
@@ -269,7 +269,7 @@ impl Popover {
             wanted: None,
             #[cfg(target_os = "windows")]
             enforced_at: None,
-            debug: std::env::var_os("CLAWLIGHT_POPOVER_DEBUG").is_some(),
+            debug: std::env::var_os("BROGLOW_POPOVER_DEBUG").is_some(),
         })
     }
 

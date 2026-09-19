@@ -6,12 +6,12 @@
 
 Without live sessions, there is no steady session light. Brief startup, pairing or waiting
 indications can still appear. Start a new local task in a supported
-agent. For Codex, follow the [Codex setup steps](codex.md) and check that the task appears in ClawLight.
+agent. For Codex, follow the [Codex setup steps](codex.md) and check that the task appears in BroGlow.
 An ordinary conversational question from Codex does not itself turn the light red.
 
-If Terminal cannot find `clawlight` or runs an older copy, follow the [PATH checks](installation.md#path).
+If Terminal cannot find `broglow` or runs an older copy, follow the [PATH checks](installation.md#path).
 
-Check power, that lamp control is enabled in ClawLight, and Bluetooth. Allow ClawLight under
+Check power, that lamp control is enabled in BroGlow, and Bluetooth. Allow BroGlow under
 System Settings → Privacy & Security → Bluetooth. For a new lamp, connect it alone by USB
 and use **Lamps → Add lamp**; approve the macOS prompt and wait for **Connected**.
 In **Lamps**, expand the intended lamp's row and check its **Light brightness**:
@@ -22,14 +22,14 @@ Identify never changes preferences. Older firmware silently ignores this scan mo
 it needs a matching firmware update, which updating the app does not perform.
 **All lamps** replaces individual brightness levels with one shared value.
 The session color clears after 10 seconds without updates; a disconnected lamp may resume a
-quiet waiting pulse. It needs an awake Mac running ClawLight. If a color is still missing or
+quiet waiting pulse. It needs an awake Mac running BroGlow. If a color is still missing or
 faint, disconnect power before checking that LED's polarity, resistor, contacts and shared GND.
 See the [detailed troubleshooting steps](hardware.md#troubleshooting-and-service-recovery).
 
 Want a hand? Open the project or unpacked package in your coding agent and paste this prompt.
 
 ```text
-Help me find out why my ClawLight stays dark using docs/hardware-setup.md in this project or
+Help me find out why my BroGlow stays dark using docs/hardware-setup.md in this project or
 package. Start with agent sessions, hooks, the background service, Bluetooth status, and
 the intended lamp's saved brightness (0% is intentionally dark). Check its row's brightness
 preview or Identify (three red/yellow/green passes); if firmware lacks the scan mode,
@@ -37,7 +37,7 @@ report that a matching firmware update is needed. Preserve other lamps, names an
 If setup is needed, use
 Lamps → Add lamp with one USB-connected lamp and let me approve macOS prompts. For
 Codex, check hook trust with the same CODEX_HOME as the app and verify that a real local task
-appears in ClawLight. Guide me through /hooks approval if needed; leave approval to me.
+appears in BroGlow. Guide me through /hooks approval if needed; leave approval to me.
 Distinguish local Codex tasks from ordinary ChatGPT chats and cloud or remote tasks. Identify
 my actual board before hardware commands and check its firmware and pin assignments. Do not
 reflash it or clear pairings as a troubleshooting shortcut. If wiring needs checking, guide me

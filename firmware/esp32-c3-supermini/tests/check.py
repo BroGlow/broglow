@@ -25,7 +25,7 @@ SCENARIOS = (
     "gatt-mode-failed",
 )
 
-with tempfile.TemporaryDirectory(prefix="clawlight-c3-check-") as folder:
+with tempfile.TemporaryDirectory(prefix="broglow-c3-check-") as folder:
     directory = Path(folder)
     # check.cpp defines only the hardware API mocks used by the included firmware.
     for name in (

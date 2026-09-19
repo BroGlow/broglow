@@ -4,9 +4,9 @@
 
 # Build your lamp
 
-ClawLight includes an app, ESP32-C3 firmware and a printable enclosure.
+BroGlow includes an app, ESP32-C3 firmware and a printable enclosure.
 
-Already assembled? [Install ClawLight and connect the lamp](installation.md).
+Already assembled? [Install BroGlow and connect the lamp](installation.md).
 
 <a name="parts"></a>
 

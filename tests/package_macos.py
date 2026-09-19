@@ -33,7 +33,7 @@ def rejected(tag, message):
         raise AssertionError("Invalid release source accepted")
 
 
-with tempfile.TemporaryDirectory(prefix="clawlight-release-check-") as folder:
+with tempfile.TemporaryDirectory(prefix="broglow-release-check-") as folder:
     package.ROOT = Path(folder)
 
     def git(*args):

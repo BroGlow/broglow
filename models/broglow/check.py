@@ -1,4 +1,4 @@
-"""Runnable CAD/mesh checks. Run AFTER clawlight.py exports updated STLs."""
+"""Runnable CAD/mesh checks. Run AFTER broglow.py exports updated STLs."""
 
 import itertools
 import json
@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import trimesh
 from build123d import Align, Axis, Cone, Cylinder, Face, GeomType, Plane, Wire, extrude
-import clawlight as m
+import broglow as m
 import hand_joint as j
 import usb_coupon as u
 

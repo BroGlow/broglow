@@ -8,7 +8,7 @@ top provides access without changing the USB interface or fixed PCB guides.
 from build123d import Compound, Solid
 from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCP.TopLoc import TopLoc_Location
-import clawlight as m
+import broglow as m
 
 COUPON_HEIGHT = 14.0
 CROP_MARGIN = 1.0

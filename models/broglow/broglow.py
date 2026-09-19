@@ -1,6 +1,6 @@
-"""Claw Light: millimetres, X right, Y rear, Z up; desk Z=0.
+"""BroGlow: millimetres, X right, Y rear, Z up; desk Z=0.
 
-Run with build123d 0.11.1: python clawlight.py
+Run with build123d 0.11.1: python broglow.py
 Screw pilots and LED bores use the user's coupon results. PCB outline and
 LED body/flanges and USB shell are measured; component envelopes
 remain provisional. Measurements and coupon tests: 2026-09-17.
@@ -793,7 +793,7 @@ def parts():
 def gen_step():
     # Static assembly coordinates are the named desk/front/rear and screw datums above.
     return Compound(
-        children=list(parts().values()), label="Claw_Light_printed_assembly_mm"
+        children=list(parts().values()), label="BroGlow_printed_assembly_mm"
     )
 
 
@@ -875,7 +875,7 @@ def export_all():
             "solid_volume_mm3": c.volume,
             "assembly_label": c.label,
         }
-    export_step(gen_step(), str(OUT / "clawlight.step"))
+    export_step(gen_step(), str(OUT / "broglow.step"))
     with open(OUT / "parts.json", "w") as f:
         json.dump(metadata, f, indent=2)
     return metadata

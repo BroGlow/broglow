@@ -1,4 +1,4 @@
-//! Cross-platform hook backend, invoked by Claude Code as `clawlight hook`.
+//! Cross-platform hook backend, invoked by Claude Code as `broglow hook`.
 //!
 //! This replaces the old bash + jq hook script: the same binary now handles
 //! session-state updates on macOS, Linux, and Windows with no shell or `jq`
@@ -56,7 +56,7 @@ fn update_state(mutate: impl FnOnce(&mut HookState) -> bool) -> anyhow::Result<(
 #[test]
 fn dismissed_session_returns_on_activity() {
     // Isolate the real filesystem path in a child, never change this runner's HOME.
-    if std::env::var_os("CLAWLIGHT_TEST_DISMISS").is_none() {
+    if std::env::var_os("BROGLOW_TEST_DISMISS").is_none() {
         let home = tempfile::tempdir().unwrap();
         let output = std::process::Command::new(std::env::current_exe().unwrap())
             .args([
@@ -65,7 +65,7 @@ fn dismissed_session_returns_on_activity() {
                 "--nocapture",
             ])
             .env("HOME", home.path())
-            .env("CLAWLIGHT_TEST_DISMISS", "1")
+            .env("BROGLOW_TEST_DISMISS", "1")
             .output()
             .unwrap();
         assert!(
@@ -151,12 +151,12 @@ fn dismissed_session_returns_on_activity() {
     );
 }
 
-/// `clawlight hook`: read one hook event as JSON on stdin and update
+/// `broglow hook`: read one hook event as JSON on stdin and update
 /// `state.json`. Mirrors the semantics of the previous `hook.sh` exactly.
 pub fn run() -> anyhow::Result<()> {
-    // A nested Claude session that clawlight spawns for auto-naming sets this,
+    // A nested Claude session that broglow spawns for auto-naming sets this,
     // so its own hooks must not recurse back into state tracking.
-    if std::env::var_os("CLAWLIGHT_NAMING").is_some() {
+    if std::env::var_os("BROGLOW_NAMING").is_some() {
         return Ok(());
     }
 
@@ -255,7 +255,7 @@ pub fn run() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `clawlight event`: read one normalized harness event as JSON on stdin and
+/// `broglow event`: read one normalized harness event as JSON on stdin and
 /// update `state.json`. This is the ingestion path for non-Claude harnesses
 /// (opencode today; Codex/Copilot adapters later emit the same shape). The
 /// on-disk schema and every reader (TUI, tray, LED) are shared with the Claude
@@ -422,7 +422,7 @@ fn ingest_event(v: &Value) -> anyhow::Result<()> {
     })
 }
 
-/// `clawlight codex-hook`: the Codex shim. Codex (>= 0.144) fires hooks in
+/// `broglow codex-hook`: the Codex shim. Codex (>= 0.144) fires hooks in
 /// Claude Code's dialect — same stdin JSON shape — from the entries the codex
 /// adapter registers in `$CODEX_HOME/hooks.json`. This reads one such event,
 /// maps it onto the normalized verbs, and feeds [`ingest_event`], so Codex
@@ -516,9 +516,9 @@ fn codex_event_verb(hook_event: &str, exec: bool) -> Option<&'static str> {
     }
 }
 
-/// `clawlight copilot-hook <event>`: the GitHub Copilot CLI shim. The copilot
+/// `broglow copilot-hook <event>`: the GitHub Copilot CLI shim. The copilot
 /// adapter (see copilot.rs) registers this command per lifecycle event in
-/// `$COPILOT_HOME/hooks/clawlight.json`; Copilot pipes one JSON payload on
+/// `$COPILOT_HOME/hooks/broglow.json`; Copilot pipes one JSON payload on
 /// stdin. The payload does not name its event — that arrives as `event` from
 /// argv — so this reads the payload, maps the pair onto the normalized verbs,
 /// and feeds [`ingest_event`], giving Copilot sessions the shared semantics
@@ -653,7 +653,7 @@ fn sweep_reconnected(harness: &str) -> anyhow::Result<()> {
     })
 }
 
-/// `clawlight name <session_id> <transcript_path>`: generate a concise session
+/// `broglow name <session_id> <transcript_path>`: generate a concise session
 /// title from the transcript via the Claude CLI and write it back to
 /// `state.json`. Run detached from the hook so it can take a few seconds.
 pub fn run_namer(session_id: &str, transcript_path: &str) -> anyhow::Result<()> {
@@ -697,8 +697,8 @@ fn run_claude_cli(prompt: &str) -> std::io::Result<std::process::Output> {
     let build = |program: &str| {
         let mut cmd = std::process::Command::new(program);
         cmd.args(["-p", "--model", "haiku", prompt])
-            // CLAWLIGHT_NAMING tells the hooks fired by this nested call to no-op.
-            .env("CLAWLIGHT_NAMING", "1")
+            // BROGLOW_NAMING tells the hooks fired by this nested call to no-op.
+            .env("BROGLOW_NAMING", "1")
             // The old bash hook did `unset CLAUDECODE` before invoking a nested
             // `claude` — without it the nested CLI can detect it's running
             // inside a Claude Code session and change behavior.
@@ -776,7 +776,7 @@ fn first_user_prompt(transcript_path: &str) -> Option<String> {
     None
 }
 
-/// Launch `clawlight name ...` as a detached, windowless child so the hook can
+/// Launch `broglow name ...` as a detached, windowless child so the hook can
 /// return immediately while naming happens in the background.
 fn spawn_namer(session_id: &str, transcript_path: &str) {
     let exe = match std::env::current_exe() {

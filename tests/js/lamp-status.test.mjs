@@ -84,7 +84,7 @@ test('sessions dismiss without focusing, show failures, and return on fresh host
   const html = element('groups').innerHTML;
   assert.equal((html.match(/class="dismissbtn"/g) || []).length, 3);
   assert.match(html, /type="button"[^>]*data-cmd="clear_session"/);
-  assert.match(html, /aria-label="Dismiss Task &lt;one&gt; &quot;quoted&quot; from ClawLight"/);
+  assert.match(html, /aria-label="Dismiss Task &lt;one&gt; &quot;quoted&quot; from BroGlow"/);
   const dismiss = element('dismiss-session-1');
   dismiss.dataset = { cmd: 'clear_session', id: 'session-1' };
   dismiss.focus();

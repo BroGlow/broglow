@@ -12,9 +12,9 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL = Path("models/clawlight")
+MODEL = Path("models/broglow")
 CAD_FILES = (
-    "clawlight.py",
+    "broglow.py",
     "hand_joint.py",
     "appearance.py",
     "exploded.py",
@@ -144,8 +144,8 @@ def main():
 
     run(
         "-c",
-        "import importlib; from build123d import export_step; import clawlight; "
-        "clawlight.export_all(); "
+        "import importlib; from build123d import export_step; import broglow; "
+        "broglow.export_all(); "
         "[export_step(importlib.import_module(name).gen_step(), name+'.step') "
         "for name in ('appearance', 'exploded', 'usb_coupon')]",
         cwd=model,
@@ -163,8 +163,8 @@ def main():
         identity(version, args.release_tag) == (commit, dirty),
         "Source identity changed during generation; rerun from a stable checkout.",
     )
-    archive = output / f"clawlight-enclosure-v{version}.zip"
-    shutil.copy2(output / "clawlight-print-pack.zip", archive)
+    archive = output / f"broglow-enclosure-v{version}.zip"
+    shutil.copy2(output / "broglow-print-pack.zip", archive)
     checksum = archive.with_name(archive.name + ".sha256")
     checksum.write_text(f"{release.sha256(archive)}  {archive.name}\n")
     print(

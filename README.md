@@ -1,6 +1,6 @@
 [English](README.md) | [Русский](README.ru.md)
 
-# ClawLight
+# BroGlow
 
 A local session monitor for Claude Code, opencode, Codex and GitHub Copilot CLI,
 with a menu-bar app, terminal dashboard and optional ESP32-C3 status lamp.
@@ -11,8 +11,11 @@ Maintained by **Suren Khorenyan**. Copyright notices are in [LICENSE](LICENSE).
 
 ## Why this version?
 
-This version extends [the original ClawLight](https://github.com/clawlight/clawlight-cli)
-with wireless lamp control, a customizable DIY build and everyday desktop improvements.
+BroGlow is a separate, independently maintained application based on
+[ClawLight](https://github.com/clawlight/clawlight-cli). It substantially reworks
+and extends the original with macOS Bluetooth lamp control, improved Codex
+desktop integration, per-lamp setup and brightness controls, a customizable
+printable enclosure, and a bilingual interactive assembly guide.
 
 | What’s better | What you gain |
 | --- | --- |
@@ -35,7 +38,7 @@ The lamp still needs power and is designed for DIY assembly.
 - **Install or update:** [setup manual](docs/hardware-setup.md#install-or-update-the-mac-service).
 - **Connect a flashed lamp:** [USB-assisted setup](docs/hardware-setup.md#usb-assisted-setup).
 - **Build/wire a C3:** [hardware guide](docs/hardware-setup.md#wiring-and-resistor-choice).
-- **Print the optional enclosure:** [printing and assembly](models/clawlight/PRINT_GUIDE.en.md).
+- **Print the optional enclosure:** [printing and assembly](models/broglow/PRINT_GUIDE.en.md).
 
 Mac packages include the app, C3 firmware and manuals; Windows archives include
 **the graphical tray app and CLI**, and Linux builds from source. Windows packages
@@ -51,21 +54,26 @@ steps](docs/hardware-setup.md#install-a-prebuilt-package). Builds are not Develo
 ID notarized; the manual describes macOS's normal per-app approval flow.
 
 On Windows, extract the Windows archive from Releases into a permanent folder.
-In PowerShell from that folder, run `.\clawlight.exe install` to register hooks,
-enable startup at login and launch the tray app. `.\clawlight.exe menubar` launches
-the graphical tray interface directly; `.\clawlight.exe` opens the terminal dashboard.
+In PowerShell from that folder, run `.\broglow.exe install` to register hooks,
+enable startup at login and launch the tray app. `.\broglow.exe menubar` launches
+the graphical tray interface directly; `.\broglow.exe` opens the terminal dashboard.
 
 To build the app from a source checkout instead:
 
 ```bash
 cargo install --locked --path .
-"$HOME/.cargo/bin/clawlight" install
+"$HOME/.cargo/bin/broglow" install
 ```
 
 On Linux, install the [system development libraries](CONTRIBUTING.md#development-setup)
 before compiling. On Windows, use the Rust MSVC
-toolchain and put the built executable on PATH, then run `clawlight install`.
+toolchain and put the built executable on PATH, then run `broglow install`.
 No board is flashed by app installation.
+
+On macOS, press **⌘ Space**, search **BroGlow** and press Return to open its
+controls. The app lives in `~/Applications/BroGlow.app` and starts at login.
+You can also run `open "$HOME/Applications/BroGlow.app"`. In Terminal, `broglow`
+opens the optional terminal dashboard.
 
 ## Connect your coding agents
 
@@ -88,12 +96,12 @@ or adjust its brightness. Multiple saved lamps work independently.
 Session **×** hides a row until new activity; the conversation stays in its coding app.
 
 ```text
-clawlight --version          Identify the installed release
-clawlight                    Open the terminal dashboard
-clawlight ble pair           Identify and remember a flashed C3 over USB
-clawlight ble status         Check current lamp delivery
-clawlight dashboard-button show   Enable optional dashboard shortcuts
-clawlight uninstall          Remove hooks, autostart and ClawLight settings
+broglow --version          Identify the installed release
+broglow                    Open the terminal dashboard
+broglow ble pair           Identify and remember a flashed C3 over USB
+broglow ble status         Check current lamp delivery
+broglow dashboard-button show   Enable optional dashboard shortcuts
+broglow uninstall          Remove hooks, autostart and BroGlow settings
 ```
 
 The app starts at login. Needs input takes color priority; Settings controls

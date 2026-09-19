@@ -4,22 +4,22 @@
 
 use assert_cmd::Command;
 
-fn clawlight() -> Command {
-    Command::cargo_bin("clawlight").expect("binary built")
+fn broglow() -> Command {
+    Command::cargo_bin("broglow").expect("binary built")
 }
 
 #[test]
 fn version_identifies_the_release() {
-    clawlight()
+    broglow()
         .arg("--version")
         .assert()
         .success()
-        .stdout(concat!("clawlight ", env!("CARGO_PKG_VERSION"), "\n"));
+        .stdout(concat!("broglow ", env!("CARGO_PKG_VERSION"), "\n"));
 }
 
 #[test]
 fn help_lists_the_public_subcommands() {
-    let assert = clawlight().arg("--help").assert().success();
+    let assert = broglow().arg("--help").assert().success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
 
     for subcommand in [
@@ -46,9 +46,9 @@ fn help_lists_the_public_subcommands() {
 #[test]
 fn dashboard_visibility_persists_without_touching_other_settings_or_installing() {
     let home = tempfile::tempdir().unwrap();
-    let path = home.path().join(".claude/clawlight/config.json");
+    let path = home.path().join(".claude/broglow/config.json");
     let run = |value: &str| {
-        clawlight()
+        broglow()
             .env("HOME", home.path())
             .args(["dashboard-button", value])
             .assert()
@@ -88,7 +88,7 @@ fn concurrent_settings_commands_preserve_disjoint_edits() {
     use std::process::Stdio;
 
     let home = tempfile::tempdir().unwrap();
-    let dir = home.path().join(".claude/clawlight");
+    let dir = home.path().join(".claude/broglow");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("config.json");
     let first = "11111111-2222-3333-4444-555555555555";
@@ -116,7 +116,7 @@ fn concurrent_settings_commands_preserve_disjoint_edits() {
     let mut children: Vec<_> = edits
         .iter()
         .map(|args| {
-            std::process::Command::new(clawlight().get_program())
+            std::process::Command::new(broglow().get_program())
                 .env("HOME", home.path())
                 .args(args)
                 .stdout(Stdio::null())
@@ -155,32 +155,29 @@ fn concurrent_settings_commands_preserve_disjoint_edits() {
 
 #[test]
 fn ble_help_documents_selection_without_accessing_the_radio() {
-    let assert = clawlight().args(["ble", "--help"]).assert().success();
+    let assert = broglow().args(["ble", "--help"]).assert().success();
     let help = String::from_utf8_lossy(&assert.get_output().stdout);
     for command in [
-        "scan", "pair", "add", "select", "remove", "list", "usb", "off", "status",
+        "scan", "pair", "add", "remove", "list", "usb", "off", "status",
     ] {
         assert!(help.contains(command));
     }
-    clawlight().args(["ble", "select"]).assert().failure();
-    clawlight()
-        .args(["ble", "pair", "--help"])
-        .assert()
-        .success();
+    broglow().args(["ble", "add"]).assert().failure();
+    broglow().args(["ble", "pair", "--help"]).assert().success();
 }
 
 #[test]
 fn unknown_subcommands_fail() {
-    clawlight().arg("no-such-command").assert().failure();
+    broglow().arg("no-such-command").assert().failure();
 }
 
 #[test]
 fn the_hook_exits_cleanly_under_the_naming_guard() {
-    // CLAWLIGHT_NAMING short-circuits before any state I/O, so this is safe to
+    // BROGLOW_NAMING short-circuits before any state I/O, so this is safe to
     // run against the real home directory on every platform.
-    clawlight()
+    broglow()
         .arg("hook")
-        .env("CLAWLIGHT_NAMING", "1")
+        .env("BROGLOW_NAMING", "1")
         .write_stdin("")
         .assert()
         .success();
@@ -191,10 +188,10 @@ fn the_event_backend_exits_cleanly_on_junk_input() {
     // Malformed stdin must be a safe no-op, like the hook backend. Uses a
     // nonexistent HOME override on unix so nothing real is written; on Windows
     // the parse fails before any state path is touched.
-    let mut cmd = clawlight();
+    let mut cmd = broglow();
     cmd.arg("event").write_stdin("not an event {{{");
     #[cfg(unix)]
-    cmd.env("HOME", "/nonexistent-clawlight-test-home");
+    cmd.env("HOME", "/nonexistent-broglow-test-home");
     cmd.assert().success();
 }
 
@@ -203,10 +200,10 @@ fn the_copilot_shim_exits_cleanly_on_junk_input() {
     // Same contract as the other stdin backends: malformed payloads are a
     // safe no-op. The event name is argv, so an unknown one must no-op too.
     for (event, stdin) in [("agentStop", "not json {{{"), ("someFutureEvent", "{}")] {
-        let mut cmd = clawlight();
+        let mut cmd = broglow();
         cmd.args(["copilot-hook", event]).write_stdin(stdin);
         #[cfg(unix)]
-        cmd.env("HOME", "/nonexistent-clawlight-test-home");
+        cmd.env("HOME", "/nonexistent-broglow-test-home");
         cmd.assert().success();
     }
 }
@@ -228,7 +225,7 @@ fn the_opencode_plugin_parses_as_a_js_module() {
     let contents = std::fs::read_to_string(asset).expect("read plugin asset");
     // ES-module syntax parses only with an .mjs extension, so copy it out.
     let dir = tempfile::TempDir::new().unwrap();
-    let mjs = dir.path().join("clawlight.mjs");
+    let mjs = dir.path().join("broglow.mjs");
     std::fs::write(&mjs, contents).unwrap();
 
     let output = std::process::Command::new(node)
@@ -256,17 +253,17 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
     let home = tempfile::tempdir().unwrap();
     let bundled = home
         .path()
-        .join("Applications/ClawLight.app/Contents/MacOS/clawlight");
+        .join("Applications/BroGlow.app/Contents/MacOS/broglow");
     std::fs::create_dir_all(bundled.parent().unwrap()).unwrap();
-    std::fs::copy(clawlight().get_program(), &bundled).unwrap();
-    let dir = home.path().join(".claude/clawlight");
+    std::fs::copy(broglow().get_program(), &bundled).unwrap();
+    let dir = home.path().join(".claude/broglow");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("config.json");
     let original = r#"{"led_enabled":true,"ble_peripherals":["keep"],"unrelated":{"retain":true}}"#;
     std::fs::write(&path, original).unwrap();
     let missing_port = home.path().join("nonexistent-serial-port");
     let invoke = || {
-        clawlight()
+        broglow()
             .env("HOME", home.path())
             .args(["ble", "pair", "--port"])
             .arg(&missing_port)
@@ -298,7 +295,7 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
             .open(dir.join(".lamp.lock"))
             .unwrap();
         worker.lock().unwrap();
-        let child = std::process::Command::new(clawlight().get_program())
+        let child = std::process::Command::new(broglow().get_program())
             .env("HOME", home.path())
             .args(["ble", "pair", "--port"])
             .arg(&missing_port)
@@ -316,7 +313,7 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
             assert!(Instant::now() < deadline, "setup did not pause its worker");
             std::thread::sleep(Duration::from_millis(10));
         }
-        clawlight()
+        broglow()
             .env("HOME", home.path())
             .timeout(Duration::from_secs(3))
             .args(["dashboard-button", "show"])
@@ -349,27 +346,27 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
 
 #[cfg(target_os = "macos")]
 #[test]
-fn remembered_lamps_migrate_add_remove_and_list_without_radio() {
+fn remembered_lamps_add_remove_and_list_without_radio() {
     let home = tempfile::tempdir().unwrap();
-    let dir = home.path().join(".claude/clawlight");
+    let dir = home.path().join(".claude/broglow");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("config.json");
     let first = "11111111-2222-3333-4444-555555555555";
     let second = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
     std::fs::write(
         &path,
-        serde_json::json!({"ble_peripheral":first,"led_brightness":37,"custom":42}).to_string(),
+        serde_json::json!({"ble_peripherals":[first],"led_brightness":37,"custom":42}).to_string(),
     )
     .unwrap();
     let run = |args: &[&str]| {
-        clawlight()
+        broglow()
             .env("HOME", home.path())
             .args(args)
             .assert()
             .success();
     };
     run(&["ble", "add", &second.to_uppercase()]);
-    run(&["ble", "select", first]);
+    run(&["ble", "add", first]);
     run(&["ble", "rename", first, "  Дом 💡  "]);
     run(&["ble", "rename", second, "Office"]);
     run(&["ble", "brightness", "0", "--id", first]);
@@ -377,12 +374,11 @@ fn remembered_lamps_migrate_add_remove_and_list_without_radio() {
     let bytes = std::fs::read(&path).unwrap();
     let cfg: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(cfg["ble_peripherals"], serde_json::json!([first, second]));
-    assert!(cfg.get("ble_peripheral").is_none());
     assert_eq!(cfg["custom"], 42);
     assert_eq!(cfg["lamp_names"][first], "Дом 💡");
     assert_eq!(cfg["lamp_names"][second], "Office");
     for name in ["a".repeat(41), "a\nb".into()] {
-        clawlight()
+        broglow()
             .env("HOME", home.path())
             .args(["ble", "rename", first, &name])
             .assert()
@@ -395,7 +391,7 @@ fn remembered_lamps_migrate_add_remove_and_list_without_radio() {
     assert!(cleared["lamp_names"].get(first).is_none());
     assert_eq!(cleared["lamp_names"][second], "Office");
     run(&["ble", "rename", first, "Дом 💡"]);
-    let listed = clawlight()
+    let listed = broglow()
         .env("HOME", home.path())
         .args(["ble", "list"])
         .assert()
@@ -413,7 +409,7 @@ fn remembered_lamps_migrate_add_remove_and_list_without_radio() {
     assert_eq!(cfg["led_brightness"], 37);
     assert_eq!(cfg["custom"], 42);
     for id in [second, "invalid"] {
-        clawlight()
+        broglow()
             .env("HOME", home.path())
             .args(["ble", "remove", id])
             .assert()
@@ -435,7 +431,7 @@ fn remembered_lamps_migrate_add_remove_and_list_without_radio() {
     assert_eq!(cfg["led_brightness"], 37);
     assert_eq!(cfg["custom"], 42);
     std::fs::write(&path, "{corrupt").unwrap();
-    clawlight()
+    broglow()
         .env("HOME", home.path())
         .args(["ble", "remove", first])
         .assert()
@@ -447,7 +443,7 @@ fn remembered_lamps_migrate_add_remove_and_list_without_radio() {
 #[test]
 fn brightness_settings_are_independent_and_save_offline_without_enabling() {
     let home = tempfile::tempdir().unwrap();
-    let dir = home.path().join(".claude/clawlight");
+    let dir = home.path().join(".claude/broglow");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("config.json");
     let first = "11111111-2222-3333-4444-555555555555";
@@ -455,7 +451,7 @@ fn brightness_settings_are_independent_and_save_offline_without_enabling() {
     std::fs::write(
         &path,
         serde_json::json!({
-            "ble_peripheral": first, "ble_peripherals": [second],
+            "ble_peripherals": [first, second],
             "led_brightness": 37, "led_enabled": false, "led_transport": "usb",
             "led_port": "keep", "custom": 42
         })
@@ -463,7 +459,7 @@ fn brightness_settings_are_independent_and_save_offline_without_enabling() {
     )
     .unwrap();
     let run = |args: &[&str]| {
-        clawlight()
+        broglow()
             .env("HOME", home.path())
             .args(args)
             .assert()
@@ -495,7 +491,7 @@ fn brightness_settings_are_independent_and_save_offline_without_enabling() {
             "00000000-0000-0000-0000-000000000000",
         ],
     ] {
-        clawlight()
+        broglow()
             .env("HOME", home.path())
             .args(args)
             .assert()
@@ -509,8 +505,7 @@ fn brightness_settings_are_independent_and_save_offline_without_enabling() {
         cfg.get("lamp_brightness").is_none(),
         "All lamps clears overrides"
     );
-    assert_eq!(cfg["ble_peripheral"], first);
-    assert_eq!(cfg["ble_peripherals"], serde_json::json!([second]));
+    assert_eq!(cfg["ble_peripherals"], serde_json::json!([first, second]));
     assert_eq!(cfg["led_enabled"], false);
     assert_eq!(cfg["custom"], 42);
     std::fs::write(&path, "{corrupt").unwrap();
@@ -518,7 +513,7 @@ fn brightness_settings_are_independent_and_save_offline_without_enabling() {
         vec!["ble", "brightness", "20"],
         vec!["ble", "brightness", "20", "--id", first],
     ] {
-        clawlight()
+        broglow()
             .env("HOME", home.path())
             .args(args)
             .assert()
@@ -531,7 +526,7 @@ fn brightness_settings_are_independent_and_save_offline_without_enabling() {
 #[test]
 fn ble_selection_preserves_settings_without_radio() {
     let home = tempfile::tempdir().unwrap();
-    let dir = home.path().join(".claude/clawlight");
+    let dir = home.path().join(".claude/broglow");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("config.json");
     std::fs::write(
@@ -540,9 +535,9 @@ fn ble_selection_preserves_settings_without_radio() {
     )
     .unwrap();
     let id = "11111111-2222-3333-4444-555555555555";
-    clawlight()
+    broglow()
         .env("HOME", home.path())
-        .args(["ble", "select", id])
+        .args(["ble", "add", id])
         .assert()
         .success();
     let selected = std::fs::read(&path).unwrap();
@@ -552,13 +547,13 @@ fn ble_selection_preserves_settings_without_radio() {
     assert_eq!(cfg["led_enabled"], true);
     assert_eq!(cfg["custom"], 42);
     assert_eq!(cfg["led_port"], "keep");
-    clawlight()
+    broglow()
         .env("HOME", home.path())
-        .args(["ble", "select", "invalid"])
+        .args(["ble", "add", "invalid"])
         .assert()
         .failure();
     assert_eq!(std::fs::read(&path).unwrap(), selected);
-    clawlight()
+    broglow()
         .env("HOME", home.path())
         .args(["ble", "off"])
         .assert()
@@ -567,7 +562,7 @@ fn ble_selection_preserves_settings_without_radio() {
     assert_eq!(cfg["ble_peripherals"], serde_json::json!([id]));
     assert_eq!(cfg["led_enabled"], false);
     std::fs::write(&path, "{corrupt").unwrap();
-    clawlight()
+    broglow()
         .env("HOME", home.path())
         .args(["ble", "usb"])
         .assert()

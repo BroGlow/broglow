@@ -1,4 +1,4 @@
-//! Persistent user settings at `~/.claude/clawlight/config.json`.
+//! Persistent user settings at `~/.claude/broglow/config.json`.
 //!
 //! Kept separate from the hook-written `state.json` so the daemon and the TUI
 //! can share opt-in preferences (currently just the ESP32 status LEDs).
@@ -53,9 +53,6 @@ pub struct Config {
     /// survives the board being unplugged and replugged at a different path.
     pub led_port: Option<String>,
     pub led_transport: LedTransport,
-    /// Legacy single-lamp selection. Read through ble_ids(); migrated on edits.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ble_peripheral: Option<String>,
     /// Remembered CoreBluetooth UUIDs, never guessed MAC addresses/names.
     pub ble_peripherals: Vec<String>,
     /// Optional user labels, keyed by the saved Bluetooth identity.
@@ -95,7 +92,6 @@ impl Default for Config {
             led_enabled: false,
             led_port: None,
             led_transport: LedTransport::default(),
-            ble_peripheral: None,
             ble_peripherals: Vec::new(),
             lamp_names: Default::default(),
             led_brightness: 100,
@@ -148,10 +144,9 @@ impl Config {
             .min(100)
     }
 
-    /// Include the old single-lamp setting and compare targets independent of order.
+    /// Compare remembered targets independent of order, without duplicates.
     pub fn ble_ids(&self) -> Vec<String> {
         let mut ids = self.ble_peripherals.clone();
-        ids.extend(self.ble_peripheral.iter().cloned());
         ids.sort();
         ids.dedup();
         ids
@@ -162,7 +157,7 @@ pub fn config_file_path() -> PathBuf {
     dirs::home_dir()
         .expect("Home directory must exist")
         .join(".claude")
-        .join("clawlight")
+        .join("broglow")
         .join("config.json")
 }
 
@@ -233,12 +228,12 @@ mod tests {
             r#"{"custom_setting":{"keep":true},"led_port":"existing","yellow_mode":"active_wins"}"#,
         )
         .unwrap();
-        cfg.ble_peripheral = Some("selected-id".into());
+        cfg.ble_peripherals = vec!["selected-id".into()];
         cfg.led_transport = super::LedTransport::Ble;
         let json = serde_json::to_value(&cfg).unwrap();
         assert_eq!(json["custom_setting"]["keep"], true);
         let back: Config = serde_json::from_value(json).unwrap();
-        assert_eq!(back.ble_peripheral.as_deref(), Some("selected-id"));
+        assert_eq!(back.ble_peripherals, ["selected-id"]);
         assert_eq!(back.led_port.as_deref(), Some("existing"));
         assert_eq!(back.yellow_mode, YellowMode::ActiveWins);
         assert_eq!(back.ble_ids(), ["selected-id"]);
@@ -368,7 +363,7 @@ mod tests {
         let old: Config = serde_json::from_str(r#"{"led_enabled": true}"#).unwrap();
         assert!(!old.usage_enabled);
         assert_eq!(old.led_transport, super::LedTransport::Usb);
-        assert!(old.ble_peripheral.is_none());
+        assert!(old.ble_peripherals.is_empty());
     }
 
     #[test]

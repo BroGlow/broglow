@@ -1,4 +1,4 @@
-//! End-to-end tests of the Codex shim: drive the real `clawlight codex-hook`
+//! End-to-end tests of the Codex shim: drive the real `broglow codex-hook`
 //! the way Codex's hooks do — one Claude-dialect hook payload as JSON on
 //! stdin — and observe the resulting `state.json`. Mirrors the strategy of
 //! `event_lifecycle.rs` / `hook_lifecycle.rs`.
@@ -21,7 +21,7 @@ fn temp_home() -> TempDir {
 fn state_path(home: &TempDir) -> PathBuf {
     home.path()
         .join(".claude")
-        .join("clawlight")
+        .join("broglow")
         .join("state.json")
 }
 
@@ -29,9 +29,9 @@ fn codex_home(home: &TempDir) -> PathBuf {
     home.path().join("codex-home")
 }
 
-/// Run `clawlight codex-hook` inside the sandbox with the given stdin.
+/// Run `broglow codex-hook` inside the sandbox with the given stdin.
 fn run_codex_hook(home: &TempDir, stdin: &str) -> assert_cmd::assert::Assert {
-    Command::cargo_bin("clawlight")
+    Command::cargo_bin("broglow")
         .expect("binary built")
         .arg("codex-hook")
         .env("HOME", home.path())

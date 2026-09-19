@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draw original geometric status icons. Run with --check to verify committed PNGs."""
+"""Draw original tray and macOS app icons. Run with --check to verify assets."""
 
 import argparse
 from pathlib import Path
@@ -31,19 +31,23 @@ def sample(x, y, state):
         if (x - 18) ** 2 + (y - center) ** 2 <= 3.25**2:
             return (
                 COLORS[color]
-                if state == color
+                if state in (color, "app")
                 else COLORS["none"] if state == "none" else (65, 74, 87)
             )
     return (31, 41, 55)
 
 
-def render(state):
+def render(state, size=SIZE):
     raw = bytearray()
-    for y in range(SIZE):
+    for y in range(size):
         raw.append(0)  # PNG scanline filter: None.
-        for x in range(SIZE):
+        for x in range(size):
             colors = [
-                sample(x + (sx + 0.5) / 4, y + (sy + 0.5) / 4, state)
+                sample(
+                    (x + (sx + 0.5) / 4) * SIZE / size,
+                    (y + (sy + 0.5) / 4) * SIZE / size,
+                    state,
+                )
                 for sy in range(4)
                 for sx in range(4)
             ]
@@ -67,7 +71,7 @@ def render(state):
 
     return (
         b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", struct.pack(">2I5B", SIZE, SIZE, 8, 6, 0, 0, 0))
+        + chunk(b"IHDR", struct.pack(">2I5B", size, size, 8, 6, 0, 0, 0))
         + chunk(b"IDAT", zlib.compress(bytes(raw), 9))
         + chunk(b"IEND", b"")
     )
@@ -77,13 +81,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    for state in COLORS:
-        path = Path(__file__).parent / f"clawd-{state}.png"
-        pixels = render(state)
+    assets = {f"broglow-{state}.png": render(state) for state in COLORS}
+    icons = bytearray()
+    for kind, size in ((b"ic07", 128), (b"ic08", 256), (b"ic09", 512)):
+        png = render("app", size)
+        icons.extend(kind + struct.pack(">I", len(png) + 8) + png)
+    assets["BroGlow.icns"] = b"icns" + struct.pack(">I", len(icons) + 8) + icons
+    for name, pixels in assets.items():
+        path = Path(__file__).parent / name
         if args.check:
             assert (
                 path.read_bytes() == pixels
             ), f"Regenerate {path.name} with {__file__}"
         else:
             path.write_bytes(pixels)
-    print("PASS: four original 36x36 RGBA status icons")
+    print("PASS: four original 36x36 status icons and the macOS app icon")

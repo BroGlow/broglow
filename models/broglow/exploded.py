@@ -1,7 +1,7 @@
 """Static exploded review: all positions derived from the printable assembly."""
 
 from build123d import Compound
-from clawlight import parts, electronics
+from broglow import parts, electronics
 
 
 def gen_step():

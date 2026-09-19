@@ -6,12 +6,12 @@
 //! per event, and each command receives one JSON payload on stdin. Unlike
 //! Claude's dialect the payload does **not** carry the event name — hooks are
 //! registered per event — so the adapter bakes the event into the registered
-//! command line (`clawlight copilot-hook <event>`) and the shim in hook.rs
+//! command line (`broglow copilot-hook <event>`) and the shim in hook.rs
 //! maps it onto the normalized harness verbs.
 //!
 //! Two Copilot facts shape the adapter:
-//! - **clawlight owns a whole file.** The hooks directory takes any number of
-//!   `*.json` files, so clawlight writes its own `clawlight.json` and never
+//! - **broglow owns a whole file.** The hooks directory takes any number of
+//!   `*.json` files, so broglow writes its own `broglow.json` and never
 //!   merges into (or reorders) anyone else's configuration — simpler and
 //!   safer than the Codex hooks.json merge. Ownership is proven by the
 //!   `copilot-hook` command string inside the file, not a comment marker:
@@ -40,9 +40,9 @@ pub fn copilot_home() -> Option<PathBuf> {
     dirs::home_dir().map(|home| home.join(".copilot"))
 }
 
-/// The hook file clawlight owns: `$COPILOT_HOME/hooks/clawlight.json`.
+/// The hook file broglow owns: `$COPILOT_HOME/hooks/broglow.json`.
 fn hooks_file_path() -> Option<PathBuf> {
-    copilot_home().map(|h| h.join("hooks").join("clawlight.json"))
+    copilot_home().map(|h| h.join("hooks").join("broglow.json"))
 }
 
 /// Lifecycle events the adapter registers, in Copilot's camelCase dialect.
@@ -60,14 +60,35 @@ pub const HOOK_EVENTS: [&str; 7] = [
     "sessionEnd",
 ];
 
-/// Whether a hooks-file body is clawlight's to overwrite or delete: every
+/// Whether a hooks-file body is broglow's to overwrite or delete: every
 /// registration we write invokes `copilot-hook`, so its absence means the
 /// file at our path is someone's hand-rolled configuration.
 fn file_is_ours(contents: &str) -> bool {
-    contents.contains("copilot-hook")
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(contents) else {
+        return false;
+    };
+    let Some(hooks) = value.get("hooks").and_then(|v| v.as_object()) else {
+        return false;
+    };
+    !hooks.is_empty()
+        && hooks.iter().all(|(event, entries)| {
+            HOOK_EVENTS.contains(&event.as_str())
+                && entries.as_array().is_some_and(|entries| {
+                    !entries.is_empty()
+                        && entries.iter().all(|entry| {
+                            entry
+                                .get("command")
+                                .and_then(|v| v.as_str())
+                                .is_some_and(|cmd| {
+                                    crate::codex::broglow_command_args(cmd)
+                                        == Some(format!("copilot-hook {event}").as_str())
+                                })
+                        })
+                })
+        })
 }
 
-/// The full contents of `clawlight.json`: one command group per event, with
+/// The full contents of `broglow.json`: one command group per event, with
 /// the event name baked into the argv (Copilot payloads don't identify their
 /// event). The binary path is quoted for spaces (`C:\Program Files\...`).
 fn hooks_file_value(exe: &std::path::Path) -> serde_json::Value {
@@ -84,9 +105,9 @@ fn hooks_file_value(exe: &std::path::Path) -> serde_json::Value {
     serde_json::json!({ "version": 1, "hooks": hooks })
 }
 
-/// Write (or refresh) `clawlight.json` with this binary's absolute path baked
+/// Write (or refresh) `broglow.json` with this binary's absolute path baked
 /// in. Idempotent: the unconditional overwrite of a file we own is also the
-/// version-skew fix — every `clawlight install` re-syncs it to the current
+/// version-skew fix — every `broglow install` re-syncs it to the current
 /// binary. A file at the path that isn't ours is never touched, matching
 /// `uninstall`.
 pub fn install_hooks() -> anyhow::Result<()> {
@@ -95,15 +116,14 @@ pub fn install_hooks() -> anyhow::Result<()> {
     match std::fs::read_to_string(&path) {
         Ok(existing) if !file_is_ours(&existing) => {
             eprintln!(
-                "clawlight: {} exists but isn't clawlight-managed; leaving it alone",
+                "broglow: {} exists but isn't broglow-managed; leaving it alone",
                 path.display()
             );
             return Ok(());
         }
-        // Ours, absent, or unreadable-but-present. The last case (permissions,
-        // a mid-write snapshot) falls through to the write: unlike a foreign
-        // file, an unreadable file at *our* filename is overwhelmingly a
-        // stale/broken clawlight artifact, and rewriting it is the repair.
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            return Err(e).with_context(|| format!("Reading {}", path.display()));
+        }
         _ => {}
     }
 
@@ -120,7 +140,7 @@ pub fn install_hooks() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Remove `clawlight.json` iff it is still ours, so a hand-rolled file at the
+/// Remove `broglow.json` iff it is still ours, so a hand-rolled file at the
 /// path is left alone.
 pub fn uninstall_hooks() {
     let Some(path) = hooks_file_path() else {
@@ -143,7 +163,7 @@ mod tests {
 
     #[test]
     fn hooks_file_registers_every_event_with_its_name_in_argv() {
-        let v = hooks_file_value(std::path::Path::new("/opt/claw light/clawlight"));
+        let v = hooks_file_value(std::path::Path::new("/opt/bro glow/broglow"));
         assert_eq!(v["version"], 1);
         for event in HOOK_EVENTS {
             let cmd = v["hooks"][event][0]["command"]
@@ -153,7 +173,7 @@ mod tests {
             // Copilot payloads don't say which event fired.
             assert_eq!(
                 cmd,
-                format!("\"/opt/claw light/clawlight\" copilot-hook {event}")
+                format!("\"/opt/bro glow/broglow\" copilot-hook {event}")
             );
             assert_eq!(v["hooks"][event][0]["type"], "command");
         }
@@ -164,11 +184,22 @@ mod tests {
 
     #[test]
     fn foreign_hook_files_are_recognized() {
+        for command in [
+            "other copilot-hook agentStop",
+            "my-broglow copilot-hook agentStop",
+            "echo /bin/broglow copilot-hook agentStop",
+        ] {
+            assert!(!file_is_ours(
+                &serde_json::json!({"hooks":{"agentStop":[{"command":command}]}}).to_string()
+            ));
+        }
+        assert!(!file_is_ours("not JSON: copilot-hook"));
+        assert!(!file_is_ours(&serde_json::json!({"hooks":{"agentStop":[{"command":"broglow copilot-hook agentStop"},{"command":"other"}]}}).to_string()));
         assert!(!file_is_ours(
             r#"{"version":1,"hooks":{"preToolUse":[{"type":"command","command":"./guard.sh"}]}}"#
         ));
         assert!(file_is_ours(
-            r#"{"hooks":{"agentStop":[{"command":"\"/usr/bin/clawlight\" copilot-hook agentStop"}]}}"#
+            r#"{"hooks":{"agentStop":[{"command":"\"/usr/bin/broglow\" copilot-hook agentStop"}]}}"#
         ));
     }
 }

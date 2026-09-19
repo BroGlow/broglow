@@ -95,15 +95,15 @@ def main():
     arch = platform.machine()
     require(arch in ("arm64", "x86_64"), f"Unsupported Mac architecture: {arch}")
     target = {"arm64": "aarch64", "x86_64": "x86_64"}[arch] + "-apple-darwin"
-    binary = ROOT / "target/release/clawlight"
+    binary = ROOT / "target/release/broglow"
     require(binary.is_file(), "First run: cargo build --release --locked")
     require(
         run("/usr/bin/lipo", "-archs", str(binary)) == arch,
-        "target/release/clawlight must contain only this Mac's native architecture.",
+        "target/release/broglow must contain only this Mac's native architecture.",
     )
     reported_version = run(str(binary), "--version")
     require(
-        reported_version == f"clawlight {version}",
+        reported_version == f"broglow {version}",
         "CLI version differs from Cargo.toml.",
     )
     run(str(binary), "--help")
@@ -183,18 +183,18 @@ def main():
         )
 
     now = datetime.now(timezone.utc)
-    name = f"clawlight-v{version}-{target}"
+    name = f"broglow-v{version}-{target}"
     if not args.release_tag:
         name += f"-{now.strftime('%Y%m%dT%H%M%S%fZ')}"
     output = args.output_dir.resolve()
     output.mkdir(parents=True, exist_ok=True)
     archive = output / f"{name}.tar.gz"
     require(not archive.exists(), f"Refusing to overwrite existing package: {archive}")
-    with tempfile.TemporaryDirectory(prefix=".clawlight-package-", dir=output) as temp:
+    with tempfile.TemporaryDirectory(prefix=".broglow-package-", dir=output) as temp:
         package = Path(temp) / name
         (package / "bin").mkdir(parents=True)
-        shutil.copy2(binary, package / "bin/clawlight")
-        (package / "bin/clawlight").chmod(0o755)
+        shutil.copy2(binary, package / "bin/broglow")
+        (package / "bin/broglow").chmod(0o755)
         destination = package / "firmware/esp32-c3-supermini"
         destination.mkdir(parents=True)
         for _, path in segments:

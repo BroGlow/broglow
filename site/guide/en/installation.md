@@ -6,7 +6,7 @@
 
 <a name="installation"></a>
 
-## Install ClawLight and the firmware
+## Install BroGlow and the firmware
 
 Use this project's complete Mac package, which includes the app, ESP32-C3 firmware
 and operating guide. Choose the build for your Mac's processor. Apple Silicon has
@@ -23,13 +23,13 @@ request. Keep the package's checksum file nearby. Prefer manual setup? Follow th
 [installation steps](hardware.md#install-or-update-the-mac-service).
 
 ```text
-Set up ClawLight following the Agent runbook in docs/hardware-setup.md.
+Set up BroGlow following the Agent runbook in docs/hardware-setup.md.
 Choose the package or source path, verify checksums for a package, and back up settings
 in .recovery/. Preserve hooks, lamp names, brightness and bonds; keep one tray service.
 Verify the board is an ESP32-C3 SuperMini before hardware commands; flash only if needed.
 Use Lamps → Add lamp with one USB-connected lamp. Leave macOS and Codex /hooks approval
 to me; for Codex, use the same CODEX_HOME as the app.
-Verify clawlight works from a fresh terminal outside the project, the background service
+Verify broglow works from a fresh terminal outside the project, the background service
 reaches my lamp, and a real local agent task changes from Working to Idle/Paused.
 Check Identify scans red/yellow/green three times and restores the status and saved brightness;
 if firmware lacks this mode, report that a matching firmware update is needed.
@@ -38,21 +38,26 @@ If I use Codex desktop, test a desktop task. Report any unverified physical chec
 
 <a name="path"></a>
 
-## Run ClawLight from any folder
+## Run BroGlow from any folder
 
-ClawLight installs to `~/.cargo/bin/clawlight`; prebuilt installs do not need Cargo.
+To open the Mac app, press **⌘ Space**, search **BroGlow** and press Return.
+Its traffic-light icon opens the session controls. You can also open
+`~/Applications/BroGlow.app` in Finder or run `open "$HOME/Applications/BroGlow.app"`.
+It starts at login; the plain `broglow` command opens the terminal dashboard.
+
+BroGlow installs to `~/.cargo/bin/broglow`; prebuilt installs do not need Cargo.
 In a fresh terminal outside the project, check:
 
 --8<-- "docs/hardware-setup.md:path-check"
 
-If the first result is not `~/.cargo/bin/clawlight`, add this line **once** to
+If the first result is not `~/.cargo/bin/broglow`, add this line **once** to
 `~/.zshrc` (default macOS shell), preserving existing settings:
 
 --8<-- "docs/hardware-setup.md:path-setup"
 
 Open a new terminal and repeat the checks. Avoid duplicates if Rust already configured
-`~/.cargo/env`; use the matching startup file for other shells. `clawlight install`
-does not set `PATH`. Scripts can use `"$HOME/.cargo/bin/clawlight"` directly;
+`~/.cargo/env`; use the matching startup file for other shells. `broglow install`
+does not set `PATH`. Scripts can use `"$HOME/.cargo/bin/broglow"` directly;
 the login service already uses an absolute path.
 
 <a name="pairing"></a>
@@ -66,13 +71,13 @@ Add lamps one at a time; existing lamps stay saved.
 The Terminal alternative is:
 
 ```sh
-clawlight ble pair
-clawlight ble status
+broglow ble pair
+broglow ble status
 ```
 
 Wait for **Connected** on the intended lamp's row: “Lamp added” only means saved.
 Connected confirms a status write, not visible LED operation. Keep the lamp powered
-from your Mac or a USB adapter; ClawLight reconnects while the service, lamp control
+from your Mac or a USB adapter; BroGlow reconnects while the service, lamp control
 and Bluetooth are on and the lamp is nearby.
 
 <a name="controls"></a>

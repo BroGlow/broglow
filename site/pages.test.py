@@ -24,15 +24,18 @@ for locale in ("en", "ru"):
         if name == "installation.md":
             assert "https://github.com/example/lamp/releases" in public
             assert "https://github.com/example/lamp/archive/HEAD.zip" in public
-            assert "clawlight-vVERSION-aarch64-apple-darwin.tar.gz" in public
-            assert "clawlight-vVERSION-x86_64-apple-darwin.tar.gz" in public
-            assert ".sha256" in public and "clawlight-cli-" in public
+            assert "broglow-vVERSION-aarch64-apple-darwin.tar.gz" in public
+            assert "broglow-vVERSION-x86_64-apple-darwin.tar.gz" in public
+            assert (
+                ".sha256" in public
+                and "broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz" in public
+            )
         else:
             assert "https://github.com/example/lamp/releases" in public
-            assert "clawlight-enclosure-vVERSION.zip" in public and ".sha256" in public
+            assert "broglow-enclosure-vVERSION.zip" in public and ".sha256" in public
             assert "(printing.md)" in public
             assert "https://github.com/example/lamp/archive/HEAD.zip" in public
-            assert "1.0.0" in public and "clawlight-print-pack.zip" not in public
+            assert "1.0.0" in public and "broglow-print-pack.zip" not in public
             assert "STL, STEP" in public
             assert (
                 "source with CAD and STL" not in public
@@ -49,7 +52,7 @@ for locale in ("en", "ru"):
                 )
                 dist = Path(temporary) / "dist"
                 dist.mkdir()
-                archive = dist / "clawlight-v1.0.0-aarch64-apple-darwin.tar.gz"
+                archive = dist / "broglow-v1.0.0-aarch64-apple-darwin.tar.gz"
                 archive.touch()
                 assert "/dist/" not in on_page_markdown(
                     source, page=page, config=SimpleNamespace(repo_url=None)
@@ -64,15 +67,15 @@ for locale in ("en", "ru"):
                 )
             else:
                 assert (
-                    "clawlight-print-pack.zip" not in local
+                    "broglow-print-pack.zip" not in local
                     and "{ download }" not in local
                 )
                 guide = "PRINT_GUIDE.md" if locale == "ru" else "PRINT_GUIDE.en.md"
                 start = "START_HERE.ru.md" if locale == "ru" else "START_HERE.md"
-                assert f"models/clawlight/{guide}" in local and "(printing.md)" in local
+                assert f"models/broglow/{guide}" in local and "(printing.md)" in local
                 dist = Path(temporary) / "dist/enclosure"
                 dist.mkdir(parents=True)
-                archive = dist / "clawlight-enclosure-v1.0.0.zip"
+                archive = dist / "broglow-enclosure-v1.0.0.zip"
                 archive.touch()
                 assert "{ download }" not in on_page_markdown(
                     source, page=page, config=SimpleNamespace(repo_url=None)
@@ -89,7 +92,7 @@ for locale in ("en", "ru"):
                     f"]({prefix}dist/enclosure/{archive.name}.sha256){{ download }}"
                     in local
                 )
-                assert start in local and f"models/clawlight/{guide}" in local
+                assert start in local and f"models/broglow/{guide}" in local
         pages.SITE = SITE
 
 print(
@@ -100,19 +103,19 @@ print(
 with TemporaryDirectory() as temporary:
     root = Path(temporary).resolve()
     pages.SITE = root / "site"
-    model = root / "models/clawlight"
+    model = root / "models/broglow"
     model.mkdir(parents=True)
     (model / "parts.json").write_bytes(
-        (SITE.parent / "models/clawlight/parts.json").read_bytes()
+        (SITE.parent / "models/broglow/parts.json").read_bytes()
     )
-    (model / "clawlight.py").touch()
+    (model / "broglow.py").touch()
     (root / "Cargo.toml").write_text('[package]\nversion = "1.2.3"\n')
     for locale in ("en", "ru"):
         page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/printing.md"))
         for generated in (
             "stl/01_mascot_orange.stl",
             "stl/coupons/01_USB_base_coupon.stl",
-            "clawlight.step",
+            "broglow.step",
             "appearance.step",
             "exploded.step",
             "usb_coupon.step",
@@ -129,7 +132,7 @@ with TemporaryDirectory() as temporary:
                 config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
             )
             assert (
-                'href="https://github.com/example/lamp/releases/download/v1.2.3/clawlight-enclosure-v1.2.3.zip"'
+                'href="https://github.com/example/lamp/releases/download/v1.2.3/broglow-enclosure-v1.2.3.zip"'
                 in public
             )
             assert generated in public and "/blob/" not in public
@@ -154,23 +157,23 @@ with TemporaryDirectory() as temporary:
                         f"Accepted missing or outside-repository link: {invalid}"
                     )
         public = on_page_content(
-            '<a href="clawlight.py">Source</a>',
+            '<a href="broglow.py">Source</a>',
             page=page,
             config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
         )
         assert (
-            'href="https://github.com/example/lamp/blob/HEAD/models/clawlight/clawlight.py"'
+            'href="https://github.com/example/lamp/blob/HEAD/models/broglow/broglow.py"'
             in public
         )
     dist = root / "dist/enclosure"
     dist.mkdir(parents=True)
-    archive = dist / "clawlight-enclosure-v1.2.3.zip"
+    archive = dist / "broglow-enclosure-v1.2.3.zip"
     archive.touch()
     archive.with_name(archive.name + ".sha256").touch()
     for locale in ("en", "ru"):
         page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/printing.md"))
         local = on_page_content(
-            '<a href="clawlight.step">Assembly</a>',
+            '<a href="broglow.step">Assembly</a>',
             page=page,
             config=SimpleNamespace(repo_url=None),
         )
@@ -210,7 +213,7 @@ with TemporaryDirectory() as temporary:
 master = (SITE.parent / "docs/hardware-setup.md").read_text()
 for section, expected in (
     ("lamp-wiring", "GPIO3"),
-    ("path-check", "command -v clawlight"),
+    ("path-check", "command -v broglow"),
     ("path-setup", "export PATH="),
 ):
     for locale in ("en", "ru"):
@@ -240,7 +243,7 @@ with TemporaryDirectory() as temporary:
         assert f"{value} Ω ── green" in rendered
 
 page = SimpleNamespace(file=SimpleNamespace(src_uri="en/hardware.md"))
-sample = '<a href="../firmware/esp32-c3-supermini/">Firmware</a><img src="../assets/icons/clawd-red.png" alt="Red status lamp"><h2 id="camera-2026"></h2><a href="#camera--2026">Check</a>'
+sample = '<a href="../firmware/esp32-c3-supermini/">Firmware</a><img src="../assets/icons/broglow-red.png" alt="Red status lamp"><h2 id="camera-2026"></h2><a href="#camera--2026">Check</a>'
 local = on_page_content(sample, page=page, config=SimpleNamespace(repo_url=None))
 public = on_page_content(
     sample,

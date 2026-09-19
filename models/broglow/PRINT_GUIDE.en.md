@@ -1,16 +1,16 @@
 [English](PRINT_GUIDE.en.md) | [Русский](PRINT_GUIDE.md)
 
-<a name="claw-light"></a>
+<a name="broglow"></a>
 
-# Claw Light — compact version for single-extruder printing
+# BroGlow — compact version for single-extruder printing
 
-Download **`clawlight-enclosure-vVERSION.zip` and its `.sha256` from this project's
+Download **`broglow-enclosure-vVERSION.zip` and its `.sha256` from this project's
 GitHub Release assets** for ready-to-print files. GitHub's automatic **Source code
 (zip)** is an editable source snapshot; generate its STL/STEP files using the
 procedure below. STL, STEP/STP and ZIP outputs are ignored and are not stored in Git.
 
 Extract the complete enclosure ZIP before following file links. Open
-`models/clawlight/PRINT_GUIDE.en.md` inside it: `stl/`, `stl/coupons/`, the four
+`models/broglow/PRINT_GUIDE.en.md` inside it: `stl/`, `stl/coupons/`, the four
 `.step` files and `preview/` are relative to that guide. CAD source, validation
 reports and the linked hardware instructions are included. The compact STL ZIP
 places main parts at its root and coupons in `coupons/`; use the full enclosure
@@ -111,7 +111,7 @@ The only additional supplies are glue for the eyes/optional permanent hand attac
 2. Insert the LEDs through the tower’s open rear: **red at the top, yellow in the middle and green at the bottom**. For the upper red LED, pass the upper screw boss slightly toward the mascot side, then align with the hole and push forward. Seat each flange against its front support. Arrange the leads clear of the flange contact areas; do not load the leads to hold an LED in position.
 3. Keep the LED leads on the open side of the retainer, away from the mascot, so the retainer can slide vertically. Approach from the rear with retainer 05 **1.3 mm below its final position**, then slide it **up 1.3 mm** to engage the rigid upper tab in the roof pocket. Secure the lower end with one screw. The retainer does not require a flexible clip. There is **0.25 mm** nominal axial clearance; if needed, use a thin soft shim behind the flange without obstructing leads. Keep the cover off during wiring and electrical checks.
 4. With the rear cover removed, hold the PCB horizontal with USB facing the open rear. Slide its two long edges straight into the integral C-guides and under the far-end corner lips until the far edge meets the front stops. No tilt, flexible clips or separate tray are needed. Slide the PCB centered beneath the lips. The component model clears at **±0.15 mm** sideways offset, while the bare-board channel allows **±0.60 mm**; full sideways travel can contact components and is not a safe insertion allowance. Center USB in the cover before closing; do not use the screws to force alignment. Upper lips limit lifting with the existing **0.40 mm** vertical play; this is not a friction clamp.
-5. Wire and electrically test the lamp using the [hardware guide](../../docs/hardware-setup.md#wiring-and-resistor-choice) and [LED check](../../docs/hardware-setup.md#check-the-wiring-before-connecting-clawlight). Leave enough flexible wire slack to slide the PCB out; keep wires clear of guides, the cover and screw bosses. Keep wires clear of the retainer, tab pocket and screw; check the actual bundle before closing the cover. BOOT and RESET must remain accessible with the cover open.
+5. Wire and electrically test the lamp using the [hardware guide](../../docs/hardware-setup.md#wiring-and-resistor-choice) and [LED check](../../docs/hardware-setup.md#check-the-wiring-before-connecting-broglow). Leave enough flexible wire slack to slide the PCB out; keep wires clear of guides, the cover and screw bosses. Keep wires clear of the retainer, tab pocket and screw; check the actual bundle before closing the cover. BOOT and RESET must remain accessible with the cover open.
 6. Close the cover with three screws; the USB coupon uses only the lower two. Ensure no leads or wires are pinched and each LED projects evenly before tightening. The fixed front stops and cover stops take loads through the PCB end edges and limit its longitudinal travel. The cover must close without pressing components or bending the board. The cover outer face is **Y = 27.4 mm** and the nominal USB end is **Y = 27.65 mm**; the modeled **0…0.5 mm** projection has not been established by physical measurement. Check that the cable seats fully and the PCB remains located during connection and removal.
 7. Align the hand's diamond pins with the tower sockets, including the enlargements for the pin-root haunches. Holding the tower still, move the mascot **straight right toward the tower, only along +X, by 1.8 mm**. No forward/backward movement along Y is needed. To separate them, pull straight in the opposite direction, along −X. **The mascot's four feet and the tower base must all stand on the same plane.** For permanent attachment, apply very little glue only to the pins/hand-to-shell contact. Keep glue away from the removable cover and its joint at **Y = 25 mm**; the cover spans Y = **25…27.4 mm**. Glue the two identical eyes into the shallow front pockets.
 
@@ -123,8 +123,8 @@ The flat cover locates the PCB independently of the separate LED retainer. The L
 
 ## Files and configuration
 
-- [clawlight.py](clawlight.py) — parametric geometry for six assembly pieces and export of five unique STLs; [hand_joint.py](hand_joint.py) — the joint's pins and sockets.
-- [clawlight.step](clawlight.step) — only the printable parts in assembly; [parts.json](parts.json) — STL dimensions and volumes after generation.
+- [broglow.py](broglow.py) — parametric geometry for six assembly pieces and export of five unique STLs; [hand_joint.py](hand_joint.py) — the joint's pins and sockets.
+- [broglow.step](broglow.step) — only the printable parts in assembly; [parts.json](parts.json) — STL dimensions and volumes after generation.
 - [appearance.step](appearance.step) and [exploded.step](exploded.step) — appearance and exploded assemblies with illustrative electronics; sources [appearance.py](appearance.py) and [exploded.py](exploded.py).
 - [usb_coupon.py](usb_coupon.py) — USB coupon made by trimming the working tower and cover to **14 mm** high; [usb_coupon.step](usb_coupon.step) — two parts in print orientation. [USB-01 — base](stl/coupons/01_USB_base_coupon.stl) and [USB-02 — cover](stl/coupons/02_USB_cover_coupon.stl) are used with the actual PCB and two standard screws. Electronics are not included in these files.
 
@@ -158,7 +158,7 @@ PlatformIO, connected board or running app is required. Install the pinned
 
 ```bash
 python3.14 -m venv .venv-cad
-.venv-cad/bin/python -m pip install -r models/clawlight/requirements.txt
+.venv-cad/bin/python -m pip install -r models/broglow/requirements.txt
 .venv-cad/bin/python scripts/package-enclosure.py
 ```
 
@@ -174,15 +174,15 @@ current printable parts and coupons, and calls `gen_step()` for the additional
 views. It runs full CAD **and mesh** checks, generates dimensioned PNG/SVG images,
 and invokes the existing packager and its `--check` verification. Outputs are:
 
-- `dist/enclosure/source/models/clawlight/stl/` and `stl/coupons/`: printable meshes.
-- `dist/enclosure/source/models/clawlight/`: `clawlight.step`, `appearance.step`,
+- `dist/enclosure/source/models/broglow/stl/` and `stl/coupons/`: printable meshes.
+- `dist/enclosure/source/models/broglow/`: `broglow.step`, `appearance.step`,
   `exploded.step`, `usb_coupon.step`, `parts.json` and `validation.json`.
-- `dist/enclosure/source/models/clawlight/preview/dimensions.png` and `.svg`:
+- `dist/enclosure/source/models/broglow/preview/dimensions.png` and `.svg`:
   dimensions generated by [dimensions.py](dimensions.py).
-- `dist/enclosure/clawlight-enclosure-vVERSION.zip` and `.zip.sha256`: the full
+- `dist/enclosure/broglow-enclosure-vVERSION.zip` and `.zip.sha256`: the full
   ready-to-print release package; `VERSION` comes from `Cargo.toml`.
-- `dist/enclosure/clawlight-print-pack.zip`, `clawlight-compact-STL.zip` and
-  `clawlight-USB-fit-test.zip`: the full, STL-only and coupon convenience packages.
+- `dist/enclosure/broglow-print-pack.zip`, `broglow-compact-STL.zip` and
+  `broglow-USB-fit-test.zip`: the full, STL-only and coupon convenience packages.
 
 Use `--output-dir PATH` to choose another ignored output directory. Generation
 copies sources into a fresh staging tree, so old local STL files cannot leak into
@@ -229,4 +229,4 @@ Previous design: wide coupon that slides in but lifts too easily. Superseded by 
 
 The earlier revision introduced the reinforced tower and far-end corner holders; the flat LED retainer and rear cover remain unchanged.
 
-For local viewing, open the [assembly](clawlight.step), [view with electronics](appearance.step), or [exploded assembly](exploded.step) in a CAD viewer. These relative links also work in the unpacked print package; STEP and STL dimensions are in millimeters.
+For local viewing, open the [assembly](broglow.step), [view with electronics](appearance.step), or [exploded assembly](exploded.step) in a CAD viewer. These relative links also work in the unpacked print package; STEP and STL dimensions are in millimeters.

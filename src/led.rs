@@ -1,4 +1,4 @@
-//! `clawlight led` — daemon that mirrors aggregate session state to the
+//! `broglow led` — daemon that mirrors aggregate session state to the
 //! ESP32-C3 SuperMini lamp over USB serial, driving three status LEDs
 //! (red / yellow / green).
 //!
@@ -42,7 +42,7 @@ pub(crate) fn status_byte(agg: Aggregate) -> u8 {
 }
 
 /// List Espressif USB serial candidates, most likely first. The vendor ID does
-/// not prove that a device is a ClawLight lamp. Pass `--port` to select a device.
+/// not prove that a device is a BroGlow lamp. Pass `--port` to select a device.
 ///
 /// Returns a list so callers can fall through to the next candidate when one
 /// can't be opened — e.g. it's held by another app, or it's the `tty.*` twin of
@@ -95,12 +95,12 @@ pub fn board_present_cached() -> bool {
     guard.map(|(_, present)| present).unwrap_or(false)
 }
 
-/// Foreground command (`clawlight led`): mirror state to the ESP32-C3 SuperMini
+/// Foreground command (`broglow led`): mirror state to the ESP32-C3 SuperMini
 /// lamp until killed. Kept for debugging and for users who'd rather run it
 /// standalone than via the menu bar daemon.
 pub fn run(port_override: Option<String>) -> anyhow::Result<()> {
     println!(
-        "clawlight led — mirroring {} to the ESP32-C3 SuperMini lamp over serial",
+        "broglow led — mirroring {} to the ESP32-C3 SuperMini lamp over serial",
         state::state_file_path().display()
     );
 
@@ -514,7 +514,7 @@ mod transport_tests {
         next.led_transport = config::LedTransport::Ble;
         assert!(!same_target(&cfg, &next));
         next = cfg.clone();
-        next.ble_peripheral = Some("other".into());
+        next.ble_peripherals = vec!["other".into()];
         assert!(!same_target(&cfg, &next));
         next = cfg.clone();
         next.led_port = Some("other".into());

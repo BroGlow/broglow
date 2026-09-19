@@ -1,14 +1,14 @@
-// Integration tests for the opencode ↔ clawlight boundary.
+// Integration tests for the opencode ↔ broglow boundary.
 //
 // Unlike the Rust end-to-end tests (which feed normalized JSON straight to
-// `clawlight event`), these drive the REAL embedded plugin — the exact
+// `broglow event`), these drive the REAL embedded plugin — the exact
 // `assets/opencode-plugin.js` that ships — with the opencode event shapes
 // captured from a live opencode session, and assert the resulting `state.json`
-// the clawlight binary writes. This is the contract that actually breaks if the
+// the broglow binary writes. This is the contract that actually breaks if the
 // plugin's event mapping or the binary's ingestion drift apart.
 //
 // Run: `node --test tests/js/`  (the Rust binary is auto-located or built.)
-// Unix only: sessions land in `$HOME/.claude/clawlight/state.json`, sandboxed
+// Unix only: sessions land in `$HOME/.claude/broglow/state.json`, sandboxed
 // per test via a throwaway HOME — the same reason the Rust suite is unix-gated.
 
 import { test, before } from "node:test";
@@ -31,27 +31,27 @@ const isWindows = process.platform === "win32";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Locate the built clawlight binary, building a debug one if none exists. */
+/** Locate the built broglow binary, building a debug one if none exists. */
 function findBinary() {
-  if (process.env.CLAWLIGHT_BIN && existsSync(process.env.CLAWLIGHT_BIN)) {
-    return process.env.CLAWLIGHT_BIN;
+  if (process.env.BROGLOW_BIN && existsSync(process.env.BROGLOW_BIN)) {
+    return process.env.BROGLOW_BIN;
   }
-  for (const rel of ["target/debug/clawlight", "target/release/clawlight"]) {
+  for (const rel of ["target/debug/broglow", "target/release/broglow"]) {
     const abs = join(REPO, rel);
     if (existsSync(abs)) return abs;
   }
   execFileSync("cargo", ["build"], { cwd: REPO, stdio: "inherit" });
-  return join(REPO, "target/debug/clawlight");
+  return join(REPO, "target/debug/broglow");
 }
 
 /** Write the shipped plugin with the binary path + version substituted in,
- *  exactly as `clawlight install` does, and return the file path. */
+ *  exactly as `broglow install` does, and return the file path. */
 function writeSubstitutedPlugin(bin) {
   const src = readFileSync(join(REPO, "assets/opencode-plugin.js"), "utf8")
     .replaceAll("{{VERSION}}", "test")
     .replaceAll("{{BIN}}", bin.replaceAll("\\", "\\\\").replaceAll('"', '\\"'));
   const dir = mkdtempSync(join(tmpdir(), "clw-plugin-"));
-  const file = join(dir, "clawlight.mjs");
+  const file = join(dir, "broglow.mjs");
   writeFileSync(file, src);
   return file;
 }
@@ -65,7 +65,7 @@ before(async () => {
   plugin = await import(pathToFileURL(PLUGIN_FILE));
 });
 
-/** Fresh sandbox HOME; the spawned `clawlight event` children inherit
+/** Fresh sandbox HOME; the spawned `broglow event` children inherit
  *  process.env.HOME, so point it here before feeding events. */
 function sandbox() {
   const home = mkdtempSync(join(tmpdir(), "clw-home-"));
@@ -74,7 +74,7 @@ function sandbox() {
 }
 
 function statePath(home) {
-  return join(home, ".claude", "clawlight", "state.json");
+  return join(home, ".claude", "broglow", "state.json");
 }
 
 function readState(home) {
@@ -83,12 +83,12 @@ function readState(home) {
 }
 
 function seedState(home, sessions) {
-  const dir = join(home, ".claude", "clawlight");
+  const dir = join(home, ".claude", "broglow");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "state.json"), JSON.stringify({ sessions }));
 }
 
-/** The plugin fires `clawlight event` fire-and-forget, so poll `state.json`
+/** The plugin fires `broglow event` fire-and-forget, so poll `state.json`
  *  until `pred(state)` holds or we time out. */
 async function waitFor(home, pred, timeout = 6000) {
   const start = Date.now();
@@ -106,7 +106,7 @@ async function waitFor(home, pred, timeout = 6000) {
 /** Instantiate a fresh plugin and return a helper that emits one opencode bus
  *  event through its real `event` hook. */
 function newSession(ctx = { directory: "/tmp/oc-proj" }) {
-  const hooks = plugin.clawlight(ctx);
+  const hooks = plugin.broglow(ctx);
   return async (type, properties = {}) => {
     const h = await hooks;
     await h.event({ event: { type, properties } });
@@ -271,7 +271,7 @@ test("the plugin registers only an exit handler, never signal handlers", {
     sigint: process.listenerCount("SIGINT"),
     sigterm: process.listenerCount("SIGTERM"),
   };
-  await plugin.clawlight({ directory: "/tmp/x" });
+  await plugin.broglow({ directory: "/tmp/x" });
   assert.equal(process.listenerCount("exit") - before.exit, 1, "one exit handler");
   assert.equal(process.listenerCount("SIGINT") - before.sigint, 0, "no SIGINT handler");
   assert.equal(process.listenerCount("SIGTERM") - before.sigterm, 0, "no SIGTERM handler");

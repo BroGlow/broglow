@@ -49,7 +49,7 @@ import { PointLight } from "three";
     assembly.jumpCameraToGoal();
     assembly.shadowRoot?.querySelector('[role="img"][tabindex="0"]')?.focus();
   });
-  // Lens material indices in clawlight.glb; the regression test checks the LED nodes.
+  // Lens material indices in broglow.glb; the regression test checks the LED nodes.
   const lenses = [
     { mode: "working", index: 4, color: [0.08, 1, 0.02] },
     { mode: "idle", index: 5, color: [1, 0.65, 0.02] },

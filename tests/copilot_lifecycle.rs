@@ -1,4 +1,4 @@
-//! End-to-end tests of the Copilot shim: drive the real `clawlight
+//! End-to-end tests of the Copilot shim: drive the real `broglow
 //! copilot-hook <event>` the way Copilot CLI's hooks do — the event name on
 //! argv, one camelCase JSON payload on stdin — and observe the resulting
 //! `state.json`. Mirrors the strategy of `event_lifecycle.rs` /
@@ -21,14 +21,14 @@ fn temp_home() -> TempDir {
 fn state_path(home: &TempDir) -> PathBuf {
     home.path()
         .join(".claude")
-        .join("clawlight")
+        .join("broglow")
         .join("state.json")
 }
 
-/// Run `clawlight copilot-hook <event>` inside the sandbox with the given
+/// Run `broglow copilot-hook <event>` inside the sandbox with the given
 /// stdin payload.
 fn run_copilot_hook(home: &TempDir, event: &str, stdin: &str) -> assert_cmd::assert::Assert {
-    Command::cargo_bin("clawlight")
+    Command::cargo_bin("broglow")
         .expect("binary built")
         .args(["copilot-hook", event])
         .env("HOME", home.path())

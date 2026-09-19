@@ -13,8 +13,8 @@ function check({ current = 'en', saved, explicit, languages = ['en-US'], blocked
     document: { documentElement: { lang: current }, querySelectorAll(selector) { assert.equal(selector, 'a[hreflang]'); return links; } },
     navigator: { languages },
     localStorage: {
-      getItem(key) { assert.equal(key, 'clawlight-language'); if (blocked) throw Error('blocked'); return saved; },
-      setItem(key, value) { assert.equal(key, 'clawlight-language'); if (blocked) throw Error('blocked'); state.saved = value; },
+      getItem(key) { assert.equal(key, 'broglow-language'); if (blocked) throw Error('blocked'); return saved; },
+      setItem(key, value) { assert.equal(key, 'broglow-language'); if (blocked) throw Error('blocked'); state.saved = value; },
     },
   });
   return Object.assign(state, { links, setHash(value) { location.hash = value; } });

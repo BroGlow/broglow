@@ -229,7 +229,7 @@ body.win .brightness input { accent-color: #4cc2ff; }
   <div class="pophead">
     <img id="hicon" src="__ICON_NONE__" alt="">
     <div class="sinfo">
-      <span class="apptitle">clawlight</span>
+      <span class="apptitle">BroGlow</span>
       <span class="agg" id="aggline">No live sessions</span>
     </div>
     <div class="chips" id="chips"></div>
@@ -265,7 +265,7 @@ const YELLOW_OPTIONS = [
 ];
 
 // Usage tracking is opt-in. "Off" tracks nothing; the other two turn it on and
-// pick the readout. Turning it on lets clawlight read local Claude Code
+// pick the readout. Turning it on lets broglow read local Claude Code
 // transcripts (and, for plan %, its usage endpoint) — hence the off default.
 const USAGE_OPTIONS = [
   { value: 'off', title: 'Off' },
@@ -715,7 +715,7 @@ function render() {
           `<div class="sinfo"><span class="sname">${badge}${esc(s.name)}</span>` +
           `<span class="smeta">${meta}</span></div>${tail}` +
           `<button class="dismissbtn" type="button" id="dismiss-${esc(s.id)}" data-cmd="clear_session" data-id="${esc(s.id)}"` +
-          ` aria-label="Dismiss ${esc(s.name)} from ClawLight" title="Dismiss until new activity">×</button></div>`;
+          ` aria-label="Dismiss ${esc(s.name)} from BroGlow" title="Dismiss until new activity">×</button></div>`;
       }
     }
     groupsEl.innerHTML = html;

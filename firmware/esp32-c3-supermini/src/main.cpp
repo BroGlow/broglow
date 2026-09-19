@@ -430,7 +430,7 @@ void diagnostic() {
 }
 
 void reportIdentity() {
-  Serial.printf("clawlight_pair identity=%s service=%s\n", identity,
+  Serial.printf("broglow_pair identity=%s service=%s\n", identity,
                 SERVICE_UUID);
 }
 
@@ -463,7 +463,7 @@ void setup() {
     snprintf(identity + 2 * i, 3, "%02x", byte);
   }
   char name[24];
-  snprintf(name, sizeof(name), "ClawLight C3 %02X%02X",
+  snprintf(name, sizeof(name), "BroGlow C3 %02X%02X",
            static_cast<unsigned>((mac >> 32) & 0xff),
            static_cast<unsigned>((mac >> 40) & 0xff));
   BLEDevice::init(name);

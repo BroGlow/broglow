@@ -55,7 +55,7 @@ pub struct UsageSnapshot {
 }
 
 /// Shared cache between the refresher thread and the tray/popover readers.
-/// Only the tray daemon (macOS/Windows) uses it; the cross-platform `clawlight
+/// Only the tray daemon (macOS/Windows) uses it; the cross-platform `broglow
 /// usage` subcommand computes its snapshot directly, so gate it to those
 /// platforms to avoid a dead-code error on Linux.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -118,7 +118,7 @@ pub fn spawn_refresher(on_change: impl Fn() + Send + 'static) {
     });
 }
 
-/// One-shot snapshot for the hidden `clawlight usage` subcommand.
+/// One-shot snapshot for the hidden `broglow usage` subcommand.
 pub fn run_once() -> anyhow::Result<()> {
     let mut tracker = Tracker::new();
     tracker.scan();
@@ -824,7 +824,7 @@ fn read_credentials_file() -> Option<Credentials> {
 }
 
 /// macOS keychain fallback. The first read may show the user a keychain
-/// consent prompt for the clawlight binary; if they deny it, don't ask again
+/// consent prompt for the broglow binary; if they deny it, don't ask again
 /// for the lifetime of this process.
 #[cfg(target_os = "macos")]
 fn read_keychain_credentials() -> Option<Credentials> {

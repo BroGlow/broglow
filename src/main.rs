@@ -33,7 +33,7 @@ use crate::app::App;
 
 #[derive(Parser)]
 #[command(
-    name = "clawlight",
+    name = "broglow",
     version,
     about = "TUI dashboard for Claude Code, opencode, Codex CLI, and GitHub Copilot CLI sessions"
 )]
@@ -96,7 +96,21 @@ enum Commands {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    match cli.command {
+    #[cfg(target_os = "macos")]
+    let app_launch = {
+        use std::io::IsTerminal;
+        cli.command.is_none()
+            && mac_app_launch(&std::env::current_exe()?, io::stdin().is_terminal())
+    };
+    #[cfg(not(target_os = "macos"))]
+    let app_launch = false;
+    let command = if app_launch {
+        Some(Commands::Menubar)
+    } else {
+        cli.command
+    };
+
+    match command {
         Some(Commands::Install) => install_hooks(),
         Some(Commands::Uninstall) => uninstall_hooks(),
         Some(Commands::Menubar) => {
@@ -110,11 +124,11 @@ fn main() -> anyhow::Result<()> {
                     .write(true)
                     .open(hook_dir().join(".menubar.lock"))?;
                 lock.try_lock().map_err(|e| {
-                    anyhow::anyhow!("A ClawLight tray service is already running: {e}")
+                    anyhow::anyhow!("A BroGlow tray service is already running: {e}")
                 })?;
                 lock
             };
-            menubar::run()
+            menubar::run(app_launch)
         }
         Some(Commands::DashboardButton { visibility }) => {
             let enabled = visibility == "show";
@@ -135,7 +149,7 @@ fn main() -> anyhow::Result<()> {
                     use std::os::unix::process::CommandExt;
                     anyhow::ensure!(
                         bundled.is_file(),
-                        "Run `clawlight install` before Bluetooth discovery"
+                        "Run `broglow install` before Bluetooth discovery"
                     );
                     return Err(std::process::Command::new(bundled)
                         .args(std::env::args_os().skip(1))
@@ -159,7 +173,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn run_tui() -> anyhow::Result<()> {
-    // On a machine where clawlight isn't wired into Claude Code yet, treat the
+    // On a machine where broglow isn't wired into Claude Code yet, treat the
     // first dashboard launch as the install step. Runs before we touch the
     // terminal so its output lands in normal scrollback, not the alt-screen.
     first_run_setup_tui();
@@ -195,7 +209,7 @@ fn hook_dir() -> PathBuf {
     dirs::home_dir()
         .expect("Home directory must exist")
         .join(".claude")
-        .join("clawlight")
+        .join("broglow")
 }
 
 fn settings_path() -> PathBuf {
@@ -209,7 +223,7 @@ fn settings_path() -> PathBuf {
 // Install / uninstall
 // ----------------------------------------------------------------------------
 
-/// Claude Code lifecycle events that clawlight's built-in hook backend
+/// Claude Code lifecycle events that broglow's built-in hook backend
 /// registers for. Single source of truth shared by install and uninstall.
 const HOOK_EVENTS: [&str; 6] = [
     "SessionStart",
@@ -220,16 +234,16 @@ const HOOK_EVENTS: [&str; 6] = [
     "PreToolUse",
 ];
 
-/// Register clawlight's native hook backend in ~/.claude/settings.json for every
+/// Register broglow's native hook backend in ~/.claude/settings.json for every
 /// lifecycle event, and ensure the state/log dir exists. Idempotent. Does *not*
 /// touch autostart — `install_hooks` layers that on top; the menu-bar daemon's
 /// first-run path deliberately calls only this (see `first_run_setup_daemon`).
 fn register_hooks() -> anyhow::Result<()> {
-    // 1. Ensure the clawlight state/log directory exists.
+    // 1. Ensure the broglow state/log directory exists.
     std::fs::create_dir_all(hook_dir())?;
 
     // 2. Register the native hook backend in settings.json. The hook command is
-    //    this very binary invoked as `clawlight hook` — no bash or jq needed.
+    //    this very binary invoked as `broglow hook` — no bash or jq needed.
     let exe = std::env::current_exe().context("Resolving current executable path")?;
     let hook_cmd = format!("\"{}\" hook", exe.display());
 
@@ -264,7 +278,7 @@ fn register_hooks() -> anyhow::Result<()> {
             .or_insert_with(|| serde_json::json!([]))
             .as_array_mut()
             .with_context(|| format!("hooks.{event} must be an array"))?;
-        codex::upsert_clawlight_group(groups, &hook_entry);
+        codex::upsert_broglow_group(groups, &hook_entry);
     }
 
     codex::write_json_atomic(&settings_file, &settings)?;
@@ -296,9 +310,9 @@ fn install_hooks() -> anyhow::Result<()> {
     println!(
         "\nInstallation complete! Hooks are now active for Claude Code and every detected coding agent (opencode, Codex, Copilot)."
     );
-    println!("Run `clawlight` to launch the TUI dashboard.");
+    println!("Run `broglow` to launch the TUI dashboard.");
     if !lamp_enabled {
-        println!("Optional: enable a USB lamp with `l`, or use `clawlight ble scan` to select a BLE lamp. See docs/hardware-setup.md.");
+        println!("Optional: enable a USB lamp with `l`, or use `broglow ble scan` to select a BLE lamp. See docs/hardware-setup.md.");
     }
     Ok(())
 }
@@ -342,13 +356,13 @@ fn maybe_autoenable_led() -> bool {
             enabled
         }
         Err(e) => {
-            eprintln!("clawlight: could not enable status LEDs: {e:#} (press `l` in the dashboard to enable them).");
+            eprintln!("broglow: could not enable status LEDs: {e:#} (press `l` in the dashboard to enable them).");
             false
         }
     }
 }
 
-/// True if clawlight's hook backend is already wired into settings.json for at
+/// True if broglow's hook backend is already wired into settings.json for at
 /// least one lifecycle event. Gates the first-run auto-setup so a normal launch
 /// (TUI or tray daemon) doesn't rewrite settings — or, on the TUI path,
 /// re-bootstrap the LaunchAgent — every time.
@@ -374,18 +388,18 @@ fn hooks_registered() -> bool {
             .filter_map(|matcher| matcher.get("hooks").and_then(|h| h.as_array()))
             .flatten()
             .filter_map(|hook| hook.get("command").and_then(|c| c.as_str()))
-            .any(|cmd| cmd.contains("clawlight"))
+            .any(|cmd| codex::broglow_command_args(cmd) == Some("hook"))
     })
 }
 
-/// First-run onboarding for the TUI. If clawlight isn't wired into Claude Code
+/// First-run onboarding for the TUI. If broglow isn't wired into Claude Code
 /// yet, run the full install (hooks + login autostart, which also brings up the
-/// tray daemon) so that `brew install clawlight && clawlight` — or a plain
+/// tray daemon) so that `brew install broglow && broglow` — or a plain
 /// `cargo install` then launch — is a complete setup with no manual step.
 ///
 /// Safe here because the TUI is a foreground process distinct from the daemon:
 /// kickstarting the LaunchAgent spawns the tray we want, with nothing to collide
-/// with on a fresh machine. Best-effort — a failure just leaves `clawlight
+/// with on a fresh machine. Best-effort — a failure just leaves `broglow
 /// install` as the manual fallback and never blocks the dashboard.
 fn first_run_setup_tui() {
     if hooks_registered() {
@@ -395,9 +409,7 @@ fn first_run_setup_tui() {
         "First run: registering hooks for Claude Code and every detected coding agent (opencode, Codex, Copilot), then starting the menu bar daemon…\n"
     );
     if let Err(e) = install_hooks() {
-        eprintln!(
-            "clawlight: first-run setup failed: {e:#}\nRun `clawlight install` to finish setup."
-        );
+        eprintln!("broglow: first-run setup failed: {e:#}\nRun `broglow install` to finish setup.");
     }
 }
 
@@ -406,13 +418,13 @@ fn first_run_setup_tui() {
 /// autostart. The daemon must never bootstrap/kickstart its own LaunchAgent (or
 /// spawn a detached `menubar` on Linux/Windows): it is already running, and
 /// doing so would spin up a duplicate tray. Login autostart is established by
-/// the TUI's first run or by `clawlight install`.
+/// the TUI's first run or by `broglow install`.
 pub fn first_run_setup_daemon() {
     if hooks_registered() {
         return;
     }
     if let Err(e) = register_hooks() {
-        eprintln!("clawlight: first-run hook registration failed: {e:#}");
+        eprintln!("broglow: first-run hook registration failed: {e:#}");
     }
 }
 
@@ -433,7 +445,7 @@ fn uninstall_hooks() -> anyhow::Result<()> {
         if let Some(hooks) = settings.get_mut("hooks").and_then(|h| h.as_object_mut()) {
             for event in HOOK_EVENTS {
                 if let Some(groups) = hooks.get_mut(event).and_then(|v| v.as_array_mut()) {
-                    codex::remove_clawlight_groups(groups);
+                    codex::remove_broglow_groups(groups);
                     if groups.is_empty() {
                         hooks.remove(event);
                     }
@@ -500,7 +512,7 @@ fn uninstall_autostart() -> anyhow::Result<()> {
 #[cfg(target_os = "windows")]
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 #[cfg(target_os = "windows")]
-const RUN_VALUE: &str = "clawlight";
+const RUN_VALUE: &str = "broglow";
 
 #[cfg(target_os = "windows")]
 fn install_run_key() -> anyhow::Result<()> {
@@ -562,21 +574,26 @@ fn uninstall_run_key() -> anyhow::Result<()> {
 // ----------------------------------------------------------------------------
 
 #[cfg(target_os = "macos")]
-pub(crate) const LAUNCH_AGENT_LABEL: &str = "io.roush.clawlight.menubar";
+pub(crate) const LAUNCH_AGENT_LABEL: &str = "io.github.broglow.menubar";
 
 #[cfg(target_os = "macos")]
 const MAC_INFO_PLIST: &str = include_str!("../assets/macos-info.plist");
 
 #[cfg(target_os = "macos")]
+fn mac_app_launch(exe: &std::path::Path, stdin_is_terminal: bool) -> bool {
+    !stdin_is_terminal && exe.ends_with("Contents/MacOS/broglow")
+}
+
+#[cfg(target_os = "macos")]
 fn mac_bundle_path() -> anyhow::Result<PathBuf> {
     Ok(dirs::home_dir()
         .context("No home directory")?
-        .join("Applications/ClawLight.app"))
+        .join("Applications/BroGlow.app"))
 }
 
 #[cfg(target_os = "macos")]
 pub(crate) fn mac_bundle_executable() -> anyhow::Result<PathBuf> {
-    Ok(mac_bundle_path()?.join("Contents/MacOS/clawlight"))
+    Ok(mac_bundle_path()?.join("Contents/MacOS/broglow"))
 }
 
 #[cfg(target_os = "macos")]
@@ -584,9 +601,9 @@ fn check_managed_bundle(bundle: &std::path::Path) -> anyhow::Result<()> {
     if bundle.exists() {
         let info = std::fs::read_to_string(bundle.join("Contents/Info.plist"))?;
         anyhow::ensure!(
-            info.contains("<key>ClawLightManaged</key><true/>")
+            info.contains("<key>BroGlowManaged</key><true/>")
                 && info.contains(&format!("<string>{LAUNCH_AGENT_LABEL}</string>")),
-            "{} is not a ClawLight-managed bundle; leaving it alone",
+            "{} is not a BroGlow-managed bundle; leaving it alone",
             bundle.display()
         );
     }
@@ -601,7 +618,12 @@ fn create_mac_bundle(
 ) -> anyhow::Result<()> {
     std::fs::create_dir(bundle)?;
     std::fs::create_dir_all(bundle.join("Contents/MacOS"))?;
-    std::fs::copy(exe, bundle.join("Contents/MacOS/clawlight"))?;
+    std::fs::copy(exe, bundle.join("Contents/MacOS/broglow"))?;
+    std::fs::create_dir_all(bundle.join("Contents/Resources"))?;
+    std::fs::write(
+        bundle.join("Contents/Resources/BroGlow.icns"),
+        include_bytes!("../assets/icons/BroGlow.icns"),
+    )?;
     std::fs::write(
         bundle.join("Contents/Info.plist"),
         MAC_INFO_PLIST.replace("{{VERSION}}", env!("CARGO_PKG_VERSION")),
@@ -617,13 +639,13 @@ fn create_mac_bundle(
     if identity == "-" {
         // Local builds have no signing certificate. Keep their DR stable across
         // rebuilds; this identifies the app, not a trusted publisher. Distribution
-        // should use CLAWLIGHT_SIGNING_IDENTITY and its signer-bound default DR.
+        // should use BROGLOW_SIGNING_IDENTITY and its signer-bound default DR.
         sign.args([
             "--requirements",
             &format!("=designated => identifier \"{LAUNCH_AGENT_LABEL}\""),
         ]);
     }
-    let out = sign.arg(bundle).output().context("Signing ClawLight.app")?;
+    let out = sign.arg(bundle).output().context("Signing BroGlow.app")?;
     anyhow::ensure!(
         out.status.success(),
         "codesign failed: {}",
@@ -635,7 +657,7 @@ fn create_mac_bundle(
         .output()?;
     anyhow::ensure!(
         out.status.success(),
-        "ClawLight.app signature verification failed: {}",
+        "BroGlow.app signature verification failed: {}",
         String::from_utf8_lossy(&out.stderr).trim()
     );
     Ok(())
@@ -665,9 +687,9 @@ const LAUNCH_AGENT_PLIST: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
     <key>RunAtLoad</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>{{HOME}}/.claude/clawlight/menubar.log</string>
+    <string>{{HOME}}/.claude/broglow/menubar.log</string>
     <key>StandardErrorPath</key>
-    <string>{{HOME}}/.claude/clawlight/menubar.err</string>
+    <string>{{HOME}}/.claude/broglow/menubar.err</string>
 </dict>
 </plist>
 "#;
@@ -701,8 +723,8 @@ fn install_launch_agent() -> anyhow::Result<()> {
     check_managed_bundle(&bundle)?;
     let applications = bundle.parent().context("Bundle must have a parent")?;
     std::fs::create_dir_all(applications)?;
-    let staging = applications.join(format!(".ClawLight.{}.app", std::process::id()));
-    let previous = applications.join(format!(".ClawLight.previous.{}.app", std::process::id()));
+    let staging = applications.join(format!(".BroGlow.{}.app", std::process::id()));
+    let previous = applications.join(format!(".BroGlow.previous.{}.app", std::process::id()));
     anyhow::ensure!(
         !previous.exists(),
         "Recovery bundle already exists: {}",
@@ -711,7 +733,7 @@ fn install_launch_agent() -> anyhow::Result<()> {
     create_mac_bundle(
         &exe,
         &staging,
-        &std::env::var("CLAWLIGHT_SIGNING_IDENTITY").unwrap_or_else(|_| "-".to_string()),
+        &std::env::var("BROGLOW_SIGNING_IDENTITY").unwrap_or_else(|_| "-".to_string()),
     )?;
 
     let plist_content = LAUNCH_AGENT_PLIST
@@ -739,7 +761,7 @@ fn install_launch_agent() -> anyhow::Result<()> {
         if previous.exists() {
             let _ = std::fs::rename(&previous, &bundle);
         }
-        return Err(error).context("Installing ClawLight.app");
+        return Err(error).context("Installing BroGlow.app");
     }
     std::fs::write(&plist_path, plist_content)?;
     println!("Wrote LaunchAgent plist to {}", plist_path.display());
@@ -768,7 +790,7 @@ fn install_launch_agent() -> anyhow::Result<()> {
         std::fs::remove_dir_all(previous)?;
     }
 
-    println!("LaunchAgent loaded from {} — allow ClawLight in Privacy & Security → Bluetooth when selecting a lamp.", bundle.display());
+    println!("LaunchAgent loaded from {} — allow BroGlow in Privacy & Security → Bluetooth when selecting a lamp.", bundle.display());
     Ok(())
 }
 
@@ -822,7 +844,7 @@ fn xdg_autostart_path() -> PathBuf {
         .expect("Home directory must exist")
         .join(".config")
         .join("autostart")
-        .join("clawlight.desktop")
+        .join("broglow.desktop")
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -830,7 +852,7 @@ fn install_xdg_autostart() -> anyhow::Result<()> {
     let exe = std::env::current_exe().context("Resolving current executable path")?;
 
     let desktop_entry = format!(
-        "[Desktop Entry]\nType=Application\nName=clawlight\nExec=\"{}\" menubar\nX-GNOME-Autostart-enabled=true\n",
+        "[Desktop Entry]\nType=Application\nName=BroGlow\nExec=\"{}\" menubar\nX-GNOME-Autostart-enabled=true\n",
         exe.display()
     );
 
@@ -876,11 +898,23 @@ mod mac_install_tests {
     use super::*;
 
     #[test]
+    fn app_launch_uses_the_tray_but_terminal_launch_keeps_the_dashboard() {
+        let bundled =
+            std::path::Path::new("/Users/test/Applications/BroGlow.app/Contents/MacOS/broglow");
+        assert!(mac_app_launch(bundled, false));
+        assert!(!mac_app_launch(bundled, true));
+        assert!(!mac_app_launch(
+            std::path::Path::new("/usr/local/bin/broglow"),
+            false
+        ));
+    }
+
+    #[test]
     fn bundle_metadata_and_local_identity_survive_changed_executables() {
         let dir = tempfile::tempdir().unwrap();
         let mut requirements = Vec::new();
         for (i, source) in ["/bin/echo", "/bin/sleep"].iter().enumerate() {
-            let bundle = dir.path().join(format!("ClawLight{i}.app"));
+            let bundle = dir.path().join(format!("BroGlow{i}.app"));
             create_mac_bundle(std::path::Path::new(source), &bundle, "-").unwrap();
             check_managed_bundle(&bundle).unwrap();
             let info = bundle.join("Contents/Info.plist");
@@ -893,7 +927,12 @@ mod mac_install_tests {
                 .success());
             let info = std::fs::read_to_string(info).unwrap();
             assert!(info.contains("NSBluetoothAlwaysUsageDescription"));
-            assert!(info.contains("<key>CFBundleExecutable</key><string>clawlight</string>"));
+            assert!(info.contains("<key>CFBundleExecutable</key><string>broglow</string>"));
+            assert!(info.contains("<key>CFBundleIconFile</key><string>BroGlow.icns</string>"));
+            assert_eq!(
+                std::fs::read(bundle.join("Contents/Resources/BroGlow.icns")).unwrap(),
+                include_bytes!("../assets/icons/BroGlow.icns")
+            );
             let output = std::process::Command::new("/usr/bin/codesign")
                 .args(["-d", "-r-"])
                 .arg(&bundle)

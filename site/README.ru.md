@@ -1,6 +1,6 @@
-<a name="clawlight-diy-website"></a>
+<a name="broglow-diy-website"></a>
 
-# Сайт ClawLight DIY
+# Сайт BroGlow DIY
 
 [English](README.md) | [Русский](README.ru.md)
 
@@ -22,7 +22,7 @@
 | Решение проблем и запрос агенту | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
 | Справочник по оборудованию | `../docs/hardware-setup.md` | `../docs/hardware-setup.ru.md` |
 | Прошивка, релизы, изображения, проектирование корпуса | `../docs/NAME.md` | `../docs/NAME.ru.md` |
-| Печать и сборка | `../models/clawlight/PRINT_GUIDE.en.md` | `../models/clawlight/PRINT_GUIDE.md` |
+| Печать и сборка | `../models/broglow/PRINT_GUIDE.en.md` | `../models/broglow/PRINT_GUIDE.md` |
 
 Чтобы добавить страницу, создайте одноимённые файлы в обеих языковых папках и
 обновите `nav` и `nav_translations` в `mkdocs.yaml`. Запросы агенту с кнопкой
@@ -54,7 +54,7 @@ Pages. Проверка переводов выявляет отсутствую
 
 ## Сборка и предварительный просмотр
 
-Выполняйте из **корня репозитория clawlight**. В CI используется Python 3.14.
+Выполняйте из **корня репозитория broglow**. В CI используется Python 3.14.
 
 ```bash
 python3 -m venv site/.venv
@@ -123,12 +123,12 @@ GLB — метры. Safari на iPhone/iPad создаёт USDZ по запро�
 
 Модель показывает наш корпус версии 1.0.0 с иллюстративной
 электроникой. Для печати используйте отдельный пакет корпуса. Хеши исходников и
-габариты находятся в `assets/clawlight-model.json`; оба результата нужно
+габариты находятся в `assets/broglow-model.json`; оба результата нужно
 перегенерировать, а не править вручную. В полной рабочей копии активируйте
 Python-окружение CAD и выполните:
 
 ```bash
-python -m pip install -r models/clawlight/requirements.txt
+python -m pip install -r models/broglow/requirements.txt
 python scripts/export-web-model.py
 python scripts/export-web-model.py --check
 python scripts/export-web-model.py --exploded
@@ -148,7 +148,7 @@ python scripts/export-web-model.py --exploded --check
 
 Выбирается первый поддерживаемый язык браузера RU/EN, иначе английский.
 Ручной выбор имеет приоритет и хранится в общем ключе localStorage
-`clawlight-language`; удалите его для возврата к определению языка.
+`broglow-language`; удалите его для возврата к определению языка.
 `guide/assets/language.js` сохраняет страницу/раздел и использует
 `?lang=ru` / `?lang=en` при заблокированном хранилище. Без JavaScript ссылки
 работают на языке URL, запросы можно копировать вручную.
@@ -182,7 +182,7 @@ python3 site/check-links.py --base-url http://127.0.0.1:8080/site/
 
 `pages.py` раскрывает `<!-- mac-downloads -->` и `<!-- model-download -->`:
 локальный просмотр ссылается на новейший полный архив Mac в `dist/` и архив корпуса
-`dist/enclosure/clawlight-enclosure-vVERSION.zip`, каждый с соседним `.sha256`.
+`dist/enclosure/broglow-enclosure-vVERSION.zip`, каждый с соседним `.sha256`.
 Без архивов предлагаются инструкции для исходников. Публичная сборка ссылается
 на Releases и ZIP исходников. Автоматический ZIP исходников GitHub содержит
 редактируемые исходники и инструкции, без STL, STEP/STP и готовых ZIP для печати;
@@ -190,7 +190,7 @@ python3 site/check-links.py --base-url http://127.0.0.1:8080/site/
 Просмотр не пересобирает и не копирует архивы; архитектура,
 дата и исходники пакета указаны в его `BUILD.json`.
 
-Ссылки руководства на STL из `models/clawlight/parts.json` и четыре именованных
+Ссылки руководства на STL из `models/broglow/parts.json` и четыре именованных
 STEP-вида ведут на версионный комплект корпуса в публичной сборке. Локальная
 сборка использует архив корпуса выше, а при его отсутствии — инструкции генерации.
 Исходный путь файла остаётся видимым для поиска после распаковки; Markdown-ссылки
@@ -209,8 +209,8 @@ ChatGPT не управляют службой. Результаты прове�
 
 Источники наших изображений:
 
-- `assets/clawlight.png`: `site/assets/clawlight.glb`, рендер состояния «Работает» закреплёнными model-viewer/effects с камерой главного блока.
-- `assets/assembly.glb`: разнесённая сборка из `models/clawlight/exploded.py`; хеши исходников и габариты записаны в `assets/assembly-model.json`. При изменении CAD-исходников перегенерируйте с флагом `--exploded`.
+- `assets/broglow.png`: `site/assets/broglow.glb`, рендер состояния «Работает» закреплёнными model-viewer/effects с камерой главного блока.
+- `assets/assembly.glb`: разнесённая сборка из `models/broglow/exploded.py`; хеши исходников и габариты записаны в `assets/assembly-model.json`. При изменении CAD-исходников перегенерируйте с флагом `--exploded`.
 - `guide/assets/favicon.svg`: наш рисунок лампы из трёх кругов, также используемый в favicon главной страницы. Значки трея берутся из `assets/icons/` в корне репозитория.
 
 Следуйте [правилам медиа и списку фотографий](../docs/media.ru.md). Точно различайте

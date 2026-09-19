@@ -26,7 +26,7 @@
 
   let saved;
   try {
-    saved = localStorage.getItem("clawlight-language");
+    saved = localStorage.getItem("broglow-language");
   } catch {
     // Storage may be unavailable in private browsing or when opening a local file.
   }
@@ -40,7 +40,7 @@
   picker.addEventListener("change", () => {
     setLanguage(picker.value);
     try {
-      localStorage.setItem("clawlight-language", picker.value);
+      localStorage.setItem("broglow-language", picker.value);
     } catch {
       // Switching still works for this page when preferences cannot be saved.
     }

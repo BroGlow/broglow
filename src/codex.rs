@@ -3,7 +3,7 @@
 //! Codex (>= 0.144) speaks a Claude-compatible hooks dialect: command hooks in
 //! `$CODEX_HOME/hooks.json` receive the same stdin JSON shape as Claude Code's
 //! (`hook_event_name`, `session_id`, `cwd`, `transcript_path`). The adapter
-//! registers `clawlight codex-hook` for six events; that shim (hook.rs) maps
+//! registers `broglow codex-hook` for six events; that shim (hook.rs) maps
 //! them onto the normalized harness verbs. This module holds everything else
 //! Codex-specific: where its home lives, the non-destructive hooks.json
 //! merge, thread names from `session_index.jsonl`, exec-vs-interactive from
@@ -62,7 +62,7 @@ const HOOK_EVENTS: [&str; 6] = [
 // hooks.json registration (called via the harness adapter)
 // ---------------------------------------------------------------------------
 
-/// Register `clawlight codex-hook` under each event in `hooks.json`,
+/// Register `broglow codex-hook` under each event in `hooks.json`,
 /// preserving every foreign matcher group *in place* — Codex keys its
 /// hook-trust state by position in the file, so reordering another tool's
 /// group would flag it for re-review. Our own group is replaced in place
@@ -97,44 +97,26 @@ pub fn install_hooks() -> anyhow::Result<()> {
     let hooks_obj = hooks
         .as_object_mut()
         .with_context(|| format!("\"hooks\" in {} must be an object", path.display()))?;
-    prune_stale_clawlight_groups(hooks_obj, &HOOK_EVENTS);
     for event in HOOK_EVENTS {
         let entry = hooks_obj
             .entry(event.to_string())
             .or_insert_with(|| serde_json::json!([]));
         if let Some(groups) = entry.as_array_mut() {
-            upsert_clawlight_group(groups, &group);
+            upsert_broglow_group(groups, &group);
         }
     }
 
     write_json_atomic(&path, &root)?;
     println!("Wrote Codex hooks to {}", path.display());
-    println!("  (Codex asks once to trust new hooks — approve clawlight via /hooks)");
+    println!("  (Codex asks once to trust new hooks — approve broglow via /hooks)");
     Ok(())
 }
 
-/// Drop clawlight groups from events we no longer register, so a removed
-/// event doesn't keep firing an old registration. Runs before the upsert.
-fn prune_stale_clawlight_groups(hooks_obj: &mut serde_json::Map<String, Value>, keep: &[&str]) {
-    let events: Vec<String> = hooks_obj.keys().cloned().collect();
-    for event in events {
-        if keep.contains(&event.as_str()) {
-            continue;
-        }
-        if let Some(groups) = hooks_obj.get_mut(&event).and_then(|v| v.as_array_mut()) {
-            remove_clawlight_groups(groups);
-            if groups.is_empty() {
-                hooks_obj.remove(&event);
-            }
-        }
-    }
-}
-
-/// Strip clawlight's matcher groups from every event, leaving all other
+/// Strip broglow's matcher groups from every event, leaving all other
 /// hooks untouched — and *in place*: a group of ours sitting in front of a
 /// foreign group is neutralized into a hookless placeholder rather than
 /// removed, so the foreign group's trust-by-position survives (see
-/// [`remove_clawlight_groups`]). The adapter's `uninstall`: best-effort, and
+/// [`remove_broglow_groups`]). The adapter's `uninstall`: best-effort, and
 /// the file itself stays (other tools register hooks there too).
 pub fn uninstall_hooks() {
     let Some(path) = hooks_json_path().filter(|p| p.exists()) else {
@@ -154,7 +136,7 @@ pub fn uninstall_hooks() {
     let events: Vec<String> = hooks_obj.keys().cloned().collect();
     for event in events {
         if let Some(groups) = hooks_obj.get_mut(&event).and_then(|v| v.as_array_mut()) {
-            changed |= remove_clawlight_groups(groups);
+            changed |= remove_broglow_groups(groups);
             if groups.is_empty() {
                 hooks_obj.remove(&event);
             }
@@ -165,36 +147,29 @@ pub fn uninstall_hooks() {
     }
 }
 
-/// Whether a hook command string invokes clawlight's Codex shim (or the plain
-/// hook backend an older build registered) — any install path, quoted or not,
-/// with or without `.exe`. This predicate is the "managed by clawlight"
-/// marker for hooks.json entries, which live inside a shared file — so it
-/// must be tight: the binary name must be exactly `clawlight`, i.e. preceded
-/// by a path separator, an opening quote, or nothing. A bare suffix match
-/// would also claim a foreign `my-clawlight`, stripping someone else's hook
-/// on uninstall.
-fn command_is_clawlight(cmd: &str) -> bool {
+/// Arguments of a direct BroGlow invocation. Reject wrappers, lookalike
+/// executables and malformed quotes before claiming ownership of a hook.
+pub(crate) fn broglow_command_args(cmd: &str) -> Option<&str> {
     let cmd = cmd.trim();
-    [
-        "clawlight\" codex-hook",
-        "clawlight codex-hook",
-        "clawlight.exe\" codex-hook",
-        "clawlight.exe codex-hook",
-        "clawlight\" hook",
-        "clawlight hook",
-        "clawlight.exe\" hook",
-        "clawlight.exe hook",
-    ]
-    .iter()
-    .any(|suffix| {
-        cmd.strip_suffix(suffix)
-            .is_some_and(|prefix| prefix.is_empty() || prefix.ends_with(['/', '\\', '"']))
-    })
+    let (exe, args) = if let Some(quoted) = cmd.strip_prefix('"') {
+        let (exe, rest) = quoted.split_once('"')?;
+        if !rest.starts_with(char::is_whitespace) {
+            return None;
+        }
+        (exe, rest.trim())
+    } else {
+        cmd.split_once(char::is_whitespace)?
+    };
+    matches!(exe.rsplit(['/', '\\']).next()?, "broglow" | "broglow.exe").then_some(args.trim())
 }
 
-/// A matcher group is ours only when *every* hook in it is clawlight's — a
+pub(crate) fn command_is_broglow(cmd: &str) -> bool {
+    matches!(broglow_command_args(cmd), Some("hook" | "codex-hook"))
+}
+
+/// A matcher group is ours only when *every* hook in it is broglow's — a
 /// group mixing in anyone else's command is never replaced or removed.
-fn group_is_clawlight(group: &Value) -> bool {
+fn group_is_broglow(group: &Value) -> bool {
     let Some(hooks) = group.get("hooks").and_then(|h| h.as_array()) else {
         return false;
     };
@@ -202,7 +177,7 @@ fn group_is_clawlight(group: &Value) -> bool {
         && hooks.iter().all(|h| {
             h.get("command")
                 .and_then(|c| c.as_str())
-                .is_some_and(command_is_clawlight)
+                .is_some_and(command_is_broglow)
         })
 }
 
@@ -227,19 +202,19 @@ fn group_is_placeholder(group: &Value) -> bool {
             .is_some_and(|h| h.is_empty())
 }
 
-/// Remove clawlight's groups from one event's array without shifting any
+/// Remove broglow's groups from one event's array without shifting any
 /// foreign group's index: everything past the last foreign group (ours and
 /// stale placeholders) is truncated off the tail, and one of ours *followed
 /// by* a foreign group is neutralized into a [`placeholder_group`] in place.
 /// Returns whether anything changed.
-pub(crate) fn remove_clawlight_groups(groups: &mut Vec<Value>) -> bool {
+pub(crate) fn remove_broglow_groups(groups: &mut Vec<Value>) -> bool {
     let mut changed = false;
     let last_foreign = groups
         .iter()
-        .rposition(|g| !group_is_clawlight(g) && !group_is_placeholder(g));
+        .rposition(|g| !group_is_broglow(g) && !group_is_placeholder(g));
     let keep = last_foreign.map_or(0, |f| f + 1);
     for g in groups.iter_mut().take(keep) {
-        if group_is_clawlight(g) {
+        if group_is_broglow(g) {
             *g = placeholder_group();
             changed = true;
         }
@@ -252,11 +227,11 @@ pub(crate) fn remove_clawlight_groups(groups: &mut Vec<Value>) -> bool {
 }
 
 /// Put our matcher group into an event's array: refresh our existing group in
-/// place, else fill a placeholder slot (left by [`remove_clawlight_groups`] —
+/// place, else fill a placeholder slot (left by [`remove_broglow_groups`] —
 /// reusing it keeps foreign positions stable across install/uninstall
 /// cycles), else append.
-pub(crate) fn upsert_clawlight_group(groups: &mut Vec<Value>, group: &Value) {
-    if let Some(ours) = groups.iter_mut().find(|g| group_is_clawlight(g)) {
+pub(crate) fn upsert_broglow_group(groups: &mut Vec<Value>, group: &Value) {
+    if let Some(ours) = groups.iter_mut().find(|g| group_is_broglow(g)) {
         ours.clone_from(group);
     } else if let Some(slot) = groups.iter_mut().find(|g| group_is_placeholder(g)) {
         slot.clone_from(group);
@@ -270,7 +245,7 @@ pub(crate) fn upsert_clawlight_group(groups: &mut Vec<Value>, group: &Value) {
 pub(crate) fn write_json_atomic(path: &Path, value: &Value) -> anyhow::Result<()> {
     let dir = path.parent().context("hooks.json must have a parent")?;
     std::fs::create_dir_all(dir)?;
-    let tmp = dir.join(format!(".clawlight.{}.tmp", std::process::id()));
+    let tmp = dir.join(format!(".broglow.{}.tmp", std::process::id()));
     std::fs::write(&tmp, serde_json::to_string_pretty(value)?)?;
     std::fs::rename(&tmp, path)?;
     Ok(())
@@ -281,7 +256,7 @@ pub(crate) fn write_json_atomic(path: &Path, value: &Value) -> anyhow::Result<()
 // ---------------------------------------------------------------------------
 
 /// Session id → thread name from Codex's `session_index.jsonl`. Codex titles
-/// threads itself, so these beat anything clawlight could generate. The file
+/// threads itself, so these beat anything broglow could generate. The file
 /// is append-style; the last entry for an id wins.
 pub fn thread_names() -> HashMap<String, String> {
     let Some(path) = codex_home().map(|h| h.join("session_index.jsonl")) else {
@@ -497,24 +472,19 @@ mod tests {
             ],
             "Stop": [
                 { "hooks": [{ "type": "command",
-                              "command": "\"/old/path/clawlight\" hook" }] }
+                              "command": "\"/installed/path/broglow\" codex-hook" }] }
             ],
-            // A stale clawlight group on an event we no longer register.
-            "SessionEnd": [
-                { "hooks": [{ "type": "command",
-                              "command": "\"/old/path/clawlight\" hook" }] }
-            ]
+
         });
         let obj = hooks.as_object_mut().unwrap();
-        prune_stale_clawlight_groups(obj, &HOOK_EVENTS);
         let group = serde_json::json!({
-            "hooks": [{ "type": "command", "command": "\"/new/clawlight\" codex-hook" }]
+            "hooks": [{ "type": "command", "command": "\"/new/broglow\" codex-hook" }]
         });
         for event in HOOK_EVENTS {
             let entry = obj
                 .entry(event.to_string())
                 .or_insert_with(|| serde_json::json!([]));
-            upsert_clawlight_group(entry.as_array_mut().unwrap(), &group);
+            upsert_broglow_group(entry.as_array_mut().unwrap(), &group);
         }
 
         let pr = obj["PermissionRequest"].as_array().unwrap();
@@ -524,32 +494,34 @@ mod tests {
             "~/.claude/scripts/permission-hook.sh"
         );
         assert_eq!(pr[1], group);
-        // The old-path group under Stop was refreshed in place, not duplicated.
+        // An existing BroGlow registration is refreshed in place, not duplicated.
         let stop = obj["Stop"].as_array().unwrap();
         assert_eq!(stop.len(), 1);
         assert_eq!(stop[0], group);
-        // The stale SessionEnd registration is gone entirely.
-        assert!(!obj.contains_key("SessionEnd"));
     }
 
     #[test]
-    fn clawlight_commands_recognized_foreign_ones_not() {
-        assert!(command_is_clawlight(
-            "\"/Users/x/.cargo/bin/clawlight\" codex-hook"
+    fn broglow_commands_recognized_foreign_ones_not() {
+        assert!(command_is_broglow(
+            "\"/Users/x/.cargo/bin/broglow\" codex-hook"
         ));
-        assert!(command_is_clawlight("clawlight hook")); // older registration
-        assert!(command_is_clawlight(
-            "\"C:\\bin\\clawlight.exe\" codex-hook"
-        ));
-        assert!(!command_is_clawlight(
-            "~/.claude/scripts/permission-hook.sh"
-        ));
-        assert!(!command_is_clawlight("\"/usr/bin/clawlight\" led"));
-        // A foreign binary whose name merely *ends* in "clawlight" is not
+        assert!(command_is_broglow("broglow hook")); // Claude hook backend
+        assert!(command_is_broglow("\"C:\\bin\\broglow.exe\" codex-hook"));
+        assert!(!command_is_broglow("~/.claude/scripts/permission-hook.sh"));
+        assert!(!command_is_broglow("\"/usr/bin/broglow\" led"));
+        // A foreign binary whose name merely *ends* in "broglow" is not
         // ours — a bare suffix match would strip someone else's hook.
-        assert!(!command_is_clawlight("/usr/bin/my-clawlight codex-hook"));
-        assert!(!command_is_clawlight("\"/opt/not-clawlight\" hook"));
-        assert!(!command_is_clawlight("notclawlight codex-hook"));
+        assert!(!command_is_broglow("/usr/bin/my-broglow codex-hook"));
+        assert!(!command_is_broglow("\"/opt/not-broglow\" hook"));
+        assert!(!command_is_broglow("notbroglow codex-hook"));
+        for cmd in [
+            "echo /bin/broglow hook",
+            "\"/bin/broglow\"hook",
+            "broglow hook && other",
+            "broglow-helper hook",
+        ] {
+            assert!(!command_is_broglow(cmd), "{cmd}");
+        }
     }
 
     #[test]
@@ -558,36 +530,36 @@ mod tests {
             "hooks": [{ "type": "command", "command": "./their-hook.sh" }]
         });
         let ours = serde_json::json!({
-            "hooks": [{ "type": "command", "command": "\"/x/clawlight\" codex-hook" }]
+            "hooks": [{ "type": "command", "command": "\"/x/broglow\" codex-hook" }]
         });
 
         // Ours in front of a foreign group: neutralized in place, so the
         // foreign group keeps index 1 (its trust key encodes the position).
         let mut groups = vec![ours.clone(), foreign.clone()];
-        assert!(remove_clawlight_groups(&mut groups));
+        assert!(remove_broglow_groups(&mut groups));
         assert_eq!(groups.len(), 2);
         assert!(group_is_placeholder(&groups[0]));
         assert_eq!(groups[1], foreign);
 
         // A later reinstall fills the placeholder slot instead of appending,
         // so the foreign group *still* hasn't moved.
-        upsert_clawlight_group(&mut groups, &ours);
+        upsert_broglow_group(&mut groups, &ours);
         assert_eq!(groups[0], ours);
         assert_eq!(groups[1], foreign);
 
         // Ours on the tail: plain removal, nothing shifts.
         let mut groups = vec![foreign.clone(), ours.clone()];
-        assert!(remove_clawlight_groups(&mut groups));
+        assert!(remove_broglow_groups(&mut groups));
         assert_eq!(groups, vec![foreign.clone()]);
 
         // Only ours: the array empties (the caller then drops the event key).
         let mut groups = vec![ours.clone()];
-        assert!(remove_clawlight_groups(&mut groups));
+        assert!(remove_broglow_groups(&mut groups));
         assert!(groups.is_empty());
 
         // Nothing of ours: untouched, and reported as such.
         let mut groups = vec![foreign.clone()];
-        assert!(!remove_clawlight_groups(&mut groups));
+        assert!(!remove_broglow_groups(&mut groups));
         assert_eq!(groups, vec![foreign]);
     }
 }

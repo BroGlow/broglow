@@ -62,8 +62,8 @@ pairs += [
 ]
 pairs.append(
     (
-        ROOT / "models/clawlight/PRINT_GUIDE.en.md",
-        ROOT / "models/clawlight/PRINT_GUIDE.md",
+        ROOT / "models/broglow/PRINT_GUIDE.en.md",
+        ROOT / "models/broglow/PRINT_GUIDE.md",
     )
 )
 

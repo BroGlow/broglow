@@ -6,7 +6,7 @@ async function run() {
 const { PointLight, Mesh, BufferGeometry, Float32BufferAttribute } =
   await import('./vendor/three-0.183.0/three.module.min.js');
 
-const glb = readFileSync(`${__dirname}/assets/clawlight.glb`);
+const glb = readFileSync(`${__dirname}/assets/broglow.glb`);
 const gltf = JSON.parse(glb.subarray(20, 20 + glb.readUInt32LE(12)));
 const html = readFileSync(`${__dirname}/index.html`, 'utf8');
 const initialOrbit = html.match(/camera-orbit="([^"]+)"/)[1];
@@ -16,7 +16,7 @@ for (const [number, index] of [4, 5, 6].entries()) {
   assert.equal(gltf.meshes[node.mesh].primitives[0].material, index, 'Keep preview material indices aligned with the exported lenses');
 }
 
-function page(defined = false, href = 'https://example.com/clawlight/', qrFailure = false, lateEffects = false) {
+function page(defined = false, href = 'https://example.com/broglow/', qrFailure = false, lateEffects = false) {
   let effectsDefined = defined;
   const document = { activeElement: null };
   function element() {
@@ -116,7 +116,7 @@ function page(defined = false, href = 'https://example.com/clawlight/', qrFailur
   } };
   nodes['assembly-model'].shadowRoot = { querySelector: () => nodes['assembly-model'] };
   nodes['model-poster'].hidden = false;
-  nodes['lamp-model'].dataset.modelSrc = 'assets/clawlight.glb';
+  nodes['lamp-model'].dataset.modelSrc = 'assets/broglow.glb';
   nodes['model-load'].dataset.viewerSrc = html.match(/data-viewer-src="([^"]+)"/)[1];
   Object.assign(document, {
     querySelector: selector => selector === '.signal-demo' ? signals :
@@ -211,7 +211,7 @@ assertSignal(deferredViewer, 'working');
 
 const startup = page(true);
 const startupViewer = startup.nodes['lamp-model'];
-assert.equal(startupViewer.src, 'assets/clawlight.glb', 'Initial Working preview loads without a click');
+assert.equal(startupViewer.src, 'assets/broglow.glb', 'Initial Working preview loads without a click');
 startupViewer.emit('before-render');
 const startupLight = assertSignal(startupViewer, 'working');
 startupViewer.composer.emit('updated-selection');
@@ -257,7 +257,7 @@ preview.nodes['model-reset'].emit('click');
 assertSignal(previewViewer, 'working');
 previewViewer.emit('error');
 preview.select('needs-you', 'click');
-assert.equal(previewViewer.src, 'assets/clawlight.glb?retry=1', 'A signal choice retries a failed model');
+assert.equal(previewViewer.src, 'assets/broglow.glb?retry=1', 'A signal choice retries a failed model');
 previewViewer.emit('load');
 assert.equal(assertSignal(previewViewer, 'needs-you'), previewLight, 'Retry reattaches the same source to the new model');
 
@@ -291,7 +291,7 @@ n['model-load'].emit('click');
 assert.equal(scripts[1].src, 'vendor/model-viewer-with-effects.js?retry=1');
 define();
 scripts[1].emit('load');
-assert.equal(n['lamp-model'].src, 'assets/clawlight.glb?retry=1');
+assert.equal(n['lamp-model'].src, 'assets/broglow.glb?retry=1');
 n['lamp-model'].emit('load');
 assertSignal(n['lamp-model'], 'working');
 assert.equal(n['model-poster'].hidden, true);
@@ -312,11 +312,11 @@ assert.equal(n['model-load'].disabled, false);
 assert.equal(n['model-help'].hidden, true);
 n['model-load'].emit('click');
 assert.equal(scripts.length, 2, 'A model retry reuses the loaded module');
-assert.equal(n['lamp-model'].src, 'assets/clawlight.glb?retry=2');
+assert.equal(n['lamp-model'].src, 'assets/broglow.glb?retry=2');
 const cached = page(true);
 cached.nodes['model-load'].emit('click');
 assert.equal(cached.scripts.length, 0, 'Reuse an already loaded component on retry');
-assert.equal(cached.nodes['lamp-model'].src, 'assets/clawlight.glb');
+assert.equal(cached.nodes['lamp-model'].src, 'assets/broglow.glb');
 
 const space = page(false, 'https://example.com/project/index.html?token=private#signals');
 assert.equal(space.nodes['model-space'].hidden, false, 'Phone handoff is available before loading 3D');
@@ -400,11 +400,11 @@ assert.equal(qrError.nodes['ar-qr'].hidden, true);
 assert.equal(qrError.nodes['ar-qr-error'].hidden, false);
 assert.equal(qrError.nodes['ar-link'].href, 'https://example.com/#view-in-space', 'QR failure keeps the usable link');
 
-const phone = page(false, 'https://example.com/clawlight/#view-in-space');
+const phone = page(false, 'https://example.com/broglow/#view-in-space');
 assert.equal(phone.scripts.length, 1, 'Scanning the phone link loads 3D immediately');
 phone.define();
 phone.scripts[0].emit('load');
-assert.equal(phone.nodes['lamp-model'].src, 'assets/clawlight.glb');
+assert.equal(phone.nodes['lamp-model'].src, 'assets/broglow.glb');
 phone.nodes['lamp-model'].emit('load');
 assert.equal(phone.nodes['ar-dialog'].open, undefined, 'The phone link shows the model, not another QR modal');
 assert.equal(page(false, 'https://example.com/#signals').scripts.length, 1, 'All sections initialize the live model');

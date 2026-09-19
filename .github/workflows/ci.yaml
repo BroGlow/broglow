@@ -92,7 +92,7 @@ jobs:
       - name: Test
         run: cargo test --locked
 
-  # opencode↔clawlight integration: drive the REAL embedded plugin
+  # opencode↔broglow integration: drive the REAL embedded plugin
   # (assets/opencode-plugin.js) with opencode's actual event shapes and assert
   # the state.json the built binary writes — the boundary the Rust suite can't
   # cover. A dedicated job so it's a distinct, required PR check. Linux only: it
@@ -115,7 +115,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build clawlight binary
+      - name: Build broglow binary
         run: cargo build --locked
 
       - uses: actions/setup-node@v7

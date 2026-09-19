@@ -42,7 +42,7 @@ pub struct SessionStatus {
     pub terminal: Option<TerminalInfo>,
     /// Which coding agent produced this session: absent for Claude Code (the
     /// original harness and the default), `"opencode"` for opencode, etc.
-    /// Written by `clawlight event` from the normalized-event `harness` field;
+    /// Written by `broglow event` from the normalized-event `harness` field;
     /// Claude hooks leave it `None`. Lets later UI badge sessions per harness
     /// and keeps the reconnect sweep able to target one harness's sessions.
     /// Absent in state files written before this field existed.
@@ -155,7 +155,7 @@ pub fn state_file_path() -> PathBuf {
     dirs::home_dir()
         .expect("Home directory must exist")
         .join(".claude")
-        .join("clawlight")
+        .join("broglow")
         .join("state.json")
 }
 
@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn codex_renames_refresh_without_hooks() {
         // Follow the existing child-process test pattern: never change the runner's HOME.
-        if std::env::var_os("CLAWLIGHT_TEST_RENAME").is_none() {
+        if std::env::var_os("BROGLOW_TEST_RENAME").is_none() {
             let home = tempfile::tempdir().unwrap();
             let output = std::process::Command::new(std::env::current_exe().unwrap())
                 .args([
@@ -317,7 +317,7 @@ mod tests {
                 ])
                 .env("HOME", home.path())
                 .env("CODEX_HOME", home.path().join("codex"))
-                .env("CLAWLIGHT_TEST_RENAME", "1")
+                .env("BROGLOW_TEST_RENAME", "1")
                 .output()
                 .unwrap();
             assert!(

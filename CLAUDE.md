@@ -1,6 +1,6 @@
 [English](CLAUDE.md) | [Русский](CLAUDE.ru.md)
 
-# clawlight
+# broglow
 
 Follow the standalone product scope in [AGENTS.md](AGENTS.md).
 
@@ -10,10 +10,10 @@ running Mac service, start with the [agent runbook](docs/hardware-setup.md#agent
 A single Rust binary that monitors [Claude Code](https://claude.ai/code) sessions
 in real time. It ships three faces of the same executable:
 
-- **TUI dashboard** (`clawlight`) — a ratatui table of all sessions with live status.
-- **Menu bar / system tray daemon** (`clawlight menubar`) — a color-coded status-light icon
+- **TUI dashboard** (`broglow`) — a ratatui table of all sessions with live status.
+- **Menu bar / system tray daemon** (`broglow menubar`) — a color-coded status-light icon
   reflecting aggregate session health; auto-starts at login.
-- **Hook backend** (`clawlight hook`) — invoked by Claude Code's lifecycle hooks to
+- **Hook backend** (`broglow hook`) — invoked by Claude Code's lifecycle hooks to
   record per-session status. Replaces the old bash+jq hook script; no shell/`jq` dep.
 
 Optionally mirrors aggregate state over USB serial, or from macOS over BLE to the
@@ -29,17 +29,17 @@ For source changes, follow [CONTRIBUTING.md](CONTRIBUTING.md) for development
 setup, formatting, hooks and checks. The [build and test commands](CONTRIBUTING.md#build-and-test)
 are shared by human and agent contributors.
 
-`clawlight install` is idempotent and also (re)starts the tray daemon, so re-run it
+`broglow install` is idempotent and also (re)starts the tray daemon, so re-run it
 after `cargo install` to make the running daemon pick up a new binary. On macOS it
-installs `~/Applications/ClawLight.app` and reloads the existing LaunchAgent
-(`io.roush.clawlight.menubar`) via `launchctl bootout`/`bootstrap`/`kickstart`.
+installs `~/Applications/BroGlow.app` and reloads the existing LaunchAgent
+(`io.github.broglow.menubar`) via `launchctl bootout`/`bootstrap`/`kickstart`.
 Inspect the installed service and preserve unrelated hooks/settings before deployment.
 
 **Always redeploy after code changes.** Whenever you change code in this repo, finish
 by updating the app that is already running on this machine so it can be tested live:
 
 ```bash
-cargo install --path . && clawlight install
+cargo install --path . && broglow install
 ```
 
 Redeploy the installed daemon for live tests. A process-lifetime lock rejects a
@@ -55,8 +55,8 @@ operation: record those acceptance checks separately.
 | `install` / `uninstall` | Hooks + platform autostart (launchd / registry Run key / XDG autostart) |
 | `menubar` | Run the tray daemon in the foreground |
 | `led [--port]` | Foreground ESP32 LED mirror (debugging) |
-| `ble pair [--port]` | Identify ClawLight firmware over USB, open pairing and remember its matching BLE ID; actual tray handles encryption/macOS approval |
-| `ble scan/add/select/remove/list/off/usb/status` | Discover, remember/forget CoreBluetooth IDs, list per-lamp state, disable, restore USB, or inspect worker status; select is additive like add |
+| `ble pair [--port]` | Identify BroGlow firmware over USB, open pairing and remember its matching BLE ID; actual tray handles encryption/macOS approval |
+| `ble scan/add/remove/list/off/usb/status` | Discover, remember/forget CoreBluetooth IDs, list per-lamp state, disable, restore USB, or inspect worker status |
 | `hook` *(hidden)* | Claude Code hook backend; reads one event as JSON on stdin |
 | `event` *(hidden)* | Normalized-event backend for non-Claude harnesses (opencode); reads one event as JSON on stdin |
 | `codex-hook` *(hidden)* | Codex shim: reads one Claude-dialect hook payload on stdin, maps it to a normalized event |
@@ -80,7 +80,7 @@ operation: record those acceptance checks separately.
   names from `session_index.jsonl`, exec-vs-interactive from rollout `session_meta`,
   and first-typed-prompt extraction for fallback naming.
 - **copilot.rs** — everything Copilot-specific behind the `copilot` adapter:
-  `$COPILOT_HOME` paths and the wholly-owned `hooks/clawlight.json` registration file
+  `$COPILOT_HOME` paths and the wholly-owned `hooks/broglow.json` registration file
   (one command group per lifecycle event, the event name baked into argv because
   Copilot payloads don't carry it; ownership proven by the `copilot-hook` command
   string — JSON has no comments for the managed-by marker).
@@ -91,9 +91,9 @@ operation: record those acceptance checks separately.
   plus the 24h staleness backstop), and `Aggregate` (Red/Yellow/Green/None) health rollup.
 - **session.rs** — discovers `~/.claude/projects/*/sessions-index.json`, merges those
   entries with hook state into `DisplaySession`s, resolves display names and sort order.
-- **config.rs** — `~/.claude/clawlight/config.json` (LED opt-in, `led_transport`
+- **config.rs** — `~/.claude/broglow/config.json` (LED opt-in, `led_transport`
   defaulting to USB, optional `led_port`, remembered `ble_peripherals`, and `yellow_mode`).
-  Use `ble_ids()` to include/deduplicate legacy `ble_peripheral` configurations.
+  Use `ble_ids()` to deduplicate remembered `ble_peripherals`.
   Preserve unrelated and unknown settings when changing the lamp selection.
 - **app.rs** — TUI event loop: file watcher + 5s timer refresh, key handling, notifications.
 - **ui.rs** — ratatui rendering of the table and status bar.
@@ -119,8 +119,8 @@ operation: record those acceptance checks separately.
 
 ## Data flow
 
-Claude Code fires a hook → `clawlight hook` reads the event JSON on stdin → updates the
-session's entry in `~/.claude/clawlight/state.json`. The TUI and the tray daemon both
+Claude Code fires a hook → `broglow hook` reads the event JSON on stdin → updates the
+session's entry in `~/.claude/broglow/state.json`. The TUI and the tray daemon both
 watch that file (via `notify`) and re-render on change. Status mapping:
 
 - `SessionStart` / `UserPromptSubmit` / `PreToolUse` → `Active`
@@ -141,7 +141,7 @@ TUI, tray, aggregate, and LED with no reader changes — `merge_sessions` alread
 hook-state sessions that have no Claude sessions-index entry. The adapter is deliberately
 thin:
 
-- **`clawlight event`** (`hook::run_event`) is the ingestion path. It reads one *normalized*
+- **`broglow event`** (`hook::run_event`) is the ingestion path. It reads one *normalized*
   event as JSON on stdin: `{ harness, event, session_id, title?, directory? }`. The status
   verbs are harness-agnostic — adapters emit the same shape (opencode via its JS plugin,
   Codex and Copilot via the in-binary `codex-hook` / `copilot-hook` shims):
@@ -160,7 +160,7 @@ thin:
   mislabeled event would masquerade as it. `directory` is optional and, like `name`/`terminal`,
   preserved when an event omits it.
 - **`SessionStatus.harness`** tags the origin (`#[serde(default, skip_serializing_if)]`;
-  absent = Claude). Backward/forward compatible in both directions.
+  absent = Claude).
 - **`update_state`** in hook.rs is the one locked RMW helper shared by `run` (Claude hooks),
   `run_event`, and `run_namer` — never reimplement the lock / atomic-write / never-write-on-
   unreadable rules.
@@ -172,16 +172,16 @@ thin:
   harness needs a **unique** `badge` (a test enforces it — the `codex`/`copilot` → `"co"`
   collision is the trap the two-char fallback would otherwise hide).
 - **`assets/opencode-plugin.js`** is embedded via `include_str!` and written to opencode's
-  global `~/.config/opencode/plugins/clawlight.js` at install time, with this binary's absolute
-  path and version baked in (so it runs even when clawlight isn't on opencode's PATH; the
+  global `~/.config/opencode/plugins/broglow.js` at install time, with this binary's absolute
+  path and version baked in (so it runs even when broglow isn't on opencode's PATH; the
   unconditional rewrite each install is the version-skew fix). It is **logic-free by design**:
-  it only normalizes opencode's bus events to the verbs above and fire-and-forgets `clawlight
+  it only normalizes opencode's bus events to the verbs above and fire-and-forgets `broglow
   event` — every mapping decision lives in Rust where it's tested. Install is detection-gated
   (opencode config dir exists *or* `opencode` on PATH); uninstall removes the file only if it
-  still carries the `managed by clawlight` header. opencode loads plugins at startup, so
+  still carries the `managed by broglow` header. opencode loads plugins at startup, so
   already-running sessions need a restart to appear.
 - **Codex needs no plugin.** Codex (>= 0.144) fires Claude-dialect hooks itself, so its
-  adapter registers `clawlight codex-hook` matcher groups in `$CODEX_HOME/hooks.json` and
+  adapter registers `broglow codex-hook` matcher groups in `$CODEX_HOME/hooks.json` and
   the shim maps events in-process: `PermissionRequest` → `needs_input` (Codex has no
   `Notification`), `PostToolUse`/`UserPromptSubmit` → `resumed` (what clears the red after
   an approval), `Stop` → `idle` — or `ended` for one-shot `codex exec` rollouts (detected
@@ -190,13 +190,13 @@ thin:
   names at turn boundaries, with the first typed prompt as a one-time fallback — never an
   LLM call. Two Codex-side rules: its hooks.json merge must preserve foreign matcher
   groups *in place* (Codex trusts hooks by content hash + position; the user approves new
-  clawlight entries once via `/hooks` in Codex), and clawlight must never write Codex's
+  broglow entries once via `/hooks` in Codex), and broglow must never write Codex's
   config.toml (Codex rewrites it while running).
 - **Copilot needs no plugin.** GitHub Copilot CLI fires user-level lifecycle hooks
   itself: any `*.json` in `$COPILOT_HOME/hooks/` (default `~/.copilot/hooks/`) may
-  register commands per event, so the adapter writes a file clawlight wholly owns —
-  `hooks/clawlight.json` — and never merges into anyone else's configuration. Copilot
-  payloads don't name their event, so each registration is `clawlight copilot-hook
+  register commands per event, so the adapter writes a file broglow wholly owns —
+  `hooks/broglow.json` — and never merges into anyone else's configuration. Copilot
+  payloads don't name their event, so each registration is `broglow copilot-hook
   <event>` and the shim maps the argv/payload pair in-process: `permissionRequest` →
   `needs_input` (its `notification` types are an undocumented vocabulary — left
   unregistered rather than risk false reds), `postToolUse`/`userPromptSubmitted` →
@@ -206,7 +206,7 @@ thin:
   session names live in its SQLite session store (not worth a dependency), so the
   first typed prompt — carried in the hook payload itself (`prompt`/`initialPrompt`) —
   names the session once; never an LLM call, never a file read. Ownership of
-  `clawlight.json` is the `copilot-hook` command string inside it (JSON has no
+  `broglow.json` is the `copilot-hook` command string inside it (JSON has no
   comments), guarding both the install overwrite and the uninstall delete.
 - **Shutdown** (opencode has no per-session exit event) is handled in three layers: the
   plugin's `process.on("exit")` emits `ended`; the `reconnected` sweep is the backstop; and,
@@ -218,7 +218,7 @@ thin:
 ## Conventions & gotchas
 
 - **First-run auto-setup is asymmetric on purpose** (main.rs). Both entry points check
-  `hooks_registered()` (a clawlight hook command present in `settings.json`) and act only
+  `hooks_registered()` (a broglow hook command present in `settings.json`) and act only
   when it's false. The **TUI** (`first_run_setup_tui`) runs the *full* `install_hooks`
   (hooks + autostart), so first launch can finish setup after installing our binary. The
   **tray daemon** (`first_run_setup_daemon`) runs `register_hooks` **only** — never
@@ -235,7 +235,7 @@ thin:
 - **Never write to state on a failed read.** `hook.rs` returns `Unreadable` when
   `state.json` can't be parsed (a mid-write snapshot, unknown future schema); the caller
   must not write, or it would wipe every other session's status.
-- **The auto-namer runs detached** and sets `CLAWLIGHT_NAMING=1` so the nested `claude`
+- **The auto-namer runs detached** and sets `BROGLOW_NAMING=1` so the nested `claude`
   CLI call's own hooks no-op instead of recursing.
 - **LEDs are opt-in, but a clean first install auto-enables USB when a board is already
   plugged in** (`maybe_autoenable_led` in main.rs, called from `install_hooks`). It's gated
@@ -258,10 +258,10 @@ thin:
   lamps: one successful recent write makes the aggregate connected, with explicit
   per-device states/count. Expiry is per device; another lamp cannot refresh it.
 - **macOS Bluetooth belongs to the installed app identity.** The LaunchAgent runs
-  `ClawLight.app/Contents/MacOS/clawlight menubar`; the app's Info.plist supplies
+  `BroGlow.app/Contents/MacOS/broglow menubar`; the app's Info.plist supplies
   `NSBluetoothAlwaysUsageDescription`. Explicit `ble scan` re-execs the bundled
   binary. Local installs use ad-hoc signing with a stable designated identifier;
-  `CLAWLIGHT_SIGNING_IDENTITY` supports a real signing identity. Terminal permission
+  `BROGLOW_SIGNING_IDENTITY` supports a real signing identity. Terminal permission
   alone does not establish that the login-started service has permission.
 - **Usage/spend tracking is strictly opt-in** (`usage_enabled`, set in the popover's
   Settings view; off by default). It covers both harness families: Claude transcripts
@@ -271,8 +271,8 @@ thin:
   it never scans the transcript JSONLs, reads Claude Code's credentials, or contacts the
   OAuth usage endpoint — and both the tray readout (`apply_readout`) and the popover's
   usage section stay empty regardless of any cached snapshot. Enabling it is what
-  authorizes that work. The foreground `clawlight usage` subcommand is the exception:
-  running it is itself the opt-in for that one invocation, like `clawlight led`.
+  authorizes that work. The foreground `broglow usage` subcommand is the exception:
+  running it is itself the opt-in for that one invocation, like `broglow led`.
 - **Escape before shelling out.** The macOS notification path builds an AppleScript
   string — escape `\` before `"`.
 - Platform-specific code is `#[cfg(...)]`-gated in place (autostart in main.rs, console
@@ -328,7 +328,7 @@ namer — tests must omit it or pre-seed a name.
 `tests/js/` holds the opencode plugin **integration** tests (`node --test`,
 Linux CI): they drive the real `assets/opencode-plugin.js` with opencode's
 actual event shapes and assert the `state.json` the built binary writes — the
-one boundary the Rust suite (which feeds `clawlight event` directly) can't cover.
+one boundary the Rust suite (which feeds `broglow event` directly) can't cover.
 `exit-child.mjs` is a helper process, not a test, so the plugin's
 `process.on("exit")` shutdown path can be exercised for real.
 

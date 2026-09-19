@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Export the current CAD appearance or exploded view to a web GLB.
 
-Run with the CAD Python environment (models/clawlight/requirements.txt) and the
+Run with the CAD Python environment (models/broglow/requirements.txt) and the
 installed CAD skill. Only gen_step() is invoked; generator main/export_all is not.
 """
 
@@ -18,7 +18,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL = ROOT / "models/clawlight"
+MODEL = ROOT / "models/broglow"
 
 
 def digest(data):
@@ -140,7 +140,7 @@ def main():
     )
     args = parser.parse_args()
     source = "exploded" if args.exploded else "appearance"
-    asset = "assembly" if args.exploded else "clawlight"
+    asset = "assembly" if args.exploded else "broglow"
     destination = ROOT / "site/assets"
     if args.check:
         sources_checked = check(
@@ -162,7 +162,7 @@ def main():
         / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     )
     snapshot.mkdir(parents=True)
-    names = (f"{source}.py", "clawlight.py", "hand_joint.py", "requirements.txt")
+    names = (f"{source}.py", "broglow.py", "hand_joint.py", "requirements.txt")
     inputs = {name: (MODEL / name).read_bytes() for name in names}
     for name, data in inputs.items():
         (snapshot / name).write_bytes(data)
@@ -178,7 +178,7 @@ def main():
             "--output",
             str(step),
             "--glb",
-            "clawlight.glb",
+            "broglow.glb",
             "--mesh-tolerance",
             str(args.mesh_tolerance),
             "--mesh-angular-tolerance",
@@ -204,17 +204,17 @@ def main():
     facts = json.loads(inspection)
     assert facts["ok"], "CAD inspection failed"
     summary = facts["tokens"][0]["summary"]
-    glb = snapshot / "clawlight.glb"
+    glb = snapshot / "broglow.glb"
     mesh = glb_facts(glb)
     assert (
         len(mesh["labels"]) == summary["leafOccurrenceCount"]
     ), "Assembly inventory changed; review labels"
     metadata = {
-        "source": f"models/clawlight/{source}.py",
+        "source": f"models/broglow/{source}.py",
         "status": "release_candidate",
         "purpose": "Web/AR visualization of the enclosure release candidate",
         "source_sha256": {
-            f"models/clawlight/{name}": digest(content)
+            f"models/broglow/{name}": digest(content)
             for name, content in inputs.items()
         },
         "source_changed_during_export": any(

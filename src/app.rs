@@ -79,10 +79,10 @@ impl App {
             if !cfg.led_enabled {
                 match cfg.led_transport {
                     config::LedTransport::Ble if cfg.ble_ids().is_empty() => {
-                        anyhow::bail!("Add a lamp: hold its BOOT button 3s, clawlight ble scan, then clawlight ble add <ID>");
+                        anyhow::bail!("Add a lamp: hold its BOOT button 3s, broglow ble scan, then broglow ble add <ID>");
                     }
                     config::LedTransport::Usb if cfg.led_port.is_none() && !usb_present => {
-                        anyhow::bail!("No USB board detected — connect it, or select a lamp with clawlight ble scan / select <ID>.");
+                        anyhow::bail!("No USB board detected — connect it, or select a lamp with broglow ble scan / select <ID>.");
                     }
                     _ => {}
                 }
@@ -170,7 +170,7 @@ impl App {
             if session.status == Status::NeedsHelp {
                 let prev = self.previous_statuses.get(&session.session_id);
                 if prev != Some(&Status::NeedsHelp) {
-                    send_notification("clawlight", &format!("\"{}\" needs help!", session.name));
+                    send_notification("broglow", &format!("\"{}\" needs help!", session.name));
                 }
             }
         }

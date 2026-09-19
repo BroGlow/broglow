@@ -130,8 +130,8 @@ fn merge_sessions(
             .map(|s| s.status.clone())
             .unwrap_or(Status::Done);
 
-        // Priority: clawlight LLM name > customTitle > summary > firstPrompt
-        let clawlight_name = hook_state
+        // Priority: broglow LLM name > customTitle > summary > firstPrompt
+        let broglow_name = hook_state
             .sessions
             .get(&entry.session_id)
             .and_then(|s| s.name.clone());
@@ -141,7 +141,7 @@ fn merge_sessions(
             .get(&entry.session_id)
             .and_then(|s| s.harness.clone());
 
-        let name = clawlight_name
+        let name = broglow_name
             .or_else(|| entry.custom_title.clone())
             .or_else(|| entry.summary.clone())
             .or_else(|| entry.first_prompt.as_ref().map(|p| truncate(p, 50)))

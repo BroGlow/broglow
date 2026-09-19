@@ -7,7 +7,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
 import numpy as np
-from clawlight import (
+from broglow import (
     DEPTH,
     LED_PITCH,
     LED_Z,
@@ -115,7 +115,7 @@ def main():
     ax.set(xlim=(xmin - 16, xmax + 19), ylim=(-17, TOWER_HEIGHT + 14), aspect="equal")
     ax.axis("off")
     fig.suptitle(
-        "CLAW LIGHT  /  РАЗМЕРЫ В мм",
+        "BROGLOW  /  РАЗМЕРЫ В мм",
         x=0.07,
         y=0.97,
         ha="left",

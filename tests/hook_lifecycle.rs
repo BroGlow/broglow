@@ -1,6 +1,6 @@
-//! End-to-end tests of the hook backend: drive the real `clawlight` binary the
+//! End-to-end tests of the hook backend: drive the real `broglow` binary the
 //! way Claude Code does — one lifecycle event as JSON on stdin — and observe
-//! the resulting `~/.claude/clawlight/state.json`.
+//! the resulting `~/.claude/broglow/state.json`.
 //!
 //! Each test gets its own throwaway home directory. `dirs::home_dir()` follows
 //! `$HOME` on unix, which is what sandboxes these; Windows resolves the profile
@@ -20,17 +20,17 @@ fn temp_home() -> TempDir {
 fn state_path(home: &TempDir) -> PathBuf {
     home.path()
         .join(".claude")
-        .join("clawlight")
+        .join("broglow")
         .join("state.json")
 }
 
-/// Run `clawlight hook` inside the sandbox home with the given stdin.
+/// Run `broglow hook` inside the sandbox home with the given stdin.
 fn run_hook(home: &TempDir, stdin: &str) -> assert_cmd::assert::Assert {
-    Command::cargo_bin("clawlight")
+    Command::cargo_bin("broglow")
         .expect("binary built")
         .arg("hook")
         .env("HOME", home.path())
-        .env_remove("CLAWLIGHT_NAMING")
+        .env_remove("BROGLOW_NAMING")
         .write_stdin(stdin.to_string())
         .assert()
 }
@@ -248,11 +248,11 @@ fn sessions_are_tracked_independently() {
 #[test]
 fn the_naming_guard_env_disables_tracking() {
     let home = temp_home();
-    Command::cargo_bin("clawlight")
+    Command::cargo_bin("broglow")
         .expect("binary built")
         .arg("hook")
         .env("HOME", home.path())
-        .env("CLAWLIGHT_NAMING", "1")
+        .env("BROGLOW_NAMING", "1")
         .write_stdin(event("SessionStart", "sess-nested"))
         .assert()
         .success();
@@ -261,7 +261,7 @@ fn the_naming_guard_env_disables_tracking() {
 }
 
 // ---------------------------------------------------------------------------
-// Auto-namer (`clawlight name <id> <transcript>`), run against a fake `claude`
+// Auto-namer (`broglow name <id> <transcript>`), run against a fake `claude`
 // CLI placed first on PATH so the test never touches the real one.
 // ---------------------------------------------------------------------------
 
@@ -295,7 +295,7 @@ fn write_transcript(home: &TempDir, first_prompt: &str) -> PathBuf {
 }
 
 fn run_namer(home: &TempDir, path_env: &str, transcript: &PathBuf) {
-    Command::cargo_bin("clawlight")
+    Command::cargo_bin("broglow")
         .expect("binary built")
         .arg("name")
         .arg("sess-unnamed")

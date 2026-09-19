@@ -21,9 +21,9 @@ def is_generated(path):
     return bool(
         path.lower() in RETIRED_MEDIA
         or re.search(r"\.(zip|stl|step|stp)$", path, re.I)
-        or path.lower().startswith("models/clawlight/preview/")
+        or path.lower().startswith("models/broglow/preview/")
         or re.fullmatch(
-            r"models/clawlight/(?:cad|coupon|usb-coupon)-inspection\.json",
+            r"models/broglow/(?:cad|coupon|usb-coupon)-inspection\.json",
             path,
             re.I,
         )

@@ -1,4 +1,4 @@
-"""Package the current print inventory; run after clawlight.py and check.py."""
+"""Package the current print inventory; run after broglow.py and check.py."""
 
 import argparse
 import hashlib
@@ -24,7 +24,7 @@ REFERENCE_FILES = [
     "firmware/esp32-c3-supermini/tests/check.cpp",
     "firmware/esp32-c3-supermini/tests/check.py",
     *(
-        f"assets/icons/clawd-{color}.png"
+        f"assets/icons/broglow-{color}.png"
         for color in ("none", "green", "yellow", "red")
     ),
 ]
@@ -73,7 +73,7 @@ def main():
         "nonfatal_slicer_diagnostic_count",
     ):
         assert slices["result"][field] == 0, f"Slicer evidence reports {field}"
-    for name in ("clawlight", "appearance", "exploded", "usb_coupon"):
+    for name in ("broglow", "appearance", "exploded", "usb_coupon"):
         step = MODEL / f"{name}.step"
         assert (
             step.is_file() and step.stat().st_size
@@ -100,7 +100,7 @@ def main():
     for link in re.findall(r"\]\(([^)]+)\)", guide):
         if "://" not in link and not link.startswith("#"):
             assert (MODEL / link.split("#")[0]).exists(), link
-    readme = """# Claw Light — enclosure release candidate
+    readme = """# BroGlow — enclosure release candidate
 
 A1 Mini / PETG Basic / 0.4 mm nozzle / 0.2 mm layers.
 Use exported orientations, 100% scale, 3 walls, 15% infill,
@@ -182,9 +182,9 @@ Inspect USB cover-coupon walls and infill before printing; current checks are in
 The full package includes both print guides, STEP files, source and check reports.
 The Mac app and prebuilt firmware are separate release downloads.
 """
-    readme_ru = """<a name="claw-light-enclosure-release-candidate"></a>
+    readme_ru = """<a name="broglow-enclosure-release-candidate"></a>
 
-# Claw Light — релиз-кандидат корпуса
+# BroGlow — релиз-кандидат корпуса
 
 A1 Mini / PETG Basic / сопло 0,4 мм / слой 0,2 мм.
 Сохраните экспортированные ориентации, масштаб 100%, 3 стенки, 15% заполнения,
@@ -271,10 +271,10 @@ USB-пробник высотой 14 мм проверяет только пла
 Приложение Mac и готовая прошивка скачиваются отдельно из релиза.
 """
     packs = {
-        "clawlight-compact-STL.zip": [
+        "broglow-compact-STL.zip": [
             (f, f.relative_to(MODEL / "stl").as_posix()) for f in files
         ],
-        "clawlight-USB-fit-test.zip": [
+        "broglow-USB-fit-test.zip": [
             (f, f.relative_to(MODEL / "stl").as_posix())
             for f in files
             if f.parent.name == "coupons"
@@ -305,7 +305,7 @@ USB-пробник высотой 14 мм проверяет только пла
         ):
             continue
         full.append((f, f.relative_to(ROOT).as_posix()))
-    packs["clawlight-print-pack.zip"] = full
+    packs["broglow-print-pack.zip"] = full
     full_names = {target for _, target in full}
     for source, target in full:
         if source.suffix != ".md":
@@ -322,7 +322,7 @@ USB-пробник высотой 14 мм проверяет только пла
     for name, entries in packs.items():
         entries = [(ROOT / "LICENSE", "LICENSE"), *entries]
         path = output / name
-        if name == "clawlight-USB-fit-test.zip":
+        if name == "broglow-USB-fit-test.zip":
             text = """# USB fit test — enclosure release candidate
 
 Print coupons/01_USB_base_coupon.stl and coupons/02_USB_cover_coupon.stl.
@@ -407,10 +407,10 @@ USB-проём 9,15 x 3,20 мм на Z=5,25 мм, входные фаски 0,2 
         language_links = "[English](START_HERE.md) | [Русский](START_HERE.ru.md)\n\n"
         text = language_links + text
         text_ru = language_links + text_ru
-        if name == "clawlight-print-pack.zip":
-            text += "\n[Full print guide](models/clawlight/PRINT_GUIDE.en.md)\n"
+        if name == "broglow-print-pack.zip":
+            text += "\n[Full print guide](models/broglow/PRINT_GUIDE.en.md)\n"
             text_ru += (
-                "\n[Полное руководство по печати](models/clawlight/PRINT_GUIDE.md)\n"
+                "\n[Полное руководство по печати](models/broglow/PRINT_GUIDE.md)\n"
             )
         manuals = {"START_HERE.md": text, "START_HERE.ru.md": text_ru}
         entry_names = {*manuals, *(target for _, target in entries)}
@@ -444,8 +444,8 @@ USB-проём 9,15 x 3,20 мм на Z=5,25 мм, входные фаски 0,2 
         print("Verified:", path)
     if not args.check:
         for name in (
-            "clawlight-hand-joint-test.zip",
-            "clawlight-fit-coupon-DIN7982-2.2x6.5.zip",
+            "broglow-hand-joint-test.zip",
+            "broglow-fit-coupon-DIN7982-2.2x6.5.zip",
         ):
             (output / name).unlink(missing_ok=True)
 

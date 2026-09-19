@@ -1,4 +1,4 @@
-# ClawLight DIY website
+# BroGlow DIY website
 
 [English](README.md) | [Русский](README.ru.md)
 
@@ -18,7 +18,7 @@ Edit Markdown sources; never edit or commit generated HTML.
 | Troubleshooting and agent prompt | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
 | Hardware reference | `../docs/hardware-setup.md` | `../docs/hardware-setup.ru.md` |
 | Firmware, releases, images, enclosure design | `../docs/NAME.md` | `../docs/NAME.ru.md` |
-| Printing and assembly | `../models/clawlight/PRINT_GUIDE.en.md` | `../models/clawlight/PRINT_GUIDE.md` |
+| Printing and assembly | `../models/broglow/PRINT_GUIDE.en.md` | `../models/broglow/PRINT_GUIDE.md` |
 
 To add a page, create matching filenames in both language folders and update
 `nav` and `nav_translations` in `mkdocs.yaml`. Use fenced `text` blocks for
@@ -46,7 +46,7 @@ includes; missing snippet sections fail the build.
 
 ## Build and preview
 
-Run from the **clawlight repository root**. CI uses Python 3.14.
+Run from the **broglow repository root**. CI uses Python 3.14.
 
 ```bash
 python3 -m venv site/.venv
@@ -110,11 +110,11 @@ need acceptance checks. See the [component's AR reference](https://modelviewer.d
 
 The model depicts our 1.0.0 enclosure with illustrative
 electronics. Use the separate enclosure package for printing. Source hashes and
-bounds live in `assets/clawlight-model.json`; regenerate both outputs rather than
+bounds live in `assets/broglow-model.json`; regenerate both outputs rather than
 editing them. From a full checkout, activate the CAD Python environment and run:
 
 ```bash
-python -m pip install -r models/clawlight/requirements.txt
+python -m pip install -r models/broglow/requirements.txt
 python scripts/export-web-model.py
 python scripts/export-web-model.py --check
 python scripts/export-web-model.py --exploded
@@ -130,7 +130,7 @@ adding Draco/KTX compression. Vendor sources and licenses are in `vendor/README.
 ## Languages and behavior
 
 The first supported browser language selects RU/EN, otherwise English. Manual
-choice wins and is shared through localStorage key `clawlight-language`; clear it
+choice wins and is shared through localStorage key `broglow-language`; clear it
 to restore detection. `guide/assets/language.js` preserves page/section and uses
 `?lang=ru` / `?lang=en` when storage is blocked. Without JavaScript, guide links
 work in their URL's language and prompts can be copied manually.
@@ -160,7 +160,7 @@ Keep the preview server running for the HTTP check.
 
 `pages.py` expands `<!-- mac-downloads -->` and `<!-- model-download -->`:
 local previews link to the newest complete Mac archive in `dist/` and enclosure
-archive `dist/enclosure/clawlight-enclosure-vVERSION.zip`, each with a sibling
+archive `dist/enclosure/broglow-enclosure-vVERSION.zip`, each with a sibling
 `.sha256`. Without archives, they offer source instructions. Public builds link
 to Releases and the source ZIP. GitHub's automatic source ZIP contains editable
 source and instructions, without STL, STEP/STP or ready-to-print ZIPs; use the
@@ -168,7 +168,7 @@ enclosure release asset or [generate it from source](../docs/releasing.md).
 Previews neither rebuild nor copy archives; inspect a package's `BUILD.json` for
 its architecture, date and source.
 
-Print-guide STL links from `models/clawlight/parts.json` and the four named STEP
+Print-guide STL links from `models/broglow/parts.json` and the four named STEP
 views route to the versioned enclosure release asset in public builds. Local
 builds use the enclosure archive above, or the generation instructions when it
 is absent. The original member path stays visible for use after extraction;
@@ -186,8 +186,8 @@ website checks and renders do not establish physical fit.
 
 Our asset sources:
 
-- `assets/clawlight.png`: `site/assets/clawlight.glb`, rendered in the default Working state with the pinned model-viewer/effects and hero camera.
-- `assets/assembly.glb`: separated assembly from `models/clawlight/exploded.py`; source hashes and bounds are recorded in `assets/assembly-model.json`. Regenerate with `--exploded` when its CAD source changes.
+- `assets/broglow.png`: `site/assets/broglow.glb`, rendered in the default Working state with the pinned model-viewer/effects and hero camera.
+- `assets/assembly.glb`: separated assembly from `models/broglow/exploded.py`; source hashes and bounds are recorded in `assets/assembly-model.json`. Regenerate with `--exploded` when its CAD source changes.
 - `guide/assets/favicon.svg`: our three-circle lamp artwork, also used by the landing favicon. Tray icons come from `assets/icons/` in the repository root.
 
 Follow the [media policy and photo checklist](../docs/media.md). Keep render/photo

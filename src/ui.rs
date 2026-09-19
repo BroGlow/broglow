@@ -129,7 +129,7 @@ fn render_header(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     let left = vec![
         Span::raw(" "),
         Span::styled(
-            "clawlight",
+            "BroGlow",
             Style::default().fg(WHITE).add_modifier(Modifier::BOLD),
         ),
         Span::raw(" "),

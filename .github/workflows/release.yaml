@@ -23,7 +23,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: python scripts/package-macos.py --release-tag "$RELEASE_TAG" --check-only
       - name: Install pinned CAD toolchain
-        run: python -m pip install -r models/clawlight/requirements.txt
+        run: python -m pip install -r models/broglow/requirements.txt
       - name: Generate, validate and package the enclosure
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -37,8 +37,8 @@ jobs:
           name: enclosure
           if-no-files-found: error
           path: |
-            dist/enclosure/clawlight-enclosure-${{ github.ref_name }}.zip
-            dist/enclosure/clawlight-enclosure-${{ github.ref_name }}.zip.sha256
+            dist/enclosure/broglow-enclosure-${{ github.ref_name }}.zip
+            dist/enclosure/broglow-enclosure-${{ github.ref_name }}.zip.sha256
 
   check:
     needs:
@@ -77,8 +77,8 @@ jobs:
           name: mac-${{ matrix.target }}
           if-no-files-found: error
           path: |
-            dist/clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
-            dist/clawlight-${{ github.ref_name }}-${{ matrix.target }}.tar.gz.sha256
+            dist/broglow-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+            dist/broglow-${{ github.ref_name }}-${{ matrix.target }}.tar.gz.sha256
 
   windows:
     needs:
@@ -95,11 +95,11 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          test "$(target/x86_64-pc-windows-msvc/release/clawlight.exe --version)" = "clawlight ${RELEASE_TAG#v}"
+          test "$(target/x86_64-pc-windows-msvc/release/broglow.exe --version)" = "broglow ${RELEASE_TAG#v}"
           mkdir dist
-          FILE="clawlight-cli-${RELEASE_TAG}-x86_64-pc-windows-msvc.tar.gz"
+          FILE="broglow-${RELEASE_TAG}-x86_64-pc-windows-msvc.tar.gz"
           cp LICENSE target/x86_64-pc-windows-msvc/release/LICENSE
-          tar czf "dist/$FILE" -C target/x86_64-pc-windows-msvc/release clawlight.exe LICENSE
+          tar czf "dist/$FILE" -C target/x86_64-pc-windows-msvc/release broglow.exe LICENSE
           cd dist
           sha256sum "$FILE" > "$FILE.sha256"
       - uses: actions/upload-artifact@v7
@@ -125,10 +125,10 @@ jobs:
         run: |
           set -euo pipefail
           for FILE in \
-            "clawlight-${RELEASE_TAG}-aarch64-apple-darwin.tar.gz" \
-            "clawlight-${RELEASE_TAG}-x86_64-apple-darwin.tar.gz" \
-            "clawlight-cli-${RELEASE_TAG}-x86_64-pc-windows-msvc.tar.gz" \
-            "clawlight-enclosure-${RELEASE_TAG}.zip"; do
+            "broglow-${RELEASE_TAG}-aarch64-apple-darwin.tar.gz" \
+            "broglow-${RELEASE_TAG}-x86_64-apple-darwin.tar.gz" \
+            "broglow-${RELEASE_TAG}-x86_64-pc-windows-msvc.tar.gz" \
+            "broglow-enclosure-${RELEASE_TAG}.zip"; do
             test -s "$FILE"
             sha256sum --check "$FILE.sha256"
           done
@@ -138,14 +138,14 @@ jobs:
           draft: true
           fail_on_unmatched_files: true
           files: |
-            clawlight-*.tar.gz
-            clawlight-*.tar.gz.sha256
-            clawlight-enclosure-*.zip
-            clawlight-enclosure-*.zip.sha256
+            broglow-*.tar.gz
+            broglow-*.tar.gz.sha256
+            broglow-enclosure-*.zip
+            broglow-enclosure-*.zip.sha256
           body: |
-            Mac archives contain the native ClawLight app, ESP32-C3 SuperMini firmware and its source, checksums and operating guide. Choose aarch64 for Apple Silicon or x86_64 for Intel. Install with the included guide; the app is not Developer ID notarized.
+            Mac archives contain the native BroGlow app, ESP32-C3 SuperMini firmware and its source, checksums and operating guide. Choose aarch64 for Apple Silicon or x86_64 for Intel. Install with the included guide; the app is not Developer ID notarized.
 
-            The Windows archive contains the graphical system-tray app and CLI in clawlight.exe, with USB lamp support. In PowerShell, run `.\clawlight.exe install` from its permanent folder to register hooks, enable startup at login and launch the tray app. Use `.\clawlight.exe menubar` to launch the tray interface directly, or `.\clawlight.exe` for the terminal dashboard. No installer, BLE support, firmware or manuals are included.
+            The Windows archive contains the graphical system-tray app and CLI in broglow.exe, with USB lamp support. In PowerShell, run `.\broglow.exe install` from its permanent folder to register hooks, enable startup at login and launch the tray app. Use `.\broglow.exe menubar` to launch the tray interface directly, or `.\broglow.exe` for the terminal dashboard. No installer, BLE support, firmware or manuals are included.
 
             The enclosure ZIP contains the accepted release candidate: STL, STEP, CAD source, print guide and validation reports.
 

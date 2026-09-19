@@ -1,6 +1,6 @@
 //! Multi-harness adapter registry.
 //!
-//! clawlight mirrors more than one coding agent. Claude Code is the built-in
+//! broglow mirrors more than one coding agent. Claude Code is the built-in
 //! default — its sessions carry no `harness` tag and use the native hook
 //! backend, so it has no entry here. Every *other* agent (opencode, Codex CLI,
 //! GitHub Copilot CLI) is one [`Adapter`]: its detection, its plugin/hook
@@ -12,7 +12,7 @@
 
 use std::path::PathBuf;
 
-/// One non-Claude harness clawlight knows how to set up and display.
+/// One non-Claude harness broglow knows how to set up and display.
 pub struct Adapter {
     /// Value stored in [`SessionStatus.harness`](crate::state::SessionStatus)
     /// and sent in the normalized `harness` event field. Stable — it keys
@@ -32,7 +32,7 @@ pub struct Adapter {
     pub uninstall: fn(),
 }
 
-/// Every non-Claude harness clawlight supports. Add an entry (and its asset) to
+/// Every non-Claude harness broglow supports. Add an entry (and its asset) to
 /// support a new one — nothing else in the codebase needs to change.
 pub const ADAPTERS: &[Adapter] = &[opencode::ADAPTER, codex::ADAPTER, copilot::ADAPTER];
 
@@ -42,7 +42,7 @@ pub fn install_all() {
     for a in ADAPTERS {
         if (a.detected)() {
             if let Err(e) = (a.install)() {
-                eprintln!("clawlight: could not set up the {} adapter: {e:#}", a.name);
+                eprintln!("broglow: could not set up the {} adapter: {e:#}", a.name);
             }
         }
     }
@@ -67,10 +67,10 @@ pub fn badge(name: &str) -> String {
         .unwrap_or_else(|| name.chars().take(2).collect())
 }
 
-/// Header line every clawlight-written harness file carries. `uninstall` only
+/// Header line every broglow-written harness file carries. `uninstall` only
 /// deletes a file that still has it, so a user's hand-rolled file at the same
 /// path is never removed. Shared across adapters.
-const MANAGED_MARKER: &str = "managed by clawlight";
+const MANAGED_MARKER: &str = "managed by broglow";
 
 /// Whether `program` resolves to a file on the current `PATH`. On Windows also
 /// tries the common executable extensions. Shared detection helper.
@@ -104,7 +104,7 @@ fn js_string_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-/// Whether a file exists at `path` that clawlight does not own (no
+/// Whether a file exists at `path` that broglow does not own (no
 /// [`MANAGED_MARKER`]). `install` must refuse to overwrite such a file — it's
 /// the user's hand-rolled version, mirroring how `uninstall` refuses to delete
 /// it. An unreadable file counts as foreign: if the marker can't be verified,
@@ -118,7 +118,7 @@ fn is_foreign(path: &std::path::Path) -> bool {
         .unwrap_or(true)
 }
 
-/// Delete a clawlight-managed file iff it still carries our marker (so a
+/// Delete a broglow-managed file iff it still carries our marker (so a
 /// hand-rolled file at the path is left alone). Shared uninstall helper.
 fn remove_if_managed(path: &std::path::Path) {
     let Ok(contents) = std::fs::read_to_string(path) else {
@@ -171,7 +171,7 @@ pub mod opencode {
     /// `plugins/` directory (plural — confirmed against a live opencode; the
     /// singular `plugin/` is silently ignored).
     fn plugin_path() -> PathBuf {
-        config_dir().join("plugins").join("clawlight.js")
+        config_dir().join("plugins").join("broglow.js")
     }
 
     fn detected() -> bool {
@@ -180,14 +180,14 @@ pub mod opencode {
 
     /// Write (or overwrite) the plugin with this binary's absolute path and
     /// version baked in. Idempotent: the unconditional overwrite of a *managed*
-    /// plugin is also the version-skew fix — every `clawlight install` re-syncs
+    /// plugin is also the version-skew fix — every `broglow install` re-syncs
     /// it to the current binary. A file at the path *without* our marker is the
     /// user's own and is never touched, matching `uninstall`.
     fn install() -> anyhow::Result<()> {
         let path = plugin_path();
         if super::is_foreign(&path) {
             eprintln!(
-                "clawlight: {} exists but isn't clawlight-managed; leaving it alone",
+                "broglow: {} exists but isn't broglow-managed; leaving it alone",
                 path.display()
             );
             return Ok(());
@@ -239,7 +239,7 @@ pub mod codex {
     /// matcher groups merged into `$CODEX_HOME/hooks.json` (a file shared
     /// with other tools — not a marker-owned file like the opencode plugin;
     /// the command-string predicate in codex.rs is the ownership marker).
-    /// The registered command is `clawlight codex-hook`, the shim that maps
+    /// The registered command is `broglow codex-hook`, the shim that maps
     /// Codex's hook events onto the normalized verbs.
     fn install() -> anyhow::Result<()> {
         crate::codex::install_hooks()
@@ -268,8 +268,8 @@ pub mod copilot {
     }
 
     /// Copilot CLI loads user-level hook files from `$COPILOT_HOME/hooks/`
-    /// (default `~/.copilot/hooks/`), so the wiring is a whole file clawlight
-    /// owns — `clawlight.json` — registering `clawlight copilot-hook <event>`
+    /// (default `~/.copilot/hooks/`), so the wiring is a whole file broglow
+    /// owns — `broglow.json` — registering `broglow copilot-hook <event>`
     /// per lifecycle event (Copilot payloads don't name their event, so it
     /// rides on argv). Ownership is the `copilot-hook` command string in the
     /// file, not the comment marker: JSON has no comments. The shim maps each

@@ -1,6 +1,6 @@
 //! Which terminal window hosts a session, and how to get the user back to it.
 //!
-//! The hook backend (`clawlight hook`) runs as a descendant of whatever app
+//! The hook backend (`broglow hook`) runs as a descendant of whatever app
 //! hosts the Claude Code session — a terminal emulator, an IDE's integrated
 //! terminal, or the desktop app — so its inherited environment and process
 //! tree identify the exact window. [`capture`] records that identity into the
@@ -679,7 +679,7 @@ mod tests {
 
         // A child test process isolates PATH from the parallel test suite;
         // fake launchers record requests without opening any real windows.
-        if let Ok(dir) = std::env::var("CLAWLIGHT_FOCUS_TEST_DIR") {
+        if let Ok(dir) = std::env::var("BROGLOW_FOCUS_TEST_DIR") {
             let log = std::path::Path::new(&dir).join("calls");
             let id = "00000000-0000-4000-8000-000000000001";
             let empty = TerminalInfo::default();
@@ -727,7 +727,7 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         for (name, result) in [
-            ("open", "[ ! -e \"$CLAWLIGHT_FOCUS_TEST_DIR/fail-open\" ]"),
+            ("open", "[ ! -e \"$BROGLOW_FOCUS_TEST_DIR/fail-open\" ]"),
             (
                 "osascript",
                 "case \"$*\" in *'/dev/ttys007'*) echo found ;; *) echo missing ;; esac",
@@ -737,7 +737,7 @@ mod tests {
             std::fs::write(
                 &path,
                 format!(
-                    "#!/bin/sh\nprintf '%s\\n' '{name}' \"$@\" >> \"$CLAWLIGHT_FOCUS_TEST_DIR/calls\"\n{result}\n"
+                    "#!/bin/sh\nprintf '%s\\n' '{name}' \"$@\" >> \"$BROGLOW_FOCUS_TEST_DIR/calls\"\n{result}\n"
                 ),
             )
             .unwrap();
@@ -750,7 +750,7 @@ mod tests {
                 "--nocapture",
             ])
             .env("PATH", dir.path())
-            .env("CLAWLIGHT_FOCUS_TEST_DIR", dir.path())
+            .env("BROGLOW_FOCUS_TEST_DIR", dir.path())
             .output()
             .unwrap();
         assert!(
@@ -774,7 +774,7 @@ mod tests {
         // Claude Code detaches its hooks from the tty; the first tty-having
         // ancestor is the claude process itself.
         let t = table(&[
-            (500, 400, "??", "clawlight"),
+            (500, 400, "??", "broglow"),
             (400, 300, "ttys009", "claude"),
             (300, 200, "ttys009", "-zsh"),
             (200, 1, "??", "Terminal"),
@@ -790,7 +790,7 @@ mod tests {
         // Copilot runs hooks through a tty-inheriting `sh -c`: recording the
         // hook or the sh as owner would reap the live session within seconds.
         let t = table(&[
-            (500, 450, "ttys007", "clawlight"),
+            (500, 450, "ttys007", "broglow"),
             (450, 400, "ttys007", "sh"),
             (400, 300, "ttys007", "copilot"),
             (300, 200, "ttys007", "/bin/zsh"),
@@ -807,7 +807,7 @@ mod tests {
         // A hand-run hook straight under an interactive shell: better no owner
         // (24h staleness backstop) than a pid whose death is meaningless.
         let t = table(&[
-            (500, 300, "ttys002", "clawlight"),
+            (500, 300, "ttys002", "broglow"),
             (300, 1, "ttys002", "-zsh"),
         ]);
         assert_eq!(tty_owner_from(&t, 500), (Some("/dev/ttys002".into()), None));
@@ -815,7 +815,7 @@ mod tests {
 
     #[test]
     fn no_tty_anywhere_captures_nothing() {
-        let t = table(&[(500, 400, "??", "clawlight"), (400, 1, "??", "launchd")]);
+        let t = table(&[(500, 400, "??", "broglow"), (400, 1, "??", "launchd")]);
         assert_eq!(tty_owner_from(&t, 500), (None, None));
     }
 }

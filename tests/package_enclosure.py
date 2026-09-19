@@ -24,7 +24,7 @@ def rejected(action, message):
         raise AssertionError("Unsafe input accepted")
 
 
-with tempfile.TemporaryDirectory(prefix="clawlight-enclosure-check-") as folder:
+with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
     package.ROOT = root = Path(folder).resolve() / "checkout"
     root.mkdir()
     for path in {
@@ -110,37 +110,37 @@ with tempfile.TemporaryDirectory(prefix="clawlight-enclosure-check-") as folder:
         "elsewhere/part.StP",
         "outside/mesh.sTl",
         "view.STEP",
-        "models/clawlight/cad-inspection.json",
-        "models/clawlight/coupon-inspection.json",
-        "models/clawlight/USB-COUPON-INSPECTION.JSON",
-        "models/clawlight/preview/review.png",
-        "models/clawlight/preview/arbitrary.PNG",
-        "models/clawlight/preview/nested/draft.SVG",
-        "models/clawlight/preview/nested/recipe.py",
-        "models/clawlight/preview/snapshot-job.json",
-        "models/clawlight/preview/base-fit-snapshot-job.json",
-        "models/clawlight/preview/cover-chamfers-snapshot-job.json",
-        "models/clawlight/preview/flat-floor-snapshot-job.json",
-        "models/clawlight/preview/TIGHT-USB-SNAPSHOT-JOB.JSON",
+        "models/broglow/cad-inspection.json",
+        "models/broglow/coupon-inspection.json",
+        "models/broglow/USB-COUPON-INSPECTION.JSON",
+        "models/broglow/preview/review.png",
+        "models/broglow/preview/arbitrary.PNG",
+        "models/broglow/preview/nested/draft.SVG",
+        "models/broglow/preview/nested/recipe.py",
+        "models/broglow/preview/snapshot-job.json",
+        "models/broglow/preview/base-fit-snapshot-job.json",
+        "models/broglow/preview/cover-chamfers-snapshot-job.json",
+        "models/broglow/preview/flat-floor-snapshot-job.json",
+        "models/broglow/preview/TIGHT-USB-SNAPSHOT-JOB.JSON",
     ] + retired_media
     preserved = [
-        "models/clawlight/parts.json",
-        "models/clawlight/validation.json",
-        "models/clawlight/slicer-validation.json",
-        "models/clawlight/slicer-result.json",
-        "site/assets/clawlight-model.json",
+        "models/broglow/parts.json",
+        "models/broglow/validation.json",
+        "models/broglow/slicer-validation.json",
+        "models/broglow/slicer-result.json",
+        "site/assets/broglow-model.json",
         "site/vendor/bloom-provenance.json",
         "references/clawlight/ar-component-bounds.json",
         "references/clawlight/ar-model-metadata.json",
         "references/clawlight/sources.json",
-        "assets/icons/clawd-green.png",
-        "assets/icons/clawd-none.png",
-        "assets/icons/clawd-red.png",
-        "assets/icons/clawd-yellow.png",
-        "site/assets/clawlight.png",
+        "assets/icons/broglow-green.png",
+        "assets/icons/broglow-none.png",
+        "assets/icons/broglow-red.png",
+        "assets/icons/broglow-yellow.png",
+        "site/assets/broglow.png",
         "site/assets/assembly.glb",
         "site/assets/assembly-model.json",
-        "site/assets/clawlight.glb",
+        "site/assets/broglow.glb",
         "site/vendor/model-viewer-with-effects.js",
         "site/vendor/model-viewer-module-4.3.1.min.js",
         "site/vendor/model-viewer-effects-1.5.0.min.js",
@@ -167,7 +167,7 @@ with tempfile.TemporaryDirectory(prefix="clawlight-enclosure-check-") as folder:
     assert not subprocess.run(
         ["git", "check-ignore", "--no-index", *preserved], cwd=root, capture_output=True
     ).stdout
-    case_variant = "MODELS/CLAWLIGHT/PREVIEW/nested/forced.PNG"
+    case_variant = "MODELS/BROGLOW/PREVIEW/nested/forced.PNG"
     path = root / case_variant
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"generated")
@@ -198,17 +198,17 @@ with tempfile.TemporaryDirectory(prefix="clawlight-enclosure-check-") as folder:
         [sys.executable, str(guard)], text=True, capture_output=True
     )
     assert accepted.returncode == 0, accepted.stderr
-    assert "models/clawlight/preview/review.png" not in git("ls-files")
-    for name in retired + ["models/clawlight/old.STL"]:
+    assert "models/broglow/preview/review.png" not in git("ls-files")
+    for name in retired + ["models/broglow/old.STL"]:
         (root / name).unlink(missing_ok=True)
     git("add", ".")
     git("commit", "-m", "check source tracking policy")
     git("tag", "-f", "v1.2.3")
     assert package.identity("1.2.3", "v1.2.3") == (git("rev-parse", "HEAD"), False)
-    (model / "clawlight.py").write_text("changed source\n")
+    (model / "broglow.py").write_text("changed source\n")
     rejected(lambda: package.identity("1.2.3", "v1.2.3"), "clean source")
-    (model / "clawlight.py").unlink()
-    (model / "clawlight.py").symlink_to(model / "private.py")
+    (model / "broglow.py").unlink()
+    (model / "broglow.py").symlink_to(model / "private.py")
     rejected(package.source_files, "unsafe source input")
 print(
     "PASS: preview-free staging, release guards, folder ignores and forced-artifact rejection"

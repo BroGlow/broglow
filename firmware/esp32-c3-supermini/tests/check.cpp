@@ -457,7 +457,7 @@ void pairingChecks() {
   assert(!BLEDevice::security
               ->onSecurityRequest());  // Held at boot needs release.
   const std::string reply =
-      "clawlight_pair identity=146393924524 "
+      "broglow_pair identity=146393924524 "
       "service=7d2ea28a-f7bd-485a-bd9d-92ad6ecfe93e\n";
   Serial.output.clear();
   feed("INFO\r\n");

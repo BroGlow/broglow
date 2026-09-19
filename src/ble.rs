@@ -13,8 +13,6 @@ pub enum BleCommand {
     },
     /// Add a remembered CoreBluetooth ID and enable all saved BLE lamps.
     Add { id: String },
-    /// Alias for add; existing remembered lamps are retained.
-    Select { id: String },
     /// Forget a saved lamp (does not erase its Bluetooth bond).
     Remove { id: String },
     /// Name a remembered lamp; an empty name restores its automatic label.
@@ -64,7 +62,7 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
     }
     config::update_config(|cfg| {
         match command {
-            BleCommand::Add { id } | BleCommand::Select { id } => {
+            BleCommand::Add { id } => {
                 #[cfg(target_os = "macos")]
                 {
                     let id = uuid::Uuid::parse_str(&id)?.to_string();
@@ -88,7 +86,6 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
                     .into_iter()
                     .filter(|saved| saved != &id)
                     .collect();
-                cfg.ble_peripheral = None;
                 cfg.lamp_names.remove(&id);
                 cfg.lamp_brightness.remove(&id);
                 if cfg.ble_peripherals.is_empty() && cfg.led_transport == LedTransport::Ble {
@@ -181,7 +178,6 @@ fn remember(cfg: &mut Config, id: String) {
     cfg.ble_peripherals.push(id);
     cfg.ble_peripherals.sort();
     cfg.ble_peripherals.dedup();
-    cfg.ble_peripheral = None;
     cfg.led_transport = LedTransport::Ble;
     cfg.led_enabled = true;
 }
@@ -356,7 +352,7 @@ mod mac {
     fn radio_lock() -> Result<std::fs::File> {
         anyhow::ensure!(
             std::env::current_exe()? == crate::mac_bundle_executable()?,
-            "Run clawlight install; Bluetooth requires the installed ClawLight.app identity"
+            "Run broglow install; Bluetooth requires the installed BroGlow.app identity"
         );
         let path = config::config_file_path().with_file_name(".ble.lock");
         std::fs::create_dir_all(path.parent().unwrap())?;
@@ -400,7 +396,7 @@ mod mac {
             }
             tokio::select! {
                 result = &mut future => return result,
-                _ = &mut deadline => bail!("Bluetooth timed out; check power and Privacy & Security > Bluetooth > ClawLight"),
+                _ = &mut deadline => bail!("Bluetooth timed out; check power and Privacy & Security > Bluetooth > BroGlow"),
                 _ = sleep(POLL) => {},
             }
         }
@@ -415,7 +411,7 @@ mod mac {
                     .await?
                     .into_iter()
                     .next()
-                    .context("No Bluetooth adapter; check Bluetooth permission for ClawLight")
+                    .context("No Bluetooth adapter; check Bluetooth permission for BroGlow")
             },
             keep,
         )
@@ -431,7 +427,7 @@ mod mac {
                         bail!("Bluetooth is off; turn it on in System Settings")
                     }
                     _ => bail!(
-                        "Bluetooth unavailable; allow ClawLight in Privacy & Security > Bluetooth"
+                        "Bluetooth unavailable; allow BroGlow in Privacy & Security > Bluetooth"
                     ),
                 }
                 adapter
@@ -449,7 +445,7 @@ mod mac {
     pub(super) fn scan(cfg: &Config) -> Result<()> {
         anyhow::ensure!(
             !cfg.led_enabled,
-            "Run clawlight ble off, wait 3 seconds, then scan"
+            "Run broglow ble off, wait 3 seconds, then scan"
         );
         let _lock = radio_lock()?;
         runtime()?.block_on(async {
@@ -474,7 +470,7 @@ mod mac {
                         }
                     }
                 }
-                println!("Found {found} lamp(s). Add one with `clawlight ble add <ID>`.");
+                println!("Found {found} lamp(s). Add one with `broglow ble add <ID>`.");
                 Ok(())
             }
             .await;
@@ -514,10 +510,10 @@ mod mac {
     fn parse_pair_identity(line: &str) -> Result<[u8; 6]> {
         let line = line.trim_end_matches(['\r', '\n']);
         let identity = line
-            .strip_prefix("clawlight_pair identity=")
+            .strip_prefix("broglow_pair identity=")
             .and_then(|s| s.strip_suffix(&format!(" service={SERVICE}")))
             .context(
-                "USB reply is not the expected ClawLight pairing protocol; update the C3 firmware",
+                "USB reply is not the expected BroGlow pairing protocol; update the C3 firmware",
             )?;
         anyhow::ensure!(
             identity.len() == 12
@@ -542,7 +538,7 @@ mod mac {
             let mut byte = [0];
             match port.read(&mut byte) {
                 Ok(1) if byte[0] == b'\n' => {
-                    if line.starts_with(b"clawlight_pair") {
+                    if line.starts_with(b"broglow_pair") {
                         return parse_pair_identity(std::str::from_utf8(&line)?);
                     }
                     line.clear(); // Ignore ordinary firmware diagnostic lines.
@@ -557,7 +553,7 @@ mod mac {
                 _ => {}
             }
         }
-        bail!("No ClawLight INFO/PAIR reply over USB; close serial monitors and flash the current C3 firmware")
+        bail!("No BroGlow INFO/PAIR reply over USB; close serial monitors and flash the current C3 firmware")
     }
 
     fn identity_matches(props: &btleplug::api::PeripheralProperties, identity: &[u8; 6]) -> bool {
@@ -624,7 +620,7 @@ mod mac {
             serial.write_data_terminal_ready(true)?;
             serial.clear(serialport::ClearBuffer::Input)?;
             let identity = usb_identity(serial.as_mut(), b"INFO\n")?;
-            println!("Verified ClawLight firmware on {path}; opening its pairing window.");
+            println!("Verified BroGlow firmware on {path}; opening its pairing window.");
             anyhow::ensure!(
                 usb_identity(serial.as_mut(), b"PAIR\n")? == identity,
                 "USB lamp identity changed between INFO and PAIR; selection was not saved"
@@ -682,7 +678,7 @@ mod mac {
         let ids = cfg.ble_ids();
         anyhow::ensure!(
             !ids.is_empty(),
-            "Add lamps: clawlight ble off; clawlight ble scan; clawlight ble add <ID>"
+            "Add lamps: broglow ble off; broglow ble scan; broglow ble add <ID>"
         );
         let _lock = radio_lock()?;
         runtime()?.block_on(async {
@@ -755,7 +751,7 @@ mod mac {
                                 }
                             }
                             Some(CentralEvent::StateUpdate(state)) if state != CentralState::PoweredOn => {
-                                bail!("Bluetooth unavailable; check power and ClawLight permission")
+                                bail!("Bluetooth unavailable; check power and BroGlow permission")
                             }
                             None => bail!("Bluetooth discovery stopped"),
                             _ => {}
@@ -873,38 +869,34 @@ mod mac {
                     && c.uuid == STATUS
                     && c.properties.contains(CharPropFlags::WRITE)
             })
-            .context("Saved device lacks the ClawLight writable status characteristic")?;
-        let brightness_characteristic = p.characteristics().into_iter().find(|c| {
-            c.service_uuid == SERVICE
-                && c.uuid == BRIGHTNESS
-                && c.properties.contains(CharPropFlags::WRITE)
-        });
+            .context("Saved device lacks the BroGlow writable status characteristic")?;
+        let brightness_characteristic = p
+            .characteristics()
+            .into_iter()
+            .find(|c| {
+                c.service_uuid == SERVICE
+                    && c.uuid == BRIGHTNESS
+                    && c.properties.contains(CharPropFlags::WRITE)
+            })
+            .context("Saved device lacks the BroGlow writable brightness characteristic")?;
         // Set the saved brightness before any status/connection flash. This first
         // encrypted write may prompt for pairing; sample current settings again afterward.
-        // Older firmware keeps working with the original one-byte status contract.
-        let initial = [if brightness_characteristic.is_some() {
-            config::read_config().lamp_brightness_percent(&target)
-        } else {
-            b'N'
-        }];
-        let first_characteristic = brightness_characteristic
-            .as_ref()
-            .unwrap_or(&characteristic);
+        let initial = [config::read_config().lamp_brightness_percent(&target)];
         wait_for(async {
-            let write = p.write(first_characteristic, &initial, WriteType::WithResponse);
+            let write = p.write(&brightness_characteristic, &initial, WriteType::WithResponse);
             tokio::pin!(write);
             loop {
                 tokio::select! {
                     result = &mut write => return Ok(result?),
                     _ = sleep(HEARTBEAT) => {
-                        publish("connecting", "Waiting for an encrypted write; approve any macOS pairing request for this lamp", brightness_characteristic.is_some());
+                        publish("connecting", "Waiting for an encrypted write; approve any macOS pairing request for this lamp", true);
                     }
                 }
             }
         }, keep, Duration::from_secs(60)).await?;
-        let last_brightness = Cell::new(brightness_characteristic.as_ref().map(|_| initial[0]));
+        let last_brightness = Cell::new(initial[0]);
         let last_preview = Cell::new(None::<(BrightnessPreview, StdInstant)>);
-        let brightness_characteristic = brightness_characteristic.as_ref();
+        let setting = &brightness_characteristic;
         let characteristic = &characteristic;
         let last_brightness = &last_brightness;
         let last_preview = &last_preview;
@@ -912,25 +904,23 @@ mod mac {
             |(byte, brightness, preview), _first| async move {
                 wait_for(
                     async {
-                        if let Some(setting) = brightness_characteristic {
-                            if last_brightness.get() != Some(brightness) {
-                                p.write(setting, &[brightness], WriteType::WithResponse)
-                                    .await
-                                    .context("Lamp brightness write failed")?;
-                                last_brightness.set(Some(brightness));
-                            }
-                            // A heartbeat must not renew a preview, and a slow
-                            // preceding write must not replay an expired event.
-                            if let Some(preview) = pending_preview(
-                                last_preview.get().map(|(preview, _)| preview),
-                                preview,
-                                StdInstant::now(),
-                            ) {
-                                p.write(setting, &preview.payload(), WriteType::WithResponse)
-                                    .await
-                                    .context("Lamp brightness preview failed")?;
-                                last_preview.set(Some((preview, StdInstant::now())));
-                            }
+                        if last_brightness.get() != brightness {
+                            p.write(setting, &[brightness], WriteType::WithResponse)
+                                .await
+                                .context("Lamp brightness write failed")?;
+                            last_brightness.set(brightness);
+                        }
+                        // A heartbeat must not renew a preview, and a slow
+                        // preceding write must not replay an expired event.
+                        if let Some(preview) = pending_preview(
+                            last_preview.get().map(|(preview, _)| preview),
+                            preview,
+                            StdInstant::now(),
+                        ) {
+                            p.write(setting, &preview.payload(), WriteType::WithResponse)
+                                .await
+                                .context("Lamp brightness preview failed")?;
+                            last_preview.set(Some((preview, StdInstant::now())));
                         }
                         p.write(characteristic, &[byte], WriteType::WithResponse)
                             .await?;
@@ -940,26 +930,22 @@ mod mac {
                     Duration::from_secs(3),
                 )
                 .await?;
-                let detail = if brightness_characteristic.is_some() {
-                    if let Some((preview, _)) = last_preview
-                        .get()
-                        .filter(|(preview, written)| written.elapsed() < preview.duration())
-                    {
-                        if preview.identify {
-                            "Status acknowledged; Identify scan requested".into()
-                        } else {
-                            format!(
-                                "Status acknowledged; brightness preview {}%",
-                                preview.percent
-                            )
-                        }
+                let detail = if let Some((preview, _)) = last_preview
+                    .get()
+                    .filter(|(preview, written)| written.elapsed() < preview.duration())
+                {
+                    if preview.identify {
+                        "Status acknowledged; Identify scan requested".into()
                     } else {
-                        format!("Status acknowledged; brightness {brightness}% applied")
+                        format!(
+                            "Status acknowledged; brightness preview {}%",
+                            preview.percent
+                        )
                     }
                 } else {
-                    "Status acknowledged; brightness unavailable — update the C3 firmware".into()
+                    format!("Status acknowledged; brightness {brightness}% applied")
                 };
-                publish("connected", &detail, brightness_characteristic.is_some());
+                publish("connected", &detail, true);
                 Ok(())
             },
             || {
@@ -1070,7 +1056,7 @@ mod mac {
         fn preview_is_ephemeral_and_wakes_every_lamp() {
             // HOME is isolated in a subprocess, never changed underneath other
             // tests or pointed at the user's real preferences.
-            let Some(test_home) = std::env::var_os("CLAWLIGHT_PREVIEW_TEST_HOME") else {
+            let Some(test_home) = std::env::var_os("BROGLOW_PREVIEW_TEST_HOME") else {
                 let home = tempfile::TempDir::new().unwrap();
                 let result = std::process::Command::new(std::env::current_exe().unwrap())
                     .args([
@@ -1078,7 +1064,7 @@ mod mac {
                         "ble::mac::tests::preview_is_ephemeral_and_wakes_every_lamp",
                     ])
                     .env("HOME", home.path())
-                    .env("CLAWLIGHT_PREVIEW_TEST_HOME", home.path())
+                    .env("BROGLOW_PREVIEW_TEST_HOME", home.path())
                     .output()
                     .unwrap();
                 assert!(
@@ -1285,7 +1271,7 @@ mod mac {
         #[test]
         fn usb_pair_protocol_candidates_and_advertisement_identity() {
             let identity = [0x14, 0x63, 0x93, 0x92, 0x45, 0x24];
-            let reply = format!("clawlight_pair identity=146393924524 service={SERVICE}");
+            let reply = format!("broglow_pair identity=146393924524 service={SERVICE}");
             assert_eq!(
                 parse_pair_identity(&format!("{reply}\r\n")).unwrap(),
                 identity

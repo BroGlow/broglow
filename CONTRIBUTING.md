@@ -1,8 +1,8 @@
 [English](CONTRIBUTING.md) | [Русский](CONTRIBUTING.ru.md)
 
-# Contributing to ClawLight
+# Contributing to BroGlow
 
-Thanks for helping improve ClawLight. For bug reports, include your OS, ClawLight
+Thanks for helping improve BroGlow. For bug reports, include your OS, BroGlow
 version, steps to reproduce and the expected result. For changes, describe what
 changed and how you checked it.
 

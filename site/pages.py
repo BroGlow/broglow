@@ -28,8 +28,8 @@ REFERENCE_SOURCES = {
         "docs/enclosure-modeling-brief.ru.md",
     ),
     "printing.md": (
-        "models/clawlight/PRINT_GUIDE.en.md",
-        "models/clawlight/PRINT_GUIDE.md",
+        "models/broglow/PRINT_GUIDE.en.md",
+        "models/broglow/PRINT_GUIDE.md",
     ),
 }
 
@@ -37,7 +37,7 @@ REFERENCE_SOURCES = {
 def enclosure_package():
     packages = [
         path
-        for path in (SITE.parent / "dist/enclosure").glob("clawlight-enclosure-v*.zip")
+        for path in (SITE.parent / "dist/enclosure").glob("broglow-enclosure-v*.zip")
         if path.with_name(path.name + ".sha256").is_file()
     ]
     return max(packages, key=lambda path: path.stat().st_mtime_ns, default=None)
@@ -71,10 +71,10 @@ def on_page_content(html, *, page, config, **kwargs):
     ru = page.file.src_uri.startswith("ru/")
     source = SITE.parent / REFERENCE_SOURCES[name][ru]
     current = ("ru/" if ru else "") + name.removesuffix(".md")
-    model = SITE.parent / "models/clawlight"
+    model = SITE.parent / "models/broglow"
     generated = {
         model / f"{name}.step"
-        for name in ("clawlight", "appearance", "exploded", "usb_coupon")
+        for name in ("broglow", "appearance", "exploded", "usb_coupon")
     }
     generated.update(
         model / part["file"]
@@ -122,7 +122,7 @@ def on_page_content(html, *, page, config, **kwargs):
                 version = tomllib.loads((SITE.parent / "Cargo.toml").read_text())[
                     "package"
                 ]["version"]
-                target = f"{config.repo_url}/releases/download/v{version}/clawlight-enclosure-v{version}.zip"
+                target = f"{config.repo_url}/releases/download/v{version}/broglow-enclosure-v{version}.zip"
             elif package := enclosure_package():
                 target = posixpath.relpath(package, SITE / "docs" / current)
             else:
@@ -177,27 +177,27 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
             else f"[Mac app + C3 firmware · releases]({releases})"
         )
         mac += (
-            "\n\nВыберите полный пакет для своего Mac: `clawlight-vVERSION-aarch64-apple-darwin.tar.gz` "
-            "для Apple Silicon или `clawlight-vVERSION-x86_64-apple-darwin.tar.gz` для Intel, "
-            "и одноимённый файл `.sha256`. Архивы `clawlight-cli-…` не содержат прошивку и руководство. "
+            "\n\nВыберите полный пакет для своего Mac: `broglow-vVERSION-aarch64-apple-darwin.tar.gz` "
+            "для Apple Silicon или `broglow-vVERSION-x86_64-apple-darwin.tar.gz` для Intel, "
+            "и одноимённый файл `.sha256`. Архивы Windows (`broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz`) не содержат прошивку и руководство. "
             f"Если полного пакета ещё нет, [скачайте исходники]({source}) и соберите по инструкции ниже."
             if ru
-            else "\n\nChoose the complete bundle for your Mac: `clawlight-vVERSION-aarch64-apple-darwin.tar.gz` "
-            "for Apple Silicon or `clawlight-vVERSION-x86_64-apple-darwin.tar.gz` for Intel, "
-            "plus its matching `.sha256` file. `clawlight-cli-…` archives omit the firmware and manual. "
+            else "\n\nChoose the complete bundle for your Mac: `broglow-vVERSION-aarch64-apple-darwin.tar.gz` "
+            "for Apple Silicon or `broglow-vVERSION-x86_64-apple-darwin.tar.gz` for Intel, "
+            "plus its matching `.sha256` file. Windows archives (`broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz`) omit the firmware and manual. "
             f"If no complete package is available, [download the source]({source}) and build using the guide below."
         )
         guide = "printing.md"
         models = (
             f"[Комплект для печати корпуса · релизы]({releases})\n\n"
-            "Выберите `clawlight-enclosure-vVERSION.zip` и одноимённый файл `.sha256`. "
+            "Выберите `broglow-enclosure-vVERSION.zip` и одноимённый файл `.sha256`. "
             "Это отдельный комплект с исходниками CAD, STL, STEP и руководством; он не входит в пакет приложения. "
             f"[Инструкция по печати]({guide}). Если релиз ещё не опубликован, "
             f"[скачайте исходники]({source}) и сгенерируйте комплект по инструкции. "
             "Автоматический ZIP исходников GitHub не содержит готовых STL, STEP или архивов печати."
             if ru
             else f"[Enclosure print package · releases]({releases})\n\n"
-            "Choose `clawlight-enclosure-vVERSION.zip` and its matching `.sha256` file. "
+            "Choose `broglow-enclosure-vVERSION.zip` and its matching `.sha256` file. "
             "This separate package contains CAD source, STL, STEP and a print guide; it is not part of the app bundle. "
             f"[Print guide]({guide}). Before the release is published, "
             f"[download the source]({source}) and generate the package using the guide. "
@@ -207,7 +207,7 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
     else:
         packages = [
             path
-            for path in (SITE.parent / "dist").glob("clawlight-*-apple-darwin*.tar.gz")
+            for path in (SITE.parent / "dist").glob("broglow-*-apple-darwin*.tar.gz")
             if path.with_name(path.name + ".sha256").is_file()
         ]
         if packages:
@@ -243,19 +243,19 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
                 f"[{checksum}]({prefix}dist/enclosure/{print_package.name}.sha256){{ download }}"
             )
             models += (
-                "\n\nРаспакуйте архив и откройте `START_HERE.ru.md`, затем `models/clawlight/PRINT_GUIDE.md`. "
+                "\n\nРаспакуйте архив и откройте `START_HERE.ru.md`, затем `models/broglow/PRINT_GUIDE.md`. "
                 "В комплекте — CAD, STL и настройки печати; приложение и прошивка скачиваются отдельно."
                 if ru
-                else "\n\nExtract the archive and open `START_HERE.md`, then `models/clawlight/PRINT_GUIDE.en.md`. "
+                else "\n\nExtract the archive and open `START_HERE.md`, then `models/broglow/PRINT_GUIDE.en.md`. "
                 "The package includes CAD, STL and print settings; download the app and firmware separately."
             )
         else:
             models = (
-                "В этом checkout нет архива корпуса. Откройте `models/clawlight/PRINT_GUIDE.md` "
+                "В этом checkout нет архива корпуса. Откройте `models/broglow/PRINT_GUIDE.md` "
                 "в полных исходниках проекта и [сгенерируйте комплект](releasing.md) "
                 "или получите комплект корпуса из релиза проекта."
                 if ru
-                else "This checkout has no enclosure archive. Open `models/clawlight/PRINT_GUIDE.en.md` "
+                else "This checkout has no enclosure archive. Open `models/broglow/PRINT_GUIDE.en.md` "
                 "in the full project source and [generate the package](releasing.md) "
                 "or obtain the enclosure package from the project's release."
             )

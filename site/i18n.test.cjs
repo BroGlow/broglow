@@ -30,12 +30,12 @@ function load({ languages, language, saved, blocked = false } = {}) {
     navigator: { languages, language },
     localStorage: {
       getItem(key) {
-        assert.equal(key, "clawlight-language");
+        assert.equal(key, "broglow-language");
         if (blocked) throw new Error("Storage blocked");
         return storage.saved;
       },
       setItem(key, value) {
-        assert.equal(key, "clawlight-language");
+        assert.equal(key, "broglow-language");
         if (blocked) throw new Error("Storage blocked");
         storage.saved = value;
       },

@@ -1,11 +1,12 @@
-# ClawLight agent entry points
+# BroGlow agent entry points
 
 [English](AGENTS.md) | [Русский](AGENTS.ru.md)
 
-ClawLight combines a CLI, desktop app, ESP32-C3 SuperMini firmware and printable
+BroGlow combines a CLI, desktop app, ESP32-C3 SuperMini firmware and printable
 enclosure for local coding-agent workflows. Describe its features and supported
-hardware directly. Keep attribution in license notices. Protect existing settings,
-Bluetooth bonds and the installed service identity when making changes.
+hardware directly. Credit the original ClawLight in README and retain license notices. BroGlow is a
+separate application with fresh identities and state; do not add legacy aliases,
+migrations or old-key fallbacks. Protect unrelated user settings and hooks.
 
 For **installation, updates, connecting a lamp, or checking the Mac service**, read
 [the agent runbook](docs/hardware-setup.md#agent-runbook) first. It routes to the
@@ -23,7 +24,7 @@ Keep editable sources and reviewed evidence in Git; distribute generated files
 as release assets with checksums. After generation, verify output paths with
 `git check-ignore`; before committing, run `python3 scripts/check-generated-artifacts.py`.
 
-Keep the entire `models/clawlight/preview/` directory ignored and untracked, including
+Keep the entire `models/broglow/preview/` directory ignored and untracked, including
 renders, dimension diagrams and render recipes. Keep selected app/site assets and
 reviewed validation data in Git. Generate release diagrams under `dist/enclosure/`.
 
@@ -40,7 +41,7 @@ and use current source instead of old packages.
 For **backups or test evidence**, use the ignored `.recovery/` directory and follow
 the [local recovery policy](docs/hardware-setup.md#local-recovery-files).
 
-A prebuilt package has `BUILD.json` and `bin/clawlight`; a source checkout has
+A prebuilt package has `BUILD.json` and `bin/broglow`; a source checkout has
 `Cargo.toml` and `src/`. Select the matching installation path. A request to install
 or connect does not imply publishing a release or reflashing a working board.
 

@@ -28,12 +28,12 @@ __pycache__/
 
 # Ad hoc CAD inspection output and revision-specific render jobs.
 # Keep new runs under dist/enclosure/; these paths cover older commands.
-/models/clawlight/cad-inspection.json
-/models/clawlight/coupon-inspection.json
-/models/clawlight/usb-coupon-inspection.json
+/models/broglow/cad-inspection.json
+/models/broglow/coupon-inspection.json
+/models/broglow/usb-coupon-inspection.json
 
 # Generated CAD renders, dimensions and disposable preview files.
-/models/clawlight/preview/
+/models/broglow/preview/
 
 # Retired media: exact paths, including filename and directory case variants.
 /[sS][iI][tT][eE]/[aA][sS][sS][eE][tT][sS]/[aA][sS][sS][eE][mM][bB][lL][yY].[pP][nN][gG]

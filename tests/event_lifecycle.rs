@@ -1,5 +1,5 @@
 //! End-to-end tests of the normalized-event backend: drive the real
-//! `clawlight` binary the way the opencode plugin does — one normalized event
+//! `broglow` binary the way the opencode plugin does — one normalized event
 //! as JSON on stdin — and observe the resulting `state.json`. Mirrors the
 //! strategy of `hook_lifecycle.rs`.
 //!
@@ -20,13 +20,13 @@ fn temp_home() -> TempDir {
 fn state_path(home: &TempDir) -> PathBuf {
     home.path()
         .join(".claude")
-        .join("clawlight")
+        .join("broglow")
         .join("state.json")
 }
 
-/// Run `clawlight event` inside the sandbox home with the given stdin.
+/// Run `broglow event` inside the sandbox home with the given stdin.
 fn run_event(home: &TempDir, stdin: &str) -> assert_cmd::assert::Assert {
-    Command::cargo_bin("clawlight")
+    Command::cargo_bin("broglow")
         .expect("binary built")
         .arg("event")
         .env("HOME", home.path())
@@ -34,13 +34,13 @@ fn run_event(home: &TempDir, stdin: &str) -> assert_cmd::assert::Assert {
         .assert()
 }
 
-/// Run `clawlight hook` (the Claude path) inside the sandbox home.
+/// Run `broglow hook` (the Claude path) inside the sandbox home.
 fn run_hook(home: &TempDir, stdin: &str) -> assert_cmd::assert::Assert {
-    Command::cargo_bin("clawlight")
+    Command::cargo_bin("broglow")
         .expect("binary built")
         .arg("hook")
         .env("HOME", home.path())
-        .env_remove("CLAWLIGHT_NAMING")
+        .env_remove("BROGLOW_NAMING")
         .write_stdin(stdin.to_string())
         .assert()
 }

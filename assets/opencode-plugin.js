@@ -1,29 +1,29 @@
-// managed by clawlight v{{VERSION}} — do not edit; `clawlight uninstall` removes this file
+// managed by broglow v{{VERSION}} — do not edit; `broglow uninstall` removes this file
 //
-// A dumb translator between opencode's plugin event bus and clawlight. It
-// subscribes to session / permission events, normalizes each into clawlight's
-// harness-agnostic verb schema, and hands it to the clawlight binary over
+// A dumb translator between opencode's plugin event bus and broglow. It
+// subscribes to session / permission events, normalizes each into broglow's
+// harness-agnostic verb schema, and hands it to the broglow binary over
 // stdin. It is logic-free on purpose: every mapping decision lives in the Rust
 // binary (where it is tested), so this file never needs to change when the
 // mapping does, and any failure here is swallowed so it can never crash or
 // slow down the opencode host.
 //
-// The clawlight binary path is baked in at install time (below) so the plugin
-// works even when clawlight isn't on opencode's PATH. `clawlight install`
+// The broglow binary path is baked in at install time (below) so the plugin
+// works even when broglow isn't on opencode's PATH. `broglow install`
 // rewrites this file every run, keeping the path and version in sync.
 
 import { spawn, spawnSync } from "node:child_process";
 
-// Absolute path to the clawlight binary, substituted by `clawlight install`.
-const CLAWLIGHT_BIN = "{{BIN}}";
+// Absolute path to the broglow binary, substituted by `broglow install`.
+const BROGLOW_BIN = "{{BIN}}";
 
-export const clawlight = async ({ directory, worktree, project }) => {
+export const broglow = async ({ directory, worktree, project }) => {
   // Best-effort project directory for the session's state entry.
   const dir =
     worktree || directory || (project && (project.worktree || project.path)) || "";
 
-  // Spawn one `clawlight event` and resolve when it exits (or after a short
-  // timeout, so a wedged clawlight can't stall the queue). Detached + unref so
+  // Spawn one `broglow event` and resolve when it exits (or after a short
+  // timeout, so a wedged broglow can't stall the queue). Detached + unref so
   // the write still completes if opencode exits right after; failures swallowed.
   const spawnEvent = (event, sessionID, title) =>
     new Promise((resolve) => {
@@ -35,7 +35,7 @@ export const clawlight = async ({ directory, worktree, project }) => {
         }
       };
       try {
-        const child = spawn(CLAWLIGHT_BIN, ["event"], {
+        const child = spawn(BROGLOW_BIN, ["event"], {
           stdio: ["pipe", "ignore", "ignore"],
           detached: true,
         });
@@ -47,9 +47,9 @@ export const clawlight = async ({ directory, worktree, project }) => {
         if (title) payload.title = title;
         child.stdin.end(JSON.stringify(payload));
         child.unref();
-        // Watchdog so a wedged clawlight can't stall the queue forever. Note the
+        // Watchdog so a wedged broglow can't stall the queue forever. Note the
         // tradeoff with the ordering guarantee below: if a spawn takes >3s the
-        // next event's write can race it. clawlight event is a fast lock+rename,
+        // next event's write can race it. broglow event is a fast lock+rename,
         // so this is a safety valve, not an expected path.
         const t = setTimeout(finish, 3000);
         if (t.unref) t.unref();
@@ -75,7 +75,7 @@ export const clawlight = async ({ directory, worktree, project }) => {
   // owns as ended so the light doesn't stay green. This runs in the `exit`
   // handler, where only *synchronous* work completes before the process dies —
   // an async spawn would be cut off — so it uses spawnSync. Layer (b), the
-  // owner-PID reap on the clawlight side, still covers a hard SIGKILL that skips
+  // owner-PID reap on the broglow side, still covers a hard SIGKILL that skips
   // this entirely.
   //
   // Accepted gap: a `working` child already spawned by the queue is detached, so
@@ -86,7 +86,7 @@ export const clawlight = async ({ directory, worktree, project }) => {
   const live = new Set();
   const sendSync = (event, sessionID) => {
     try {
-      spawnSync(CLAWLIGHT_BIN, ["event"], {
+      spawnSync(BROGLOW_BIN, ["event"], {
         input: JSON.stringify({
           harness: "opencode",
           event,
@@ -95,7 +95,7 @@ export const clawlight = async ({ directory, worktree, project }) => {
         }),
         stdio: ["pipe", "ignore", "ignore"],
         // Runs in the exit path × one per live session, so keep it short — a
-        // wedged clawlight must not hold up the host's shutdown.
+        // wedged broglow must not hold up the host's shutdown.
         timeout: 500,
       });
     } catch (_) {
@@ -111,7 +111,7 @@ export const clawlight = async ({ directory, worktree, project }) => {
     // process.exit() from our own signal listener would run alongside (and
     // could pre-empt) opencode's own signal cleanup, turning a cancel into a
     // kill. A signal that ends the process still fires `exit`; anything that
-    // skips `exit` (SIGKILL) is caught by clawlight's owner-PID reap instead.
+    // skips `exit` (SIGKILL) is caught by broglow's owner-PID reap instead.
     process.once("exit", markEnded);
   } catch (_) {
     // process may be sandboxed; the owner-PID reap still covers shutdown

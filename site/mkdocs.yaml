@@ -1,4 +1,4 @@
-site_name: ClawLight DIY
+site_name: BroGlow DIY
 site_author: Suren Khorenyan
 copyright: Copyright &copy; 2026 Suren Khorenyan
 docs_dir: guide
@@ -8,8 +8,8 @@ hooks:
   - pages.py
 watch:
   - ../docs
-  - ../models/clawlight/PRINT_GUIDE.md
-  - ../models/clawlight/PRINT_GUIDE.en.md
+  - ../models/broglow/PRINT_GUIDE.md
+  - ../models/broglow/PRINT_GUIDE.en.md
 theme:
   name: material
   custom_dir: overrides

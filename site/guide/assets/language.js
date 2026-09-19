@@ -4,8 +4,8 @@
   const explicit = new URL(location.href).searchParams.get("lang");
   let saved;
   try {
-    saved = localStorage.getItem("clawlight-language");
-    if (supported(explicit)) localStorage.setItem("clawlight-language", explicit);
+    saved = localStorage.getItem("broglow-language");
+    if (supported(explicit)) localStorage.setItem("broglow-language", explicit);
   } catch {
     // The explicit URL choice still works when storage is unavailable.
   }
@@ -22,7 +22,7 @@
   }
   for (const link of links) {
     link.addEventListener("click", (event) => {
-      try { localStorage.setItem("clawlight-language", link.hreflang); } catch {}
+      try { localStorage.setItem("broglow-language", link.hreflang); } catch {}
       const url = new URL(link.href);
       url.hash = location.hash;
       link.href = url.href;

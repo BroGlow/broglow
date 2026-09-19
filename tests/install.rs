@@ -21,7 +21,7 @@ const HOOK_EVENTS: [&str; 6] = [
 ];
 
 fn run(home: &TempDir, subcommand: &str) {
-    Command::cargo_bin("clawlight")
+    Command::cargo_bin("broglow")
         .expect("binary built")
         .arg(subcommand)
         .env("HOME", home.path())
@@ -37,7 +37,7 @@ fn read_settings(home: &TempDir) -> Value {
 #[test]
 fn headless_tray_does_not_register_hooks() {
     let home = TempDir::new().unwrap();
-    Command::cargo_bin("clawlight")
+    Command::cargo_bin("broglow")
         .expect("binary built")
         .arg("menubar")
         .env("HOME", home.path())
@@ -77,9 +77,9 @@ fn install_registers_hooks_and_uninstall_reverts_them() {
             "hook command invokes the binary: {command}"
         );
     }
-    let autostart = home.path().join(".config/autostart/clawlight.desktop");
+    let autostart = home.path().join(".config/autostart/broglow.desktop");
     assert!(autostart.exists(), "XDG autostart entry written");
-    assert!(claude_dir.join("clawlight").exists(), "state dir created");
+    assert!(claude_dir.join("broglow").exists(), "state dir created");
 
     run(&home, "uninstall");
 
@@ -90,7 +90,7 @@ fn install_registers_hooks_and_uninstall_reverts_them() {
         "empty hooks object removed entirely"
     );
     assert!(!autostart.exists(), "autostart entry removed");
-    assert!(!claude_dir.join("clawlight").exists(), "state dir removed");
+    assert!(!claude_dir.join("broglow").exists(), "state dir removed");
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn claude_foreign_hooks_survive_install_reinstall_and_uninstall() {
     std::fs::create_dir_all(&dir).unwrap();
     let foreign = json!({"matcher":"*", "hooks":[{"type":"command","command":"guard.sh"}]});
     let mixed = json!({"hooks":[
-        {"type":"command","command":"clawlight hook"},
+        {"type":"command","command":"broglow hook"},
         {"type":"command","command":"other.sh"}
     ]});
     std::fs::write(
@@ -135,12 +135,12 @@ fn install_writes_the_opencode_plugin_when_detected_and_uninstall_removes_it() {
 
     run(&home, "install");
 
-    let plugin = home.path().join(".config/opencode/plugins/clawlight.js");
+    let plugin = home.path().join(".config/opencode/plugins/broglow.js");
     assert!(plugin.exists(), "plugin written when opencode is detected");
 
     let contents = std::fs::read_to_string(&plugin).unwrap();
     assert!(
-        contents.contains("managed by clawlight"),
+        contents.contains("managed by broglow"),
         "carries the managed-by header"
     );
     // The version and absolute binary path are baked in — no placeholders left.
@@ -148,7 +148,7 @@ fn install_writes_the_opencode_plugin_when_detected_and_uninstall_removes_it() {
     assert!(!contents.contains("{{VERSION}}"), "version substituted");
     assert!(
         contents.contains("\"event\""),
-        "plugin drives the `clawlight event` backend"
+        "plugin drives the `broglow event` backend"
     );
 
     run(&home, "uninstall");
@@ -160,7 +160,7 @@ fn install_skips_the_plugin_when_opencode_is_absent() {
     let home = TempDir::new().unwrap();
     // No ~/.config/opencode and (assumed) no opencode on PATH → detection fails.
     run(&home, "install");
-    let plugin = home.path().join(".config/opencode/plugins/clawlight.js");
+    let plugin = home.path().join(".config/opencode/plugins/broglow.js");
     assert!(
         !plugin.exists(),
         "no plugin written on a machine without opencode"
@@ -172,12 +172,12 @@ fn reinstall_overwrites_a_stale_managed_plugin() {
     let home = TempDir::new().unwrap();
     let plugin_dir = home.path().join(".config/opencode/plugins");
     std::fs::create_dir_all(&plugin_dir).unwrap();
-    let plugin = plugin_dir.join("clawlight.js");
+    let plugin = plugin_dir.join("broglow.js");
     // A plugin from an older build: our marker (so it's ours to replace), an
     // un-substituted binary placeholder, and a sentinel that must not survive.
     std::fs::write(
         &plugin,
-        "// managed by clawlight v0.0.1\nconst CLAWLIGHT_BIN = \"{{BIN}}\";\n// STALE_SENTINEL\n",
+        "// managed by broglow v0.0.1\nconst BROGLOW_BIN = \"{{BIN}}\";\n// STALE_SENTINEL\n",
     )
     .unwrap();
 
@@ -189,7 +189,7 @@ fn reinstall_overwrites_a_stale_managed_plugin() {
         "reinstall must overwrite the stale plugin (version-skew fix)"
     );
     assert!(!contents.contains("{{BIN}}"), "binary path re-substituted");
-    assert!(contents.contains("managed by clawlight"), "still managed");
+    assert!(contents.contains("managed by broglow"), "still managed");
 }
 
 #[test]
@@ -197,9 +197,9 @@ fn install_leaves_a_foreign_opencode_plugin_alone() {
     let home = TempDir::new().unwrap();
     let plugin_dir = home.path().join(".config/opencode/plugins");
     std::fs::create_dir_all(&plugin_dir).unwrap();
-    let plugin = plugin_dir.join("clawlight.js");
+    let plugin = plugin_dir.join("broglow.js");
     // A hand-rolled file at our path (no managed-by header) is the user's own
-    // opencode↔clawlight integration; install must warn and skip, not clobber
+    // opencode↔broglow integration; install must warn and skip, not clobber
     // it — the same guard uninstall applies before deleting.
     let hand_rolled = "// my own hand-rolled plugin\n";
     std::fs::write(&plugin, hand_rolled).unwrap();
@@ -218,7 +218,7 @@ fn uninstall_leaves_a_foreign_opencode_plugin_alone() {
     let home = TempDir::new().unwrap();
     let plugin_dir = home.path().join(".config/opencode/plugins");
     std::fs::create_dir_all(&plugin_dir).unwrap();
-    let plugin = plugin_dir.join("clawlight.js");
+    let plugin = plugin_dir.join("broglow.js");
     // A file at our path that isn't ours (no managed-by header).
     std::fs::write(&plugin, "// my own hand-rolled plugin\n").unwrap();
 
@@ -250,7 +250,7 @@ fn install_registers_codex_hooks_and_uninstall_reverts_them() {
     .unwrap();
 
     let run = |subcommand: &str| {
-        Command::cargo_bin("clawlight")
+        Command::cargo_bin("broglow")
             .expect("binary built")
             .arg(subcommand)
             .env("HOME", home.path())
@@ -281,7 +281,7 @@ fn install_registers_codex_hooks_and_uninstall_reverts_them() {
             .iter()
             .filter_map(|g| g["hooks"][0]["command"].as_str())
             .find(|c| c.ends_with("\" codex-hook"));
-        assert!(ours.is_some(), "{event} has a clawlight codex-hook group");
+        assert!(ours.is_some(), "{event} has a broglow codex-hook group");
     }
     // The user's hook kept its position at index 0.
     assert_eq!(
@@ -301,7 +301,7 @@ fn install_registers_codex_hooks_and_uninstall_reverts_them() {
     let hooks = read_hooks();
     assert!(
         hooks["hooks"].get("Stop").is_none(),
-        "clawlight-only events removed"
+        "broglow-only events removed"
     );
     assert_eq!(
         hooks["hooks"]["PermissionRequest"],
@@ -314,7 +314,7 @@ fn install_registers_codex_hooks_and_uninstall_reverts_them() {
 fn install_writes_copilot_hooks_and_uninstall_reverts_them() {
     let home = TempDir::new().unwrap();
     // The `.copilot` dir is the detection signal (no `copilot` binary on CI).
-    let hooks_file = home.path().join(".copilot/hooks/clawlight.json");
+    let hooks_file = home.path().join(".copilot/hooks/broglow.json");
     std::fs::create_dir_all(home.path().join(".copilot")).unwrap();
 
     run(&home, "install");
@@ -360,13 +360,13 @@ fn copilot_hook_files_that_are_not_ours_are_left_alone() {
     let home = TempDir::new().unwrap();
     let hooks_dir = home.path().join(".copilot/hooks");
     std::fs::create_dir_all(&hooks_dir).unwrap();
-    let ours_path = hooks_dir.join("clawlight.json");
+    let ours_path = hooks_dir.join("broglow.json");
     // A hand-rolled file at our path (nothing in it invokes `copilot-hook`)
     // is the user's own configuration; both operations must skip it.
     let hand_rolled =
         r#"{"version":1,"hooks":{"preToolUse":[{"type":"command","command":"./guard.sh"}]}}"#;
     std::fs::write(&ours_path, hand_rolled).unwrap();
-    // A sibling hooks file is never clawlight's business at all.
+    // A sibling hooks file is never broglow's business at all.
     let sibling = hooks_dir.join("policy.json");
     std::fs::write(&sibling, r#"{"version":1,"hooks":{}}"#).unwrap();
 
