@@ -13,7 +13,8 @@ If Terminal cannot find `broglow` or runs an older copy, follow the [PATH checks
 
 Check power, that lamp control is enabled in BroGlow, and Bluetooth. Allow BroGlow under
 System Settings → Privacy & Security → Bluetooth. For a new lamp, connect it alone by USB
-and use **Lamps → Add lamp**; approve the macOS prompt and wait for **Connected**.
+for automatic setup; use **Lamps → Add lamp** to retry. Approve any macOS prompt
+and wait for **Connected**.
 In **Lamps**, expand the intended lamp's row and check its **Light brightness**:
 0% keeps the controlled LEDs dark even when connected. Move that slider to preview all three,
 or use **Identify** for three red → yellow → green passes on that connected lamp at 100%,
@@ -34,8 +35,8 @@ package. Start with agent sessions, hooks, the background service, Bluetooth sta
 the intended lamp's saved brightness (0% is intentionally dark). Check its row's brightness
 preview or Identify (three red/yellow/green passes); if firmware lacks the scan mode,
 report that a matching firmware update is needed. Preserve other lamps, names and preferences.
-If setup is needed, use
-Lamps → Add lamp with one USB-connected lamp and let me approve macOS prompts. For
+If setup is needed, connect one lamp by USB for automatic setup; use Lamps → Add lamp
+to retry and let me approve macOS prompts. For
 Codex, check hook trust with the same CODEX_HOME as the app and verify that a real local task
 appears in BroGlow. Guide me through /hooks approval if needed; leave approval to me.
 Distinguish local Codex tasks from ordinary ChatGPT chats and cloud or remote tasks. Identify

@@ -27,8 +27,8 @@ Set up BroGlow following the Agent runbook in docs/hardware-setup.md.
 Choose the package or source path, verify checksums for a package, and back up settings
 in .recovery/. Preserve hooks, lamp names, brightness and bonds; keep one tray service.
 Verify the board is an ESP32-C3 SuperMini before hardware commands; flash only if needed.
-Use Lamps → Add lamp with one USB-connected lamp. Leave macOS and Codex /hooks approval
-to me; for Codex, use the same CODEX_HOME as the app.
+Connect one lamp by USB for automatic setup; use Lamps → Add lamp to retry. Leave macOS
+and Codex /hooks approval to me; for Codex, use the same CODEX_HOME as the app.
 Verify broglow works from a fresh terminal outside the project, the background service
 reaches my lamp, and a real local agent task changes from Working to Idle/Paused.
 Check Identify scans red/yellow/green three times and restores the status and saved brightness;
@@ -64,9 +64,9 @@ the login service already uses an absolute path.
 
 ## Pair once, then place it on your desk
 
-Connect one flashed lamp with a USB data cable. Open the lamp status in the menu-bar
-popup, then **Lamps → Add lamp**. Allow Bluetooth and approve macOS pairing prompts.
-Add lamps one at a time; existing lamps stay saved.
+Connect one flashed lamp with a USB data cable. On macOS, BroGlow starts setup
+automatically within five seconds. Allow Bluetooth and approve any macOS pairing prompt.
+Use **Lamps → Add lamp** to retry. Add lamps one at a time; existing lamps stay saved.
 
 The Terminal alternative is:
 

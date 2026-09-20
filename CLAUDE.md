@@ -100,12 +100,14 @@ operation: record those acceptance checks separately.
 - **menubar.rs** — tray icon + menu (tao/tray-icon event loop), spawns the LED daemon thread.
 - **led.rs** — USB detection/driver, aggregate-to-byte mapping, transport dispatch,
   and fresh cross-process worker status in `lamp-status.json`.
-- **ble.rs** — explicit discovery/selection and the macOS BLE worker: service-filtered
+- **ble.rs** — USB-assisted setup, discovery/selection and the macOS BLE worker: service-filtered
   scan, independent connections to every saved nearby lamp, acknowledged writes,
   heartbeat and reconnect. An absent lamp must not block another lamp's updates.
   USB-assisted `pair` requires exact INFO identity before PAIR and matches the
-  service plus full six-byte base MAC in manufacturer data (`0xffff`). No automatic
-  USB takeover, no name-only target selection, and no bypass of macOS consent.
+  service plus full six-byte base MAC in manufacturer data (`0xffff`). The tray checks
+  USB every five seconds and attempts setup once per new attachment; `usb_lamps`
+  records verified boards so Disable/Forget survive restart. Retain exact identity
+  checks, serial/worker locks, failure rollback and macOS consent.
   Keep btleplug 0.13.1 locked: its macOS write-error propagation fixes dropped
   CoreBluetooth NSError failures during pairing. A longer host timeout cannot
   extend the macOS system pairing alert (about 30 seconds observed).
@@ -240,10 +242,11 @@ thin:
 - **LEDs are opt-in, but a clean first install auto-enables USB when a board is already
   plugged in** (`maybe_autoenable_led` in main.rs, called from `install_hooks`). It's gated
   on there being no `config.json` yet, so re-running install — or an existing user — never
-  has the LEDs flipped back on against a deliberate opt-out. Otherwise the daemon never
-  opens a transport until `led_enabled` is set — from the tray popover's Lamp details
-  enable/disable control (macOS/Windows) or `l` in the TUI. BLE must be explicitly
-  selected; UI rendering never initializes Bluetooth. USB VID `0x303A` identifies Espressif,
+  has the LEDs flipped back on against a deliberate opt-out. The daemon mirrors status
+  only while `led_enabled` is set — from Lamp details or TUI `l`.
+  On macOS, the tray also identifies new USB candidates while mirroring is disabled
+  and enables successfully added new lamps over BLE. Rendering stays read-only.
+  USB VID `0x303A` identifies Espressif,
   not an exact board model: identify the actual hardware before flashing or issuing
   serial commands. Preserve the existing USB default and explicit-port behavior.
 - **The popover footer shows lamp connection status** (`renderLamp` in assets/popover.html,
@@ -252,8 +255,8 @@ thin:
   with Back/Escape returning to sessions. The TUI uses `d` for lamp details,
   arrows or `j`/`k` to scroll, and Escape to return. Both main session views keep
   status compact; full worker status and per-device diagnostics live in details.
-  Advertisement or USB presence never means connected. USB presence only controls
-  whether enabling USB is offered. BLE targets persist
+  Advertisement or USB presence never means connected. USB presence offers USB
+  enabling and triggers macOS setup of a new lamp. BLE targets persist
   across restarts and enable without USB. A healthy `1/2` is normal for home/office
   lamps: one successful recent write makes the aggregate connected, with explicit
   per-device states/count. Expiry is per device; another lamp cannot refresh it.
