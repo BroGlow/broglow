@@ -5,7 +5,7 @@
 Follow the standalone product scope in [AGENTS.md](AGENTS.md).
 
 For installation from a package or source, connecting a board, and checking a
-running Mac service, start with the [agent runbook](docs/hardware-setup.md#agent-runbook).
+running Mac service, start with the [agent runbook](site/guide/en/hardware.md#agent-runbook).
 
 A single Rust binary that monitors [Claude Code](https://claude.ai/code) sessions
 in real time. It ships three faces of the same executable:
@@ -19,7 +19,7 @@ in real time. It ships three faces of the same executable:
 Optionally mirrors aggregate state over USB serial, or from macOS over BLE to the
 ESP32-C3 SuperMini firmware in this repository. For hardware changes, flashing,
 Bluetooth setup, deployment, and acceptance results, read
-[docs/hardware-setup.md](docs/hardware-setup.md).
+[site/guide/en/hardware.md](site/guide/en/hardware.md).
 
 Cross-platform: macOS, Windows, Linux. MIT licensed.
 

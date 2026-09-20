@@ -6,8 +6,8 @@
 *.swo
 .idea
 
-# Local-only release runbook (not published with the CLI)
-/docs/RELEASE.md
+# The public source of truth lives in site/guide/; do not recreate legacy docs/.
+/docs/
 
 # Companion firmware and local Python environments/caches
 .pio/
@@ -43,5 +43,3 @@ __pycache__/
 /[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]/[cC][lL][aA][wW][lL][iI][gG][hH][tT]/[sS][tT][oO][rR][eE]-[pP][hH][oO][tT][oO].[jJ][pP][gG]
 /[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]/[cC][lL][aA][wW][lL][iI][gG][hH][tT]/[pP][rR][oO][dD][uU][cC][tT]-[pP][hH][oO][tT][oO].[jJ][pP][gG]
 /[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]/[cC][lL][aA][wW][lL][iI][gG][hH][tT]/[aA][rR]-[rR][eE][fF][eE][rR][eE][nN][cC][eE]-[vV][iI][eE][wW][sS].[pP][nN][gG]
-/[dD][oO][cC][sS]/[sS][cC][rR][eE][eE][nN][sS][hH][oO][tT][sS]/[oO][pP][eE][nN][cC][oO][dD][eE]-[tT][uU][iI].[pP][nN][gG]
-/[dD][oO][cC][sS]/[sS][cC][rR][eE][eE][nN][sS][hH][oO][tT][sS]/[oO][pP][eE][nN][cC][oO][dD][eE]-[pP][oO][pP][oO][vV][eE][rR].[pP][nN][gG]

@@ -35,22 +35,22 @@ The lamp still needs power and is designed for DIY assembly.
 
 ## Start here
 
-- **Install or update:** [setup manual](docs/hardware-setup.md#install-or-update-the-mac-service).
-- **Connect a flashed lamp:** [USB-assisted setup](docs/hardware-setup.md#usb-assisted-setup).
-- **Build/wire a C3:** [hardware guide](docs/hardware-setup.md#wiring-and-resistor-choice).
+- **Install or update:** [setup manual](site/guide/en/hardware.md#install-or-update-the-mac-service).
+- **Connect a flashed lamp:** [USB-assisted setup](site/guide/en/hardware.md#usb-assisted-setup).
+- **Build/wire a C3:** [hardware guide](site/guide/en/hardware.md#wiring-and-resistor-choice).
 - **Print the optional enclosure:** [printing and assembly](models/broglow/PRINT_GUIDE.en.md).
 
 Mac packages include the app, C3 firmware and manuals; Windows archives include
 **the graphical tray app and CLI**, and Linux builds from source. Windows packages
 support USB lamp control but include no installer, firmware or manuals. BLE control is macOS-only.
-Apple Silicon has been tested locally; see [verification limits](docs/hardware-setup.md#repeatable-checks-and-results)
+Apple Silicon has been tested locally; see [verification limits](site/guide/en/hardware.md#repeatable-checks-and-results)
 for other machines. The enclosure is a separate 1.0.0 release-candidate download.
 
 ## Install
 
 Download the full Mac package for your architecture and its matching `.sha256`
 file from **this repository's Releases**. Follow the [checksum and installation
-steps](docs/hardware-setup.md#install-a-prebuilt-package). Builds are not Developer
+steps](site/guide/en/hardware.md#install-a-prebuilt-package). Builds are not Developer
 ID notarized; the manual describes macOS's normal per-app approval flow.
 
 On Windows, extract the Windows archive from Releases into a permanent folder.
@@ -84,7 +84,7 @@ may need a restart.
 | --- | --- |
 | Claude Code | Hooks in `~/.claude/settings.json`. |
 | opencode | Installed plugin; restart running sessions. |
-| Codex | Codex >= 0.144; review hooks via `/hooks`. [Local desktop-task setup](docs/hardware-setup.md#connect-local-codex-sessions). |
+| Codex | Codex >= 0.144; review hooks via `/hooks`. [Local desktop-task setup](site/guide/en/hardware.md#connect-local-codex-sessions). |
 | GitHub Copilot CLI | Installed hooks; restart sessions open during installation. |
 
 Cloud tasks and ordinary ChatGPT conversations do not emit this Mac's local hooks.
@@ -106,7 +106,7 @@ broglow uninstall          Remove hooks, autostart and BroGlow settings
 
 The app starts at login. Needs input takes color priority; Settings controls
 whether mixed working/idle sessions show yellow or green. See the
-[manual](docs/hardware-setup.md) for firmware, pairing and troubleshooting.
+[manual](site/guide/en/hardware.md) for firmware, pairing and troubleshooting.
 
 ## Contributing
 
@@ -115,5 +115,5 @@ See the [contributing guide](CONTRIBUTING.md) to get started.
 
 ## License
 
-[MIT](LICENSE). Packages include dependency notices. See the [media policy](docs/media.md)
+[MIT](LICENSE). Packages include dependency notices. See the [media policy](site/guide/en/media.md)
 for project images.

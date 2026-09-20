@@ -7,7 +7,7 @@ version, steps to reproduce and the expected result. For changes, describe what
 changed and how you checked it.
 
 These instructions apply to a source checkout. To install or use the app, start
-with the [README](README.md) and [setup manual](docs/hardware-setup.md).
+with the [README](README.md) and [setup manual](site/guide/en/hardware.md).
 
 ## Development setup
 
@@ -70,7 +70,7 @@ The [CI workflow](.github/workflows/ci.yaml) has the complete firmware, packagin
 and platform checks; run the checks relevant to your change.
 
 For a local app update and live service checks, follow the
-[source installation procedure](docs/hardware-setup.md#install-or-update-the-mac-service).
+[source installation procedure](site/guide/en/hardware.md#install-or-update-the-mac-service).
 A successful build alone does not verify Bluetooth permissions or physical LEDs.
 
 ## Documentation and generated files
@@ -86,10 +86,10 @@ for translation checks, local and Pages builds, and link checks.
 Keep generated STL, STEP/STP and ZIP files ignored and untracked, regardless of
 filename case. Generate enclosure deliverables under `dist/enclosure/` and verify
 their paths with `git check-ignore`. Commit editable sources and reviewed evidence.
-Use our own images and follow the [media policy](docs/media.md).
+Use our own images and follow the [media policy](site/guide/en/media.md).
 
 ## Releases and website publishing
 
-Follow the [maintainer runbook](docs/releasing.md) for release preparation,
+Follow the [maintainer runbook](site/guide/en/releasing.md) for release preparation,
 enclosure generation, packaging and publication, and the
 [website runbook](site/README.md#publish-to-github-pages) for Pages deployment.

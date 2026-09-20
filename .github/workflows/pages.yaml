@@ -6,7 +6,6 @@ on:
       - master
     paths:
       - 'site/**'
-      - 'docs/**'
       - 'README*.md'
       - 'CONTRIBUTING*.md'
       - 'AGENTS*.md'
@@ -22,7 +21,6 @@ on:
   pull_request:
     paths:
       - 'site/**'
-      - 'docs/**'
       - 'README*.md'
       - 'CONTRIBUTING*.md'
       - 'AGENTS*.md'

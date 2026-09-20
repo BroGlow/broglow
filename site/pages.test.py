@@ -210,15 +210,14 @@ with TemporaryDirectory() as temporary:
     assert renderer.toc_tokens[0]["name"] == "Переведённый раздел"
     assert '<a name="code-example"></a>' in unescape(rendered)
     assert "## Literal example" in rendered and "{ #code-example }" not in rendered
-master = (SITE.parent / "docs/hardware-setup.md").read_text()
+master = (SITE / "guide/en/hardware.md").read_text()
 for section, expected in (
     ("lamp-wiring", "GPIO3"),
     ("path-check", "command -v broglow"),
     ("path-setup", "export PATH="),
 ):
     for locale in ("en", "ru"):
-        suffix = ".ru" if locale == "ru" else ""
-        directive = f'--8<-- "docs/hardware-setup{suffix}.md:{section}"'
+        directive = f'--8<-- "site/guide/{locale}/hardware.md:{section}"'
         rendered = markdown.markdown(
             directive,
             extensions=config.markdown_extensions,
@@ -243,7 +242,7 @@ with TemporaryDirectory() as temporary:
         assert f"{value} Ω ── green" in rendered
 
 page = SimpleNamespace(file=SimpleNamespace(src_uri="en/hardware.md"))
-sample = '<a href="../firmware/esp32-c3-supermini/">Firmware</a><img src="../assets/icons/broglow-red.png" alt="Red status lamp"><h2 id="camera-2026"></h2><a href="#camera--2026">Check</a>'
+sample = '<a href="../../../firmware/esp32-c3-supermini/">Firmware</a><img src="../../../assets/icons/broglow-red.png" alt="Red status lamp"><h2 id="camera-2026"></h2><a href="#camera--2026">Check</a>'
 local = on_page_content(sample, page=page, config=SimpleNamespace(repo_url=None))
 public = on_page_content(
     sample,
@@ -253,19 +252,18 @@ public = on_page_content(
 assert 'href="../' not in local and "firmware/esp32-c3-supermini" in local
 assert "https://github.com/example/lamp/tree/HEAD/firmware/esp32-c3-supermini" in public
 assert "data:image/png;base64," in local and 'href="#camera-2026"' in public
-for locale, suffix in (("en", ""), ("ru", ".ru")):
+for locale in ("en", "ru"):
     page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/hardware.md"))
-    other = "" if suffix else ".ru"
     sample = (
-        f'<a href="firmware-reference{suffix}.md#commands">Firmware</a>'
-        f'<a href="hardware-setup{other}.md#wiring-and-resistor-choice">Language</a>'
+        '<a href="firmware.md#commands">Firmware</a>'
+        f'<a href="../{"en" if locale == "ru" else "ru"}/hardware.md#wiring-and-resistor-choice">Language</a>'
     )
     for repo in (None, "https://github.com/example/lamp"):
         result = on_page_content(
             sample, page=page, config=SimpleNamespace(repo_url=repo)
         )
         assert 'href="../firmware/#commands"' in result
-        expected = "../../hardware/" if suffix else "../ru/hardware/"
+        expected = "../../hardware/" if locale == "ru" else "../ru/hardware/"
         assert f'href="{expected}#wiring-and-resistor-choice"' in result
         resolved = '<a href="../media/">Images</a>'
         assert (

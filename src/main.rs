@@ -312,7 +312,7 @@ fn install_hooks() -> anyhow::Result<()> {
     );
     println!("Run `broglow` to launch the TUI dashboard.");
     if !lamp_enabled {
-        println!("Optional: enable a USB lamp with `l`, or use `broglow ble scan` to select a BLE lamp. See docs/hardware-setup.md.");
+        println!("Optional: enable a USB lamp with `l`, or use `broglow ble scan` to select a BLE lamp. See site/guide/en/hardware.md.");
     }
     Ok(())
 }

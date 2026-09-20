@@ -30,7 +30,7 @@ See the [detailed troubleshooting steps](hardware.md#troubleshooting-and-service
 Want a hand? Open the project or unpacked package in your coding agent and paste this prompt.
 
 ```text
-Help me find out why my BroGlow stays dark using docs/hardware-setup.md in this project or
+Help me find out why my BroGlow stays dark using site/guide/en/hardware.md in this project or
 package. Start with agent sessions, hooks, the background service, Bluetooth status, and
 the intended lamp's saved brightness (0% is intentionally dark). Check its row's brightness
 preview or Identify (three red/yellow/green passes); if firmware lacks the scan mode,

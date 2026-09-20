@@ -9,7 +9,7 @@ separate application with fresh identities and state; do not add legacy aliases,
 migrations or old-key fallbacks. Protect unrelated user settings and hooks.
 
 For **installation, updates, connecting a lamp, or checking the Mac service**, read
-[the agent runbook](docs/hardware-setup.md#agent-runbook) first. It routes to the
+[the agent runbook](site/guide/en/hardware.md#agent-runbook) first. It routes to the
 prebuilt package, source build, USB pairing, and service validation procedures.
 Use that guide as the single source of operating commands and completion criteria.
 
@@ -28,17 +28,17 @@ renders, dimension diagrams and render recipes. Keep selected app/site assets an
 reviewed validation data in Git. Generate release diagrams under `dist/enclosure/`.
 
 For **enclosure generation, release packaging, distribution, or website publication**,
-follow [the release runbook](docs/releasing.md) and its manual/agent generation
+follow [the release runbook](site/guide/en/releasing.md) and its manual/agent generation
 procedure. Generate enclosure deliverables under ignored `dist/enclosure/`.
 GitHub source archives contain sources and instructions; ready-to-print files
 come from the separate enclosure release download.
 
 For **images, screenshots, or other media**, use only our own assets and follow
-[the media policy and photo checklist](docs/media.md). Label CAD renders accurately
+[the media policy and photo checklist](site/guide/en/media.md). Label CAD renders accurately
 and use current source instead of old packages.
 
 For **backups or test evidence**, use the ignored `.recovery/` directory and follow
-the [local recovery policy](docs/hardware-setup.md#local-recovery-files).
+the [local recovery policy](site/guide/en/hardware.md#local-recovery-files).
 
 A prebuilt package has `BUILD.json` and `bin/broglow`; a source checkout has
 `Cargo.toml` and `src/`. Select the matching installation path. A request to install

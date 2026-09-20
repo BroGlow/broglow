@@ -12,14 +12,13 @@ RETIRED_MEDIA = {
     "references/clawlight/store-photo.jpg",
     "references/clawlight/product-photo.jpg",
     "references/clawlight/ar-reference-views.png",
-    "docs/screenshots/opencode-tui.png",
-    "docs/screenshots/opencode-popover.png",
 }
 
 
 def is_generated(path):
     return bool(
-        path.lower() in RETIRED_MEDIA
+        path.lower().startswith("docs/")
+        or path.lower() in RETIRED_MEDIA
         or re.search(r"\.(zip|stl|step|stp)$", path, re.I)
         or path.lower().startswith("models/broglow/preview/")
         or re.fullmatch(
@@ -41,11 +40,11 @@ def main():
     forbidden = [p for p in paths if is_generated(p)]
     if forbidden:
         raise SystemExit(
-            "Generated files and retired media must stay outside Git; use dist/enclosure/ for exports:\n"
+            "Top-level docs, generated files and retired media must stay outside Git; use site/guide/ for documentation and dist/enclosure/ for exports:\n"
             + "\n".join(forbidden)
         )
     print(
-        "No generated STL, STEP/STP, ZIP, CAD previews, disposable JSON or retired media are tracked."
+        "No top-level docs, generated STL, STEP/STP, ZIP, CAD previews, disposable JSON or retired media are tracked."
     )
 
 

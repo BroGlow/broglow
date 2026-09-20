@@ -102,8 +102,6 @@ with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
         "references/clawlight/store-photo.jpg",
         "references/clawlight/product-photo.JPG",
         "references/clawlight/ar-reference-views.png",
-        "docs/screenshots/opencode-tui.png",
-        "docs/screenshots/opencode-popover.png",
     ]
     retired = [
         "retired/old.ZIP",
@@ -122,6 +120,7 @@ with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
         "models/broglow/preview/cover-chamfers-snapshot-job.json",
         "models/broglow/preview/flat-floor-snapshot-job.json",
         "models/broglow/preview/TIGHT-USB-SNAPSHOT-JOB.JSON",
+        "docs/reintroduced.md",
     ] + retired_media
     preserved = [
         "models/broglow/parts.json",
@@ -149,7 +148,7 @@ with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
         "site/vendor/model-viewer-LICENSE",
         "site/vendor/qrcode-generator-2.0.4.js",
         "references/clawlight/new-photo.jpg",
-        "docs/screenshots/new-screen.png",
+        "site/assets/screenshots/new-screen.png",
         "site/guide/assets/favicon.svg",
         "config.json",
         "tests/fixtures/cad-inspection.json",

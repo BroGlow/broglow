@@ -36,7 +36,7 @@ BroGlow — это приложение, прошивка ESP32-C3 и корпу
 Схема для ESP32-C3 SuperMini: используйте выводы со стороны GND, пропустив
 GPIO2 — он участвует в выборе режима загрузки.
 
---8<-- "docs/hardware-setup.ru.md:lamp-wiring"
+--8<-- "site/guide/ru/hardware.md:lamp-wiring"
 
 Эти номиналы выравнивают яркость светодиодов текущей лампы. Для других светодиодов
 смотрите [рекомендации по резисторам](hardware.md#wiring-and-resistor-choice).

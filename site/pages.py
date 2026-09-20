@@ -19,18 +19,22 @@ from mkdocs.config import load_config
 
 SITE = Path(__file__).resolve().parent
 REFERENCE_SOURCES = {
-    "hardware.md": ("docs/hardware-setup.md", "docs/hardware-setup.ru.md"),
-    "firmware.md": ("docs/firmware-reference.md", "docs/firmware-reference.ru.md"),
-    "releasing.md": ("docs/releasing.md", "docs/releasing.ru.md"),
-    "media.md": ("docs/media.md", "docs/media.ru.md"),
-    "enclosure.md": (
-        "docs/enclosure-modeling-brief.md",
-        "docs/enclosure-modeling-brief.ru.md",
-    ),
     "printing.md": (
         "models/broglow/PRINT_GUIDE.en.md",
         "models/broglow/PRINT_GUIDE.md",
     ),
+}
+SELF_CONTAINED_REFERENCES = {
+    "hardware.md",
+    "firmware.md",
+    "releasing.md",
+    "media.md",
+    "enclosure.md",
+}
+GUIDE_ROUTES = {
+    ("" if locale == "en" else "ru/") + path.stem
+    for locale in ("en", "ru")
+    for path in (SITE / "guide" / locale).glob("*.md")
 }
 
 
@@ -64,12 +68,16 @@ def on_config(config, **kwargs):
 
 
 def on_page_content(html, *, page, config, **kwargs):
-    """Keep the included manual's repository links and icons valid on the website."""
+    """Keep reference-page repository links and icons valid on the website."""
     name = page.file.src_uri.rsplit("/", 1)[-1]
-    if name not in REFERENCE_SOURCES:
+    if name not in REFERENCE_SOURCES and name not in SELF_CONTAINED_REFERENCES:
         return html
     ru = page.file.src_uri.startswith("ru/")
-    source = SITE.parent / REFERENCE_SOURCES[name][ru]
+    source = (
+        SITE.parent / REFERENCE_SOURCES[name][ru]
+        if name in REFERENCE_SOURCES
+        else SITE / "guide" / page.file.src_uri
+    )
     current = ("ru/" if ru else "") + name.removesuffix(".md")
     model = SITE.parent / "models/broglow"
     generated = {
@@ -94,11 +102,7 @@ def on_page_content(html, *, page, config, **kwargs):
         path = (source.parent / unquote(parsed.path)).resolve()
         # MkDocs has already resolved links whose filenames match a guide page.
         route = posixpath.normpath(posixpath.join(current, unquote(parsed.path)))
-        if not path.exists() and route in {
-            prefix + name.removesuffix(".md")
-            for name in REFERENCE_SOURCES
-            for prefix in ("", "ru/")
-        }:
+        if not path.exists() and route in GUIDE_ROUTES:
             return None
         if not path.is_relative_to(SITE.parent) or not (
             path.exists() or allow_generated and path in generated
@@ -142,6 +146,13 @@ def on_page_content(html, *, page, config, **kwargs):
                 if fragment:
                     target += "#" + quote(fragment)
                 return f'<a href="{escape(target, quote=True)}"{attributes}>{label}</a>'
+        if path.is_relative_to(SITE / "guide") and path.suffix == ".md":
+            target = path.relative_to(SITE / "guide").with_suffix("").as_posix()
+            target = target.removeprefix("en/")
+            target = posixpath.relpath(target, current) + "/"
+            if fragment:
+                target += "#" + quote(fragment)
+            return f'<a href="{escape(target, quote=True)}"{attributes}>{label}</a>'
         if not config.repo_url:
             return f"{label} (<code>{escape(relative)}</code>)"
         kind = "tree" if path.is_dir() else "blob"

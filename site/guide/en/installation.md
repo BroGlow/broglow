@@ -23,7 +23,7 @@ request. Keep the package's checksum file nearby. Prefer manual setup? Follow th
 [installation steps](hardware.md#install-or-update-the-mac-service).
 
 ```text
-Set up BroGlow following the Agent runbook in docs/hardware-setup.md.
+Set up BroGlow following the Agent runbook in site/guide/en/hardware.md.
 Choose the package or source path, verify checksums for a package, and back up settings
 in .recovery/. Preserve hooks, lamp names, brightness and bonds; keep one tray service.
 Verify the board is an ESP32-C3 SuperMini before hardware commands; flash only if needed.
@@ -48,12 +48,12 @@ It starts at login; the plain `broglow` command opens the terminal dashboard.
 BroGlow installs to `~/.cargo/bin/broglow`; prebuilt installs do not need Cargo.
 In a fresh terminal outside the project, check:
 
---8<-- "docs/hardware-setup.md:path-check"
+--8<-- "site/guide/en/hardware.md:path-check"
 
 If the first result is not `~/.cargo/bin/broglow`, add this line **once** to
 `~/.zshrc` (default macOS shell), preserving existing settings:
 
---8<-- "docs/hardware-setup.md:path-setup"
+--8<-- "site/guide/en/hardware.md:path-setup"
 
 Open a new terminal and repeat the checks. Avoid duplicates if Rust already configured
 `~/.cargo/env`; use the matching startup file for other shells. `broglow install`

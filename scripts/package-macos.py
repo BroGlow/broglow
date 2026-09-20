@@ -252,22 +252,23 @@ def main():
         )
         for filename in (
             "README.md",
+            "README.ru.md",
             "CONTRIBUTING.md",
+            "CONTRIBUTING.ru.md",
             "LICENSE",
             "CLAUDE.md",
+            "CLAUDE.ru.md",
             "AGENTS.md",
-            "docs/hardware-setup.md",
-            "docs/firmware-reference.md",
-            "docs/releasing.md",
-            "docs/media.md",
+            "AGENTS.ru.md",
+            "site/guide/en/hardware.md",
+            "site/guide/ru/hardware.md",
+            "site/guide/en/firmware.md",
+            "site/guide/ru/firmware.md",
         ):
-            translations = [Path(filename)]
-            if filename.endswith(".md"):
-                translations.append(Path(filename).with_suffix(".ru.md"))
-            for doc in translations:
-                destination = package / doc
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(ROOT / doc, destination)
+            doc = Path(filename)
+            destination = package / doc
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / doc, destination)
         shutil.copytree(ROOT / "assets/icons", package / "assets/icons")
         provenance = {
             "packaged_at_utc": now.isoformat(),
@@ -300,7 +301,7 @@ def main():
     )
     print(archive)
     print(
-        "Contains existing native builds only. Read docs/hardware-setup.md before installation or flashing."
+        "Contains existing native builds only. Read site/guide/en/hardware.md before installation or flashing."
     )
 
 

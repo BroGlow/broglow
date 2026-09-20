@@ -1,6 +1,3 @@
 # Source archives include the app, firmware and editable enclosure sources.
-# Retired reference directories and historical handoffs stay out of archives;
-# these exclusions do not change old Git history.
+# Retired reference directories stay out of archives.
 /references export-ignore
-/docs/ble-implementation-handoff*.md export-ignore
-/docs/start-ble-implementation*.md export-ignore

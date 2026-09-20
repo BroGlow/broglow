@@ -36,7 +36,7 @@ All cathodes (−) go to GND; do not connect the LEDs to 5V.
 Wiring for ESP32-C3 SuperMini: use the pads on the GND side and skip
 GPIO2, a boot-strapping pin.
 
---8<-- "docs/hardware-setup.md:lamp-wiring"
+--8<-- "site/guide/en/hardware.md:lamp-wiring"
 
 These values balance the LEDs on the current lamp. For other LEDs, follow the
 [resistor guidance](hardware.md#wiring-and-resistor-choice).

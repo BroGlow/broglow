@@ -16,8 +16,8 @@ Edit Markdown sources; never edit or commit generated HTML.
 | Installation, agent prompt and Bluetooth | `guide/en/installation.md` | `guide/ru/installation.md` |
 | Codex integration | `guide/en/codex.md` | `guide/ru/codex.md` |
 | Troubleshooting and agent prompt | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
-| Hardware reference | `../docs/hardware-setup.md` | `../docs/hardware-setup.ru.md` |
-| Firmware, releases, images, enclosure design | `../docs/NAME.md` | `../docs/NAME.ru.md` |
+| Hardware reference | `guide/en/hardware.md` | `guide/ru/hardware.md` |
+| Firmware, releases, images, enclosure design | `guide/en/NAME.md` | `guide/ru/NAME.md` |
 | Printing and assembly | `../models/broglow/PRINT_GUIDE.en.md` | `../models/broglow/PRINT_GUIDE.md` |
 
 To add a page, create matching filenames in both language folders and update
@@ -26,16 +26,15 @@ copyable agent prompts.
 
 ## Keep the instructions in sync
 
-The full manuals in `docs/` and the print guides are included in their matching
-website routes through PyMdown Snippets. Edit those sources once. Quick guides
-also include named manual sections, for example:
+The complete public manuals live directly under `guide/en/` and `guide/ru/`.
+Quick guides include named sections from the local hardware pages, for example:
 
 ```text
---8<-- "docs/hardware-setup.ru.md:lamp-wiring"
+--8<-- "site/guide/ru/hardware.md:lamp-wiring"
 ```
 
 Keep the `start:` / `end:` markers for `lamp-wiring`, `path-check` and `path-setup`
-in both hardware manuals. Keep commands, GPIOs, resistor values, protocol fields
+in both hardware pages. Keep commands, GPIOs, resistor values, protocol fields
 and explicit heading IDs equivalent across translations.
 
 Every authored project document needs an EN/RU counterpart; dependency licenses
@@ -164,7 +163,7 @@ archive `dist/enclosure/broglow-enclosure-vVERSION.zip`, each with a sibling
 `.sha256`. Without archives, they offer source instructions. Public builds link
 to Releases and the source ZIP. GitHub's automatic source ZIP contains editable
 source and instructions, without STL, STEP/STP or ready-to-print ZIPs; use the
-enclosure release asset or [generate it from source](../docs/releasing.md).
+enclosure release asset or [generate it from source](guide/en/releasing.md).
 Previews neither rebuild nor copy archives; inspect a package's `BUILD.json` for
 its architecture, date and source.
 
@@ -174,13 +173,13 @@ builds use the enclosure archive above, or the generation instructions when it
 is absent. The original member path stays visible for use after extraction;
 Markdown links inside the extracted package remain relative. Unknown or missing
 source links still fail the build. Keep the manual and agent generation procedures
-in the [release runbook](../docs/releasing.md) aligned with the release workflow.
+in the [release runbook](guide/en/releasing.md) aligned with the release workflow.
 
 USB Mac power is supported; a power adapter and enclosure are optional. Supplied
 firmware targets ESP32-C3 SuperMini only. `connected` means the service wrote to
 the lamp, not that LEDs or Codex hooks were verified. Desktop delivery needs a real
 local task; cloud/remote tasks and ordinary ChatGPT chats do not drive the service.
-Use the [hardware acceptance results](../docs/hardware-setup.md#physical-and-background-service-acceptance)
+Use the [hardware acceptance results](guide/en/hardware.md#physical-and-background-service-acceptance)
 for physical and service checks. Final enclosure assembly testing remains pending;
 website checks and renders do not establish physical fit.
 
@@ -190,12 +189,12 @@ Our asset sources:
 - `assets/assembly.glb`: separated assembly from `models/broglow/exploded.py`; source hashes and bounds are recorded in `assets/assembly-model.json`. Regenerate with `--exploded` when its CAD source changes.
 - `guide/assets/favicon.svg`: our three-circle lamp artwork, also used by the landing favicon. Tray icons come from `assets/icons/` in the repository root.
 
-Follow the [media policy and photo checklist](../docs/media.md). Keep render/photo
+Follow the [media policy and photo checklist](guide/en/media.md). Keep render/photo
 labels accurate and theme/library license notices intact.
 
 ## Publish to GitHub Pages
 
-1. Follow the [release runbook](../docs/releasing.md) and push the intended sources,
+1. Follow the [release runbook](guide/en/releasing.md) and push the intended sources,
    including CAD, to your repository's default branch.
 2. Select **Settings → Pages → Build and deployment → Source → GitHub Actions**.
 3. Run **Actions → Website → Run workflow** on the default branch.
@@ -204,7 +203,7 @@ labels accurate and theme/library license notices intact.
 
 The [Website workflow](../.github/workflows/pages.yaml) publishes the landing at
 `https://OWNER.github.io/REPOSITORY/` and guides at `docs/` and `docs/ru/`.
-Site/docs changes on `master` deploy automatically; adjust `push.branches` for another
+Site guide changes on `master` deploy automatically; adjust `push.branches` for another
 default branch. PRs check without deploying. Configure custom domains in Pages
 settings; relative paths support both domain roots and repository prefixes.
 
@@ -213,7 +212,7 @@ settings; relative paths support both domain roots and repository prefixes.
 Public downloads use this repository's Releases with a source-build fallback.
 Publish full Mac/C3 bundles and the separate enclosure ZIP with matching checksums;
 Windows bundles include the graphical tray app and CLI but omit the installer,
-firmware and manuals. See the [release runbook](../docs/releasing.md)
+firmware and manuals. See the [release runbook](guide/en/releasing.md)
 for filenames, checks and publication steps. Preserve archive names and state
 pending physical checks in release notes. Building the website does not publish
 an app release.
