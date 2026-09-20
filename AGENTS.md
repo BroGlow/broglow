@@ -14,8 +14,7 @@ prebuilt package, source build, USB pairing, and service validation procedures.
 Use that guide as the single source of operating commands and completion criteria.
 
 For **source changes, builds, or tests**, also read [CLAUDE.md](CLAUDE.md). Work from
-this repository's root; the parent directory is a separate workspace. Preserve
-existing user changes and Git history.
+this repository's root. Preserve existing user changes and Git history.
 
 **Generated artifacts — applies to every change:** Keep STL, STEP/STP and ZIP
 files untracked and ignored everywhere, regardless of filename case. Preserve
