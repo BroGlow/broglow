@@ -23,6 +23,19 @@ assert package.macho_build_info(
 ) == {"minos": "11.0", "sdk": "26.2"}
 assert package.macho_build_info("Load command 0\n cmd LC_MAIN\n") == {}
 
+with tempfile.TemporaryDirectory(prefix="broglow-flash-package-") as folder:
+    destination = Path(folder)
+    package.copy_flash_tool(destination)
+    copied = sorted(
+        str(path.relative_to(destination))
+        for path in destination.rglob("*")
+        if path.is_file()
+    )
+    expected = sorted(
+        str(path.relative_to(package.ROOT)) for path in package.flash_tool_sources()
+    )
+    assert copied == expected
+
 
 def rejected(tag, message):
     try:

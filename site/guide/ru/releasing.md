@@ -40,7 +40,9 @@ Git. Сайт использует нашу 3D/AR-модель, полученн
 
 ## Версия Python
 
-Релизы, CI прошивки и Pages используют **Python 3.14**; сборки прошивки используют **PlatformIO Core 6.2.0**. Прежняя фиксация на
+Релизы, CI прошивки и Pages используют **Python 3.14**. Корневые инструменты Python
+и прошивки берутся из `pyproject.toml` + `uv.lock`; сборки прошивки используют
+**PlatformIO Core 6.2.0** и esptool **5.4.0**. Прежняя фиксация на
 3.12 была осторожным выбором для сборок, а не ограничением PlatformIO:
 PlatformIO Core 6.1.19 явно [добавила поддержку Python 3.14](https://docs.platformio.org/en/latest/core/history.html).
 В свежем окружении Python 3.14.6 на этом Mac с Apple Silicon прошли обе сборки
@@ -91,7 +93,7 @@ C3, проверки прошивки на компьютере, clang-format 23
 
 ```bash
 git tag v1.0.0
-python3 scripts/package-macos.py --release-tag v1.0.0 --check-only
+uv run --frozen python scripts/package-macos.py --release-tag v1.0.0 --check-only
 git push YOUR_REMOTE HEAD
 git push YOUR_REMOTE v1.0.0
 ```
@@ -180,8 +182,8 @@ checkout с соответствующим тегом:
 
 ```bash
 cargo build --release --locked
-pio run -d firmware/esp32-c3-supermini -e esp32-c3-supermini
-python3 scripts/package-macos.py
+uv run --frozen flash --build-only
+uv run --frozen python scripts/package-macos.py
 ```
 
 Получатся архив с меткой времени и `.sha256` в игнорируемом каталоге `dist/`.

@@ -21,32 +21,30 @@ sudo apt-get install -y --no-install-recommends \
   libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libudev-dev
 ```
 
-Python 3.14 matches CI. Install the pinned development tools and enable the
-commit hook:
+Python 3.14 matches CI. Install [uv](https://docs.astral.sh/uv/getting-started/installation/),
+sync the locked development tools and enable the commit hook:
 
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r requirements-dev.txt
-prek install
+uv sync --frozen --group dev
+uv run --frozen --group dev prek install
 ```
 
-On Windows PowerShell, activate the environment with `.venv\Scripts\Activate.ps1`.
-The development requirements pin Black and prek; the hooks use the native
+The development group in `pyproject.toml` pins Black, clang-format and prek;
+`uv.lock` fixes their transitive dependencies. Hooks use the native
 [`prek.toml`](prek.toml) configuration.
 
 ## Formatting and hooks
 
 ```bash
 cargo fmt
-black .
-prek run --all-files
+uv run --frozen --group dev black .
+uv run --frozen --group dev prek run --all-files
 ```
 
 Black uses its default style for all Python files. The prek hook formats staged
 Python files; stage any formatting changes before committing again. CI runs
-`black --check --diff .` and fails if formatting is needed. Keep Black's version
-in `requirements-dev.txt` and `prek.toml` in sync.
+`uv run --frozen --group dev black --check --diff .` and fails if formatting is
+needed. Keep Black's version in `pyproject.toml` and `prek.toml` in sync.
 
 Firmware uses clang-format 23.1.1 with the repository's Google-style configuration.
 YAML sequences use block style: one item per line, including workflow `needs`
@@ -59,8 +57,10 @@ cargo build --locked
 cargo fmt --check
 cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
-black --check --diff .
-python3 scripts/check-generated-artifacts.py
+uv run --frozen --group dev black --check --diff .
+uv run --frozen python -m unittest discover -s tests -p 'test_flash.py'
+uv run --frozen flash --build-only
+uv run --frozen python scripts/check-generated-artifacts.py
 ```
 
 Rust tests include end-to-end checks of the compiled binary. For agent-integration

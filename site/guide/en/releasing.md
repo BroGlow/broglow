@@ -33,8 +33,9 @@ no Homebrew or crates.io publishing workflow.
 
 ## Python version
 
-Release, firmware CI and Pages use **Python 3.14**; firmware builds use
-**PlatformIO Core 6.2.0**. The former 3.12 pin was a
+Release, firmware CI and Pages use **Python 3.14**. Root Python and firmware tools
+come from `pyproject.toml` + `uv.lock`; firmware builds use **PlatformIO Core 6.2.0**
+and esptool **5.4.0**. The former 3.12 pin was a
 conservative build choice, not a PlatformIO limitation: PlatformIO Core
 6.1.19 explicitly [added Python 3.14 support](https://docs.platformio.org/en/latest/core/history.html).
 A fresh Python 3.14.6 environment passed both C3 builds, firmware host checks,
@@ -78,7 +79,7 @@ After reviewing the commit and destination, tag and push explicitly. Replace
 
 ```bash
 git tag v1.0.0
-python3 scripts/package-macos.py --release-tag v1.0.0 --check-only
+uv run --frozen python scripts/package-macos.py --release-tag v1.0.0 --check-only
 git push YOUR_REMOTE HEAD
 git push YOUR_REMOTE v1.0.0
 ```
@@ -156,8 +157,8 @@ On the native Mac, build the app and production C3 image first:
 
 ```bash
 cargo build --release --locked
-pio run -d firmware/esp32-c3-supermini -e esp32-c3-supermini
-python3 scripts/package-macos.py
+uv run --frozen flash --build-only
+uv run --frozen python scripts/package-macos.py
 ```
 
 This produces a timestamped archive and `.sha256` under ignored `dist/`.

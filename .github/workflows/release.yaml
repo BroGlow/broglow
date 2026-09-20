@@ -17,11 +17,15 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.14'
-      - run: python tests/package_macos.py
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: '0.12.17'
+      - run: uv sync --frozen
+      - run: uv run --frozen python tests/package_macos.py
       - name: Check release version and source
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: python scripts/package-macos.py --release-tag "$RELEASE_TAG" --check-only
+        run: uv run --frozen python scripts/package-macos.py --release-tag "$RELEASE_TAG" --check-only
       - name: Install pinned CAD toolchain
         run: python -m pip install -r models/broglow/requirements.txt
       - name: Generate, validate and package the enclosure
@@ -63,15 +67,18 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.14'
-      - run: python -m pip install platformio==6.2.0
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: '0.12.17'
+      - run: uv sync --frozen
       - name: Build native Mac app and C3 firmware
         run: |
           cargo build --release --locked
-          pio run -d firmware/esp32-c3-supermini
+          uv run --frozen flash --build-only
       - name: Package app, firmware and manual
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: python scripts/package-macos.py --release-tag "$RELEASE_TAG"
+        run: uv run --frozen python scripts/package-macos.py --release-tag "$RELEASE_TAG"
       - uses: actions/upload-artifact@v7
         with:
           name: mac-${{ matrix.target }}

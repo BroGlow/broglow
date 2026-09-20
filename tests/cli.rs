@@ -570,6 +570,15 @@ fn ble_selection_preserves_settings_without_radio() {
     let cfg: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     assert_eq!(cfg["ble_peripherals"], serde_json::json!([id]));
     assert_eq!(cfg["led_enabled"], false);
+    broglow()
+        .env("HOME", home.path())
+        .args(["ble", "on"])
+        .assert()
+        .success();
+    let cfg: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert_eq!(cfg["ble_peripherals"], serde_json::json!([id]));
+    assert_eq!(cfg["led_transport"], "ble");
+    assert_eq!(cfg["led_enabled"], true);
     std::fs::write(&path, "{corrupt").unwrap();
     broglow()
         .env("HOME", home.path())

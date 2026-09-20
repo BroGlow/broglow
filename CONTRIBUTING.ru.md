@@ -25,19 +25,18 @@ sudo apt-get install -y --no-install-recommends \
   libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libudev-dev
 ```
 
-Python 3.14 соответствует версии в CI. Установите закреплённые инструменты
-разработки и включите хук коммита:
+Python 3.14 соответствует версии в CI. Установите
+[uv](https://docs.astral.sh/uv/getting-started/installation/), синхронизируйте
+закреплённые инструменты разработки и включите хук коммита:
 
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r requirements-dev.txt
-prek install
+uv sync --frozen --group dev
+uv run --frozen --group dev prek install
 ```
 
-В Windows PowerShell активируйте окружение командой `.venv\Scripts\Activate.ps1`.
-Зависимости разработки фиксируют версии Black и prek; хуки используют нативную
-конфигурацию [`prek.toml`](prek.toml).
+Группа разработки в `pyproject.toml` фиксирует версии Black, clang-format и prek,
+а `uv.lock` — их транзитивные зависимости. Хуки используют нативную конфигурацию
+[`prek.toml`](prek.toml).
 
 <a name="formatting-and-hooks"></a>
 
@@ -45,15 +44,16 @@ prek install
 
 ```bash
 cargo fmt
-black .
-prek run --all-files
+uv run --frozen --group dev black .
+uv run --frozen --group dev prek run --all-files
 ```
 
 Black применяет стандартный стиль ко всем Python-файлам. Хук prek форматирует
 Python-файлы, добавленные в индекс; перед повторным коммитом добавьте исправления
-форматирования в индекс. CI запускает `black --check --diff .` и завершается
-с ошибкой, если требуется форматирование. Сохраняйте одинаковую версию Black
-в `requirements-dev.txt` и `prek.toml`.
+форматирования в индекс. CI запускает
+`uv run --frozen --group dev black --check --diff .` и завершается с ошибкой,
+если требуется форматирование. Сохраняйте одинаковую версию Black в
+`pyproject.toml` и `prek.toml`.
 
 Прошивка использует clang-format 23.1.1 с конфигурацией стиля Google из репозитория.
 Последовательности YAML записывайте в блочном стиле: один элемент на строку,
@@ -68,8 +68,10 @@ cargo build --locked
 cargo fmt --check
 cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
-black --check --diff .
-python3 scripts/check-generated-artifacts.py
+uv run --frozen --group dev black --check --diff .
+uv run --frozen python -m unittest discover -s tests -p 'test_flash.py'
+uv run --frozen flash --build-only
+uv run --frozen python scripts/check-generated-artifacts.py
 ```
 
 Тесты Rust включают сквозные проверки собранного исполняемого файла. При изменении

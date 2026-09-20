@@ -35,6 +35,24 @@ def require(condition, message):
         raise SystemExit(message)
 
 
+def flash_tool_sources():
+    return [ROOT / "pyproject.toml", ROOT / "uv.lock"] + [
+        path
+        for path in (ROOT / "tools/broglow_tools").rglob("*")
+        if path.is_file() and "__pycache__" not in path.parts
+    ]
+
+
+def copy_flash_tool(package):
+    for source in (ROOT / "pyproject.toml", ROOT / "uv.lock"):
+        shutil.copy2(source, package / source.name)
+    shutil.copytree(
+        ROOT / "tools",
+        package / "tools",
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+    )
+
+
 def release_identity(version, tag):
     commit = run("git", "rev-parse", "HEAD")
     dirty = bool(run("git", "status", "--porcelain", "--untracked-files=normal"))
@@ -195,6 +213,7 @@ def main():
         (package / "bin").mkdir(parents=True)
         shutil.copy2(binary, package / "bin/broglow")
         (package / "bin/broglow").chmod(0o755)
+        copy_flash_tool(package)
         destination = package / "firmware/esp32-c3-supermini"
         destination.mkdir(parents=True)
         for _, path in segments:
@@ -221,7 +240,8 @@ def main():
             "Pinned framework source: https://github.com/espressif/arduino-esp32/tree/2.0.17\n"
             "ESP-IDF source: https://github.com/espressif/esp-idf/tree/v4.4.7\n\n"
             "The project's C3 source, PlatformIO configuration and host checks are included.\n"
-            "Build with PlatformIO Core 6.2.0: `pio run -d firmware/esp32-c3-supermini`.\n"
+            "From the package root, detect and flash a connected board with `uv run flash`.\n"
+            "The locked toolchain uses PlatformIO Core 6.2.0 and esptool 5.4.0.\n"
             "The pinned framework and SDK contain additional third-party components and notices.\n"
         )
         (destination / "DEPENDENCIES.ru.md").write_text(
@@ -232,7 +252,8 @@ def main():
             "Исходники закреплённой версии: https://github.com/espressif/arduino-esp32/tree/2.0.17\n"
             "Исходники ESP-IDF: https://github.com/espressif/esp-idf/tree/v4.4.7\n\n"
             "Исходники C3, конфигурация PlatformIO и проверки прошивки включены в пакет.\n"
-            "Сборка через PlatformIO Core 6.2.0: `pio run -d firmware/esp32-c3-supermini`.\n"
+            "Из корня пакета найдите и прошейте подключённую плату: `uv run flash`.\n"
+            "Закреплённый набор использует PlatformIO Core 6.2.0 и esptool 5.4.0.\n"
             "Закреплённые версии фреймворка и SDK содержат дополнительные сторонние компоненты\n"
             "и их лицензионные уведомления.\n"
         )
@@ -286,7 +307,7 @@ def main():
             "arduino_framework_package": framework_version,
             "source_inputs_sha256": {
                 str(p.relative_to(ROOT)): sha256(p)
-                for p in sorted(source_files + firmware_sources)
+                for p in sorted(source_files + firmware_sources + flash_tool_sources())
             },
         }
         (package / "BUILD.json").write_text(json.dumps(provenance, indent=2) + "\n")

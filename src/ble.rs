@@ -31,6 +31,8 @@ pub enum BleCommand {
     List,
     /// Return to USB (disabled until explicitly enabled).
     Usb,
+    /// Enable the selected lamp transport.
+    On,
     /// Disable either transport, retaining all remembered lamps.
     Off,
     /// Show the actual background worker's recent status.
@@ -131,6 +133,13 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
             BleCommand::Usb => {
                 cfg.led_transport = LedTransport::Usb;
                 cfg.led_enabled = false;
+            }
+            BleCommand::On => {
+                anyhow::ensure!(
+                    cfg.led_transport != LedTransport::Ble || !cfg.ble_ids().is_empty(),
+                    "Add a Bluetooth lamp before enabling BLE control"
+                );
+                cfg.led_enabled = true;
             }
             BleCommand::Off => cfg.led_enabled = false,
             BleCommand::Status | BleCommand::List | BleCommand::Scan | BleCommand::Pair { .. } => {

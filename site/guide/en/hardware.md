@@ -84,9 +84,10 @@ ratings. Never omit a resistor.
 
 ## Build and identify the board
 
-Commands assume PlatformIO Core **6.2.0** at `~/.platformio/penv/bin/pio` and Rust
-in `~/.cargo/bin/`. Install missing tools or substitute paths. Keep firmware pinned
-to `espressif32 @ 7.1.3` / Arduino-ESP32 **2.0.17**, including its BLE library.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/); `pyproject.toml`
+and `uv.lock` provide PlatformIO Core **6.2.0**, esptool **5.4.0** and pyserial.
+Rust remains in `~/.cargo/bin/`. Keep firmware pinned to `espressif32 @ 7.1.3` /
+Arduino-ESP32 **2.0.17**, including its BLE library.
 The host locks **btleplug 0.13.1** for CoreBluetooth write-error propagation;
 macOS pairing approval is still required.
 
@@ -95,11 +96,11 @@ macOS pairing approval is still required.
 export PATH="$HOME/.cargo/bin:$PATH"
 
 # Build only; neither command accesses the board.
-~/.platformio/penv/bin/pio run -d firmware/esp32-c3-supermini
+uv run flash --build-only
 cargo build --locked
 
 # Enumerate USB serial devices; this does not identify an exact board model.
-~/.platformio/penv/bin/pio device list
+uv run platformio device list
 ```
 
 Before any upload or serial command, physically identify the **ESP32-C3 SuperMini**
@@ -126,9 +127,31 @@ resolve mismatches before uploading. [PlatformIO profile](https://docs.platformi
 
 ## Flash and recover USB upload
 
-Identify the board before each upload. Preserve unknown firmware with a
-[full backup](#flash-prebuilt-c3-firmware) unless the owner designated it expendable.
-If BroGlow is installed, disable lamp control:
+The standard path is the same from a source checkout and an extracted Mac package:
+
+```bash
+uv run flash
+uv run flash --backup
+uv run flash --skip-info
+uv run flash --port PORT
+```
+
+The command selects only one unambiguous USB serial board, verifies ESP32-C3 and
+exactly 4 MB flash, asks before writing, and requires an exact BroGlow `INFO`
+response after reset. `--skip-info` skips only the pre-flash firmware probe.
+Backups are opt-in: `--backup` reads all 4 MB into a private `.recovery/` file,
+prints its SHA-256 and warns that it may contain Bluetooth keys. By default no
+backup is made. Noninteractive `--yes` also requires an explicit `--port`. If
+installed lamp control was enabled, flashing pauses it while using the serial
+port and restores the same selected transport after verification; an already
+disabled lamp stays disabled.
+
+In a source checkout the command builds and uploads with PlatformIO. In a package
+it validates `flash-manifest.json` and the four included images before using
+esptool. It never performs a routine full erase or writes `firmware.bin` at zero.
+
+For advanced manual source upload, identify the board first. If BroGlow is
+installed, disable lamp control:
 
 ```bash
 broglow ble off
@@ -158,8 +181,10 @@ See [indications](#pairing-feedback-and-diagnostics-without-external-leds) for o
 
 Skip for a working flashed lamp. The verified package contains four images and
 `firmware/esp32-c3-supermini/flash-manifest.json`; no firmware compiler is needed.
-First [identify the board](#build-and-identify-the-board) and verify package checksums.
-If esptool is missing, use Python 3 ([macOS installer](https://www.python.org/downloads/macos/)):
+After verifying package checksums, use `uv run flash` from the package root.
+The manual esptool procedure below is advanced recovery. First
+[identify the board](#build-and-identify-the-board). If esptool is missing, use
+Python 3 ([macOS installer](https://www.python.org/downloads/macos/)):
 
 ```bash
 python3 -m venv "$HOME/.local/share/broglow-flash-tools"
@@ -172,8 +197,7 @@ ESPTOOL_PY="$HOME/.local/share/broglow-flash-tools/bin/python"
 ```
 
 Require **ESP32-C3 / 4 MB** and the verified `PACKAGE_DIR`. Disable lamp control,
-wait three seconds and close serial clients. Back up unknown firmware unless the
-owner designated this board for expendable testing:
+wait three seconds and close serial clients. To opt into a manual full backup:
 
 ```bash
 RECOVERY_ROOT="$PACKAGE_DIR/.recovery"

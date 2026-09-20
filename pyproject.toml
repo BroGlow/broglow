@@ -1,0 +1,36 @@
+[project]
+name = "broglow-tools"
+version = "1.0.0"
+description = "Development and firmware tools for BroGlow"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+  "esptool==5.4.0",
+  "platformio==6.2.0",
+  "pyserial==3.5",
+]
+
+[project.scripts]
+flash = "broglow_tools.flash:main"
+
+[dependency-groups]
+dev = [
+  "black==26.5.1",
+  "clang-format==23.1.1",
+  "prek==0.5.3",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.17,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv]
+required-version = ">=0.9.9"
+default-groups = []
+
+[tool.uv.build-backend]
+module-root = "tools"
+module-name = "broglow_tools"
+
+[tool.black]
+target-version = ["py314"]

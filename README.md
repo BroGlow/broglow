@@ -40,6 +40,19 @@ The lamp still needs power and is designed for DIY assembly.
 - **Build/wire a C3:** [hardware guide](site/guide/en/hardware.md#wiring-and-resistor-choice).
 - **Print the optional enclosure:** [printing and assembly](models/broglow/PRINT_GUIDE.en.md).
 
+From a source checkout or extracted Mac package, flash a connected production C3 with:
+
+```bash
+uv run flash
+uv run flash --backup
+uv run flash --skip-info
+uv run flash --port PORT
+```
+
+The default makes no backup; `--backup` saves a private full-flash image that may
+contain Bluetooth keys. The command requires an ESP32-C3 with 4 MB flash and verifies
+the BroGlow identity after writing. See [firmware flashing](site/guide/en/hardware.md#flash-and-recover-usb-upload).
+
 Mac packages include the app, C3 firmware and manuals; Windows archives include
 **the graphical tray app and CLI**, and Linux builds from source. Windows packages
 support USB lamp control but include no installer, firmware or manuals. BLE control is macOS-only.
