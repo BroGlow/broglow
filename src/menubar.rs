@@ -315,6 +315,26 @@ enum UserEvent {
     UsageChanged,
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn start_lamp_setup(
+    popover: &mut Popover,
+    proxy: &tao::event_loop::EventLoopProxy<UserEvent>,
+    automatic: bool,
+) {
+    if popover.setup_busy {
+        return;
+    }
+    popover.setup_busy = true;
+    popover.push_state(&read_display_state());
+    let proxy = proxy.clone();
+    thread::spawn(move || {
+        let error = crate::ble::pair_from_app(automatic)
+            .err()
+            .map(|e| e.to_string());
+        let _ = proxy.send_event(UserEvent::LampSetupFinished(error));
+    });
+}
+
 /// Short usage readout for the tray: the plan's 5h-block percentage, or
 /// today's API-equivalent dollars — per the billing mode setting. `None`
 /// until the first scan lands (or plan data is unavailable and nothing ran
@@ -395,9 +415,8 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
         }));
     }
 
-    // Drive the optional ESP32 status LEDs in the background. This is inert
-    // (touches no serial port) unless the user has enabled it via `l` in the
-    // TUI, so it's safe to always spawn.
+    // Drive enabled lamps in the background; USB setup separately pauses this
+    // worker and acquires its lease before identifying a newly attached board.
     thread::spawn(|| crate::led::run_daemon());
 
     let initial_state = read_display_state();
@@ -512,6 +531,8 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
     let mut tray_holder = Some(tray);
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     let setup_proxy = event_loop.create_proxy();
+    #[cfg(target_os = "macos")]
+    let mut usb_auto_pair = crate::ble::UsbAutoPair::default();
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -562,6 +583,12 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                 }
             }
             Event::UserEvent(UserEvent::Tick) => {
+                // ponytail: five-second polling can miss a faster unplug/replug;
+                // Add lamp retries immediately. Use USB events if that matters.
+                #[cfg(target_os = "macos")]
+                if !popover.setup_busy && usb_auto_pair.poll() {
+                    start_lamp_setup(&mut popover, &setup_proxy, true);
+                }
                 let state = read_display_state();
                 if let Some(tray) = tray_holder.as_ref() {
                     if let Ok(icon) = icon_for_state(&state) {
@@ -635,15 +662,7 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
             #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::UserEvent(UserEvent::Popover(msg)) => match msg {
                 PopoverMsg::AddLamp => {
-                    if !popover.setup_busy {
-                        popover.setup_busy = true;
-                        popover.push_state(&read_display_state());
-                        let proxy = setup_proxy.clone();
-                        thread::spawn(move || {
-                            let error = crate::ble::pair_from_app().err().map(|e| e.to_string());
-                            let _ = proxy.send_event(UserEvent::LampSetupFinished(error));
-                        });
-                    }
+                    start_lamp_setup(&mut popover, &setup_proxy, false);
                 }
                 PopoverMsg::SetLed { .. }
                 | PopoverMsg::ForgetLamp { .. }

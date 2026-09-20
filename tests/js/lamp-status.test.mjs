@@ -352,7 +352,7 @@ test('Add lamp works with no saved lamp in USB or Bluetooth mode and respects pl
     click('lampbtn');
     assert.equal(element('lampsetup').hidden, false);
     assert.equal(element('lampadd').textContent, 'Add lamp');
-    assert.match(element('groups').innerHTML, /Connect one lamp by USB\. Approve the macOS pairing request\./);
+    assert.match(element('groups').innerHTML, /Connect one lamp by USB to add it automatically\./);
     click('lampadd');
     click('lampadd');
     assert.deepEqual(commands('add_lamp'), [{ cmd: 'add_lamp' }]);
@@ -387,6 +387,8 @@ test('host setup busy survives reopening and stops lamp mutations and active pre
   click('settingsbtn');
   click('lampbtn');
   assert.equal(element('lampadd').textContent, 'Adding…');
+  assert.equal(element('lampsetupresult').textContent, 'Setting up USB lamp…');
+  assert.equal(element('lampsetupresult').attributes.role, 'status');
   for (const id of ['lampadd', 'lampforget-0', 'lampname-0', 'lampsave-0', 'lampidentify-0', 'lampcontrol', 'brightness', 'lampbrightness-0']) {
     assert.equal(element(id).disabled, true, id);
   }
@@ -418,7 +420,8 @@ test('Add lamp reports errors with retry and success without claiming a connecti
   assert.equal(element('lampadd').disabled, false);
   click('lampadd');
   assert.equal(commands('add_lamp').length, 2);
-  assert.equal(result.hidden, true);
+  assert.equal(result.textContent, 'Setting up USB lamp…');
+  assert.equal(result.attributes.role, 'status');
   update(lamp({ bluetooth_supported: true, state: 'searching',
     devices: [{ id: 'new-lamp', state: 'searching' }] }));
   context.window.__lampSetupResult(null);

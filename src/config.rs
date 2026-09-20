@@ -45,8 +45,7 @@ pub struct Config {
     /// Show the optional terminal-dashboard entry points in the tray app.
     pub show_dashboard_button: bool,
     /// Whether the menu bar daemon should mirror session state to an ESP32 over
-    /// serial. Off by default — the daemon never touches a serial port until a
-    /// user explicitly enables it (TUI: press `l`).
+    /// serial. Off by default; macOS USB setup can enable a newly added lamp.
     pub led_enabled: bool,
     /// Optional explicit serial device path. When `None`, the daemon
     /// auto-detects a known ESP32 board by USB vendor ID on each scan, which
@@ -55,6 +54,10 @@ pub struct Config {
     pub led_transport: LedTransport,
     /// Remembered CoreBluetooth UUIDs, never guessed MAC addresses/names.
     pub ble_peripherals: Vec<String>,
+    /// Verified USB base MAC → Bluetooth ID. Retain forgotten boards so automatic
+    /// setup never undoes an explicit Forget or Disable, including after restart.
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub usb_lamps: std::collections::BTreeMap<String, String>,
     /// Optional user labels, keyed by the saved Bluetooth identity.
     #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub lamp_names: std::collections::BTreeMap<String, String>,
@@ -93,6 +96,7 @@ impl Default for Config {
             led_port: None,
             led_transport: LedTransport::default(),
             ble_peripherals: Vec::new(),
+            usb_lamps: Default::default(),
             lamp_names: Default::default(),
             led_brightness: 100,
             lamp_brightness: Default::default(),

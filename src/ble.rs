@@ -1,4 +1,4 @@
-//! Opt-in BLE control. One existing LED worker drives every remembered nearby lamp.
+//! USB-assisted BLE setup. One LED worker drives every remembered nearby lamp.
 use crate::config::{self, read_config_strict as read_setup_config, Config, LedTransport};
 
 #[derive(clap::Subcommand)]
@@ -10,6 +10,9 @@ pub enum BleCommand {
         /// Explicit USB serial path; otherwise require exactly one ESP32 303a:1001.
         #[arg(long)]
         port: Option<String>,
+        /// Add only a previously unknown USB lamp; used by the desktop watcher.
+        #[arg(long, hide = true)]
+        automatic: bool,
     },
     /// Add a remembered CoreBluetooth ID and enable all saved BLE lamps.
     Add { id: String },
@@ -45,7 +48,7 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
     }
     match command {
         BleCommand::Scan => return scan(&read_setup_config()?),
-        BleCommand::Pair { port } => return pair(port),
+        BleCommand::Pair { port, automatic } => return pair(port, automatic),
         BleCommand::List => {
             let cfg = read_setup_config()?;
             let status = crate::led::connection_status();
@@ -142,7 +145,7 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
 
 /// Use the installed identity and keep setup/rollback alive if the tray quits.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-pub(crate) fn pair_from_app() -> anyhow::Result<()> {
+pub(crate) fn pair_from_app(automatic: bool) -> anyhow::Result<()> {
     #[cfg(target_os = "macos")]
     {
         use std::os::unix::process::CommandExt;
@@ -151,8 +154,12 @@ pub(crate) fn pair_from_app() -> anyhow::Result<()> {
             .with_file_name(format!("pairing-{}.log", std::process::id()));
         std::fs::create_dir_all(log.parent().unwrap())?;
         // A file, not a pipe: closing the tray must not break the child's rollback.
-        let result = std::process::Command::new(crate::mac_bundle_executable()?)
-            .args(["ble", "pair"])
+        let mut command = std::process::Command::new(crate::mac_bundle_executable()?);
+        command.args(["ble", "pair"]);
+        if automatic {
+            command.arg("--automatic");
+        }
+        let result = command
             .process_group(0)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -169,7 +176,10 @@ pub(crate) fn pair_from_app() -> anyhow::Result<()> {
         Ok(())
     }
     #[cfg(not(target_os = "macos"))]
-    anyhow::bail!("Bluetooth setup is supported on macOS only")
+    {
+        let _ = automatic;
+        anyhow::bail!("Bluetooth setup is supported on macOS only")
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -187,7 +197,7 @@ fn scan(_: &Config) -> anyhow::Result<()> {
     anyhow::bail!("BLE control is supported on macOS only")
 }
 #[cfg(not(target_os = "macos"))]
-fn pair(_: Option<String>) -> anyhow::Result<()> {
+fn pair(_: Option<String>, _: bool) -> anyhow::Result<()> {
     anyhow::bail!("BLE pairing is supported on macOS only")
 }
 #[cfg(not(target_os = "macos"))]
@@ -195,7 +205,9 @@ pub fn run(_: &Config) -> anyhow::Result<()> {
     anyhow::bail!("BLE control is supported on macOS only")
 }
 #[cfg(target_os = "macos")]
-pub(crate) use mac::{identify_lamp, preview_brightness, preview_lamp_brightness, run};
+pub(crate) use mac::{
+    identify_lamp, preview_brightness, preview_lamp_brightness, run, UsbAutoPair,
+};
 #[cfg(target_os = "windows")]
 pub(crate) fn identify_lamp(_: &str) -> anyhow::Result<()> {
     anyhow::bail!("Bluetooth lamp identification is supported on macOS only")
@@ -507,6 +519,71 @@ mod mac {
         Ok(candidates.remove(0))
     }
 
+    #[derive(Default)]
+    pub(crate) struct UsbAutoPair {
+        attempted: std::collections::BTreeSet<String>,
+    }
+
+    impl UsbAutoPair {
+        pub(crate) fn poll(&mut self) -> bool {
+            let (Ok(ports), Ok(cfg)) = (serialport::available_ports(), read_setup_config()) else {
+                return false; // An enumeration error is not an unplug event.
+            };
+            self.observe(&ports, &cfg)
+        }
+
+        fn observe(&mut self, ports: &[serialport::SerialPortInfo], cfg: &Config) -> bool {
+            let attachment = |port: &serialport::SerialPortInfo| {
+                format!("{}:{:?}", port.port_name, port.port_type)
+            };
+            let attached: std::collections::BTreeSet<_> = ports.iter().map(attachment).collect();
+            self.attempted.retain(|key| attached.contains(key));
+            let Ok(path) = pair_port(None, ports) else {
+                return false; // Require one unambiguous native USB candidate.
+            };
+            let port = ports.iter().find(|port| port.port_name == path).unwrap();
+            if !self.attempted.insert(attachment(port)) {
+                return false;
+            }
+            if let serialport::SerialPortType::UsbPort(usb) = &port.port_type {
+                if let Some(serial) = &usb.serial_number {
+                    let identity = serial.replace(':', "").to_ascii_lowercase();
+                    if cfg.usb_lamps.contains_key(&identity) {
+                        return false;
+                    }
+                }
+            }
+            true // INFO, never the USB descriptor, authorizes PAIR.
+        }
+    }
+
+    fn remember_usb(
+        latest: &mut Config,
+        original: &Config,
+        identity: String,
+        id: String,
+        automatic: bool,
+    ) -> Result<()> {
+        if automatic {
+            anyhow::ensure!(
+                !latest.led_enabled
+                    && latest.led_transport == original.led_transport
+                    && latest.led_port == original.led_port
+                    && latest.ble_ids() == original.ble_ids(),
+                "Lamp selection changed during automatic setup; retry Add lamp"
+            );
+        }
+        latest.usb_lamps.insert(identity, id.clone());
+        if automatic && latest.ble_ids().contains(&id) {
+            // A lamp added before USB tracking existed keeps its chosen transport
+            // and enabled state; discovering its USB identity is not an opt-in.
+            latest.led_enabled = original.led_enabled;
+        } else {
+            remember(latest, id);
+        }
+        Ok(())
+    }
+
     fn parse_pair_identity(line: &str) -> Result<[u8; 6]> {
         let line = line.trim_end_matches(['\r', '\n']);
         let identity = line
@@ -564,7 +641,7 @@ mod mac {
                 .is_some_and(|bytes| bytes.as_slice() == identity)
     }
 
-    pub(super) fn pair(port_override: Option<String>) -> Result<()> {
+    pub(super) fn pair(port_override: Option<String>, automatic: bool) -> Result<()> {
         let ports = if port_override.is_some() {
             Vec::new()
         } else {
@@ -620,6 +697,10 @@ mod mac {
             serial.write_data_terminal_ready(true)?;
             serial.clear(serialport::ClearBuffer::Input)?;
             let identity = usb_identity(serial.as_mut(), b"INFO\n")?;
+            let usb_key: String = identity.iter().map(|byte| format!("{byte:02x}")).collect();
+            if automatic && original.usb_lamps.contains_key(&usb_key) {
+                return Ok(false);
+            }
             println!("Verified BroGlow firmware on {path}; opening its pairing window.");
             anyhow::ensure!(
                 usb_identity(serial.as_mut(), b"PAIR\n")? == identity,
@@ -646,13 +727,12 @@ mod mac {
                 found
             })?;
             config::update_config(|latest| {
-                remember(latest, id.clone());
-                Ok(())
+                remember_usb(latest, &original, usb_key, id.clone(), automatic)
             })?;
             println!("Remembered lamp {id}. The tray service will connect automatically; approve any macOS pairing request for this lamp.");
-            Ok(())
+            Ok(true)
         })();
-        if result.is_err() {
+        if !matches!(result, Ok(true)) {
             let _config_lock = config::acquire_config_lock()?;
             let mut latest = read_setup_config()
                 .context("Pairing failed; cannot safely restore unreadable settings")?;
@@ -671,7 +751,7 @@ mod mac {
                     .context("Pairing failed; could not restore previous lamp enable setting")?;
             }
         }
-        result
+        result.map(|_| ())
     }
 
     pub(crate) fn run(cfg: &Config) -> Result<()> {
@@ -1269,6 +1349,104 @@ mod mac {
         }
 
         #[test]
+        fn automatic_usb_setup_runs_once_per_attachment_and_respects_saved_lamps() {
+            let port = |path: &str, serial: &str| serialport::SerialPortInfo {
+                port_name: path.into(),
+                port_type: serialport::SerialPortType::UsbPort(serialport::UsbPortInfo {
+                    vid: 0x303a,
+                    pid: 0x1001,
+                    serial_number: Some(serial.into()),
+                    manufacturer: None,
+                    product: None,
+                }),
+            };
+            let lamp = port("/dev/cu.lamp", "00:11:22:33:44:55");
+            let twin = port("/dev/tty.lamp", "00:11:22:33:44:55");
+            let other = port("/dev/cu.other", "AA:BB:CC:DD:EE:FF");
+            let mut watch = UsbAutoPair::default();
+            let cfg = Config::default();
+            assert!(!watch.observe(&[], &cfg));
+            assert!(!watch.observe(&[lamp.clone(), other.clone()], &cfg));
+            assert!(watch.observe(&[lamp.clone(), twin.clone()], &cfg));
+            // Success, failure, or Forget while still attached cannot loop setup.
+            assert!(!watch.observe(std::slice::from_ref(&lamp), &cfg));
+            assert!(!watch.observe(&[], &cfg));
+            assert!(watch.observe(std::slice::from_ref(&lamp), &cfg));
+            // A different physical board at the same path is a new attachment.
+            assert!(watch.observe(&[port("/dev/cu.lamp", "AA:BB:CC:DD:EE:FF")], &cfg));
+
+            let mut cfg = cfg;
+            cfg.usb_lamps.insert("001122334455".into(), "saved".into());
+            // Remembered, disabled and forgotten boards stay opted out, even
+            // after restarting the app. Replug still detects a genuinely new lamp.
+            let mut restarted = UsbAutoPair::default();
+            assert!(!restarted.observe(&[lamp, twin], &cfg));
+            assert!(restarted.observe(&[other], &cfg));
+        }
+
+        #[test]
+        fn automatic_usb_setup_preserves_preferences_and_never_reenables_a_saved_lamp() {
+            let original = Config {
+                ble_peripherals: vec!["existing".into()],
+                led_transport: LedTransport::Usb,
+                ..Config::default()
+            };
+            let mut latest = original.clone();
+            latest
+                .extra
+                .insert("concurrent_setting".into(), true.into());
+            remember_usb(
+                &mut latest,
+                &original,
+                "001122334455".into(),
+                "existing".into(),
+                true,
+            )
+            .unwrap();
+            assert!(!latest.led_enabled);
+            assert_eq!(latest.led_transport, LedTransport::Usb);
+            assert_eq!(latest.usb_lamps["001122334455"], "existing");
+            assert_eq!(latest.extra["concurrent_setting"], true);
+
+            remember_usb(
+                &mut latest,
+                &original,
+                "aabbccddeeff".into(),
+                "new".into(),
+                true,
+            )
+            .unwrap();
+            assert!(latest.led_enabled);
+            assert_eq!(latest.led_transport, LedTransport::Ble);
+            assert_eq!(latest.ble_ids(), ["existing", "new"]);
+            assert_eq!(latest.usb_lamps.len(), 2);
+            assert_eq!(latest.extra["concurrent_setting"], true);
+
+            let changed = serde_json::to_value(&latest).unwrap();
+            assert!(remember_usb(
+                &mut latest,
+                &original,
+                "another".into(),
+                "third".into(),
+                true
+            )
+            .is_err());
+            assert_eq!(serde_json::to_value(&latest).unwrap(), changed);
+            // Manual Add lamp is an explicit request to enable an existing lamp.
+            let mut disabled = original.clone();
+            remember_usb(
+                &mut disabled,
+                &original,
+                "001122334455".into(),
+                "existing".into(),
+                false,
+            )
+            .unwrap();
+            assert!(disabled.led_enabled);
+            assert_eq!(disabled.led_transport, LedTransport::Ble);
+        }
+
+        #[test]
         fn usb_pair_protocol_candidates_and_advertisement_identity() {
             let identity = [0x14, 0x63, 0x93, 0x92, 0x45, 0x24];
             let reply = format!("broglow_pair identity=146393924524 service={SERVICE}");
@@ -1277,6 +1455,7 @@ mod mac {
                 identity
             );
             for invalid in [
+                reply.replace("broglow_pair", "clawlight_pair"),
                 reply.replace("146393924524", "14639392452"),
                 reply.replace("146393924524", "14AA93924524"),
                 reply.replace(&SERVICE.to_string(), &STATUS.to_string()),

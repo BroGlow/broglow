@@ -502,9 +502,9 @@ function renderLamp() {
     add.disabled = setupBusy || lampActionPending();
     add.textContent = setupBusy ? 'Adding…' : 'Add lamp';
     const setupResult = document.getElementById('lampsetupresult');
-    setupResult.textContent = lampSetupError || lampSetupMessage;
-    setupResult.className = lampSetupError ? 'error' : '';
-    setupResult.setAttribute('role', lampSetupError ? 'alert' : 'status');
+    setupResult.textContent = setupBusy ? 'Setting up USB lamp…' : lampSetupError || lampSetupMessage;
+    setupResult.className = !setupBusy && lampSetupError ? 'error' : '';
+    setupResult.setAttribute('role', !setupBusy && lampSetupError ? 'alert' : 'status');
     setupResult.hidden = !setupResult.textContent;
     document.getElementById('lamptransport').textContent = wireless ? 'Bluetooth' : 'USB';
     document.getElementById('lampsummary').textContent = wireless && !l.selected_count ? 'No lamps added' :
@@ -643,7 +643,7 @@ function render() {
     if (groupsEl.dataset.view !== 'lamp') {
       groupsEl.innerHTML = `<div class="grplabel">Lamps</div>` +
         `<div class="lampsetup" id="lampsetup"><button class="pbtn" type="button" id="lampadd" aria-describedby="lampsetuphint">Add lamp</button>` +
-        `<p id="lampsetuphint">Connect one lamp by USB. Approve the macOS pairing request.</p>` +
+        `<p id="lampsetuphint">Connect one lamp by USB to add it automatically. Approve any macOS pairing request. Use Add lamp to retry.</p>` +
         `<p id="lampsetupresult" role="status" hidden></p></div>` +
         `<div class="lamptop"><span id="lampsummary" role="status"></span><span id="lamptransport"></span></div>` +
         `<div class="lamplist" id="lamplist"></div>` +

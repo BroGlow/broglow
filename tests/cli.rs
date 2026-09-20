@@ -262,21 +262,30 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
     let original = r#"{"led_enabled":true,"ble_peripherals":["keep"],"unrelated":{"retain":true}}"#;
     std::fs::write(&path, original).unwrap();
     let missing_port = home.path().join("nonexistent-serial-port");
-    let invoke = || {
-        broglow()
+    let invoke = |automatic| {
+        let mut command = broglow();
+        if automatic {
+            command.arg("ble").arg("pair").arg("--automatic");
+        } else {
+            command.args(["ble", "pair"]);
+        }
+        command
             .env("HOME", home.path())
-            .args(["ble", "pair", "--port"])
+            .arg("--port")
             .arg(&missing_port)
             .assert()
             .failure()
     };
-    let failed = invoke();
+    let failed = invoke(false);
+    assert!(String::from_utf8_lossy(&failed.get_output().stderr).contains("Opening USB lamp"));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    let failed = invoke(true);
     assert!(String::from_utf8_lossy(&failed.get_output().stderr).contains("Opening USB lamp"));
     assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
     {
         let lock = std::fs::File::open(dir.join(".pair.lock")).unwrap();
         lock.try_lock().unwrap();
-        let failed = invoke();
+        let failed = invoke(true);
         assert!(String::from_utf8_lossy(&failed.get_output().stderr)
             .contains("Lamp setup is already running"));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
@@ -297,7 +306,7 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
         worker.lock().unwrap();
         let child = std::process::Command::new(broglow().get_program())
             .env("HOME", home.path())
-            .args(["ble", "pair", "--port"])
+            .args(["ble", "pair", "--automatic", "--port"])
             .arg(&missing_port)
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
@@ -337,7 +346,7 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
         assert_eq!(cfg["unrelated"], serde_json::json!({"retain": true}));
     }
     std::fs::remove_file(&path).unwrap();
-    invoke();
+    invoke(true);
     assert!(
         !path.exists(),
         "failed setup preserves a previously absent config"
