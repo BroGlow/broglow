@@ -3,6 +3,8 @@
 
 import importlib.util
 from pathlib import Path
+import re
+import shutil
 import subprocess
 import tempfile
 
@@ -35,6 +37,26 @@ with tempfile.TemporaryDirectory(prefix="broglow-flash-package-") as folder:
         str(path.relative_to(package.ROOT)) for path in package.flash_tool_sources()
     )
     assert copied == expected
+
+
+with tempfile.TemporaryDirectory(prefix="broglow-manual-check-") as folder:
+    destination = Path(folder)
+    package.copy_manual(destination)
+    firmware = destination / "firmware/esp32-c3-supermini"
+    firmware.mkdir(parents=True)
+    for name in ("DEPENDENCIES.md", "DEPENDENCIES.ru.md"):
+        (firmware / name).write_text("Included by the firmware packaging step.\n")
+    shutil.copy2(package.C3 / "platformio.ini", firmware / "platformio.ini")
+    assert not (destination / "CLAUDE.md").exists()
+    assert not (destination / "CONTRIBUTING.md").exists()
+    for document in destination.rglob("*.md"):
+        for target in re.findall(r"\[[^\]]*\]\(([^\s)]+)\)", document.read_text()):
+            if ":" in target or target.startswith("#"):
+                continue
+            assert (document.parent / target.split("#")[0]).exists(), (
+                document.relative_to(destination),
+                target,
+            )
 
 
 def rejected(tag, message):

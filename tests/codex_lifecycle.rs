@@ -152,6 +152,58 @@ fn exec_rollouts_end_on_stop_interactive_ones_idle() {
 }
 
 #[test]
+fn prompt_names_sessions_before_stop_without_a_transcript() {
+    let home = temp_home();
+    let prompt = format!("  \n Explain\t{}\nplease  ", "🦀日本語 ".repeat(12));
+    let expected =
+        "Explain 🦀日本語 🦀日本語 🦀日本語 🦀日本語 🦀日本語 🦀日本語 🦀日本語 🦀日本語...";
+
+    // Both ephemeral sessions and sessions whose rollout is not available yet.
+    for (id, transcript) in [
+        ("ephemeral", Value::Null),
+        ("normal", json!("/missing/rollout.jsonl")),
+    ] {
+        let submit = |prompt: Value| {
+            run_codex_hook(
+                &home,
+                &json!({
+                    "hook_event_name": "UserPromptSubmit",
+                    "session_id": id,
+                    "transcript_path": transcript,
+                    "prompt": prompt,
+                })
+                .to_string(),
+            )
+            .success();
+        };
+        run_codex_hook(&home, &ev("SessionStart", id)).success();
+        for blank in [Value::Null, json!(42), json!(" \n\t ")] {
+            submit(blank);
+            assert!(session(&read_state(&home), id)["name"].is_null());
+        }
+        submit(json!(prompt));
+        let named = session(&read_state(&home), id);
+        assert_eq!(named["name"], expected);
+        assert_eq!(named["name"].as_str().unwrap().chars().count(), 50);
+        assert_eq!(named["status"], "active");
+        submit(json!("A later prompt must not rename this session"));
+        run_codex_hook(&home, &ev("Stop", id)).success();
+        assert_eq!(session(&read_state(&home), id)["name"], expected);
+        assert_eq!(session(&read_state(&home), id)["status"], "inactive");
+
+        // A saved Codex title wins even when the next observed event is a prompt.
+        std::fs::create_dir_all(codex_home(&home)).unwrap();
+        std::fs::write(
+            codex_home(&home).join("session_index.jsonl"),
+            json!({"id": id, "thread_name": "Saved Codex title"}).to_string(),
+        )
+        .unwrap();
+        submit(json!("Keep the saved title"));
+        assert_eq!(session(&read_state(&home), id)["name"], "Saved Codex title");
+    }
+}
+
+#[test]
 fn naming_prefers_codex_thread_titles_over_first_prompt() {
     let home = temp_home();
     let id = "019f-name";

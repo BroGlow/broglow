@@ -13,6 +13,7 @@ import struct
 import subprocess
 import tarfile
 import tempfile
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 C3 = ROOT / "firmware/esp32-c3-supermini"
@@ -51,6 +52,66 @@ def copy_flash_tool(package):
         package / "tools",
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
     )
+
+
+def copy_manual(package):
+    repository = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"][
+        "repository"
+    ].rstrip("/")
+    for filename in (
+        "LICENSE",
+        "site/guide/en/hardware.md",
+        "site/guide/ru/hardware.md",
+        "site/guide/en/firmware.md",
+        "site/guide/ru/firmware.md",
+    ):
+        destination = package / filename
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / filename, destination)
+    shutil.copytree(ROOT / "assets/icons", package / "assets/icons")
+    for suffix, locale, introduction, install, source, license_text, agent in (
+        (
+            "",
+            "en",
+            "Native macOS app, ESP32-C3 SuperMini firmware and offline manuals. "
+            "The enclosure is a separate download.",
+            "Install and connect",
+            "Source and contributor guide",
+            "Project license",
+            "For installation, updates, lamp setup or service checks, follow the "
+            "included [agent runbook](site/guide/en/hardware.md#agent-runbook). "
+            "Use its prebuilt-package procedure and completion checks. Preserve "
+            "unrelated settings and hooks; flash only when needed and authorized.",
+        ),
+        (
+            ".ru",
+            "ru",
+            "Нативное приложение macOS, прошивка ESP32-C3 SuperMini и офлайн-инструкции. "
+            "Корпус скачивается отдельно.",
+            "Установка и подключение",
+            "Исходники и руководство для участников",
+            "Лицензия проекта",
+            "Для установки, обновления, подключения лампы или проверки службы следуйте "
+            "включённой [инструкции для агента](site/guide/ru/hardware.md#agent-runbook). "
+            "Используйте процедуру готового пакета и её критерии проверки. Сохраняйте "
+            "посторонние настройки и хуки; прошивайте только при необходимости и разрешении.",
+        ),
+    ):
+        languages = "[English](README.md) | [Русский](README.ru.md)\n\n"
+        (package / f"README{suffix}.md").write_text(
+            languages + "# BroGlow — macOS\n\n" + introduction + "\n\n"
+            f"1. [{install}](site/guide/{locale}/hardware.md#install-a-prebuilt-package).\n"
+            "2. `BUILD.json` · `SHA256SUMS` · `bin/broglow`.\n"
+            f"3. [{source}]({repository}/blob/HEAD/CONTRIBUTING{suffix}.md) · "
+            f"[GitHub Releases]({repository}/releases).\n\n"
+            f"[{license_text}](LICENSE) · "
+            f"[{'Зависимости прошивки' if locale == 'ru' else 'Firmware dependencies'}]"
+            f"(firmware/esp32-c3-supermini/DEPENDENCIES{suffix}.md).\n"
+        )
+        (package / f"AGENTS{suffix}.md").write_text(
+            "[English](AGENTS.md) | [Русский](AGENTS.ru.md)\n\n"
+            "# BroGlow\n\n" + agent + "\n"
+        )
 
 
 def release_identity(version, tag):
@@ -271,26 +332,7 @@ def main():
         (destination / "flash-manifest.json").write_text(
             json.dumps(manifest, indent=2) + "\n"
         )
-        for filename in (
-            "README.md",
-            "README.ru.md",
-            "CONTRIBUTING.md",
-            "CONTRIBUTING.ru.md",
-            "LICENSE",
-            "CLAUDE.md",
-            "CLAUDE.ru.md",
-            "AGENTS.md",
-            "AGENTS.ru.md",
-            "site/guide/en/hardware.md",
-            "site/guide/ru/hardware.md",
-            "site/guide/en/firmware.md",
-            "site/guide/ru/firmware.md",
-        ):
-            doc = Path(filename)
-            destination = package / doc
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(ROOT / doc, destination)
-        shutil.copytree(ROOT / "assets/icons", package / "assets/icons")
+        copy_manual(package)
         provenance = {
             "packaged_at_utc": now.isoformat(),
             "package_version_from_source": version,

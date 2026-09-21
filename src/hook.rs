@@ -439,8 +439,8 @@ fn ingest_event(v: &Value) -> anyhow::Result<()> {
 /// - `Stop` → `idle`, except for one-shot `codex exec` rollouts → `ended`
 ///   (nobody resumes those; Codex has no `SessionEnd`).
 /// - Titles: Codex names its own threads (`session_index.jsonl`); the thread
-///   name rides along as the event title. A session that has no thread name
-///   by its first `Stop` gets the first typed prompt as a fallback.
+///   name rides along as the event title. Unnamed sessions use the submitted
+///   prompt immediately, with the rollout at `Stop` as a fallback for older hooks.
 pub fn run_codex_hook() -> anyhow::Result<()> {
     let mut input = String::new();
     let _ = std::io::stdin().read_to_string(&mut input);
@@ -468,9 +468,12 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
 
     // Codex's own thread title, when it has one — resolved at turn boundaries
     // only (the index is tiny, but Pre/PostToolUse fire constantly).
-    let title = matches!(hook_event.as_str(), "SessionStart" | "Stop")
-        .then(|| crate::codex::thread_names().remove(&session_id))
-        .flatten();
+    let title = matches!(
+        hook_event.as_str(),
+        "SessionStart" | "UserPromptSubmit" | "Stop"
+    )
+    .then(|| crate::codex::thread_names().remove(&session_id))
+    .flatten();
 
     let mut ev = serde_json::json!({
         "harness": "codex",
@@ -485,11 +488,21 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
     }
     ingest_event(&ev)?;
 
-    // Fallback naming: no thread name by the end of a turn → first typed
-    // prompt from the rollout, only while the session is still unnamed (a
-    // later thread name overwrites it via the title path above).
-    if hook_event == "Stop" && title.is_none() && !transcript_path.is_empty() {
-        if let Some(prompt) = crate::codex::first_user_message(&transcript_path) {
+    // Prompt hooks also work for ephemeral chats, which have no rollout.
+    // Name once; later Codex titles still win through the title path above.
+    if title.is_none() {
+        let prompt = match hook_event.as_str() {
+            "UserPromptSubmit" => field("prompt"),
+            "Stop" if !transcript_path.is_empty() => {
+                crate::codex::first_user_message(&transcript_path)
+            }
+            _ => None,
+        };
+        if let Some(prompt) = prompt {
+            let prompt = prompt.split_whitespace().collect::<Vec<_>>().join(" ");
+            if prompt.is_empty() {
+                return Ok(());
+            }
             let name = crate::session::truncate(&prompt, 50);
             update_state(|state| match state.sessions.get_mut(&session_id) {
                 Some(s) if s.name.is_none() => {

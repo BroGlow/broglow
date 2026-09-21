@@ -22,6 +22,11 @@ in Codex (including the ChatGPT desktop app) using their task link. CLI sessions
 still focus their captured terminal; if no host can be focused, BroGlow tries
 the task link in the installed Codex app.
 
+Before Codex saves a title, an unnamed session uses the start of its first submitted
+prompt, with whitespace normalized and a limit of 50 characters including `...`.
+This also works for temporary side-chats without a transcript. Later prompts keep
+the existing name; before the first nonempty prompt, the session may show its ID.
+
 Session names update within five seconds after Codex saves a generated title or
 rename. No new prompt is needed; the session's status and activity time stay the same.
 
