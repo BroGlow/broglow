@@ -712,7 +712,7 @@ function render() {
         html += `<div class="srow${help ? ' helprow' : ''}" data-cmd="focus"` +
           ` data-id="${esc(s.id)}" title="Open session">` +
           `<span class="dot ${g.dot}"></span>` +
-          `<div class="sinfo"><span class="sname">${badge}${esc(s.name)}</span>` +
+          `<div class="sinfo"><span class="sname" title="${esc(s.name)}">${badge}${esc(s.name)}</span>` +
           `<span class="smeta">${meta}</span></div>${tail}` +
           `<button class="dismissbtn" type="button" id="dismiss-${esc(s.id)}" data-cmd="clear_session" data-id="${esc(s.id)}"` +
           ` aria-label="Dismiss ${esc(s.name)} from BroGlow" title="Dismiss until new activity">×</button></div>`;

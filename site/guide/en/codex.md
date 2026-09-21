@@ -29,6 +29,7 @@ the existing name; before the first nonempty prompt, the session may show its ID
 
 Session names update within five seconds after Codex saves a generated title or
 rename. No new prompt is needed; the session's status and activity time stay the same.
+Hover over a session name to see its full saved title.
 
 Use **×** beside a session in BroGlow to dismiss it from the list and lamp status.
 The Codex conversation stays intact and reappears automatically on a new prompt or
