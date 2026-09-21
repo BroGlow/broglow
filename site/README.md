@@ -175,13 +175,9 @@ Markdown links inside the extracted package remain relative. Unknown or missing
 source links still fail the build. Keep the manual and agent generation procedures
 in the [release runbook](guide/en/releasing.md) aligned with the release workflow.
 
-USB Mac power is supported; a power adapter and enclosure are optional. Supplied
-firmware targets ESP32-C3 SuperMini only. `connected` means the service wrote to
-the lamp, not that LEDs or Codex hooks were verified. Desktop delivery needs a real
-local task; cloud/remote tasks and ordinary ChatGPT chats do not drive the service.
-Use the [hardware acceptance results](guide/en/hardware.md#physical-and-background-service-acceptance)
-for physical and service checks. Final enclosure assembly testing remains pending;
-website checks and renders do not establish physical fit.
+Use the [hardware manual](guide/en/hardware.md) for supported hardware and
+acceptance checks. Website tests and renders verify presentation, not physical
+fit or delivery of agent events.
 
 Our asset sources:
 

@@ -275,11 +275,6 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
             if ru
             else "\n\n[Printing and assembly instructions](printing.md)."
         )
-    models = (
-        "**Корпус · релиз-кандидат 1.0.0, готов к выпуску.** Финальная физическая проверка сборки продолжается.\n\n"
-        if ru
-        else "**Enclosure · 1.0.0 release candidate, ready for release.** Final physical assembly testing is in progress.\n\n"
-    ) + models
     return markdown.replace("<!-- mac-downloads -->", mac).replace(
         "<!-- model-download -->", models
     )

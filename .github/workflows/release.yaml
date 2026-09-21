@@ -154,7 +154,7 @@ jobs:
 
             The Windows archive contains the graphical system-tray app and CLI in broglow.exe, with USB lamp support. In PowerShell, run `.\broglow.exe install` from its permanent folder to register hooks, enable startup at login and launch the tray app. Use `.\broglow.exe menubar` to launch the tray interface directly, or `.\broglow.exe` for the terminal dashboard. No installer, BLE support, firmware or manuals are included.
 
-            The enclosure ZIP contains the accepted release candidate: STL, STEP, CAD source, print guide and validation reports.
+            The enclosure ZIP contains the accepted release design: STL, STEP, CAD source, print guide and validation reports.
 
             These assets passed automated checks; release builds do not establish fresh-machine permissions, physical lamp behavior or printed enclosure fit.
           generate_release_notes: true

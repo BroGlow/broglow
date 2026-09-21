@@ -100,7 +100,7 @@ def main():
     for link in re.findall(r"\]\(([^)]+)\)", guide):
         if "://" not in link and not link.startswith("#"):
             assert (MODEL / link.split("#")[0]).exists(), link
-    readme = """# BroGlow — enclosure release candidate
+    readme = """# BroGlow — enclosure
 
 A1 Mini / PETG Basic / 0.4 mm nozzle / 0.2 mm layers.
 Use exported orientations, 100% scale, 3 walls, 15% infill,
@@ -118,73 +118,40 @@ Main assembly: five unique STLs, six physical pieces including two eyes.
 The complete inventory is seven unique STLs, eight pieces including the two coupons.
 USB fit test: the two coupon parts, actual PCB/cable and two DIN 7982 ST2.2 x 6.5 screws.
 
-Models finalized and accepted by the user on 2026-09-19 after a good printed fit
-with the extended upper rails: 0.30 mm overlap, unchanged 19.20 x 1.10 mm channel.
-Upper side rails and far-end lips retain the centered PCB; the unchanged cover locates USB.
-If updating the earlier wide version, reprint only tower 03; no further coupon iteration is needed for this board. Cover 04, flat LED retainer 05, mascot and eyes are unchanged.
-The LED retainer still uses a rigid upper tab in a roof pocket and one lower screw.
-The full assembly uses FOUR DIN 7982 ST2.2 x 6.5 screws: three cover, one retainer.
-The rear cover locates the PCB independently of the LED retainer. No separate tray is used.
-Print retainer 05 flat outer rear face down, countersink toward the bed.
-Tower: 14 mm upper width, 45.5 mm height; base 24 mm wide and 15.2 mm tall.
-LED pitch 6.5 mm, centers Z=27/33.5/40 mm; bores remain 5.1 mm with 0.4 mm entries.
-The 14 mm-high USB coupon checks only PCB/USB fit and the lower cover screws.
-It omits the LED retainer and upper pocket: test their fit with the full tower.
-Use the current matching coupon pair.
-The PCB slides straight from the open rear into loose guides, USB facing backward.
-Slide centered: component-safe sideways offset is +/-0.15 mm; full +/-0.60 mm bare-board
-travel may contact components. Center USB in the unchanged cover before closing; do not force alignment with screws.
-Each guide has 0.60 mm side clearance (19.20 mm channel), a 1.10 mm slot for the 0.70 mm PCB,
-a 0.80 mm lower bearing and upper lips overlapping 0.30 mm (17.40 mm opening above the PCB). Only the rear slot mouths
-are chamfered 0.25 mm; long edges 0.10 mm. Wall/floor roots remain continuous to the seam. Guides meet the flat 2 mm floor and front wall and
-stop at the cover seam. Their 45-degree top braces rise 1.3 mm at the side walls.
-Each far-end corner lip covers 2.0 mm across the PCB and reaches 0.60 mm over its end,
-leaving 14 mm open centrally. Lip entries have 0.15 mm chamfers and 45-degree wall braces.
-The model assumes bare 2.7 x 1.0 mm patches at both far corners; check the actual board.
-Edge-only front stops and existing cover stops locate the PCB.
-Check actual edge components, GPIO solder joints and wire clearance; do not force the board.
-Leave wiring slack; remove the cover and slide the board straight out for service.
-Keep wires clear of the LED retainer, tab pocket and screw. Actual insulated-wire
-sizes and bundle fit are unmeasured: check the real wiring before closing the cover.
-PCB coupon fit is physically accepted; complete wiring and assembly still need checking.
+For assembly, use FOUR DIN 7982 ST2.2 x 6.5 screws: three cover, one retainer.
+Tighten by hand. Print the cover and retainer flat outer face down, countersinks
+facing the bed; print both eyes face down, tongues upward.
 
-PCB bottom/top remain Z=2.8/3.5 mm. The USB opening remains 9.15 x 3.20 mm,
-center Z=5.25 mm, entry chamfers 0.2 mm and corner bevels 0.15 mm.
-The 0.8 mm floor gap allows the nominal 0.6 mm underside envelope plus 0.2 mm clearance.
-The cable sits closer to the table; table contact depends on its molding.
-Enclosure depth stays 27.4 mm. An earlier 0.7 mm physical USB recess was not
-remeasured; do not assume modeled projection establishes the actual cable fit.
-Mascot scale is 0.65: face 32.5 x 26 mm, total height 35.75 mm, depth 20.5 mm.
-Eyes scale with the mascot. Hand-pin sizes remain 3 mm / 1.8 mm projection;
-their new datum is X=26 mm, Y=6/16 mm, Z=24 mm, with 3.3 mm sockets.
-Cover bosses retain 6.36 mm axial sections, 5.56 mm pilots, 0.8 mm closed
-ends and 45-degree side-wall ramps. Lower bosses are relieved 0.30 mm underneath to Z=8.0 mm; minimum pilot wall is 1.55 mm.
-Tighten the three cover screws and the one retainer screw by hand.
-Measured LED plastic length is 8.5 mm TIP TO BOTTOM INCLUDING the 1.2 mm flange;
-barrel length ahead of the flange is 7.3 mm. Nominal projection is 3.25–3.5 mm.
-The flange seat is Y=3.8 mm, flange rear Y=5.0 mm, retainer support Y=5.25 mm,
-leaving 0.25 mm axial play. Route leads clear of the retainer contact areas.
-Insert the red LED past the upper screw boss slightly toward the mascot side,
-then align it with its hole and push forward.
-Keep LED leads on the open side of the retainer, away from the mascot. Insert the
-retainer from the rear 1.3 mm below its final position, slide it up 1.3 mm into the
-roof pocket, and secure the lower end with one screw. To remove it, unscrew, slide
-down 1.3 mm, then withdraw rearward without pulling the leads.
-Support the LEDs before releasing the retainer for service; removing the rear cover
-alone leaves the LEDs retained.
+Dry-fit the USB coupons first. The 14 mm crop checks PCB/USB fit only; check the
+LED retainer, upper tab pocket and wiring in the full tower.
+Slide the PCB straight from the open rear, USB facing backward. Keep it centered:
+modeled components clear at +/-0.15 mm, not the full +/-0.60 mm bare-board travel.
+Check GPIO solder, edge components and bare 2.7 x 1.0 mm patches at both far corners.
+Align USB before closing; do not force the board or use screws to pull it into place.
+Check cable seating and clearance above the table.
 
-Earlier tested dimensions remain: LED bore 5.1 mm, screw pilot 1.9 mm, hand socket 3.3 mm.
-Completed LED/screw and hand-joint coupons are no longer included.
-Hand pins position the parts; use glue for permanent attachment after a dry fit.
-Eye rear tongue: 0.325 mm corner and 0.1625 mm insertion-edge chamfers.
-Print both eyes front-face down, mounting tongues upward.
-Inspect USB cover-coupon walls and infill before printing; current checks are in the slicer report.
-The full package includes both print guides, STEP files, source and check reports.
-The Mac app and prebuilt firmware are separate release downloads.
+Insert LEDs red/yellow/green from top to bottom. Pass the red LED around the upper
+screw boss on the mascot side, then align it with its hole. Keep leads clear of
+flange seats and on the retainer's open side, away from the mascot.
+Insert retainer 05 from the rear 1.3 mm below its final position; slide it up
+1.3 mm into the roof pocket and fasten the lower screw. Leave the cover off for
+wiring and electrical checks. Keep wires clear of the guides, tab pocket and
+screws, with enough slack to withdraw the PCB; do not pinch wires or load components.
+
+Move the mascot's hand pins straight toward the tower along +X by 1.8 mm. All four
+feet and the tower base must stand on the same plane. Dry-fit before gluing the
+hand and eyes; keep glue away from the cover, electronics and PCB guides.
+
+Disconnect power before servicing. To remove the PCB, remove the cover and slide
+it straight back without pulling wires. To remove the retainer, support the LEDs,
+remove its screw, slide down 1.3 mm and withdraw rearward, keeping leads clear.
+
+The full enclosure package includes the assembly/wiring guides, STEP, source and
+check reports. App and firmware downloads are separate.
 """
-    readme_ru = """<a name="broglow-enclosure-release-candidate"></a>
+    readme_ru = """<a name="broglow-enclosure"></a>
 
-# BroGlow — релиз-кандидат корпуса
+# BroGlow — корпус
 
 A1 Mini / PETG Basic / сопло 0,4 мм / слой 0,2 мм.
 Сохраните экспортированные ориентации, масштаб 100%, 3 стенки, 15% заполнения,
@@ -202,73 +169,38 @@ coupons/02_USB_cover_coupon.stl
 Весь комплект: семь уникальных STL, восемь деталей вместе с двумя пробниками.
 USB-примерка: две детали пробника, настоящая плата/кабель и два DIN 7982 ST2.2 x 6,5.
 
-Модели финализированы и приняты пользователем 2026-09-19 после удачной печатной
-примерки удлинённых верхних полок: перекрытие 0,30 мм, прежний канал 19,20 x 1,10 мм.
-Верхние полки и дальние уголки удерживают отцентрированную плату; прежняя крышка позиционирует USB.
-При обновлении прежней расширенной версии перепечатайте только башню 03; для этой платы новые итерации пробника не нужны. Крышка 04, плоский
-держатель LED 05, маскот и глаза не изменены. Держатель по-прежнему крепится
-жёстким верхним язычком в кармане крыши и одним нижним саморезом.
-Для полной сборки нужны ЧЕТЫРЕ DIN 7982 ST2.2 x 6,5: три для крышки, один для держателя.
-Крышка фиксирует плату независимо от держателя LED. Отдельного лотка нет.
-Держатель 05 печатайте плоской наружной задней поверхностью вниз, зенковкой к столу.
-Башня: ширина стойки 14 мм, высота 45,5 мм; основание шириной 24 мм и высотой 15,2 мм.
-Шаг LED 6,5 мм, центры Z=27/33,5/40 мм; отверстия 5,1 мм, входные фаски 0,4 мм.
-USB-пробник высотой 14 мм проверяет только плату/USB и нижние саморезы крышки.
-Держателя LED и верхнего кармана в нём нет: проверяйте их на полной башне.
-Используйте текущую согласованную пару пробников.
-Плата вставляется прямо сзади в свободные направляющие, USB назад.
-Вставляйте по центру: безопасное смещение модели компонентов +/-0,15 мм; весь боковой ход
-голой платы +/-0,60 мм может задеть компоненты. Совместите USB с неизменённой крышкой перед закрытием; не выравнивайте затяжкой саморезов.
-Боковой зазор — по 0,60 мм (канал 19,20 мм); паз высотой 1,10 мм для платы 0,70 мм;
-нижняя опора заходит под край на 0,80 мм; верхние полки перекрывают край на 0,30 мм (верхний проём 17,40 мм).
-Входные фаски 0,25 мм только на устьях пазов сзади, продольные 0,10 мм.
-Основания у стенок и дна непрерывны до стыка крышки. Направляющие соединены с плоским
-дном 2 мм и передней стенкой, заканчиваются у стыка крышки. Верхние укосы
-45 градусов поднимаются на 1,3 мм у боковых стенок. Каждый дальний уголок занимает
-2,0 мм по ширине платы и заходит над её торцом на 0,60 мм; по центру свободны 14 мм.
-Уголки имеют входные фаски 0,15 мм и укосы к стенкам 45 градусов. Модель предполагает
-свободные участки 2,7 x 1,0 мм в обоих дальних углах; проверьте настоящую плату.
-Передние упоры у краёв и прежние упоры крышки ограничивают ход платы.
-Проверьте реальные компоненты, пайку GPIO и провода; не вдавливайте плату.
-Оставьте запас проводов: для обслуживания снимите крышку и выдвиньте плату прямо назад.
-Уложите провода вне держателя LED, кармана язычка и самореза. Размеры изоляции
-и посадка пучка не измерены: перед закрытием проверьте реальную проводку.
-Посадка платы в пробнике физически принята; проводку и полную сборку ещё нужно проверить.
+Для сборки нужны ЧЕТЫРЕ DIN 7982 ST2.2 x 6,5: три для крышки, один для держателя.
+Затягивайте вручную. Крышку и держатель печатайте плоской наружной стороной вниз,
+зенковками к столу; оба глаза — лицом вниз, язычками вверх.
 
-Низ/верх платы сохранены на Z=2,8/3,5 мм. USB-проём 9,15 x 3,20 мм,
-центр Z=5,25 мм, входные фаски 0,2 мм, угловые 0,15 мм.
-Зазор до дна 0,8 мм включает расчётный габарит снизу 0,6 мм и свободные 0,2 мм.
-Кабель ближе к столу; касание стола зависит от формы его оболочки.
-Глубина корпуса 27,4 мм. Прежнее утопление USB на 0,7 мм отдельно не перемерено;
-расчётный выступ не подтверждает реальную посадку кабеля.
-Масштаб маскота 0,65: лицо 32,5 x 26 мм, общая высота 35,75 мм, глубина 20,5 мм.
-Глаза уменьшены вместе с маскотом. Размер штифтов 3 мм и выступ 1,8 мм сохранены;
-новая плоскость X=26 мм, центры Y=6/16 мм, Z=24 мм; гнёзда 3,3 мм.
-Осевые участки стоек крышки — 6,36 мм, пилоты 5,56 мм, закрытое дно 0,8 мм,
-скосы 45 градусов от боковых стенок. Снизу нижних стоек снято 0,30 мм до Z=8,0 мм;
-диаметры 5,6/1,9 мм оставляют стенку не менее 1,55 мм.
-Затягивайте три самореза крышки и один саморез держателя вручную.
-Измеренная длина пластика LED — 8,5 мм ОТ ВЕРШИНЫ ДО НИЗА ВКЛЮЧАЯ фланец 1,2 мм;
-корпус перед фланцем — 7,3 мм. Расчётный выступ — 3,25–3,5 мм.
-Опора фланца Y=3,8 мм, задняя грань Y=5,0 мм, опора держателя Y=5,25 мм,
-осевой люфт 0,25 мм. Уложите выводы вне опорных поверхностей держателя.
-Красный LED проведите мимо верхней стойки самореза чуть со стороны маскота,
-затем совместите с отверстием и подайте вперёд.
-Уложите выводы с открытой стороны держателя, дальше от маскота. Подведите держатель
-сзади на 1,3 мм ниже окончательного положения, сдвиньте вверх на 1,3 мм в карман
-крыши и закрепите низ одним саморезом. Для снятия открутите саморез, сдвиньте вниз
-на 1,3 мм и извлеките назад, не натягивая выводы.
-При снятии держателя придерживайте LED; снятие одной задней крышки
-не освобождает LED.
+Сначала примерьте USB-пробники. Срез высотой 14 мм проверяет только плату и USB;
+держатель LED, верхний карман язычка и проводку проверяйте в полной башне.
+Вставляйте плату прямо сзади, USB назад. Держите её по центру: модель компонентов
+проходит при +/-0,15 мм, но не на всём ходе голой платы +/-0,60 мм.
+Проверьте пайку GPIO, компоненты у краёв и свободные участки 2,7 x 1,0 мм
+в обоих дальних углах. Совместите USB до закрытия; не вдавливайте плату
+и не подтягивайте её саморезами. Проверьте посадку кабеля и зазор над столом.
 
-Проверенные размеры сохранены: отверстия LED 5,1 мм, пилоты 1,9 мм, гнёзда руки 3,3 мм.
-Испытанные пробники LED/саморезов и соединения руки больше не включены.
-Штифты руки позиционируют детали; склеивайте постоянное соединение после сухой примерки.
-Фаски язычка глаза: углы 0,325 мм, входная кромка 0,1625 мм.
-Печатайте два глаза лицом вниз, монтажными язычками вверх.
-Перед печатью просмотрите стенки и заполнение крышки USB-пробника; текущие проверки — в отчёте слайсера.
-Полный комплект содержит оба руководства, STEP, исходники и отчёты.
-Приложение Mac и готовая прошивка скачиваются отдельно из релиза.
+Вставьте LED сверху вниз: красный, жёлтый, зелёный. Красный проведите мимо верхней
+стойки самореза со стороны маскота, затем совместите с отверстием. Уложите выводы
+вне опор фланцев, с открытой стороны держателя, дальше от маскота.
+Подведите держатель 05 сзади на 1,3 мм ниже окончательного положения, сдвиньте
+вверх на 1,3 мм в карман крыши и закрепите нижним саморезом. Оставьте крышку
+снятой для проводки и электрических проверок. Уложите провода вне направляющих,
+кармана язычка и саморезов, с запасом для извлечения платы; не зажимайте провода
+и не нагружайте компоненты.
+
+Вставьте штифты руки прямо к башне по +X на 1,8 мм. Все четыре ноги маскота
+и основание башни должны стоять на одной плоскости. До склеивания руки и глаз
+соберите насухо; не допускайте клея на крышку, электронику и направляющие платы.
+
+Перед обслуживанием отключите питание. Для снятия платы снимите крышку и выдвиньте
+плату прямо назад, не натягивая провода. Для снятия держателя придержите LED,
+открутите саморез, сдвиньте держатель вниз на 1,3 мм и извлеките назад,
+не задевая выводы.
+
+Полный комплект корпуса содержит инструкции по сборке/проводке, STEP, исходники
+и отчёты. Приложение и прошивка скачиваются отдельно.
 """
     packs = {
         "broglow-compact-STL.zip": [
@@ -323,7 +255,7 @@ USB-пробник высотой 14 мм проверяет только пла
         entries = [(ROOT / "LICENSE", "LICENSE"), *entries]
         path = output / name
         if name == "broglow-USB-fit-test.zip":
-            text = """# USB fit test — enclosure release candidate
+            text = """# USB fit test — enclosure
 
 Print coupons/01_USB_base_coupon.stl and coupons/02_USB_cover_coupon.stl.
 Coupon width 24 mm, height 14 mm. PCB guides and USB retain the low-board geometry.
@@ -339,31 +271,16 @@ USB facing backward, until the far edge reaches the front stops. Close the cover
 without bending the board; its stops capture the PCB. Leave wiring slack for removal.
 Check insertion/removal, actual GPIO solder and edge-component clearance, lid closure,
 USB alignment and full cable seating. Do not force the PCB into the slots.
-The extended-rail coupon was printed and accepted as a good fit on 2026-09-19.
-Each upper rail overlaps the centered PCB by 0.30 mm; the model set is finalized.
-Slide centered under the lips: modeled components clear at +/-0.15 mm, not the full
-+/-0.60 mm bare-PCB side play. Center USB in the unchanged cover before closing. Lower screw bosses have
-0.30 mm underside relief to Z=8.0 mm; minimum pilot wall is 1.55 mm.
-Guides: 0.60 mm side clearance each (19.20 mm channel), slot 1.10 mm for a 0.70 mm PCB,
-0.80 mm lower bearing, upper lips overlapping 0.30 mm (17.40 mm opening above the PCB), 0.25 mm slot-mouth entry chamfers
-and 0.10 mm edge bevels; wall/floor roots remain continuous to the cover seam.
-Board bottom/top remain Z=2.8/3.5 mm. Guides meet the 2 mm floor and end at the cover seam.
-New 45-degree roof braces rise 1.3 mm at the side walls. Each far-end corner lip
-covers 2.0 mm across the PCB and reaches 0.60 mm over its end, with 0.15 mm entries;
-the middle 14 mm stays open. Check the assumed bare 2.7 x 1.0 mm patches at both corners.
-Use the new base coupon; its cover is unchanged.
-The nominal underside envelope clears the floor by 0.2 mm; check actual solder.
-The cable is closer to the table, but contact depends on its molding.
-USB opening stays 9.15 x 3.20 mm at Z=5.25 mm, entry chamfers 0.2 mm, corners 0.15 mm.
-Depth stays 27.4 mm; an earlier 0.7 mm USB recess has not been remeasured.
-Check screws in the retained short bosses (6.36 mm section, 5.56 mm pilot,
-0.8 mm closed end, diameters 5.6/1.9 mm, 45-degree side-wall ramps).
+Keep the PCB centered: modeled components clear at +/-0.15 mm, not the full
++/-0.60 mm bare-board play. Check bare 2.7 x 1.0 mm patches at both far corners,
+actual underside solder and cable clearance above the table. Align USB before
+closing; do not pull the board into place with screws. Tighten screws by hand.
 Inspect cover-coupon walls and infill in the slicer before printing.
 A successful coupon test does not replace final wiring and assembly checks.
 """
-            text_ru = """<a name="usb-fit-test-enclosure-release-candidate"></a>
+            text_ru = """<a name="usb-fit-test-enclosure"></a>
 
-# Примерка USB — релиз-кандидат корпуса
+# Примерка USB — корпус
 
 Напечатайте coupons/01_USB_base_coupon.stl и coupons/02_USB_cover_coupon.stl.
 Ширина пробника 24 мм, высота 14 мм. Направляющие и USB сохраняют низкое положение платы.
@@ -379,25 +296,10 @@ A1 Mini / PETG Basic / сопло 0,4 мм / слой 0,2 мм; 3 стенки, 
 Оставьте запас провода для извлечения. Проверьте установку/извлечение,
 реальные GPIO-пайку и компоненты у краёв, закрытие крышки, совпадение USB
 и полную посадку кабеля. Не вдавливайте плату в пазы.
-Пробник с удлинёнными полками напечатан и принят как хорошая посадка 2026-09-19.
-Верхние полки перекрывают край отцентрированной платы на 0,30 мм; комплект моделей финализирован.
-Вставляйте по центру: модель компонентов проходит при +/-0,15 мм, но не на всём
-боковом ходе голой платы +/-0,60 мм. Совместите USB с неизменённой крышкой перед закрытием. Снизу нижних стоек
-снято 0,30 мм до Z=8,0 мм; минимальная стенка пилота 1,55 мм.
-Направляющие: боковой зазор по 0,60 мм (канал 19,20 мм), паз 1,10 мм для платы 0,70 мм,
-нижняя опора 0,80 мм, верхние полки перекрывают край на 0,30 мм (верхний проём 17,40 мм), входные фаски 0,25 мм только
-на устьях пазов, продольные 0,10 мм; основания у стенок и дна непрерывны до стыка крышки.
-Низ/верх платы сохранены на Z=2,8/3,5 мм; направляющие соединены с дном 2 мм и заканчиваются у стыка крышки.
-Новые верхние укосы 45 градусов поднимаются на 1,3 мм у боковых стенок. Каждый дальний
-уголок занимает 2,0 мм по ширине и заходит над торцом платы на 0,60 мм, с фасками 0,15 мм;
-по центру свободны 14 мм. Проверьте предполагаемые свободные участки 2,7 x 1,0 мм
-в обоих дальних углах. Используйте новое основание пробника; его крышка не изменена.
-Расчётный габарит снизу имеет зазор до дна 0,2 мм; проверьте реальную пайку.
-Кабель ближе к столу, но касание зависит от формы оболочки.
-USB-проём 9,15 x 3,20 мм на Z=5,25 мм, входные фаски 0,2 мм, угловые 0,15 мм.
-Глубина 27,4 мм; прежнее утопление USB на 0,7 мм отдельно не перемерено.
-Проверьте саморезы в сохранённых коротких стойках: участок 6,36 мм, пилот 5,56 мм,
-дно 0,8 мм, диаметры 5,6/1,9 мм, скосы от стенок 45 градусов.
+Держите плату по центру: модель компонентов проходит при +/-0,15 мм, но не на всём
+боковом ходе голой платы +/-0,60 мм. Проверьте свободные участки 2,7 x 1,0 мм
+в обоих дальних углах, настоящую пайку снизу и зазор кабеля над столом.
+Совместите USB до закрытия; не подтягивайте плату саморезами. Затягивайте вручную.
 Перед печатью просмотрите стенки и заполнение крышки в слайсере.
 Удачная примерка пробника не заменяет проверку проводки и окончательной сборки.
 """

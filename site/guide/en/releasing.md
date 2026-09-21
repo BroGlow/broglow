@@ -7,13 +7,9 @@ title: Release and publication
 These are maintainer instructions for a source checkout. The `site/` and
 `.github/` files referenced below are not included in prebuilt app packages.
 
-We are preparing **1.0.0**. App/firmware releases and the website are separate
-GitHub Actions workflows. The enclosure is the accepted release candidate,
-with final physical testing against that design. It ships as a separate print
-package. GitHub's automatic source ZIP contains editable CAD and instructions;
-ready-to-print STL/STEP files are in the enclosure release asset. Generated
-STL, STEP/STP and ZIP files are ignored and kept out of Git history. The website
-uses our CAD-derived 3D/AR model. A working app and wired C3 lamp can also run without a case.
+Release version: **1.0.0**. App/firmware releases and website deployment use separate
+GitHub Actions workflows. Distribute generated STL, STEP/STP and ZIP files as
+release assets; keep them ignored and out of Git.
 
 ## Distribution
 
@@ -35,19 +31,11 @@ no Homebrew or crates.io publishing workflow.
 
 Release, firmware CI and Pages use **Python 3.14**. Root Python and firmware tools
 come from `pyproject.toml` + `uv.lock`; firmware builds use **PlatformIO Core 6.2.0**
-and esptool **5.4.0**. The former 3.12 pin was a
-conservative build choice, not a PlatformIO limitation: PlatformIO Core
-6.1.19 explicitly [added Python 3.14 support](https://docs.platformio.org/en/latest/core/history.html).
-A fresh Python 3.14.6 environment passed both C3 builds, firmware host checks,
-clang-format 23.1.1 and package checks on this Apple Silicon Mac. Hosted Linux
-and Intel runners are verified by the workflow when it runs.
+and esptool **5.4.0**.
 
-Enclosure generation uses **macOS 15 on Apple Silicon with Python 3.14**
-(`macos-15` in release CI). Local Python 3.14.2 and 3.14.6 builds reproduced all
-seven reviewed STL hashes. Linux produced different triangulations and floating
-point bytes with the same dependency pins, so its meshes fail the strict slicer
-evidence check. Use the verified platform; support for another platform requires
-real slicing evidence for its generated meshes before accepting new hashes.
+Enclosure generation requires **macOS 15 on Apple Silicon with Python 3.14**
+(`macos-15` in release CI). Other platforms can produce different STL bytes;
+accept new hashes only after real slicing checks on that platform.
 
 ## Before the first public release
 

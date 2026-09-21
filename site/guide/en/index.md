@@ -22,7 +22,7 @@ Already assembled? [Install BroGlow and connect the lamp](installation.md).
 | Wires | For the LEDs and a shared ground. |
 | USB cable · 1 | A data cable that fits your board, for initial setup and power from your Mac. |
 | USB adapter · optional | For placing the lamp away from your Mac. You can keep using the Mac’s USB port instead. |
-| Enclosure · optional | 1.0.0 release candidate; use the print package above. The lamp can operate without it. |
+| Enclosure · optional | 1.0.0; use the print package above. The lamp can operate without it. |
 
 Verify the actual chip before flashing; the supplied firmware targets ESP32-C3 only.
 

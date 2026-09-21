@@ -7,7 +7,7 @@ title: Hardware reference
 BroGlow sends local coding-agent status to ESP32-C3 SuperMini lamps over USB or,
 on macOS, Bluetooth LE. A Mac can drive several lamps; each needs USB power, no Wi-Fi.
 Run source commands from the checkout root and package commands from the extracted
-package. The optional enclosure is a separate **1.0.0** release-candidate print package.
+package. The optional enclosure is a separate **1.0.0** release print package.
 See [verification limits](#repeatable-checks-and-results) before claiming hardware support.
 
 ## Choose a setup path
@@ -49,7 +49,7 @@ For development, also read `AGENTS.md` and `CLAUDE.md` in the source checkout.
 ## Wiring and resistor choice
 
 Disconnect USB power before wiring. Use a separate **330 Ω resistor for red/yellow
-and 220 Ω for green**, rated 1/8 W or 1/4 W; the owner confirmed balanced brightness.
+and 220 Ω for green**, rated 1/8 W or 1/4 W.
 
 <!-- --8<-- [start:lamp-wiring] -->
 ```text
@@ -972,18 +972,18 @@ Linux/macOS/Windows. Firmware tests mock GPIO, clock, serial and Bluetooth; they
 cannot establish wiring/radio behavior. See `site/README.md` and `site/guide/en/releasing.md`
 for website/release checks.
 
-The hardware observations below predate the BroGlow rebrand and were recorded
-with ClawLight. BroGlow uses a fresh app identity and pairing protocol; repeat
+The electronics and Mac-service observations below predate the BroGlow rebrand
+and were recorded with ClawLight. Repeat
 physical acceptance with matching BroGlow firmware before claiming those results.
 
 | Area | Evidence and limits |
 | --- | --- |
 | Apple Silicon Mac | Signed service, USB pairing, bonded reconnect, status and brightness exercised. |
-| LEDs | Owner confirmed all colors/brightness preview after repairs; each assembly needs visual/electrical checks. |
+| LEDs | Check all colors and brightness on each assembly. |
 | Multiple lamps | Isolation tests pass; simultaneous operation with two physical boards remains unverified. |
 | Intel Mac / Windows / Linux | CI/build targets, no physical BLE or fresh-install claim. BLE is macOS-only. |
 | Distribution | Local package/site checks precede publication; public downloads, Pages and fresh-Mac Gatekeeper require release acceptance. |
-| Enclosure | 1.0.0 release candidate approved; final physical testing continues. Print package records CAD/slicer checks. |
+| Enclosure | Fit requirements and assembly checks are in the print guide; CAD/slicer reports are included in the print package. |
 
 Keep dated logs, board IDs and private recovery paths out of this manual.
 

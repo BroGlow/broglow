@@ -1,6 +1,6 @@
 {
   "status": "passed",
-  "hardware_fit": "User accepted the printed extended-rail PCB coupon as a good fit and finalized all models on 2026-09-19. Complete wired-assembly fit and separate keyed LED-retainer/collar fit are not established by that coupon. Measured hardware and previously fitted LED/screw diameters are retained; component/solder envelopes remain provisional, including two assumed bare 2.7 x 1.0 mm top corner patches. Physical assembly, retention strength and USB projection require checking on this revision.",
+  "hardware_fit": "The user confirmed that the complete printed case fits on 2026-09-21; the enclosure is ready for 1.0.0. Geometry and reviewed STL/slicer evidence are unchanged. This confirms fit on the tested assembly, not new measurements of component/solder envelopes, retention strength or USB projection.",
   "mesh": {
     "01_mascot_orange": {
       "watertight": true,
@@ -146,7 +146,7 @@
       "lower_boss_floor_z_mm": 8.0,
       "support_ramp_degrees": 45,
       "print_growth_axis": "+Y",
-      "physical_strength": "Thread dimensions retained; wall-supported bosses need a printed tightening test"
+      "physical_strength": "Complete printed enclosure fit confirmed by the user; tightening torque and retention loads were not measured"
     }
   },
   "hand_joint": {
@@ -172,7 +172,7 @@
       "local_faces_checked": 9,
       "minimum_print_direction_normal": -0.7071067811865476
     },
-    "physical_fit": "User tested the 3.3 mm coupon: locating fit, not friction retention; optional glue for permanent attachment. Simultaneous two-pin assembly remains unverified."
+    "physical_fit": "User tested the 3.3 mm coupon: locating fit, not friction retention; optional glue for permanent attachment. Complete printed enclosure fit confirmed by the user on 2026-09-21."
   },
   "tower_shoulders": {
     "continuous_strip_width_mm": 2.0,
@@ -309,7 +309,7 @@
     },
     "continuous_cover_withdrawal_mm": 40,
     "cover_swept_faces": 28,
-    "physical_fit": "Separate keyed retainer, collar fit and retention strength are unprinted; wire insulation and routing remain provisional"
+    "physical_fit": "Complete printed enclosure fit confirmed by the user on 2026-09-21; retention loads and wire-insulation dimensions were not measured"
   },
   "wire_corridor": {
     "width_depth_mm": [

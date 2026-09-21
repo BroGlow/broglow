@@ -1,7 +1,7 @@
 {
   "source": "models/broglow/appearance.py",
-  "status": "release_candidate",
-  "purpose": "Web/AR visualization of the enclosure release candidate",
+  "status": "release",
+  "purpose": "Web/AR visualization of the enclosure",
   "source_sha256": {
     "models/broglow/appearance.py": "3fdbe9ccf6a0d18c4f71b3b568e8c0e63826f7f67f0880e8ac0f060febc7e68c",
     "models/broglow/broglow.py": "9f8fde5eb2e6928a7b4a307c1aceb83900005bd6e29787df6a19c0359605d8f4",

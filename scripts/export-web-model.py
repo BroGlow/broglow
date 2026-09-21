@@ -211,8 +211,8 @@ def main():
     ), "Assembly inventory changed; review labels"
     metadata = {
         "source": f"models/broglow/{source}.py",
-        "status": "release_candidate",
-        "purpose": "Web/AR visualization of the enclosure release candidate",
+        "status": "release",
+        "purpose": "Web/AR visualization of the enclosure",
         "source_sha256": {
             f"models/broglow/{name}": digest(content)
             for name, content in inputs.items()

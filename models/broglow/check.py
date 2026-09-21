@@ -214,7 +214,7 @@ def screw_checks(parts, report):
         "lower_boss_floor_z_mm": m.PCB_INSERTION_CEILING,
         "support_ramp_degrees": 45,
         "print_growth_axis": "+Y",
-        "physical_strength": "Thread dimensions retained; wall-supported bosses need a printed tightening test",
+        "physical_strength": "Complete printed enclosure fit confirmed by the user; tightening torque and retention loads were not measured",
     }
     report["checks"].append(
         f"DIN 7982 min/max heads seat clear; all {screw_count} pilots retain tip clearance and blind caps; seating annuli and driver access clear; three short cover bosses preserve full pilot walls and have 45-degree ramps"
@@ -518,7 +518,7 @@ def hand_joint_checks(parts, report):
             "local_faces_checked": len(support_faces),
             "minimum_print_direction_normal": min(support_normals),
         },
-        "physical_fit": "User tested the 3.3 mm coupon: locating fit, not friction retention; optional glue for permanent attachment. Simultaneous two-pin assembly remains unverified.",
+        "physical_fit": "User tested the 3.3 mm coupon: locating fit, not friction retention; optional glue for permanent attachment. Complete printed enclosure fit confirmed by the user on 2026-09-21.",
     }
     report["checks"].append(
         "Integral straight hand pins clear both blind sockets and the straight-X insertion path; blind floors and support-free pin faces checked"
@@ -1292,7 +1292,7 @@ def compact_led_checks(parts, report):
         },
         "continuous_cover_withdrawal_mm": travel,
         "cover_swept_faces": cover_faces,
-        "physical_fit": "Separate keyed retainer, collar fit and retention strength are unprinted; wire insulation and routing remain provisional",
+        "physical_fit": "Complete printed enclosure fit confirmed by the user on 2026-09-21; retention loads and wire-insulation dimensions were not measured",
     }
     report["checks"].append(
         "Measured 8.5 mm total LED length includes the flange; flat front collar rings and short retainer pads limit protrusion to 3.25–3.5 mm across LED radial travel"
@@ -1311,7 +1311,7 @@ def main(check_mesh=True):
     coupons = m.coupon_parts()
     report = {
         "status": "passed",
-        "hardware_fit": "User accepted the printed extended-rail PCB coupon as a good fit and finalized all models on 2026-09-19. Complete wired-assembly fit and separate keyed LED-retainer/collar fit are not established by that coupon. Measured hardware and previously fitted LED/screw diameters are retained; component/solder envelopes remain provisional, including two assumed bare 2.7 x 1.0 mm top corner patches. Physical assembly, retention strength and USB projection require checking on this revision.",
+        "hardware_fit": "The user confirmed that the complete printed case fits on 2026-09-21; the enclosure is ready for 1.0.0. Geometry and reviewed STL/slicer evidence are unchanged. This confirms fit on the tested assembly, not new measurements of component/solder envelopes, retention strength or USB projection.",
         "mesh": {},
         "checks": [],
     }

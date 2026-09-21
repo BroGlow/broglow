@@ -7,7 +7,7 @@ title: Images and photos
 Use our own photos, screenshots, diagrams and CAD renders for project media.
 Keep software copyright and license notices in distributed packages.
 
-The website's renders and interactive 3D/AR preview come from our release-candidate
+The website's renders and interactive 3D/AR preview come from our release
 CAD and component measurements. Label renders as renders; they do not substitute
 for physical-fit results. The app uses our geometric status-light icons.
 
