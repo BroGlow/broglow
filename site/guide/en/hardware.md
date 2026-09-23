@@ -580,9 +580,10 @@ opencode or Copilot) before the project. A second glyph shows where it runs: a
 window for the agent's desktop app, `>_` for a terminal, `</>` for an IDE; hover it
 for the exact host, such as **Claude app**, **Ghostty** or **VS Code**. Turn off **Settings → Appearance → Show
 agent names** to keep only the icon; hover it to see the name. This saves
-`show_agent_names`. The TUI and the Linux tray menu show a short tag instead of the
-icon (`cc` Claude, `cx` Codex, `oc` opencode, `co` Copilot) and follow the same setting;
-the TUI names the host in its HOST column.
+`show_agent_names`. The TUI follows the same setting in its AGENT column, showing the
+name or a short tag (`cc` Claude, `cx` Codex, `oc` opencode, `co` Copilot), and names
+the host in its HOST column (**app** for the agent's desktop app). The Linux tray menu
+uses the tag in place of the icon.
 
 | Icon | Session state |
 | --- | --- |

@@ -426,38 +426,101 @@ mod tests {
         assert!(!app.should_quit);
     }
 
+    /// Rows at the user's 80×24 Terminal size, one string per line.
+    fn rows_80x24(app: &mut App) -> Vec<String> {
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        terminal.draw(|frame| ui::render(frame, app)).unwrap();
+        let buffer = terminal.backend().buffer();
+        (0..24)
+            .map(|y| (0..80).map(|x| buffer[(x, y)].symbol()).collect())
+            .collect()
+    }
+
     #[test]
-    fn session_rows_tag_every_agent_and_follow_the_names_setting() {
-        let session = |id: &str, name: &str, harness: Option<&str>| DisplaySession {
-            session_id: id.into(),
-            name: name.into(),
-            status: Status::Active,
-            project_name: "recco".into(),
-            project_path: "/work/recco".into(),
-            last_updated: String::new(),
-            host: harness.is_none().then(|| "Claude app".to_string()),
-            harness: harness.map(str::to_string),
+    fn session_rows_fit_80_columns_and_follow_the_names_setting() {
+        use crate::terminal::{Host, HostKind};
+        let session =
+            |id: &str, name: &str, project: &str, harness: Option<&str>, host| DisplaySession {
+                session_id: id.into(),
+                name: name.into(),
+                status: Status::Inactive,
+                project_name: project.into(),
+                project_path: format!("/work/{project}"),
+                last_updated: String::new(),
+                host,
+                harness: harness.map(str::to_string),
+            };
+        let app_host = |name: &str| {
+            Some(Host {
+                kind: HostKind::App,
+                name: name.into(),
+            })
         };
         let mut app = app();
         app.sessions = vec![
-            session("a", "Claude task", None),
-            session("b", "Codex task", Some("codex")),
+            session(
+                "a",
+                "Project status and next steps",
+                "Auto Review tasks",
+                None,
+                app_host("Claude app"),
+            ),
+            session(
+                "b",
+                "Собрать публичный API-контракт",
+                "recco",
+                Some("codex"),
+                app_host("Codex app"),
+            ),
+            session(
+                "c",
+                "Fix flaky test",
+                "simple-git-client",
+                None,
+                Some(Host {
+                    kind: HostKind::Terminal,
+                    name: "Ghostty".into(),
+                }),
+            ),
         ];
 
-        let named = screen(&mut app);
-        assert!(!named.contains("BRANCH") && !named.contains("MSGS"));
-        assert!(named.contains(" cc  Claude · recco"));
-        assert!(named.contains("HOST") && named.contains("Claude app"));
-        assert!(named.contains(" cx  Codex · recco"));
+        let screen = rows_80x24(&mut app);
+        // The status line drops empty chips rather than cut off the lamp.
+        assert!(screen[0].contains("BroGlow v1.0.0 "), "{:?}", screen[0]);
+        assert!(screen[0].contains("● 3 paused") && !screen[0].contains("needs help"));
         assert!(
-            !named.contains("cx  Codex task"),
-            "The title column carries no tag"
+            screen[0].trim_end().ends_with("BLE 1/2 connected"),
+            "{:?}",
+            screen[0]
         );
+        let header = screen.iter().find(|l| l.contains("SESSION")).unwrap();
+        for column in ["AGENT", "PROJECT", "HOST", "LAST", "STATUS"] {
+            assert!(header.contains(column), "{column} in {header:?}");
+        }
+        let row = |needle: &str| screen.iter().find(|l| l.contains(needle)).unwrap().clone();
+        let claude = row("Project status");
+        assert!(
+            claude.contains("Claude") && claude.contains("Auto Review tasks"),
+            "{claude:?}"
+        );
+        assert!(
+            claude.contains(" app "),
+            "Desktop apps read as \"app\": {claude:?}"
+        );
+        assert!(
+            !claude.contains("Claude app"),
+            "AGENT already names the app"
+        );
+        assert!(row("Собрать").contains("Codex") && row("Собрать").contains("recco"));
+        assert!(row("Fix flaky test").contains("Ghostty"));
 
         app.show_agent_names = false;
-        let bare = screen(&mut app);
-        assert!(bare.contains(" cx  recco"));
-        assert!(!bare.contains("Codex · recco"));
+        let screen = rows_80x24(&mut app);
+        let bare = screen.iter().find(|l| l.contains("Fix flaky")).unwrap();
+        assert!(
+            bare.contains(" cc ") && !bare.contains("Claude"),
+            "{bare:?}"
+        );
     }
 
     #[test]

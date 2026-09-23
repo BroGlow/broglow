@@ -23,11 +23,10 @@ const HELP_BG: Color = Color::Rgb(0x30, 0x23, 0x2c);
 const FOOT_BG: Color = Color::Rgb(0x1d, 0x20, 0x29);
 const FOOT_FG: Color = Color::Rgb(0x8a, 0x8d, 0x98);
 const KBD_BG: Color = Color::Rgb(0x2a, 0x2e, 0x3a);
-// Per-agent tag (One Dark purple on a muted fill) ahead of the project, the
-// TUI's stand-in for the popover's agent icon; Claude rows carry `cc`. Labels
-// come from the shared `harness::agent`, so the TUI and popover can't diverge.
+// The AGENT column (One Dark purple): the agent's name, or its short tag
+// (`cc`, `cx`) with names off. Labels come from the shared `harness::agent`,
+// so the TUI and popover can't diverge.
 const BADGE_FG: Color = Color::Rgb(0xc6, 0x78, 0xdd);
-const BADGE_BG: Color = Color::Rgb(0x30, 0x28, 0x3a);
 
 pub fn render(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
@@ -175,30 +174,60 @@ fn render_header(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
         ("tray ○ off (t)", Style::default().fg(YELLOW))
     };
 
-    let left = vec![
-        Span::raw(" "),
-        Span::styled(
-            "BroGlow",
-            Style::default().fg(WHITE).add_modifier(Modifier::BOLD),
-        ),
-        Span::raw(" "),
-        Span::styled(
-            concat!("v", env!("CARGO_PKG_VERSION")),
-            Style::default().fg(DIM),
-        ),
-    ];
-    let right = vec![
-        chip(working, "working", GREEN, false),
-        Span::raw("  "),
-        chip(paused, "paused", YELLOW, false),
-        Span::raw("  "),
-        chip(help, "needs help", RED, true),
-        Span::styled(" │ ", Style::default().fg(DIM)),
-        Span::styled(tray_text, tray_style),
-        Span::styled(" │ ", Style::default().fg(DIM)),
-        Span::styled(led_text, led_style),
-        Span::raw(" "),
-    ];
+    // A narrow terminal (80 columns) can't fit everything: drop the empty
+    // chips first, then the version, so the lamp status is never cut off.
+    let build = |show_version: bool, hide_empty: bool| {
+        let mut left = vec![
+            Span::raw(" "),
+            Span::styled(
+                "BroGlow",
+                Style::default().fg(WHITE).add_modifier(Modifier::BOLD),
+            ),
+        ];
+        if show_version {
+            left.push(Span::raw(" "));
+            left.push(Span::styled(
+                concat!("v", env!("CARGO_PKG_VERSION")),
+                Style::default().fg(DIM),
+            ));
+        }
+        let mut right = Vec::new();
+        for (n, label, color, bold) in [
+            (working, "working", GREEN, false),
+            (paused, "paused", YELLOW, false),
+            (help, "needs help", RED, true),
+        ] {
+            if hide_empty && n == 0 {
+                continue;
+            }
+            if !right.is_empty() {
+                right.push(Span::raw("  "));
+            }
+            right.push(chip(n, label, color, bold));
+        }
+        if !right.is_empty() {
+            right.push(Span::styled(" │ ", Style::default().fg(DIM)));
+        }
+        right.push(Span::styled(tray_text, tray_style));
+        right.push(Span::styled(" │ ", Style::default().fg(DIM)));
+        right.push(Span::styled(led_text.clone(), led_style));
+        right.push(Span::raw(" "));
+        (left, right)
+    };
+    let width = |spans: &[Span]| {
+        spans
+            .iter()
+            .map(|s| s.content.chars().count())
+            .sum::<usize>()
+    };
+    let fits = |(left, right): &(Vec<Span<'static>>, Vec<Span<'static>>)| {
+        width(left) + 1 + width(right) <= area.width as usize
+    };
+    let (left, right) = [(true, false), (true, true), (false, true)]
+        .into_iter()
+        .map(|(version, hide)| build(version, hide))
+        .find(fits)
+        .unwrap_or_else(|| build(false, true));
 
     frame.render_widget(
         Paragraph::new(justified_line(left, right, area.width)),
@@ -207,9 +236,38 @@ fn render_header(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
 }
 
 fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
+    // AGENT and HOST are only as wide as their longest value, so SESSION and
+    // PROJECT keep the rest of an 80-column terminal. HOST says just "app" for
+    // an agent's desktop app: the AGENT column already names it.
+    let labels: Vec<(String, String)> = app
+        .sessions
+        .iter()
+        .map(|s| {
+            let agent = crate::harness::agent(s.harness.as_deref());
+            let agent = if app.show_agent_names {
+                agent.label
+            } else {
+                agent.badge
+            };
+            let host = match &s.host {
+                Some(h) if h.kind == crate::terminal::HostKind::App => "app".to_string(),
+                Some(h) => h.name.clone(),
+                None => "—".to_string(),
+            };
+            (agent, host)
+        })
+        .collect();
+    let widest = |pick: fn(&(String, String)) -> &String, min: usize, max: usize| {
+        let longest = labels.iter().map(|l| pick(l).chars().count()).max();
+        longest.unwrap_or(0).clamp(min, max) as u16
+    };
+    let agent_width = widest(|l| &l.0, 2, 10);
+    let host_width = widest(|l| &l.1, 4, 16);
+
     let header = Row::new(vec![
         Cell::from(""),
         Cell::from("SESSION"),
+        Cell::from(if agent_width >= 5 { "AGENT" } else { "" }),
         Cell::from("PROJECT"),
         Cell::from("HOST"),
         Cell::from(Line::from("LAST").right_aligned()),
@@ -251,30 +309,17 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
                 Span::raw(" ")
             };
 
-            // Like the popover's meta line: the agent's tag, then its name
-            // unless turned off in Settings, then the project.
             let dim = Style::default().fg(DIM);
-            let agent = crate::harness::agent(s.harness.as_deref());
-            let project = if app.show_agent_names {
-                format!(" {} · {}", agent.label, s.project_name)
-            } else {
-                format!(" {}", s.project_name)
-            };
-            let project_spans = vec![
-                Span::styled(
-                    format!(" {} ", agent.badge),
-                    Style::default().fg(BADGE_FG).bg(BADGE_BG),
-                ),
-                Span::styled(project, dim),
-            ];
+            let (agent, host) = &labels[i];
             let mut row = Row::new(vec![
                 Cell::from(Line::from(vec![
                     bar,
                     Span::styled(dot, Style::default().fg(dot_color)),
                 ])),
                 Cell::from(Span::styled(s.name.clone(), name_style)),
-                Cell::from(Line::from(project_spans)),
-                Cell::from(Span::styled(s.host.as_deref().unwrap_or("—"), dim)),
+                Cell::from(Span::styled(agent.clone(), Style::default().fg(BADGE_FG))),
+                Cell::from(Span::styled(s.project_name.clone(), dim)),
+                Cell::from(Span::styled(host.clone(), dim)),
                 Cell::from(
                     Line::from(Span::styled(format_relative_time(&s.last_updated), dim))
                         .right_aligned(),
@@ -294,10 +339,11 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
     let table = Table::new(
         rows,
         [
-            Constraint::Length(2),  // selection bar + status dot
-            Constraint::Fill(3),    // session
-            Constraint::Fill(2),    // project
-            Constraint::Length(16), // host
+            Constraint::Length(2), // selection bar + status dot
+            Constraint::Fill(3),   // session
+            Constraint::Length(agent_width),
+            Constraint::Fill(2), // project
+            Constraint::Length(host_width),
             Constraint::Length(4),  // last
             Constraint::Length(10), // status
         ],
@@ -373,7 +419,8 @@ fn justified_line(
         .chain(right.iter())
         .map(|s| s.content.chars().count())
         .sum();
-    let pad = (width as usize).saturating_sub(used);
+    // Never glue the two sides together, even when they overflow.
+    let pad = (width as usize).saturating_sub(used).max(1);
     let mut spans = left;
     spans.push(Span::raw(" ".repeat(pad)));
     spans.extend(right);
