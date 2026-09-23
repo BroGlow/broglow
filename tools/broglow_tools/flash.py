@@ -295,12 +295,15 @@ def flash_prebuilt(port: str, manifest: dict, segments: list[tuple[int, Path]]) 
 
 def release_serial_port() -> str | None:
     executable = shutil.which("broglow")
+    if not executable:
+        installed = Path.home() / ".cargo/bin/broglow"
+        if installed.is_file():
+            executable = str(installed)
     if executable:
         enabled = not run(
             [executable, "ble", "status"], capture=True
         ).stdout.startswith("disabled:")
         run([executable, "ble", "off"])
-        time.sleep(0.5)
         return executable if enabled else None
     return None
 
@@ -382,33 +385,39 @@ def execute(args) -> int:
 
     ports = list(list_ports.comports())
     selected = select_port(ports, args.port)
-    info = inspect_current_firmware(selected.device, args.skip_info)
-    chip, flash_size = verify_hardware(selected.device)
-
-    if args.backup:
-        backup = str(backup_flash(selected.device))
-    else:
-        backup = "no backup"
-        print("No backup requested. Use --backup to save the complete existing flash.")
-
     prebuilt = load_manifest()
-    mode = "prebuilt release images" if prebuilt else "source PlatformIO upload"
-    print("\nReady to flash:")
-    print(f"  port: {selected.device}")
-    print(f"  chip: {chip}")
-    print(f"  flash: {flash_size}")
-    print(f"  path: {mode}")
-    print(f"  current firmware: {info}")
-    print(f"  backup: {backup}")
-    print(f"  target: BroGlow {version()} / {ENVIRONMENT}")
-    if not args.yes and not confirm():
-        print("Flash cancelled; nothing was written.")
-        return 0
-
-    sys.stdout.flush()
     restore = release_serial_port()
     failed = True
     try:
+        # Probes and backups also need exclusive USB access. Keep the wait inside
+        # the restoration guard so Ctrl-C cannot leave lamp control disabled.
+        time.sleep(3)
+        info = inspect_current_firmware(selected.device, args.skip_info)
+        chip, flash_size = verify_hardware(selected.device)
+
+        if args.backup:
+            backup = str(backup_flash(selected.device))
+        else:
+            backup = "no backup"
+            print(
+                "No backup requested. Use --backup to save the complete existing flash."
+            )
+
+        mode = "prebuilt release images" if prebuilt else "source PlatformIO upload"
+        print("\nReady to flash:")
+        print(f"  port: {selected.device}")
+        print(f"  chip: {chip}")
+        print(f"  flash: {flash_size}")
+        print(f"  path: {mode}")
+        print(f"  current firmware: {info}")
+        print(f"  backup: {backup}")
+        print(f"  target: BroGlow {version()} / {ENVIRONMENT}")
+        if not args.yes and not confirm():
+            print("Flash cancelled; nothing was written.")
+            failed = False
+            return 0
+
+        sys.stdout.flush()
         if prebuilt:
             flash_prebuilt(selected.device, *prebuilt)
         else:
@@ -441,6 +450,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
         return execute(args)
+    except KeyboardInterrupt:
+        print("\nFlash interrupted.", file=sys.stderr)
+        return 130
     except (FlashError, OSError, subprocess.CalledProcessError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1

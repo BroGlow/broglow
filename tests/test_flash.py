@@ -234,12 +234,67 @@ class FlowTests(unittest.TestCase):
             mocked["inspect_current_firmware"].return_value = "skipped"
             mocked["verify_hardware"].return_value = ("ESP32-C3", "4 MB")
             mocked["load_manifest"].return_value = None
+            mocked["release_serial_port"].return_value = None
             mocked["confirm"].return_value = False
             self.assertEqual(flash.execute(self.args()), 0)
         mocked["backup_flash"].assert_not_called()
         mocked["flash_source"].assert_not_called()
         mocked["flash_prebuilt"].assert_not_called()
         self.assertIn("No backup requested", output.getvalue())
+
+    @mock.patch.object(flash, "run")
+    @mock.patch.object(flash.time, "sleep")
+    @mock.patch.object(flash.list_ports, "comports", return_value=[port()])
+    def test_pause_precedes_every_probe_and_restores_on_early_exit(
+        self, _comports, sleep, run
+    ):
+        for failure in (None, "probe", "backup", "interrupt"):
+            with self.subTest(failure=failure), self.common() as mocked:
+                run.reset_mock()
+                sleep.reset_mock()
+                sleep.side_effect = (
+                    KeyboardInterrupt if failure == "interrupt" else None
+                )
+                mocked["release_serial_port"].return_value = "/bin/broglow"
+                mocked["load_manifest"].return_value = None
+                mocked["confirm"].return_value = False
+
+                def probe(*_args):
+                    mocked["release_serial_port"].assert_called_once()
+                    sleep.assert_called_once_with(3)
+                    if failure == "probe":
+                        raise flash.FlashError("probe failed")
+                    return "recognized"
+
+                mocked["inspect_current_firmware"].side_effect = probe
+                mocked["verify_hardware"].return_value = ("ESP32-C3", "4 MB")
+                if failure == "backup":
+                    mocked["backup_flash"].side_effect = flash.FlashError(
+                        "backup failed"
+                    )
+                args = self.args(backup=failure == "backup")
+                if failure:
+                    with self.assertRaises((flash.FlashError, KeyboardInterrupt)):
+                        flash.execute(args)
+                else:
+                    self.assertEqual(flash.execute(args), 0)
+                mocked["flash_source"].assert_not_called()
+                mocked["flash_prebuilt"].assert_not_called()
+                run.assert_called_once_with(["/bin/broglow", "ble", "on"])
+
+    @mock.patch.object(flash, "run")
+    @mock.patch.object(flash.shutil, "which", return_value=None)
+    def test_pause_finds_the_documented_install_without_path_setup(self, _which, run):
+        with (
+            tempfile.TemporaryDirectory() as folder,
+            mock.patch.object(flash.Path, "home", return_value=Path(folder)),
+        ):
+            executable = Path(folder) / ".cargo/bin/broglow"
+            executable.parent.mkdir(parents=True)
+            executable.touch()
+            run.return_value = subprocess.CompletedProcess([], 0, stdout="connected:")
+            self.assertEqual(flash.release_serial_port(), str(executable))
+            self.assertEqual(run.call_args.args[0], [str(executable), "ble", "off"])
 
     @mock.patch.object(flash, "run")
     @mock.patch.object(flash.list_ports, "comports", return_value=[port()])

@@ -141,10 +141,12 @@ exactly 4 MB flash, asks before writing, and requires an exact BroGlow `INFO`
 response after reset. `--skip-info` skips only the pre-flash firmware probe.
 Backups are opt-in: `--backup` reads all 4 MB into a private `.recovery/` file,
 prints its SHA-256 and warns that it may contain Bluetooth keys. By default no
-backup is made. Noninteractive `--yes` also requires an explicit `--port`. If
-installed lamp control was enabled, flashing pauses it while using the serial
-port and restores the same selected transport after verification; an already
-disabled lamp stays disabled.
+backup is made. Noninteractive `--yes` also requires an explicit `--port`.
+The command pauses installed lamp control before the first serial probe and
+waits three seconds for the worker to stop. It restores previously enabled
+control on the selected transport after verification, cancellation or failure;
+an already disabled lamp stays disabled. The documented `~/.cargo/bin/broglow`
+installation is also found when it is not on PATH.
 
 In a source checkout the command builds and uploads with PlatformIO. In a package
 it validates `flash-manifest.json` and the four included images before using
