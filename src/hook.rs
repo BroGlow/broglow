@@ -55,6 +55,79 @@ fn update_state(mutate: impl FnOnce(&mut HookState) -> bool) -> anyhow::Result<(
 
 #[cfg(all(test, unix))]
 #[test]
+fn startup_backfill_titles_only_unnamed_live_claude_sessions() {
+    // Isolate the real filesystem path in a child, never change this runner's HOME.
+    if std::env::var_os("BROGLOW_TEST_BACKFILL").is_none() {
+        let home = tempfile::tempdir().unwrap();
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "hook::startup_backfill_titles_only_unnamed_live_claude_sessions",
+                "--nocapture",
+            ])
+            .env("HOME", home.path())
+            .env("BROGLOW_TEST_BACKFILL", "1")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+    let project = dirs::home_dir()
+        .unwrap()
+        .join(".claude")
+        .join("projects")
+        .join("-work-app");
+    std::fs::create_dir_all(&project).unwrap();
+    for id in ["idle", "named", "done", "codex"] {
+        std::fs::write(
+            project.join(format!("{id}.jsonl")),
+            r#"{"type":"custom-title","customTitle":"Claude Title"}"#,
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        project.join("untitled.jsonl"),
+        r#"{"message":{"role":"user","content":"hi"}}"#,
+    )
+    .unwrap();
+
+    let session = |status: &str, name: Option<&str>, harness: Option<&str>| {
+        serde_json::json!({
+            "status": status, "last_updated": "2026-01-01T00:00:00Z",
+            "project_path": "/work/app", "notification_type": null,
+            "name": name, "harness": harness,
+        })
+    };
+    let state = serde_json::json!({ "sessions": {
+        "idle": session("inactive", None, None),
+        "named": session("inactive", Some("Kept"), None),
+        "done": session("done", None, None),
+        "codex": session("inactive", None, Some("codex")),
+        "untitled": session("inactive", None, None),
+        "missing": session("active", None, None),
+    }});
+    std::fs::create_dir_all(state_file_path().parent().unwrap()).unwrap();
+    std::fs::write(state_file_path(), state.to_string()).unwrap();
+
+    backfill_claude_titles().unwrap();
+
+    let after: Value =
+        serde_json::from_str(&std::fs::read_to_string(state_file_path()).unwrap()).unwrap();
+    let name = |id: &str| after["sessions"][id]["name"].clone();
+    assert_eq!(name("idle"), "Claude Title");
+    assert_eq!(name("named"), "Kept", "Never overwrite a name");
+    for id in ["done", "codex", "untitled", "missing"] {
+        assert_eq!(name(id), Value::Null, "{id} stays unnamed");
+    }
+    assert!(find_claude_transcript("../escape").is_none());
+}
+
+#[test]
 fn dismissed_session_returns_on_activity() {
     // Isolate the real filesystem path in a child, never change this runner's HOME.
     if std::env::var_os("BROGLOW_TEST_DISMISS").is_none() {
@@ -714,6 +787,59 @@ pub fn run_namer(session_id: &str, transcript_path: &str) -> anyhow::Result<()> 
         }
         _ => false,
     })
+}
+
+/// Give live Claude sessions that are still unnamed Claude's own title from
+/// their transcripts. Hooks read it only at turn boundaries, so an idle session
+/// would show `Session <id>` until its next prompt. The tray runs this once at
+/// startup; best-effort, and never overwrites a name.
+pub fn backfill_claude_titles() -> anyhow::Result<()> {
+    let LoadedState::Ok(state) = read_state_raw() else {
+        return Ok(());
+    };
+    let titles: Vec<(String, String)> = state
+        .sessions
+        .iter()
+        .filter(|(_, s)| s.harness.is_none() && s.name.is_none() && s.status != Status::Done)
+        .filter_map(|(id, _)| {
+            let path = find_claude_transcript(id)?;
+            Some((id.clone(), transcript_title(path.to_str()?)?))
+        })
+        .collect();
+    if titles.is_empty() {
+        return Ok(());
+    }
+    update_state(|state| {
+        let mut changed = false;
+        for (id, title) in &titles {
+            if let Some(s) = state.sessions.get_mut(id) {
+                if s.name.is_none() {
+                    s.name = Some(title.clone());
+                    changed = true;
+                }
+            }
+        }
+        changed
+    })
+}
+
+/// `~/.claude/projects/<project dir>/<id>.jsonl`. The directory is Claude's
+/// own encoding of the working directory, so look the file up rather than
+/// re-derive it. IDs must be plain names; nothing else is joined into a path.
+fn find_claude_transcript(session_id: &str) -> Option<std::path::PathBuf> {
+    let plain = !session_id.is_empty()
+        && session_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    if !plain {
+        return None;
+    }
+    let file = format!("{session_id}.jsonl");
+    std::fs::read_dir(dirs::home_dir()?.join(".claude").join("projects"))
+        .ok()?
+        .flatten()
+        .map(|entry| entry.path().join(&file))
+        .find(|path| path.is_file())
 }
 
 /// Build and run the naming prompt through the `claude` CLI.

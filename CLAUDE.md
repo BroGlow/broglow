@@ -247,7 +247,8 @@ thin:
 - **Claude owns its session titles.** At `SessionStart`/`UserPromptSubmit`/`Stop` the hook
   reads the latest `custom-title` record (desktop auto-title or `/rename`) from the last
   1 MiB of the transcript; it replaces any earlier name. Only an untitled first `Stop`
-  spawns the auto-namer.
+  spawns the auto-namer. At startup the tray runs `backfill_claude_titles` once, so idle
+  sessions get their title without waiting for a new turn; it never overwrites a name.
 - **The auto-namer runs detached** and sets `BROGLOW_NAMING=1` so the nested `claude`
   CLI call's own hooks no-op instead of recursing. It passes `--no-session-persistence`
   so naming calls don't appear in the user's history. When the CLI fails (for example,

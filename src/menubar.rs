@@ -442,6 +442,12 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
     }
     let tray = tray_builder.build().context("Building tray icon")?;
 
+    // Hooks name a Claude session only on its next turn; title idle ones now.
+    // The state watcher re-renders once the names land.
+    std::thread::spawn(|| {
+        let _ = crate::hook::backfill_claude_titles();
+    });
+
     // Usage readout (design 1a/1c): a background thread scans the transcript
     // JSONLs / plan endpoint and wakes the loop whenever a snapshot lands.
     #[cfg(any(target_os = "macos", target_os = "windows"))]
