@@ -6,7 +6,7 @@
 //! the menu-bar daemon are unaffected.
 
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 
 use chrono::Utc;
 use serde_json::Value;
@@ -197,6 +197,16 @@ pub fn run() -> anyhow::Result<()> {
         _ => return Ok(()),
     };
 
+    // Claude's own session title (the desktop app's auto-title, or `/rename`),
+    // re-read at turn boundaries so renames follow. Read before taking the
+    // lock: it's file IO on a transcript that can run into the tens of MB.
+    let claude_title = match hook_event.as_str() {
+        "SessionStart" | "UserPromptSubmit" | "Stop" if !transcript_path.is_empty() => {
+            transcript_title(&transcript_path)
+        }
+        _ => None,
+    };
+
     // Whether to kick off auto-naming after the write. Decided inside the RMW
     // span (it depends on the pre-existing name) and acted on afterward, off the
     // lock, so the detached spawn never blocks other writers.
@@ -212,9 +222,12 @@ pub fn run() -> anyhow::Result<()> {
             }
         }
 
-        // Preserve an existing name across status updates.
+        // Claude owns its titles; otherwise preserve an existing name across
+        // status updates.
         let existing = state.sessions.get(&session_id);
-        let existing_name = existing.and_then(|s| s.name.clone());
+        let name = claude_title
+            .clone()
+            .or_else(|| existing.and_then(|s| s.name.clone()));
 
         // Where the session runs, for click-to-focus. Captured on SessionStart
         // (a resumed session may live in a new window) and backfilled for
@@ -234,7 +247,7 @@ pub fn run() -> anyhow::Result<()> {
                 last_updated: timestamp,
                 project_path: cwd.clone(),
                 notification_type: notification_type.clone(),
-                name: existing_name.clone(),
+                name: name.clone(),
                 terminal,
                 // Claude Code sessions carry no harness tag (absent = claude).
                 harness: None,
@@ -242,8 +255,7 @@ pub fn run() -> anyhow::Result<()> {
         );
 
         // On the first Stop with no name yet, kick off auto-naming below.
-        spawn_naming =
-            hook_event == "Stop" && existing_name.is_none() && !transcript_path.is_empty();
+        spawn_naming = hook_event == "Stop" && name.is_none() && !transcript_path.is_empty();
         true
     })?;
 
@@ -681,23 +693,26 @@ pub fn run_namer(session_id: &str, transcript_path: &str) -> anyhow::Result<()> 
          Output ONLY the title, nothing else. No quotes. User's request: {first_prompt}"
     );
 
-    let output = run_claude_cli(&prompt);
-
-    let name = match output {
+    let generated = match run_claude_cli(&prompt) {
         Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
-        _ => return Ok(()),
+        _ => String::new(),
     };
 
-    if name.is_empty() {
-        return Ok(());
-    }
+    // The CLI fails when it isn't logged in (e.g. only the desktop app is), so
+    // fall back to the prompt itself, as the Codex and Copilot adapters do.
+    let name = if generated.is_empty() {
+        crate::session::truncate(&first_prompt, 50)
+    } else {
+        generated
+    };
 
     update_state(|state| match state.sessions.get_mut(session_id) {
-        Some(s) => {
+        // Claude's own title may have landed while the CLI ran; never clobber it.
+        Some(s) if s.name.is_none() => {
             s.name = Some(name);
             true
         }
-        None => false,
+        _ => false,
     })
 }
 
@@ -710,7 +725,9 @@ pub fn run_namer(session_id: &str, transcript_path: &str) -> anyhow::Result<()> 
 fn run_claude_cli(prompt: &str) -> std::io::Result<std::process::Output> {
     let build = |program: &str| {
         let mut cmd = std::process::Command::new(program);
-        cmd.args(["-p", "--model", "haiku", prompt])
+        // Without --no-session-persistence every naming call would leave a
+        // "Generate a concise title..." session in the user's history.
+        cmd.args(["-p", "--no-session-persistence", "--model", "haiku", prompt])
             // BROGLOW_NAMING tells the hooks fired by this nested call to no-op.
             .env("BROGLOW_NAMING", "1")
             // The old bash hook did `unset CLAUDECODE` before invoking a nested
@@ -779,6 +796,7 @@ fn first_user_prompt(transcript_path: &str) -> Option<String> {
                 .join(" "),
             _ => continue,
         };
+        let text = strip_system_reminders(&text);
         let text = text.trim();
         if text.is_empty() {
             continue;
@@ -788,6 +806,57 @@ fn first_user_prompt(transcript_path: &str) -> Option<String> {
         return Some(capped.lines().next().unwrap_or("").to_string());
     }
     None
+}
+
+/// Drop `<system-reminder>…</system-reminder>` blocks the host injects ahead
+/// of what the user typed (the desktop app's scratch-workspace notice), so
+/// they don't become the session's name. An unterminated block drops the rest.
+fn strip_system_reminders(text: &str) -> String {
+    const OPEN: &str = "<system-reminder>";
+    const CLOSE: &str = "</system-reminder>";
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(start) = rest.find(OPEN) {
+        out.push_str(&rest[..start]);
+        rest = match rest[start..].find(CLOSE) {
+            Some(end) => &rest[start + end + CLOSE.len()..],
+            None => "",
+        };
+    }
+    out.push_str(rest);
+    out
+}
+
+/// How far back from the end of a transcript to look for Claude's title.
+/// Claude re-appends its `custom-title` record every turn, so it sits near the
+/// end; a turn with more tool output than this is missed until the next one.
+const TITLE_TAIL_BYTES: u64 = 1024 * 1024;
+
+/// Claude's own title for a session: the latest `custom-title` record in its
+/// transcript, written by the desktop app's auto-titling and by `/rename`.
+/// Only the tail is read — the file can be tens of MB.
+fn transcript_title(transcript_path: &str) -> Option<String> {
+    let mut file = File::open(transcript_path).ok()?;
+    let len = file.metadata().ok()?.len();
+    let start = len.saturating_sub(TITLE_TAIL_BYTES);
+    file.seek(SeekFrom::Start(start)).ok()?;
+    let mut buf = Vec::new();
+    file.read_to_end(&mut buf).ok()?;
+    let tail = String::from_utf8_lossy(&buf);
+
+    // Mid-file, the first line is a fragment; skip it.
+    let lines = tail.lines().skip(usize::from(start > 0));
+    lines
+        .filter(|line| line.contains("custom-title"))
+        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .filter(|v| v.get("type").and_then(|t| t.as_str()) == Some("custom-title"))
+        .filter_map(|v| {
+            v.get("customTitle")
+                .and_then(|t| t.as_str())
+                .map(|t| t.trim().to_string())
+        })
+        .filter(|t| !t.is_empty())
+        .last()
 }
 
 /// Launch `broglow name ...` as a detached, windowless child so the hook can

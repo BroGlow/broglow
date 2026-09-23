@@ -327,7 +327,13 @@ fn seed_unnamed_session(home: &TempDir) {
 fn the_namer_titles_a_session_via_the_claude_cli() {
     let home = temp_home();
     seed_unnamed_session(&home);
-    let path_env = fake_claude(&home, r#"echo "Refactor Login Flow""#);
+    // Answers only when the naming call opts out of session persistence, so a
+    // regression that would litter the user's history with naming sessions
+    // fails here.
+    let path_env = fake_claude(
+        &home,
+        r#"case "$*" in *--no-session-persistence*) echo "Refactor Login Flow" ;; *) exit 1 ;; esac"#,
+    );
     let transcript = write_transcript(&home, "please refactor the login flow");
 
     run_namer(&home, &path_env, &transcript);
@@ -340,14 +346,156 @@ fn the_namer_titles_a_session_via_the_claude_cli() {
 }
 
 #[test]
-fn the_namer_writes_nothing_when_the_cli_fails() {
+fn the_namer_falls_back_to_the_first_prompt_when_the_cli_fails() {
     let home = temp_home();
     seed_unnamed_session(&home);
-    let path_env = fake_claude(&home, "exit 1");
+    // What a logged-out CLI does: the error on stdout, a non-zero exit.
+    let path_env = fake_claude(&home, r#"echo "Not logged in"; exit 1"#);
     let transcript = write_transcript(&home, "some prompt");
 
     run_namer(&home, &path_env, &transcript);
 
     let state = read_state(&home);
-    assert_eq!(state["sessions"]["sess-unnamed"]["name"], Value::Null);
+    assert_eq!(state["sessions"]["sess-unnamed"]["name"], "some prompt");
+}
+
+#[test]
+fn the_namer_fallback_skips_injected_system_reminders() {
+    let home = temp_home();
+    seed_unnamed_session(&home);
+    let path_env = fake_claude(&home, "exit 1");
+    let transcript = write_transcript(
+        &home,
+        "<system-reminder>\nscratch workspace notice\n</system-reminder>\n\nwhat can you do?",
+    );
+
+    run_namer(&home, &path_env, &transcript);
+
+    let state = read_state(&home);
+    assert_eq!(
+        state["sessions"]["sess-unnamed"]["name"],
+        "what can you do?"
+    );
+}
+
+#[test]
+fn the_namer_never_clobbers_a_name_that_landed_meanwhile() {
+    let home = temp_home();
+    seed_unnamed_session(&home);
+    let mut state = read_state(&home);
+    state["sessions"]["sess-unnamed"]["name"] = json!("Title From Claude");
+    seed_state(&home, &state);
+    let path_env = fake_claude(&home, r#"echo "Generated Title""#);
+    let transcript = write_transcript(&home, "some prompt");
+
+    run_namer(&home, &path_env, &transcript);
+
+    let state = read_state(&home);
+    assert_eq!(
+        state["sessions"]["sess-unnamed"]["name"],
+        "Title From Claude"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Claude's own titles (`custom-title` transcript records), read by the hook.
+// ---------------------------------------------------------------------------
+
+/// A transcript as Claude writes it once titled: messages interleaved with
+/// `custom-title` records, re-appended each turn; the last one is current.
+fn write_titled_transcript(home: &TempDir, titles: &[&str]) -> PathBuf {
+    let path = home.path().join("titled.jsonl");
+    let mut lines =
+        vec![json!({"message": {"role": "user", "content": "tell me the status"}}).to_string()];
+    for title in titles {
+        lines.push(
+            json!({"type": "custom-title", "customTitle": title, "sessionId": "sess-titled"})
+                .to_string(),
+        );
+        lines.push(json!({"message": {"role": "assistant", "content": "ok"}}).to_string());
+    }
+    std::fs::write(&path, lines.join("\n")).unwrap();
+    path
+}
+
+/// A hook event carrying a transcript, run with a failing fake `claude` first
+/// on PATH so a wrongly spawned namer can never reach the real CLI.
+fn run_hook_with_transcript(home: &TempDir, name: &str, transcript: &PathBuf) {
+    let path_env = fake_claude(home, "exit 1");
+    Command::cargo_bin("broglow")
+        .expect("binary built")
+        .arg("hook")
+        .env("HOME", home.path())
+        .env("PATH", path_env)
+        .env_remove("BROGLOW_NAMING")
+        .write_stdin(
+            json!({
+                "hook_event_name": name,
+                "session_id": "sess-titled",
+                "cwd": "/tmp/some-project",
+                "transcript_path": transcript,
+            })
+            .to_string(),
+        )
+        .assert()
+        .success();
+}
+
+#[test]
+fn the_hook_names_a_session_from_claudes_own_title() {
+    let home = temp_home();
+    let transcript = write_titled_transcript(&home, &["Project status and next steps"]);
+
+    run_hook_with_transcript(&home, "Stop", &transcript);
+
+    let state = read_state(&home);
+    assert_eq!(session_status(&state, "sess-titled"), "inactive");
+    assert_eq!(
+        state["sessions"]["sess-titled"]["name"],
+        "Project status and next steps"
+    );
+}
+
+#[test]
+fn a_claude_rename_replaces_an_earlier_name() {
+    let home = temp_home();
+    seed_state(
+        &home,
+        &json!({
+            "sessions": {
+                "sess-titled": {
+                    "status": "inactive",
+                    "last_updated": "2020-01-01T00:00:00Z",
+                    "project_path": null,
+                    "notification_type": null,
+                    "name": "Generated Title",
+                }
+            }
+        }),
+    );
+    let transcript = write_titled_transcript(&home, &["First title", "Renamed by user"]);
+
+    run_hook_with_transcript(&home, "UserPromptSubmit", &transcript);
+
+    let state = read_state(&home);
+    assert_eq!(session_status(&state, "sess-titled"), "active");
+    assert_eq!(state["sessions"]["sess-titled"]["name"], "Renamed by user");
+}
+
+#[test]
+fn claudes_title_is_found_at_the_end_of_a_large_transcript() {
+    let home = temp_home();
+    let path = home.path().join("large.jsonl");
+    // Well past the 1 MiB tail window, so the read starts mid-line.
+    let filler = json!({"message": {"role": "assistant", "content": "x".repeat(1000)}}).to_string();
+    let mut lines = vec![filler; 1500];
+    lines.push(json!({"type": "custom-title", "customTitle": "Long Session"}).to_string());
+    lines.push(json!({"message": {"role": "assistant", "content": "done"}}).to_string());
+    std::fs::write(&path, lines.join("\n")).unwrap();
+    assert!(std::fs::metadata(&path).unwrap().len() > 1024 * 1024);
+
+    run_hook_with_transcript(&home, "Stop", &path);
+
+    let state = read_state(&home);
+    assert_eq!(state["sessions"]["sess-titled"]["name"], "Long Session");
 }

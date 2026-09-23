@@ -61,7 +61,7 @@ operation: record those acceptance checks separately.
 | `event` *(hidden)* | Normalized-event backend for non-Claude harnesses (opencode); reads one event as JSON on stdin |
 | `codex-hook` *(hidden)* | Codex shim: reads one Claude-dialect hook payload on stdin, maps it to a normalized event |
 | `copilot-hook <event>` *(hidden)* | Copilot shim: reads one per-event payload on stdin (the event name rides on argv), maps it to a normalized event |
-| `name <id> <transcript>` *(hidden)* | Detached auto-namer; titles a session via the `claude` CLI |
+| `name <id> <transcript>` *(hidden)* | Detached auto-namer; titles an untitled session via the `claude` CLI, falling back to the first prompt |
 
 ## Module map (src/)
 
@@ -70,7 +70,8 @@ operation: record those acceptance checks separately.
 - **hook.rs** — the `hook`, `event`, `codex-hook`, `copilot-hook`, and `name` backends.
   Maps Claude hook events (and the harness-agnostic normalized verbs from `event`) →
   `Status`, does the locked read-modify-write of `state.json` via the shared
-  `update_state` helper, spawns the detached auto-namer on first `Stop`. `run_event` is
+  `update_state` helper, names Claude sessions from Claude's own `custom-title`
+  transcript record, spawns the detached auto-namer on the first untitled `Stop`. `run_event` is
   the multi-harness ingestion path; `run_codex_hook` and `run_copilot_hook` translate
   Codex's Claude-dialect / Copilot's per-event payloads onto the same verbs in-process —
   see "Multi-harness adapters" below.
@@ -91,6 +92,7 @@ operation: record those acceptance checks separately.
   plus the 24h staleness backstop), and `Aggregate` (Red/Yellow/Green/None) health rollup.
 - **session.rs** — discovers `~/.claude/projects/*/sessions-index.json`, merges those
   entries with hook state into `DisplaySession`s, resolves display names and sort order.
+  Current Claude Code writes no sessions index, so Claude names come from hook state.
 - **config.rs** — `~/.claude/broglow/config.json` (LED opt-in, `led_transport`
   defaulting to USB, optional `led_port`, remembered `ble_peripherals`, and `yellow_mode`).
   Use `ble_ids()` to deduplicate remembered `ble_peripherals`.
@@ -237,8 +239,15 @@ thin:
 - **Never write to state on a failed read.** `hook.rs` returns `Unreadable` when
   `state.json` can't be parsed (a mid-write snapshot, unknown future schema); the caller
   must not write, or it would wipe every other session's status.
+- **Claude owns its session titles.** At `SessionStart`/`UserPromptSubmit`/`Stop` the hook
+  reads the latest `custom-title` record (desktop auto-title or `/rename`) from the last
+  1 MiB of the transcript; it replaces any earlier name. Only an untitled first `Stop`
+  spawns the auto-namer.
 - **The auto-namer runs detached** and sets `BROGLOW_NAMING=1` so the nested `claude`
-  CLI call's own hooks no-op instead of recursing.
+  CLI call's own hooks no-op instead of recursing. It passes `--no-session-persistence`
+  so naming calls don't appear in the user's history. When the CLI fails (for example,
+  not logged in while only the desktop app is), it names the session from the first
+  prompt, without `<system-reminder>` blocks. It never overwrites an existing name.
 - **LEDs are opt-in, but a clean first install auto-enables USB when a board is already
   plugged in** (`maybe_autoenable_led` in main.rs, called from `install_hooks`). It's gated
   on there being no `config.json` yet, so re-running install — or an existing user — never
