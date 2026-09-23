@@ -278,15 +278,18 @@ impl Tracker {
             self.tallies.clear();
         }
 
-        let Some(root) = projects_dir() else { return };
-        let Ok(projects) = std::fs::read_dir(&root) else {
-            return;
-        };
         // Session files last written before local midnight can't contain
         // today's entries (lines are appended as they happen).
         let midnight = today
             .and_hms_opt(0, 0, 0)
             .and_then(|t| t.and_local_timezone(Local).single());
+
+        // Codex-only installations need no Claude transcript directory.
+        self.scan_codex(midnight);
+        let Some(root) = projects_dir() else { return };
+        let Ok(projects) = std::fs::read_dir(&root) else {
+            return;
+        };
 
         for project in projects.flatten() {
             let Ok(sessions) = std::fs::read_dir(project.path()) else {
@@ -306,8 +309,6 @@ impl Tracker {
                 self.scan_file(path, meta.len());
             }
         }
-
-        self.scan_codex(midnight);
     }
 
     /// Fold new Codex rollout lines into today's tallies. Same incremental
@@ -916,6 +917,52 @@ fn fetch_plan_usage() -> Option<PlanUsage> {
 mod tests {
     use super::*;
     use chrono::TimeZone;
+
+    #[cfg(unix)]
+    #[test]
+    fn scans_codex_without_claude_projects() {
+        if std::env::var_os("BROGLOW_TEST_CODEX_USAGE").is_none() {
+            let home = tempfile::tempdir().unwrap();
+            let output = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "usage::tests::scans_codex_without_claude_projects",
+                ])
+                .env("HOME", home.path())
+                .env("CODEX_HOME", home.path().join("codex"))
+                .env("BROGLOW_TEST_CODEX_USAGE", "1")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            return;
+        }
+        assert!(!projects_dir().unwrap().exists());
+        let sessions = crate::codex::codex_home().unwrap().join("sessions");
+        std::fs::create_dir_all(&sessions).unwrap();
+        let mut tracker = Tracker::new();
+        let context =
+            serde_json::json!({"type": "turn_context", "payload": {"model": "gpt-5.6-sol"}});
+        let usage = serde_json::json!({
+            "timestamp": today_ts(&tracker), "type": "event_msg",
+            "payload": {"type": "token_count", "info": {"total_token_usage": {
+                "input_tokens": 100, "cached_input_tokens": 25,
+                "output_tokens": 10, "total_tokens": 110
+            }}}
+        });
+        std::fs::write(
+            sessions.join("rollout.jsonl"),
+            format!("{context}\n{usage}\n"),
+        )
+        .unwrap();
+        tracker.scan();
+        assert_eq!(tracker.snapshot(None).today_tokens, 110);
+        tracker.scan();
+        assert_eq!(tracker.snapshot(None).today_tokens, 110);
+    }
 
     fn line(model: &str, msg_id: &str, ts: &str, output: u64) -> String {
         format!(
