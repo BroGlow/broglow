@@ -90,9 +90,8 @@ operation: record those acceptance checks separately.
   (atomic temp-file + rename), the shared `.state.lock` (`acquire_state_lock`), the
   `reap_ended_sessions` downgrade to `Done` (dead-process reap via `terminal::is_alive`,
   plus the 24h staleness backstop), and `Aggregate` (Red/Yellow/Green/None) health rollup.
-- **session.rs** — discovers `~/.claude/projects/*/sessions-index.json`, merges those
-  entries with hook state into `DisplaySession`s, resolves display names and sort order.
-  Current Claude Code writes no sessions index, so Claude names come from hook state.
+- **session.rs** — turns hook state into the TUI's `DisplaySession`s: display names,
+  sort order and the five most recent finished sessions. Every name comes from the hooks.
 - **config.rs** — `~/.claude/broglow/config.json` (LED opt-in, `led_transport`
   defaulting to USB, optional `led_port`, remembered `ble_peripherals`, `yellow_mode`, and
   `show_agent_names`, on by default).
@@ -142,8 +141,8 @@ See `state::aggregate`.
 ## Multi-harness adapters (opencode, and future ones)
 
 Sessions from other coding agents flow into the *same* `state.json` and so light up the
-TUI, tray, aggregate, and LED with no reader changes — `merge_sessions` already displays
-hook-state sessions that have no Claude sessions-index entry. The adapter is deliberately
+TUI, tray, aggregate, and LED with no reader changes — every reader lists hook-state
+sessions, whatever agent wrote them. The adapter is deliberately
 thin:
 
 - **`broglow event`** (`hook::run_event`) is the ingestion path. It reads one *normalized*

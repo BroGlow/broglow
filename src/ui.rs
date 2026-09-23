@@ -162,8 +162,6 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
         Cell::from(""),
         Cell::from("SESSION"),
         Cell::from("PROJECT"),
-        Cell::from("BRANCH"),
-        Cell::from(Line::from("MSGS").right_aligned()),
         Cell::from(Line::from("LAST").right_aligned()),
         Cell::from(Line::from("STATUS").right_aligned()),
     ])
@@ -203,12 +201,6 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
                 Span::raw(" ")
             };
 
-            let branch = s
-                .git_branch
-                .as_ref()
-                .map(|b| format!("⎇ {b}"))
-                .unwrap_or_else(|| "—".to_string());
-
             // Like the popover's meta line: the agent's tag, then its name
             // unless turned off in Settings, then the project.
             let dim = Style::default().fg(DIM);
@@ -232,12 +224,8 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
                 ])),
                 Cell::from(Span::styled(s.name.clone(), name_style)),
                 Cell::from(Line::from(project_spans)),
-                Cell::from(Span::styled(branch, dim)),
                 Cell::from(
-                    Line::from(Span::styled(s.message_count.to_string(), dim)).right_aligned(),
-                ),
-                Cell::from(
-                    Line::from(Span::styled(format_relative_time(&s.modified), dim))
+                    Line::from(Span::styled(format_relative_time(&s.last_updated), dim))
                         .right_aligned(),
                 ),
                 Cell::from(Line::from(Span::styled(status_text, status_style)).right_aligned()),
@@ -258,8 +246,6 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
             Constraint::Length(2),  // selection bar + status dot
             Constraint::Fill(3),    // session
             Constraint::Fill(2),    // project
-            Constraint::Fill(2),    // branch
-            Constraint::Length(4),  // msgs
             Constraint::Length(4),  // last
             Constraint::Length(10), // status
         ],

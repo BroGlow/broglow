@@ -430,9 +430,7 @@ mod tests {
             status: Status::Active,
             project_name: "recco".into(),
             project_path: "/work/recco".into(),
-            git_branch: None,
-            message_count: 0,
-            modified: String::new(),
+            last_updated: String::new(),
             harness: harness.map(str::to_string),
         };
         let mut app = app();
@@ -442,6 +440,7 @@ mod tests {
         ];
 
         let named = screen(&mut app);
+        assert!(!named.contains("BRANCH") && !named.contains("MSGS"));
         assert!(named.contains(" cc  Claude · recco"));
         assert!(named.contains(" cx  Codex · recco"));
         assert!(
