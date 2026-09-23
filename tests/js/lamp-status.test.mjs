@@ -77,7 +77,8 @@ test('sessions dismiss without focusing, show failures, and return on fresh host
   const { context, element, click, commands } = popoverPage();
   const sessions = ['active', 'inactive', 'needs_help'].map((status, i) => ({
     id: 'session-' + i, name: 'Task <one> "quoted"', project: 'project', status,
-    lastUpdated: new Date().toISOString(), badge: 'cx',
+    lastUpdated: new Date().toISOString(),
+    agent: { label: 'Codex', icon: 'M8 1.5l5.6 3.25v6.5L8 14.5l-5.6-3.25v-6.5z', badge: 'cx' },
   }));
   const refresh = sessions => context.window.__setState({ aggregate: 'red', sessions, settings: {}, lamp: lamp() });
   refresh(sessions);
@@ -149,6 +150,57 @@ test('Clear paused appears only with yellow sessions and waits for host state, i
   refresh(sessions);
   click('settingsbtn');
   assert.doesNotMatch(element('groups').innerHTML, /Clear paused/);
+});
+
+test('session meta shows the agent icon and name, or the icon alone when names are off', () => {
+  const { context, element } = popoverPage();
+  const session = (id, agent) => ({ id, name: 'Task ' + id, project: 'broglow', status: 'active',
+    lastUpdated: new Date().toISOString(), agent });
+  const sessions = [
+    session('claude', { label: 'Claude', icon: 'M8 1.5v13', badge: '' }),
+    session('future', { label: 'Mystery <b>', badge: 'my' }),
+  ];
+  const refresh = settings => context.window.__setState({ aggregate: 'green', sessions, settings, lamp: lamp() });
+  const meta = id => {
+    const html = element('groups').innerHTML;
+    const row = html.slice(html.indexOf(`data-id="${id}"`));
+    return row.match(/<span class="smeta">(.*?)<\/span><\/div>/)[1];
+  };
+
+  refresh({}); // Names show by default, including for Claude.
+  assert.match(meta('claude'), /<svg class="agicon"[^>]*aria-hidden="true"><path d="M8 1.5v13"\/><\/svg>/);
+  assert.equal(visibleLabel({ innerHTML: meta('claude') }), 'Claude · broglow');
+  assert.match(meta('future'), /<span class="badge" aria-hidden="true">my<\/span>/);
+  assert.equal(visibleLabel({ innerHTML: meta('future') }), 'myMystery &lt;b&gt; · broglow');
+  assert.doesNotMatch(element('groups').innerHTML, /class="sname"[^>]*><span class="badge"/,
+    'The title line carries no agent tag');
+
+  refresh({ showAgentNames: false });
+  assert.match(meta('claude'), /<svg class="agicon"[^>]*role="img" aria-label="Claude">/);
+  assert.equal(visibleLabel({ innerHTML: meta('claude') }), ' · broglow');
+  assert.match(meta('claude'), /title="Claude"/, 'Hover still names the agent');
+  assert.equal(visibleLabel({ innerHTML: meta('future') }), 'my · broglow');
+});
+
+test('Settings toggles agent names and waits for the saved preference', () => {
+  const { context, element, click, listeners, commands } = popoverPage();
+  const refresh = enabled => context.window.__setState({ aggregate: 'none', sessions: [],
+    settings: { showAgentNames: enabled }, lamp: lamp() });
+  refresh(undefined);
+  click('settingsbtn');
+  const toggle = element('showagentnames');
+  assert.equal(toggle.checked, true, 'On unless turned off');
+  assert.match(element('groups').innerHTML, /<label[^>]*for="showagentnames"/);
+  toggle.focus();
+  for (const enabled of [false, true]) {
+    toggle.checked = enabled;
+    listeners.change({ target: toggle });
+    assert.deepEqual(commands('set_agent_names').at(-1), { cmd: 'set_agent_names', enabled });
+    refresh(enabled);
+    assert.equal(toggle.checked, enabled);
+    assert.equal(context.document.activeElement, toggle, 'Keep keyboard focus through refresh');
+  }
+  assert.equal(commands('set_dashboard_button').length, 0);
 });
 
 test('dashboard stays hidden unless explicitly enabled and follows live settings', () => {

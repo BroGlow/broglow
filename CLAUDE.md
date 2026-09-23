@@ -94,7 +94,8 @@ operation: record those acceptance checks separately.
   entries with hook state into `DisplaySession`s, resolves display names and sort order.
   Current Claude Code writes no sessions index, so Claude names come from hook state.
 - **config.rs** — `~/.claude/broglow/config.json` (LED opt-in, `led_transport`
-  defaulting to USB, optional `led_port`, remembered `ble_peripherals`, and `yellow_mode`).
+  defaulting to USB, optional `led_port`, remembered `ble_peripherals`, `yellow_mode`, and
+  `show_agent_names`, on by default).
   Use `ble_ids()` to deduplicate remembered `ble_peripherals`.
   Preserve unrelated and unknown settings when changing the lamp selection.
 - **app.rs** — TUI event loop: file watcher + 5s timer refresh, key handling, notifications.
@@ -169,12 +170,16 @@ thin:
   `run_event`, and `run_namer` — never reimplement the lock / atomic-write / never-write-on-
   unreadable rules.
 - **`harness.rs` is the registry.** Everything agent-specific — detection, plugin/hook
-  install + uninstall, and the UI badge — lives in one `const ADAPTERS: &[Adapter]` table.
-  `install_all`/`uninstall_all` (called from `register_hooks`/`uninstall_hooks`) and
-  `badge(name)` (used by the TUI and popover) iterate it, so **adding Codex/Copilot is one
-  `Adapter` entry + its embedded asset**, not edits across main.rs/session.rs/ui.rs. Each new
-  harness needs a **unique** `badge` (a test enforces it — the `codex`/`copilot` → `"co"`
-  collision is the trap the two-char fallback would otherwise hide).
+  install + uninstall, and the UI badge, label and icon — lives in one `const ADAPTERS:
+  &[Adapter]` table. `install_all`/`uninstall_all` (called from `register_hooks`/
+  `uninstall_hooks`), `badge(name)` (the TUI tag) and `agent(harness)` (the popover's icon
+  and name, Claude from `CLAUDE_LABEL`/`CLAUDE_ICON`) iterate it, so **adding
+  Codex/Copilot is one `Adapter` entry + its embedded asset**, not edits across
+  main.rs/session.rs/ui.rs. Each new harness needs a **unique** `badge` (a test enforces
+  it — the `codex`/`copilot` → `"co"` collision is the trap the two-char fallback would
+  otherwise hide), plus a unique `label` and `icon`. Icons are our own geometric glyphs,
+  never vendor logos: plain SVG path data for a 16×16 stroked `currentColor` icon, which
+  the popover places only in a `d` attribute. An unknown harness shows its badge instead.
 - **`assets/opencode-plugin.js`** is embedded via `include_str!` and written to opencode's
   global `~/.config/opencode/plugins/broglow.js` at install time, with this binary's absolute
   path and version baked in (so it runs even when broglow isn't on opencode's PATH; the

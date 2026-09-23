@@ -44,6 +44,9 @@ pub enum LedTransport {
 pub struct Config {
     /// Show the optional terminal-dashboard entry points in the tray app.
     pub show_dashboard_button: bool,
+    /// Name each session's coding agent beside its icon in the tray popover;
+    /// off leaves the icon alone. On by default.
+    pub show_agent_names: bool,
     /// Whether the menu bar daemon should mirror session state to an ESP32 over
     /// serial. Off by default; macOS USB setup can enable a newly added lamp.
     pub led_enabled: bool,
@@ -92,6 +95,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             show_dashboard_button: false,
+            show_agent_names: true,
             led_enabled: false,
             led_port: None,
             led_transport: LedTransport::default(),
@@ -182,6 +186,13 @@ pub fn read_config_strict() -> anyhow::Result<Config> {
 pub fn set_dashboard_button(enabled: bool) -> anyhow::Result<()> {
     update_config(|cfg| {
         cfg.show_dashboard_button = enabled;
+        Ok(())
+    })
+}
+
+pub fn set_agent_names(enabled: bool) -> anyhow::Result<()> {
+    update_config(|cfg| {
+        cfg.show_agent_names = enabled;
         Ok(())
     })
 }
@@ -401,5 +412,17 @@ mod tests {
 
         assert!(!Config::default().led_enabled);
         assert!(!Config::default().show_dashboard_button);
+    }
+
+    #[test]
+    fn agent_names_show_unless_turned_off() {
+        // Existing configs predate the setting and keep the default.
+        let old: Config = serde_json::from_str(r#"{"led_enabled": true}"#).unwrap();
+        assert!(old.show_agent_names);
+        assert!(Config::default().show_agent_names);
+
+        let off: Config = serde_json::from_str(r#"{"show_agent_names": false}"#).unwrap();
+        let back: Config = serde_json::from_str(&serde_json::to_string(&off).unwrap()).unwrap();
+        assert!(!back.show_agent_names);
     }
 }

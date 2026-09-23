@@ -81,6 +81,10 @@ pub enum PopoverMsg {
     SetDashboardButton {
         enabled: bool,
     },
+    /// Name each session's agent beside its icon, or show the icon alone.
+    SetAgentNames {
+        enabled: bool,
+    },
     /// A usage-tracking option picked in the Settings view: whether to track
     /// usage at all (`enabled`) and, when on, which readout (`mode`). The page
     /// sends both together so "Off" and the Plan/API choice are one control.
@@ -144,17 +148,36 @@ struct SessionPayload<'a> {
     status: &'a Status,
     #[serde(rename = "lastUpdated")]
     last_updated: &'a str,
-    /// Short per-harness badge label (e.g. `"oc"`); omitted for Claude Code so
-    /// the page renders a badge only for non-Claude sessions. Same label the TUI
-    /// shows (`session::harness_badge`).
+    /// The session's coding agent, for the icon and name in the meta line.
+    agent: AgentPayload,
+}
+
+#[derive(Serialize)]
+struct AgentPayload {
+    label: String,
+    /// SVG path data from `harness`; absent for an unknown harness, whose
+    /// `badge` text (the TUI's tag) stands in for the icon.
     #[serde(skip_serializing_if = "Option::is_none")]
-    badge: Option<String>,
+    icon: Option<&'static str>,
+    badge: String,
+}
+
+impl From<crate::harness::Agent> for AgentPayload {
+    fn from(a: crate::harness::Agent) -> Self {
+        Self {
+            label: a.label,
+            icon: a.icon,
+            badge: a.badge,
+        }
+    }
 }
 
 #[derive(Serialize)]
 struct SettingsPayload {
     #[serde(rename = "showDashboardButton")]
     show_dashboard_button: bool,
+    #[serde(rename = "showAgentNames")]
+    show_agent_names: bool,
     #[serde(rename = "yellowMode")]
     yellow_mode: YellowMode,
     /// Whether usage tracking is opted into; drives the Settings selection and
@@ -548,7 +571,7 @@ fn build_payload(state: &HookState, setup_busy: bool) -> String {
             project: project_label(s),
             status: &s.status,
             last_updated: &s.last_updated,
-            badge: s.harness.as_deref().map(crate::harness::badge),
+            agent: crate::harness::agent(s.harness.as_deref()).into(),
         })
         .collect();
     let payload = StatePayload {
@@ -556,6 +579,7 @@ fn build_payload(state: &HookState, setup_busy: bool) -> String {
         sessions,
         settings: SettingsPayload {
             show_dashboard_button: cfg.show_dashboard_button,
+            show_agent_names: cfg.show_agent_names,
             yellow_mode: cfg.yellow_mode,
             usage_enabled: cfg.usage_enabled,
             billing_mode: cfg.billing_mode,
@@ -637,7 +661,7 @@ fn base64(data: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{base64, PopoverMsg};
+    use super::{base64, AgentPayload, PopoverMsg};
     use crate::config::{BillingMode, YellowMode};
 
     #[test]
@@ -704,6 +728,39 @@ mod tests {
                 mode: BillingMode::Plan
             }
         ));
+    }
+
+    #[test]
+    fn agent_names_require_an_explicit_boolean() {
+        for enabled in [true, false] {
+            let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
+                "cmd": "set_agent_names", "enabled": enabled
+            }))
+            .unwrap();
+            assert!(
+                matches!(msg, PopoverMsg::SetAgentNames { enabled: value } if value == enabled)
+            );
+        }
+        for payload in [
+            r#"{"cmd":"set_agent_names"}"#,
+            r#"{"cmd":"set_agent_names","enabled":"false"}"#,
+        ] {
+            assert!(serde_json::from_str::<PopoverMsg>(payload).is_err());
+        }
+    }
+
+    /// Pins the agent shape the page reads (`s.agent.label/icon/badge`).
+    #[test]
+    fn agent_payload_carries_label_icon_and_fallback_badge() {
+        let claude = serde_json::to_value(AgentPayload::from(crate::harness::agent(None))).unwrap();
+        assert_eq!(claude["label"], "Claude");
+        assert_eq!(claude["icon"], crate::harness::CLAUDE_ICON);
+
+        let unknown =
+            serde_json::to_value(AgentPayload::from(crate::harness::agent(Some("mystery"))))
+                .unwrap();
+        assert!(unknown.get("icon").is_none());
+        assert_eq!(unknown["badge"], "my");
     }
 
     #[test]

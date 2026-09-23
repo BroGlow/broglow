@@ -732,6 +732,13 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                     popover.push_state(&read_display_state());
                     popover.config_action_result(error);
                 }
+                PopoverMsg::SetAgentNames { enabled } => {
+                    let error = config::set_agent_names(enabled)
+                        .err()
+                        .map(|error| format!("Could not save agent name setting: {error}"));
+                    popover.push_state(&read_display_state());
+                    popover.config_action_result(error);
+                }
                 PopoverMsg::SetUsage { enabled, mode } => {
                     let error = config::update_config(|cfg| {
                         cfg.usage_enabled = enabled;

@@ -2,9 +2,10 @@
 //!
 //! broglow mirrors more than one coding agent. Claude Code is the built-in
 //! default — its sessions carry no `harness` tag and use the native hook
-//! backend, so it has no entry here. Every *other* agent (opencode, Codex CLI,
-//! GitHub Copilot CLI) is one [`Adapter`]: its detection, its plugin/hook
-//! install + uninstall, and its UI badge, all behind one small table.
+//! backend, so it has no entry here (its UI identity is [`CLAUDE_LABEL`] and
+//! [`CLAUDE_ICON`]). Every *other* agent (opencode, Codex CLI, GitHub Copilot
+//! CLI) is one [`Adapter`]: its detection, its plugin/hook install + uninstall,
+//! and its UI badge, label and icon, all behind one small table.
 //!
 //! Everything harness-specific lives here, so adding the next harness is a
 //! single [`ADAPTERS`] entry plus its embedded asset — not edits scattered
@@ -21,6 +22,11 @@ pub struct Adapter {
     /// Short, **unique** tag shown in the TUI/popover (e.g. `"oc"`). Uniqueness
     /// is enforced by `adapter_badges_are_unique` below.
     pub badge: &'static str,
+    /// Agent name shown beside the icon in the popover (e.g. `"Codex"`).
+    pub label: &'static str,
+    /// Our own geometric glyph for the popover, never a vendor logo: SVG path
+    /// data for a 16×16 stroked `currentColor` icon. Unique, like `badge`.
+    pub icon: &'static str,
     /// Whether this harness looks installed on the machine — gates writing its
     /// wiring so we stay silent otherwise.
     pub detected: fn() -> bool,
@@ -65,6 +71,43 @@ pub fn badge(name: &str) -> String {
         .find(|a| a.name == name)
         .map(|a| a.badge.to_string())
         .unwrap_or_else(|| name.chars().take(2).collect())
+}
+
+/// Claude Code's popover label; it's the built-in default, so no [`Adapter`].
+pub const CLAUDE_LABEL: &str = "Claude";
+/// Claude Code's popover glyph: an eight-ray spark.
+pub const CLAUDE_ICON: &str = "M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2";
+
+/// How the popover identifies a session's coding agent.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Agent {
+    pub label: String,
+    /// `None` for an unknown/future harness, which shows `badge` text instead.
+    pub icon: Option<&'static str>,
+    pub badge: String,
+}
+
+/// The agent behind a session's `harness` tag (`None` = Claude Code).
+pub fn agent(harness: Option<&str>) -> Agent {
+    let Some(name) = harness else {
+        return Agent {
+            label: CLAUDE_LABEL.to_string(),
+            icon: Some(CLAUDE_ICON),
+            badge: String::new(),
+        };
+    };
+    match ADAPTERS.iter().find(|a| a.name == name) {
+        Some(a) => Agent {
+            label: a.label.to_string(),
+            icon: Some(a.icon),
+            badge: a.badge.to_string(),
+        },
+        None => Agent {
+            label: name.to_string(),
+            icon: None,
+            badge: badge(name),
+        },
+    }
 }
 
 /// Header line every broglow-written harness file carries. `uninstall` only
@@ -143,6 +186,9 @@ pub mod opencode {
     pub const ADAPTER: super::Adapter = super::Adapter {
         name: "opencode",
         badge: "oc",
+        label: "opencode",
+        // Square brackets.
+        icon: "M5.5 2.5H3v11h2.5M10.5 2.5H13v11h-2.5",
         detected,
         install,
         uninstall,
@@ -225,6 +271,9 @@ pub mod codex {
     pub const ADAPTER: super::Adapter = super::Adapter {
         name: "codex",
         badge: "cx", // not "co": reserved against the codex/copilot collision
+        label: "Codex",
+        // Hexagon.
+        icon: "M8 1.5l5.6 3.25v6.5L8 14.5l-5.6-3.25v-6.5z",
         detected,
         install,
         uninstall,
@@ -258,6 +307,10 @@ pub mod copilot {
     pub const ADAPTER: super::Adapter = super::Adapter {
         name: "copilot",
         badge: "co", // codex holds "cx", deliberately leaving "co" to copilot
+        label: "Copilot",
+        // Goggles: two rings and a bridge.
+        icon: "M1.5 8.5a2.75 2.75 0 1 0 5.5 0a2.75 2.75 0 1 0-5.5 0\
+               M9 8.5a2.75 2.75 0 1 0 5.5 0a2.75 2.75 0 1 0-5.5 0M7 8.5h2",
         detected,
         install,
         uninstall,
@@ -296,6 +349,42 @@ mod tests {
         // An unknown/future harness (e.g. a session written by a newer build)
         // still renders a non-empty tag rather than blank.
         assert_eq!(badge("mystery"), "my");
+    }
+
+    #[test]
+    fn agent_identifies_claude_registered_and_unknown_harnesses() {
+        let claude = agent(None);
+        assert_eq!(claude.label, "Claude");
+        assert_eq!(claude.icon, Some(CLAUDE_ICON));
+
+        let codex = agent(Some("codex"));
+        assert_eq!(codex.label, "Codex");
+        assert_eq!(codex.icon, Some(codex::ADAPTER.icon));
+
+        // An unknown harness has no glyph of ours; the page shows its badge.
+        let unknown = agent(Some("mystery"));
+        assert_eq!(unknown.label, "mystery");
+        assert_eq!(unknown.icon, None);
+        assert_eq!(unknown.badge, "my");
+    }
+
+    #[test]
+    fn agent_labels_and_icons_are_unique_and_attribute_safe() {
+        let mut labels = std::collections::HashSet::from([CLAUDE_LABEL]);
+        let mut icons = std::collections::HashSet::from([CLAUDE_ICON]);
+        for a in ADAPTERS {
+            assert!(labels.insert(a.label), "duplicate label {:?}", a.label);
+            assert!(icons.insert(a.icon), "duplicate icon for {}", a.name);
+        }
+        // Path data only: the page places it in an SVG `d` attribute.
+        for icon in icons {
+            assert!(!icon.is_empty());
+            assert!(
+                icon.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || " .-,".contains(c)),
+                "icon must be plain path data: {icon:?}"
+            );
+        }
     }
 
     #[test]

@@ -575,6 +575,11 @@ This saves `show_dashboard_button` and updates immediately. Hidden shortcuts als
 prevent Terminal fallback when session focus fails. Direct `broglow` still opens
 the TUI; **Quit** remains in the right-click menu.
 
+Under each session title, an icon and name show its coding agent (Claude, Codex,
+opencode or Copilot) before the project. Turn off **Settings → Appearance → Show
+agent names** to keep only the icon; hover it to see the name. This saves
+`show_agent_names`.
+
 | Icon | Session state |
 | --- | --- |
 | ![Gray](../../../assets/icons/broglow-none.png) Gray | No live sessions |

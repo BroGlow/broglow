@@ -76,7 +76,10 @@ body.win .srow:hover { background: rgba(255,255,255,.06); }
 .sinfo { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
 .sname { font-size: 13px; font-weight: 590; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .smeta { font-size: 11px; color: rgba(255,255,255,.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Per-harness tag; rendered only for non-Claude sessions (opencode, …). */
+/* Agent icon (our own glyphs) ahead of the project in each session's meta line. */
+.agicon { width: 11px; height: 11px; margin-right: 4px; vertical-align: -1px;
+  fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+/* Text tag standing in for the icon of an unknown/future agent. */
 .badge { display: inline-block; font-size: 9px; font-weight: 700; line-height: 1.4;
   color: #c678dd; background: rgba(198,120,221,.16); border-radius: 4px;
   padding: 0 5px; margin-right: 6px; vertical-align: 1px; }
@@ -599,6 +602,18 @@ function renderLamp() {
   }
 }
 
+// "<icon> Codex · " before the project; with names off, "<icon> · ". The icon
+// is path data from the host's agent registry, placed only in an attribute.
+function agentMeta(agent, showName) {
+  if (!agent || !agent.label) return '';
+  const label = esc(agent.label);
+  const a11y = showName ? ' aria-hidden="true"' : ` role="img" aria-label="${label}"`;
+  const mark = agent.icon
+    ? `<svg class="agicon" viewBox="0 0 16 16"${a11y}><path d="${esc(agent.icon)}"/></svg>`
+    : `<span class="badge"${a11y}>${esc(agent.badge || '')}</span>`;
+  return `<span class="agent" title="${label}">${mark}${showName ? label : ''}</span> · `;
+}
+
 function relTime(iso) {
   const t = Date.parse(iso);
   if (isNaN(t)) return '';
@@ -657,7 +672,8 @@ function render() {
         `<div class="lampdetail" id="lampdetail"></div></details>`;
     }
   } else if (view === 'settings') {
-    const dashboardFocused = document.activeElement?.id === 'showdashboard';
+    const focusedToggle = ['showdashboard', 'showagentnames'].includes(document.activeElement?.id)
+      ? document.activeElement.id : null;
     const mode = (state.settings && state.settings.yellowMode) || 'any_inactive';
     // Off unless opted in; then reflect the chosen readout.
     const usage = (state.settings && state.settings.usageEnabled)
@@ -669,6 +685,10 @@ function render() {
       `<input type="checkbox" id="showdashboard" aria-describedby="dashboardhint">` +
       `<span class="sinfo"><span class="sname">Show Dashboard button</span>` +
       `<span class="smeta setdesc" id="dashboardhint">Terminal session monitor.</span></span></label>` +
+      `<label class="optrow" for="showagentnames">` +
+      `<input type="checkbox" id="showagentnames" aria-describedby="agentnameshint">` +
+      `<span class="sinfo"><span class="sname">Show agent names</span>` +
+      `<span class="smeta setdesc" id="agentnameshint">Name the coding agent beside its icon.</span></span></label>` +
       `<p class="lamperror" id="settingserror" role="alert" hidden></p>` +
       `<div class="grplabel">Mixed sessions</div>` +
       YELLOW_OPTIONS.map(o =>
@@ -685,7 +705,8 @@ function render() {
       ).join('');
     const dashboardToggle = document.getElementById('showdashboard');
     dashboardToggle.checked = state.settings?.showDashboardButton === true;
-    if (dashboardFocused) dashboardToggle.focus();
+    document.getElementById('showagentnames').checked = state.settings?.showAgentNames !== false;
+    if (focusedToggle) document.getElementById(focusedToggle).focus();
     const error = document.getElementById('settingserror');
     error.textContent = configActionError;
     error.hidden = !configActionError;
@@ -694,6 +715,7 @@ function render() {
       `<div class="emptybox"><img src="${ICONS.none}" alt="">` +
       `<span>No live sessions</span></div>`;
   } else {
+    const showAgentNames = state.settings?.showAgentNames !== false;
     let html = '';
     for (const g of GROUPS) {
       const rows = sessions.filter(s => s.status === g.status);
@@ -704,15 +726,14 @@ function render() {
           ` title="Dismiss all paused sessions until new activity">Clear paused</button>` : '') + `</div>`;
       for (const s of rows) {
         const help = s.status === 'needs_help';
-        const meta = esc(s.project);
+        const meta = agentMeta(s.agent, showAgentNames) + esc(s.project);
         const tail = help
           ? `<button class="focusbtn" data-cmd="focus" data-id="${esc(s.id)}">Focus</button>`
           : `<span class="time">${relTime(s.lastUpdated)}</span>`;
-        const badge = s.badge ? `<span class="badge">${esc(s.badge)}</span>` : '';
         html += `<div class="srow${help ? ' helprow' : ''}" data-cmd="focus"` +
           ` data-id="${esc(s.id)}" title="Open session">` +
           `<span class="dot ${g.dot}"></span>` +
-          `<div class="sinfo"><span class="sname" title="${esc(s.name)}">${badge}${esc(s.name)}</span>` +
+          `<div class="sinfo"><span class="sname" title="${esc(s.name)}">${esc(s.name)}</span>` +
           `<span class="smeta">${meta}</span></div>${tail}` +
           `<button class="dismissbtn" type="button" id="dismiss-${esc(s.id)}" data-cmd="clear_session" data-id="${esc(s.id)}"` +
           ` aria-label="Dismiss ${esc(s.name)} from BroGlow" title="Dismiss until new activity">×</button></div>`;
@@ -779,6 +800,12 @@ document.addEventListener('change', ev => {
     configActionError = '';
     document.getElementById('settingserror').hidden = true;
     post({ cmd: 'set_dashboard_button', enabled: ev.target.checked });
+    return;
+  }
+  if (ev.target.id === 'showagentnames') {
+    configActionError = '';
+    document.getElementById('settingserror').hidden = true;
+    post({ cmd: 'set_agent_names', enabled: ev.target.checked });
     return;
   }
   if (!isBrightnessSlider(ev.target) || !canEditBrightness(ev.target)) return;
