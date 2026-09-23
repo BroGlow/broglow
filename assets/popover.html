@@ -79,6 +79,8 @@ body.win .srow:hover { background: rgba(255,255,255,.06); }
 /* Agent icon (our own glyphs) ahead of the project in each session's meta line. */
 .agicon { width: 11px; height: 11px; margin-right: 4px; vertical-align: -1px;
   fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+/* Host glyph after a named agent sits before " · ", which brings its own space. */
+.agicon.aftername { margin-right: 0; }
 /* Text tag standing in for the icon of an unknown/future agent. */
 .badge { display: inline-block; font-size: 9px; font-weight: 700; line-height: 1.4;
   color: #c678dd; background: rgba(198,120,221,.16); border-radius: 4px;
@@ -602,16 +604,32 @@ function renderLamp() {
   }
 }
 
-// "<icon> Codex · " before the project; with names off, just "<icon>". The icon
-// is path data from the host's agent registry, placed only in an attribute.
-function agentMeta(agent, showName) {
+// Where a session runs, drawn after the agent: window, >_ prompt, </> code.
+const HOST_ICONS = {
+  app: 'M2.5 3h11a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM1.5 6h13',
+  terminal: 'M2.5 4.5 6 8l-3.5 3.5M8 12h5.5',
+  ide: 'M5 4.5 1.5 8 5 11.5M11 4.5 14.5 8 11 11.5M9.5 3l-3 10',
+};
+
+// "<icon> Codex <host> · " before the project; with names off, just
+// "<icon> <host>". The agent icon is path data from the host's agent registry,
+// placed only in an attribute; hover names the agent and the host.
+function agentMeta(agent, showName, host) {
   if (!agent || !agent.label) return '';
   const label = esc(agent.label);
   const a11y = showName ? ' aria-hidden="true"' : ` role="img" aria-label="${label}"`;
   const mark = agent.icon
     ? `<svg class="agicon" viewBox="0 0 16 16"${a11y}><path d="${esc(agent.icon)}"/></svg>`
     : `<span class="badge"${a11y}>${esc(agent.badge || '')}</span>`;
-  return `<span class="agent" title="${label}">${mark}${showName ? label + '</span> · ' : '</span>'}`;
+  const hostPath = host && HOST_ICONS[host.kind];
+  const hostName = hostPath ? esc(host.name) : '';
+  const hostMark = hostPath
+    ? `<svg class="agicon${showName ? ' aftername' : ''}" viewBox="0 0 16 16" role="img" aria-label="${hostName}">` +
+      `<title>${hostName}</title><path d="${hostPath}"/></svg>`
+    : '';
+  return showName
+    ? `<span class="agent" title="${label}">${mark}${label}</span>${hostMark ? ' ' + hostMark : ''} · `
+    : `<span class="agent" title="${label}">${mark}</span>${hostMark}`;
 }
 
 function relTime(iso) {
@@ -726,7 +744,7 @@ function render() {
           ` title="Dismiss all paused sessions until new activity">Clear paused</button>` : '') + `</div>`;
       for (const s of rows) {
         const help = s.status === 'needs_help';
-        const meta = agentMeta(s.agent, showAgentNames) + esc(s.project);
+        const meta = agentMeta(s.agent, showAgentNames, s.host) + esc(s.project);
         const tail = help
           ? `<button class="focusbtn" data-cmd="focus" data-id="${esc(s.id)}">Focus</button>`
           : `<span class="time">${relTime(s.lastUpdated)}</span>`;

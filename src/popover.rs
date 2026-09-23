@@ -150,6 +150,26 @@ struct SessionPayload<'a> {
     last_updated: &'a str,
     /// The session's coding agent, for the icon and name in the meta line.
     agent: AgentPayload,
+    /// Where the session runs, for the host glyph; absent when unknown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    host: Option<HostPayload>,
+}
+
+#[derive(Serialize)]
+struct HostPayload {
+    /// `"app"`, `"terminal"` or `"ide"`: picks the page's glyph.
+    kind: &'static str,
+    /// Hover text and accessible label: "Claude app", "Ghostty", "VS Code".
+    name: String,
+}
+
+impl From<crate::terminal::Host> for HostPayload {
+    fn from(h: crate::terminal::Host) -> Self {
+        Self {
+            kind: h.kind.as_str(),
+            name: h.name,
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -572,6 +592,7 @@ fn build_payload(state: &HookState, setup_busy: bool) -> String {
             status: &s.status,
             last_updated: &s.last_updated,
             agent: crate::harness::agent(s.harness.as_deref()).into(),
+            host: crate::terminal::host(s.harness.as_deref(), s.terminal.as_ref()).map(Into::into),
         })
         .collect();
     let payload = StatePayload {

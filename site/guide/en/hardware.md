@@ -576,10 +576,13 @@ prevent Terminal fallback when session focus fails. Direct `broglow` still opens
 the TUI; **Quit** remains in the right-click menu.
 
 Under each session title, an icon and name show its coding agent (Claude, Codex,
-opencode or Copilot) before the project. Turn off **Settings → Appearance → Show
+opencode or Copilot) before the project. A second glyph shows where it runs: a
+window for the agent's desktop app, `>_` for a terminal, `</>` for an IDE; hover it
+for the exact host, such as **Claude app**, **Ghostty** or **VS Code**. Turn off **Settings → Appearance → Show
 agent names** to keep only the icon; hover it to see the name. This saves
 `show_agent_names`. The TUI and the Linux tray menu show a short tag instead of the
-icon (`cc` Claude, `cx` Codex, `oc` opencode, `co` Copilot) and follow the same setting.
+icon (`cc` Claude, `cx` Codex, `oc` opencode, `co` Copilot) and follow the same setting;
+the TUI names the host in its HOST column.
 
 | Icon | Session state |
 | --- | --- |

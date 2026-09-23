@@ -162,6 +162,7 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
         Cell::from(""),
         Cell::from("SESSION"),
         Cell::from("PROJECT"),
+        Cell::from("HOST"),
         Cell::from(Line::from("LAST").right_aligned()),
         Cell::from(Line::from("STATUS").right_aligned()),
     ])
@@ -224,6 +225,7 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
                 ])),
                 Cell::from(Span::styled(s.name.clone(), name_style)),
                 Cell::from(Line::from(project_spans)),
+                Cell::from(Span::styled(s.host.as_deref().unwrap_or("—"), dim)),
                 Cell::from(
                     Line::from(Span::styled(format_relative_time(&s.last_updated), dim))
                         .right_aligned(),
@@ -246,6 +248,7 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
             Constraint::Length(2),  // selection bar + status dot
             Constraint::Fill(3),    // session
             Constraint::Fill(2),    // project
+            Constraint::Length(16), // host
             Constraint::Length(4),  // last
             Constraint::Length(10), // status
         ],

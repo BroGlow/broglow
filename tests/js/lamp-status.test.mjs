@@ -182,6 +182,35 @@ test('session meta shows the agent icon and name, or the icon alone when names a
   assert.equal(visibleLabel({ innerHTML: meta('future') }), 'mybroglow');
 });
 
+test('a host glyph follows the agent and names the host on hover', () => {
+  const { context, element } = popoverPage();
+  const agent = { label: 'Claude', icon: 'M8 1.5v13', badge: 'cc' };
+  const sessions = [
+    { id: 'app', name: 'Task', project: 'broglow', status: 'active', lastUpdated: new Date().toISOString(),
+      agent, host: { kind: 'app', name: 'Claude app' } },
+    { id: 'tty', name: 'Task', project: 'broglow', status: 'active', lastUpdated: new Date().toISOString(),
+      agent, host: { kind: 'terminal', name: 'Ghost<ty>' } },
+    { id: 'odd', name: 'Task', project: 'broglow', status: 'active', lastUpdated: new Date().toISOString(),
+      agent, host: { kind: 'future', name: 'Somewhere' } },
+  ];
+  const refresh = settings => context.window.__setState({ aggregate: 'green', sessions, settings, lamp: lamp() });
+  const meta = id => {
+    const html = element('groups').innerHTML;
+    return html.slice(html.indexOf(`data-id="${id}"`)).match(/<span class="smeta">(.*?)<\/span><\/div>/)[1];
+  };
+  const text = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '[svg]').replace(/<[^>]*>/g, '');
+
+  refresh({});
+  assert.match(meta('app'), /<svg class="agicon aftername"[^>]*role="img" aria-label="Claude app"><title>Claude app<\/title>/);
+  assert.equal(text(meta('app')), '[svg]Claude [svg] · broglow');
+  assert.match(meta('tty'), /aria-label="Ghost&lt;ty&gt;"/, 'Host names are escaped');
+  assert.equal(text(meta('odd')), '[svg]Claude · broglow', 'Unknown kinds draw no glyph');
+
+  refresh({ showAgentNames: false });
+  assert.match(meta('app'), /<svg class="agicon" viewBox="0 0 16 16" role="img" aria-label="Claude app">/);
+  assert.equal(text(meta('app')), '[svg][svg]broglow');
+});
+
 test('Settings toggles agent names and waits for the saved preference', () => {
   const { context, element, click, listeners, commands } = popoverPage();
   const refresh = enabled => context.window.__setState({ aggregate: 'none', sessions: [],

@@ -119,7 +119,11 @@ operation: record those acceptance checks separately.
   session (env vars + process-tree walk, stored per session in `state.json`); `focus`
   raises that window later (AppleScript tab match by tty on macOS, ancestor-window
   `SetForegroundWindow` on Windows, xdotool on Linux). Used by the popover session
-  rows, the Linux tray menu, and the TUI's `↵`.
+  rows, the Linux tray menu, and the TUI's `↵`. `host` classifies the same identity as
+  an agent's desktop app, a terminal or an IDE with a short name ("Claude app",
+  "Ghostty", "VS Code") for the popover's host glyph and the TUI's HOST column; a
+  desktop bundle wins over stale terminal variables, and an identity-less Codex session
+  is the Codex app, as in `focus`.
 
 ## Data flow
 

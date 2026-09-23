@@ -431,6 +431,7 @@ mod tests {
             project_name: "recco".into(),
             project_path: "/work/recco".into(),
             last_updated: String::new(),
+            host: harness.is_none().then(|| "Claude app".to_string()),
             harness: harness.map(str::to_string),
         };
         let mut app = app();
@@ -442,6 +443,7 @@ mod tests {
         let named = screen(&mut app);
         assert!(!named.contains("BRANCH") && !named.contains("MSGS"));
         assert!(named.contains(" cc  Claude · recco"));
+        assert!(named.contains("HOST") && named.contains("Claude app"));
         assert!(named.contains(" cx  Codex · recco"));
         assert!(
             !named.contains("cx  Codex task"),

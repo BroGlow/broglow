@@ -618,11 +618,13 @@ broglow dashboard-button hide
 TUI; **Quit** остаётся в меню правого щелчка.
 
 Под названием каждого сеанса перед проектом показаны иконка и имя его агента
-(Claude, Codex, opencode или Copilot). Отключите **Settings → Appearance → Show
+(Claude, Codex, opencode или Copilot). Второй значок показывает, где он запущен:
+окно — приложение агента, `>_` — терминал, `</>` — IDE; при наведении видно точное
+место, например **Claude app**, **Ghostty** или **VS Code**. Отключите **Settings → Appearance → Show
 agent names**, чтобы оставить только иконку; имя появится при наведении. Это
 сохраняет `show_agent_names`. TUI и меню трея Linux вместо иконки показывают
 короткую метку (`cc` Claude, `cx` Codex, `oc` opencode, `co` Copilot) и следуют той же
-настройке.
+настройке; TUI называет место запуска в столбце HOST.
 
 | Значок | Состояние сеансов |
 | --- | --- |

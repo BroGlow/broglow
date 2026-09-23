@@ -668,6 +668,198 @@ pub fn focus(
     false
 }
 
+/// What kind of app hosts a session, for the popover's host glyph.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostKind {
+    /// An agent's own desktop app (Claude, Codex).
+    App,
+    Terminal,
+    Ide,
+}
+
+impl HostKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            HostKind::App => "app",
+            HostKind::Terminal => "terminal",
+            HostKind::Ide => "ide",
+        }
+    }
+}
+
+/// Where a session runs: its kind plus a short name ("Claude app", "Ghostty").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Host {
+    pub kind: HostKind,
+    pub name: String,
+}
+
+const DESKTOP_APPS: &[(&str, &str)] = &[
+    ("com.anthropic.claudefordesktop", "Claude app"),
+    ("com.openai.codex", "Codex app"),
+];
+
+const IDE_BUNDLES: &[(&str, &str)] = &[
+    ("com.microsoft.VSCode", "VS Code"),
+    ("com.microsoft.VSCodeInsiders", "VS Code Insiders"),
+    ("com.todesktop.230313mzl4w4u92", "Cursor"),
+    ("com.exafunction.windsurf", "Windsurf"),
+    ("dev.zed.Zed", "Zed"),
+];
+
+/// TERM_PROGRAM values with a friendlier name; others are shown as-is.
+const TERM_PROGRAMS: &[(&str, &str)] = &[
+    ("Apple_Terminal", "Terminal"),
+    ("iTerm.app", "iTerm2"),
+    ("ghostty", "Ghostty"),
+    ("WarpTerminal", "Warp"),
+];
+
+/// Classify a session's captured identity. A desktop app's bundle wins over
+/// stale inherited terminal variables, as in [`focus`]. Codex desktop hooks
+/// carry no terminal identity at all, so an identity-less Codex session is its
+/// desktop app — the same rule focusing uses. `None` when nothing is known.
+pub fn host(harness: Option<&str>, info: Option<&TerminalInfo>) -> Option<Host> {
+    let info = info?;
+    let found = |kind, name: &str| {
+        Some(Host {
+            kind,
+            name: name.to_string(),
+        })
+    };
+    let lookup = |table: &[(&str, &'static str)], key: &str| {
+        table.iter().find(|(k, _)| *k == key).map(|(_, name)| *name)
+    };
+    let bundle = info.bundle_id.as_deref().unwrap_or_default();
+
+    if let Some(name) = lookup(DESKTOP_APPS, bundle) {
+        return found(HostKind::App, name);
+    }
+    if let Some(name) = lookup(IDE_BUNDLES, bundle) {
+        return found(HostKind::Ide, name);
+    }
+    if bundle.starts_with("com.jetbrains.") {
+        return found(HostKind::Ide, "JetBrains");
+    }
+    if let Some(program) = info.term_program.as_deref() {
+        if program == "vscode" {
+            return found(HostKind::Ide, "VS Code");
+        }
+        return found(
+            HostKind::Terminal,
+            lookup(TERM_PROGRAMS, program).unwrap_or(program),
+        );
+    }
+    let terminal = if info.kitty_window_id.is_some() {
+        Some("kitty")
+    } else if info.wezterm_pane.is_some() {
+        Some("WezTerm")
+    } else if info.wt_session.is_some() {
+        Some("Windows Terminal")
+    } else if info.tty.is_some() {
+        Some("terminal")
+    } else {
+        None
+    };
+    match terminal {
+        Some(name) => found(HostKind::Terminal, name),
+        None if harness == Some("codex") => found(HostKind::App, "Codex app"),
+        None => None,
+    }
+}
+
+#[cfg(test)]
+mod host_tests {
+    use super::*;
+
+    fn info(change: impl FnOnce(&mut TerminalInfo)) -> TerminalInfo {
+        let mut info = TerminalInfo::default();
+        change(&mut info);
+        info
+    }
+
+    fn name(harness: Option<&str>, info: &TerminalInfo) -> Option<(HostKind, String)> {
+        host(harness, Some(info)).map(|h| (h.kind, h.name))
+    }
+
+    #[test]
+    fn desktop_apps_win_over_stale_terminal_variables() {
+        let claude = info(|i| {
+            i.bundle_id = Some("com.anthropic.claudefordesktop".into());
+            i.term_program = Some("Apple_Terminal".into());
+        });
+        assert_eq!(
+            name(None, &claude),
+            Some((HostKind::App, "Claude app".into()))
+        );
+        // Codex desktop hooks carry no identity; Claude's don't get that guess.
+        let empty = TerminalInfo::default();
+        assert_eq!(
+            name(Some("codex"), &empty),
+            Some((HostKind::App, "Codex app".into()))
+        );
+        assert_eq!(name(None, &empty), None);
+        assert_eq!(host(Some("codex"), None), None, "Nothing captured yet");
+    }
+
+    #[test]
+    fn ides_and_terminals_get_short_names() {
+        let cases = [
+            (
+                info(|i| i.bundle_id = Some("com.microsoft.VSCode".into())),
+                HostKind::Ide,
+                "VS Code",
+            ),
+            (
+                info(|i| i.bundle_id = Some("com.jetbrains.intellij".into())),
+                HostKind::Ide,
+                "JetBrains",
+            ),
+            (
+                info(|i| i.term_program = Some("vscode".into())),
+                HostKind::Ide,
+                "VS Code",
+            ),
+            (
+                info(|i| i.term_program = Some("ghostty".into())),
+                HostKind::Terminal,
+                "Ghostty",
+            ),
+            (
+                info(|i| i.term_program = Some("Apple_Terminal".into())),
+                HostKind::Terminal,
+                "Terminal",
+            ),
+            (
+                info(|i| i.term_program = Some("Hyper".into())),
+                HostKind::Terminal,
+                "Hyper",
+            ),
+            (
+                info(|i| i.kitty_window_id = Some("1".into())),
+                HostKind::Terminal,
+                "kitty",
+            ),
+            (
+                info(|i| i.wt_session = Some("guid".into())),
+                HostKind::Terminal,
+                "Windows Terminal",
+            ),
+            (
+                info(|i| i.tty = Some("/dev/ttys001".into())),
+                HostKind::Terminal,
+                "terminal",
+            ),
+        ];
+        for (terminal, kind, expected) in cases {
+            assert_eq!(
+                name(Some("codex"), &terminal),
+                Some((kind, expected.into()))
+            );
+        }
+    }
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;

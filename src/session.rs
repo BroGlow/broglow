@@ -10,6 +10,8 @@ pub struct DisplaySession {
     pub project_name: String,
     pub project_path: String,
     pub last_updated: String,
+    /// Where the session runs ("Claude app", "Ghostty"), when known.
+    pub host: Option<String>,
     /// Which coding agent the session comes from: `None` for Claude Code (the
     /// default), `Some("opencode")` etc. Drives the per-harness badge in the UI.
     pub harness: Option<String>,
@@ -63,6 +65,11 @@ pub fn load_all_sessions(hook_state: &HookState) -> Vec<DisplaySession> {
                 project_name: project_short_name(&project_path),
                 project_path,
                 last_updated: session_status.last_updated.clone(),
+                host: crate::terminal::host(
+                    session_status.harness.as_deref(),
+                    session_status.terminal.as_ref(),
+                )
+                .map(|h| h.name),
                 harness: session_status.harness.clone(),
             }
         })
