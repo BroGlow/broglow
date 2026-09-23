@@ -177,9 +177,9 @@ test('session meta shows the agent icon and name, or the icon alone when names a
 
   refresh({ showAgentNames: false });
   assert.match(meta('claude'), /<svg class="agicon"[^>]*role="img" aria-label="Claude">/);
-  assert.equal(visibleLabel({ innerHTML: meta('claude') }), ' · broglow');
+  assert.equal(visibleLabel({ innerHTML: meta('claude') }), 'broglow', 'No separator without a name');
   assert.match(meta('claude'), /title="Claude"/, 'Hover still names the agent');
-  assert.equal(visibleLabel({ innerHTML: meta('future') }), 'my · broglow');
+  assert.equal(visibleLabel({ innerHTML: meta('future') }), 'mybroglow');
 });
 
 test('Settings toggles agent names and waits for the saved preference', () => {

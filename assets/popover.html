@@ -602,7 +602,7 @@ function renderLamp() {
   }
 }
 
-// "<icon> Codex · " before the project; with names off, "<icon> · ". The icon
+// "<icon> Codex · " before the project; with names off, just "<icon>". The icon
 // is path data from the host's agent registry, placed only in an attribute.
 function agentMeta(agent, showName) {
   if (!agent || !agent.label) return '';
@@ -611,7 +611,7 @@ function agentMeta(agent, showName) {
   const mark = agent.icon
     ? `<svg class="agicon" viewBox="0 0 16 16"${a11y}><path d="${esc(agent.icon)}"/></svg>`
     : `<span class="badge"${a11y}>${esc(agent.badge || '')}</span>`;
-  return `<span class="agent" title="${label}">${mark}${showName ? label : ''}</span> · `;
+  return `<span class="agent" title="${label}">${mark}${showName ? label + '</span> · ' : '</span>'}`;
 }
 
 function relTime(iso) {
