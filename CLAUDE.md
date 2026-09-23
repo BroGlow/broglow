@@ -98,7 +98,9 @@ operation: record those acceptance checks separately.
   Use `ble_ids()` to deduplicate remembered `ble_peripherals`.
   Preserve unrelated and unknown settings when changing the lamp selection.
 - **app.rs** — TUI event loop: file watcher + 5s timer refresh, key handling, notifications.
-- **ui.rs** — ratatui rendering of the table and status bar.
+- **ui.rs** — ratatui rendering of the table and status bar. Colors are 24-bit only when
+  `COLORTERM` is `truecolor`/`24bit`; otherwise each frame maps them to the xterm 256-color
+  palette, because Terminal.app before macOS 26 misreads RGB escapes as separate SGR codes.
 - **menubar.rs** — tray icon + menu (tao/tray-icon event loop), spawns the LED daemon thread.
 - **led.rs** — USB detection/driver, aggregate-to-byte mapping, transport dispatch,
   and fresh cross-process worker status in `lamp-status.json`.

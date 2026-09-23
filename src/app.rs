@@ -26,6 +26,8 @@ pub struct App {
     pub lamp_details_scroll: u16,
     /// Whether ESP32 status LEDs are enabled (mirrors `config.json`).
     pub led_enabled: bool,
+    /// Draw 24-bit colors; otherwise the renderer maps them to 256 colors.
+    pub truecolor: bool,
     /// Name each session's agent beside its tag (mirrors `config.json`).
     pub show_agent_names: bool,
     pub led_transport: config::LedTransport,
@@ -67,6 +69,7 @@ impl App {
             led_selected_count: cfg.ble_ids().len(),
             led_status: led::connection_status(),
             tray_running: menubar::is_running(),
+            truecolor: ui::supports_truecolor(),
             status_message: None,
             previous_statuses,
         }
@@ -384,6 +387,7 @@ mod tests {
                 ],
             },
             tray_running: true,
+            truecolor: true,
             status_message: None,
             previous_statuses: HashMap::new(),
         }
@@ -454,6 +458,22 @@ mod tests {
         let bare = screen(&mut app);
         assert!(bare.contains(" cx  recco"));
         assert!(!bare.contains("Codex · recco"));
+    }
+
+    #[test]
+    fn without_truecolor_no_rgb_escapes_reach_the_terminal() {
+        let mut app = app();
+        app.truecolor = false;
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        terminal.draw(|frame| ui::render(frame, &mut app)).unwrap();
+        let cells = terminal.backend().buffer().content();
+        assert!(cells
+            .iter()
+            .all(|cell| !matches!(cell.fg, ratatui::style::Color::Rgb(..))
+                && !matches!(cell.bg, ratatui::style::Color::Rgb(..))));
+        assert!(cells
+            .iter()
+            .any(|cell| matches!(cell.fg, ratatui::style::Color::Indexed(_))));
     }
 
     #[test]

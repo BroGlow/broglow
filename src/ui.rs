@@ -52,6 +52,55 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         render_table(frame, app, chunks[2]);
     }
     render_hint_bar(frame, app, chunks[3]);
+
+    if !app.truecolor {
+        to_256_colors(frame.buffer_mut());
+    }
+}
+
+/// Whether the terminal advertises 24-bit color. Terminals that don't (macOS
+/// Terminal.app before 26) read an RGB escape's components as separate SGR
+/// codes, so `48;2;48;40;58` paints a black background; without the
+/// advertisement, draw from the xterm 256-color palette instead.
+pub fn supports_truecolor() -> bool {
+    std::env::var("COLORTERM").is_ok_and(|v| v == "truecolor" || v == "24bit")
+}
+
+fn to_256_colors(buffer: &mut ratatui::buffer::Buffer) {
+    for cell in &mut buffer.content {
+        if let Color::Rgb(r, g, b) = cell.fg {
+            cell.fg = Color::Indexed(ansi256(r, g, b));
+        }
+        if let Color::Rgb(r, g, b) = cell.bg {
+            cell.bg = Color::Indexed(ansi256(r, g, b));
+        }
+    }
+}
+
+/// The nearest xterm-256 color: the 6×6×6 cube or the 24-step gray ramp.
+fn ansi256(r: u8, g: u8, b: u8) -> u8 {
+    const LEVELS: [u8; 6] = [0, 95, 135, 175, 215, 255];
+    let nearest = |v: u8| {
+        (0..6)
+            .min_by_key(|&i| LEVELS[i].abs_diff(v))
+            .expect("six levels")
+    };
+    let distance = |(r2, g2, b2): (u8, u8, u8)| {
+        [(r, r2), (g, g2), (b, b2)]
+            .iter()
+            .map(|&(a, c)| u32::from(a.abs_diff(c)).pow(2))
+            .sum::<u32>()
+    };
+    let (ri, gi, bi) = (nearest(r), nearest(g), nearest(b));
+    let cube = (LEVELS[ri], LEVELS[gi], LEVELS[bi]);
+    let average = (u32::from(r) + u32::from(g) + u32::from(b)) / 3;
+    let step = (average.saturating_sub(3) / 10).min(23) as u8;
+    let gray = 8 + 10 * step;
+    if distance((gray, gray, gray)) < distance(cube) {
+        232 + step
+    } else {
+        16 + 36 * ri as u8 + 6 * gi as u8 + bi as u8
+    }
 }
 
 fn render_lamp_details(frame: &mut Frame, app: &App, area: ratatui::layout::Rect) {
@@ -354,5 +403,20 @@ fn format_relative_time(iso_str: &str) -> String {
         format!("{}d", duration.num_days())
     } else {
         format!("{}mo", duration.num_days() / 30)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ansi256;
+
+    #[test]
+    fn ansi256_picks_the_nearest_cube_or_gray_entry() {
+        assert_eq!(ansi256(0, 0, 0), 16);
+        assert_eq!(ansi256(255, 255, 255), 231);
+        assert_eq!(ansi256(255, 0, 0), 196);
+        // The rule/badge grays land on the gray ramp, not a tinted cube entry.
+        assert_eq!(ansi256(0x3a, 0x3f, 0x4d), 238);
+        assert_eq!(ansi256(0x98, 0xc3, 0x79), 108); // GREEN stays green: (135, 175, 135)
     }
 }
