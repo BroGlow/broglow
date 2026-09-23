@@ -38,10 +38,11 @@ enum LoadedState {
 /// (where writing would wipe every other session's status), hands it to
 /// `mutate`. Writes the result back atomically only when `mutate` returns
 /// `true`. The lock is held for the whole span and released when this returns.
-/// Best-effort locking: if the lock can't be taken we proceed unlocked rather
-/// than break ingestion.
+/// If locking fails, skip this update rather than risk clobbering another writer.
 fn update_state(mutate: impl FnOnce(&mut HookState) -> bool) -> anyhow::Result<()> {
-    let _lock = acquire_state_lock();
+    let Some(_lock) = acquire_state_lock() else {
+        return Ok(());
+    };
     let mut state = match read_state_raw() {
         LoadedState::Fresh(s) | LoadedState::Ok(s) => s,
         LoadedState::Unreadable => return Ok(()),

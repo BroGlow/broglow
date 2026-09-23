@@ -268,7 +268,7 @@ fn clear_sessions_matching(matches: impl Fn(&str, &SessionStatus) -> bool) -> an
 /// a read-modify-write span against concurrent writers (hooks from other
 /// sessions, the TUI's `clear_session`). The lock releases when the returned
 /// `File` drops. Returns `None` if the lock can't be acquired (e.g. the dir
-/// can't be created); callers proceed unlocked rather than break over this.
+/// can't be created); callers must skip the write when locking fails.
 pub fn acquire_state_lock() -> Option<File> {
     let path = state_file_path();
     let dir = path.parent()?;

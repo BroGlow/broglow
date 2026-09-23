@@ -105,6 +105,25 @@ fn full_lifecycle_maps_normalized_events_to_statuses() {
 }
 
 #[test]
+fn failed_state_lock_never_writes_unlocked() {
+    let home = temp_home();
+    run_event(&home, &ev("working", "existing")).success();
+    let path = state_path(&home);
+    let original = std::fs::read(&path).unwrap();
+    let lock = path.with_file_name(".state.lock");
+    std::fs::remove_file(&lock).unwrap();
+    std::fs::create_dir(&lock).unwrap();
+
+    run_event(&home, &ev("idle", "existing")).success();
+    run_hook(
+        &home,
+        &json!({"hook_event_name": "SessionStart", "session_id": "new"}).to_string(),
+    )
+    .success();
+    assert_eq!(std::fs::read(&path).unwrap(), original);
+}
+
+#[test]
 fn permission_ask_flips_red_and_reply_clears_it() {
     let home = temp_home();
     run_event(&home, &ev("working", "ses-perm")).success();
