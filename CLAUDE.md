@@ -172,8 +172,9 @@ thin:
 - **`harness.rs` is the registry.** Everything agent-specific — detection, plugin/hook
   install + uninstall, and the UI badge, label and icon — lives in one `const ADAPTERS:
   &[Adapter]` table. `install_all`/`uninstall_all` (called from `register_hooks`/
-  `uninstall_hooks`), `badge(name)` (the TUI tag) and `agent(harness)` (the popover's icon
-  and name, Claude from `CLAUDE_LABEL`/`CLAUDE_ICON`) iterate it, so **adding
+  `uninstall_hooks`) and `agent(harness)` iterate it. `agent` gives the popover's icon and
+  name, plus the tag the TUI and Linux tray menu show in its place (`[cx] Codex · recco`);
+  Claude comes from `CLAUDE_LABEL`/`CLAUDE_ICON`/`CLAUDE_BADGE` (`cc`). So **adding
   Codex/Copilot is one `Adapter` entry + its embedded asset**, not edits across
   main.rs/session.rs/ui.rs. Each new harness needs a **unique** `badge` (a test enforces
   it — the `codex`/`copilot` → `"co"` collision is the trap the two-char fallback would

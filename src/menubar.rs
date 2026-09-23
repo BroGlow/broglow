@@ -233,6 +233,7 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
     });
 
     let mut session_ids = Vec::new();
+    let show_names = config::read_config().show_agent_names;
     if live.is_empty() {
         menu.append(&MenuItem::new("No live sessions", false, None))?;
     } else {
@@ -251,7 +252,8 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
                 Status::Inactive => "🟠",
                 Status::Done => "⚪",
             };
-            let text = format!("{prefix} {name} ({badge}) — {project}");
+            let agent = crate::harness::agent(s.harness.as_deref()).text_prefix(show_names);
+            let text = format!("{prefix} {name} ({badge}) — {agent}{project}");
             // Clickable: focus the session's terminal window (best-effort).
             let item = MenuItem::new(text, true, None);
             menu.append(&item)?;

@@ -26,6 +26,8 @@ pub struct App {
     pub lamp_details_scroll: u16,
     /// Whether ESP32 status LEDs are enabled (mirrors `config.json`).
     pub led_enabled: bool,
+    /// Name each session's agent beside its tag (mirrors `config.json`).
+    pub show_agent_names: bool,
     pub led_transport: config::LedTransport,
     pub led_selected_count: usize,
     /// Cached worker result; UI refresh never initializes Bluetooth.
@@ -60,6 +62,7 @@ impl App {
             lamp_details: false,
             lamp_details_scroll: 0,
             led_enabled: cfg.led_enabled,
+            show_agent_names: cfg.show_agent_names,
             led_transport: cfg.led_transport,
             led_selected_count: cfg.ble_ids().len(),
             led_status: led::connection_status(),
@@ -179,6 +182,9 @@ impl App {
             .iter()
             .map(|s| (s.session_id.clone(), s.status.clone()))
             .collect();
+
+        // Follows the popover's Settings toggle on the next refresh.
+        self.show_agent_names = config::read_config().show_agent_names;
 
         // Preserve selection if possible
         let selected = self.table_state.selected().unwrap_or(0);
@@ -362,6 +368,7 @@ mod tests {
             lamp_details: false,
             lamp_details_scroll: 0,
             led_enabled: true,
+            show_agent_names: true,
             led_transport: config::LedTransport::Ble,
             led_selected_count: 2,
             led_status: led::ConnectionStatus {
@@ -413,6 +420,39 @@ mod tests {
         app.handle_key(KeyCode::Char('d'));
         assert!(screen(&mut app).contains("SESSION"));
         assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn session_rows_tag_every_agent_and_follow_the_names_setting() {
+        let session = |id: &str, name: &str, harness: Option<&str>| DisplaySession {
+            session_id: id.into(),
+            name: name.into(),
+            status: Status::Active,
+            project_name: "recco".into(),
+            project_path: "/work/recco".into(),
+            git_branch: None,
+            message_count: 0,
+            modified: String::new(),
+            harness: harness.map(str::to_string),
+        };
+        let mut app = app();
+        app.sessions = vec![
+            session("a", "Claude task", None),
+            session("b", "Codex task", Some("codex")),
+        ];
+
+        let named = screen(&mut app);
+        assert!(named.contains(" cc  Claude · recco"));
+        assert!(named.contains(" cx  Codex · recco"));
+        assert!(
+            !named.contains("cx  Codex task"),
+            "The title column carries no tag"
+        );
+
+        app.show_agent_names = false;
+        let bare = screen(&mut app);
+        assert!(bare.contains(" cx  recco"));
+        assert!(!bare.contains("Codex · recco"));
     }
 
     #[test]

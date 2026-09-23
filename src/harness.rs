@@ -77,6 +77,8 @@ pub fn badge(name: &str) -> String {
 pub const CLAUDE_LABEL: &str = "Claude";
 /// Claude Code's popover glyph: an eight-ray spark.
 pub const CLAUDE_ICON: &str = "M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2";
+/// Claude Code's tag on text-only surfaces (TUI, Linux tray menu).
+pub const CLAUDE_BADGE: &str = "cc";
 
 /// How the popover identifies a session's coding agent.
 #[derive(Debug, PartialEq, Eq)]
@@ -87,13 +89,27 @@ pub struct Agent {
     pub badge: String,
 }
 
+impl Agent {
+    /// The popover's meta prefix for text-only surfaces, with the badge
+    /// standing in for the icon: `"[cx] Codex · "`, or `"[cx] "` with names off.
+    /// Only the Linux tray menu needs it; macOS and Windows use the popover.
+    #[cfg(any(test, not(any(target_os = "macos", target_os = "windows"))))]
+    pub fn text_prefix(&self, show_name: bool) -> String {
+        if show_name {
+            format!("[{}] {} · ", self.badge, self.label)
+        } else {
+            format!("[{}] ", self.badge)
+        }
+    }
+}
+
 /// The agent behind a session's `harness` tag (`None` = Claude Code).
 pub fn agent(harness: Option<&str>) -> Agent {
     let Some(name) = harness else {
         return Agent {
             label: CLAUDE_LABEL.to_string(),
             icon: Some(CLAUDE_ICON),
-            badge: String::new(),
+            badge: CLAUDE_BADGE.to_string(),
         };
     };
     match ADAPTERS.iter().find(|a| a.name == name) {
@@ -356,6 +372,7 @@ mod tests {
         let claude = agent(None);
         assert_eq!(claude.label, "Claude");
         assert_eq!(claude.icon, Some(CLAUDE_ICON));
+        assert_eq!(claude.badge, "cc");
 
         let codex = agent(Some("codex"));
         assert_eq!(codex.label, "Codex");
@@ -366,6 +383,13 @@ mod tests {
         assert_eq!(unknown.label, "mystery");
         assert_eq!(unknown.icon, None);
         assert_eq!(unknown.badge, "my");
+    }
+
+    #[test]
+    fn text_prefix_mirrors_the_popover_meta_line() {
+        assert_eq!(agent(Some("codex")).text_prefix(true), "[cx] Codex · ");
+        assert_eq!(agent(Some("codex")).text_prefix(false), "[cx] ");
+        assert_eq!(agent(None).text_prefix(true), "[cc] Claude · ");
     }
 
     #[test]
@@ -391,7 +415,7 @@ mod tests {
     fn adapter_badges_are_unique() {
         // A collision would make two harnesses indistinguishable in the UI.
         // This guards the *exact* roadmap footgun: codex -> "co", copilot -> "co".
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = std::collections::HashSet::from([CLAUDE_BADGE]);
         for a in ADAPTERS {
             assert!(
                 seen.insert(a.badge),

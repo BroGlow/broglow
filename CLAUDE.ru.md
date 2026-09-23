@@ -208,8 +208,10 @@ Claude Code вызывает хук → `broglow hook` читает JSON соб�
   установка/удаление плагина или хуков, а также значок, название и иконка
   интерфейса — находится в одной таблице `const ADAPTERS: &[Adapter]`.
   `install_all`/`uninstall_all`, вызываемые из `register_hooks`/`uninstall_hooks`,
-  `badge(name)` (метка в TUI) и `agent(harness)` (иконка и название во всплывающем
-  окне; для Claude — `CLAUDE_LABEL`/`CLAUDE_ICON`) обходят эту таблицу. Поэтому
+  и `agent(harness)` обходят эту таблицу. `agent` даёт иконку и название для
+  всплывающего окна, а также метку, которую вместо иконки показывают TUI и меню трея
+  Linux (`[cx] Codex · recco`); для Claude — `CLAUDE_LABEL`/`CLAUDE_ICON`/
+  `CLAUDE_BADGE` (`cc`). Поэтому
   **добавление Codex/Copilot — одна запись `Adapter` и её встроенный ресурс**, без
   изменений во всех main.rs/session.rs/ui.rs. Каждый новый агент должен иметь
   **уникальный** `badge`; это проверяется тестом, иначе двухсимвольное резервное

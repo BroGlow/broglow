@@ -578,7 +578,8 @@ the TUI; **Quit** remains in the right-click menu.
 Under each session title, an icon and name show its coding agent (Claude, Codex,
 opencode or Copilot) before the project. Turn off **Settings → Appearance → Show
 agent names** to keep only the icon; hover it to see the name. This saves
-`show_agent_names`.
+`show_agent_names`. The TUI and the Linux tray menu show a short tag instead of the
+icon (`cc` Claude, `cx` Codex, `oc` opencode, `co` Copilot) and follow the same setting.
 
 | Icon | Session state |
 | --- | --- |
