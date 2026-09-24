@@ -271,13 +271,20 @@ pub fn run() -> anyhow::Result<()> {
     };
 
     // Claude's own session title (the desktop app's auto-title, or `/rename`),
-    // re-read at turn boundaries so renames follow. Read before taking the
-    // lock: it's file IO on a transcript that can run into the tens of MB.
-    let claude_title = match hook_event.as_str() {
-        "SessionStart" | "UserPromptSubmit" | "Stop" if !transcript_path.is_empty() => {
-            transcript_title(&transcript_path)
-        }
-        _ => None,
+    // re-read at turn boundaries so renames follow, and on every event while
+    // the session is unnamed: the desktop app titles a session a few records
+    // into its first turn, which can run for many minutes of tool calls. Read
+    // before taking the lock: it's file IO on a transcript that can run into
+    // the tens of MB.
+    let read_title = !transcript_path.is_empty()
+        && match hook_event.as_str() {
+            "SessionStart" | "UserPromptSubmit" | "Stop" => true,
+            _ => is_unnamed(&session_id),
+        };
+    let claude_title = if read_title {
+        transcript_title(&transcript_path)
+    } else {
+        None
     };
 
     // Whether to kick off auto-naming after the write. Decided inside the RMW
@@ -286,10 +293,11 @@ pub fn run() -> anyhow::Result<()> {
     let mut spawn_naming = false;
 
     update_state(|state| {
-        // PreToolUse fires very frequently; skip the write if already active.
+        // PreToolUse fires very frequently; skip the write if already active,
+        // unless it brings the session's first title.
         if hook_event == "PreToolUse" {
             if let Some(s) = state.sessions.get(&session_id) {
-                if s.status == Status::Active {
+                if s.status == Status::Active && (claude_title.is_none() || s.name.is_some()) {
                     return false;
                 }
             }
@@ -790,8 +798,8 @@ pub fn run_namer(session_id: &str, transcript_path: &str) -> anyhow::Result<()> 
 }
 
 /// Give live Claude sessions that are still unnamed Claude's own title from
-/// their transcripts. Hooks read it only at turn boundaries, so an idle session
-/// would show `Session <id>` until its next prompt. The tray runs this once at
+/// their transcripts. Hooks read it only while the session is working, so an
+/// idle session would show `Session <id>` until its next prompt. The tray runs this once at
 /// startup; best-effort, and never overwrites a name.
 pub fn backfill_claude_titles() -> anyhow::Result<()> {
     let LoadedState::Ok(state) = read_state_raw() else {
@@ -873,6 +881,20 @@ fn run_claude_cli(prompt: &str) -> std::io::Result<std::process::Output> {
     };
 
     result
+}
+
+/// Whether the session has no name yet. An unlocked peek that only decides
+/// whether a transcript read is worth it; the write itself re-checks under the
+/// lock. An unreadable state file counts as named, so nothing extra happens.
+fn is_unnamed(session_id: &str) -> bool {
+    match read_state_raw() {
+        LoadedState::Ok(state) => state
+            .sessions
+            .get(session_id)
+            .is_none_or(|s| s.name.is_none()),
+        LoadedState::Fresh(_) => true,
+        LoadedState::Unreadable => false,
+    }
 }
 
 /// Read `state.json` without the staleness downgrade that `read_hook_state`

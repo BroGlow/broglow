@@ -499,3 +499,65 @@ fn claudes_title_is_found_at_the_end_of_a_large_transcript() {
     let state = read_state(&home);
     assert_eq!(state["sessions"]["sess-titled"]["name"], "Long Session");
 }
+
+#[test]
+fn an_unnamed_session_takes_claudes_title_mid_turn() {
+    // The desktop app titles a session a few records into its first turn,
+    // which can run for many minutes of tool calls before the next Stop.
+    let home = temp_home();
+    seed_state(
+        &home,
+        &json!({
+            "sessions": {
+                "sess-titled": {
+                    "status": "active",
+                    "last_updated": "2020-01-01T00:00:00Z",
+                    "project_path": null,
+                    "notification_type": null,
+                    "name": null,
+                }
+            }
+        }),
+    );
+    let transcript = write_titled_transcript(&home, &["App readiness for launch"]);
+
+    run_hook_with_transcript(&home, "PreToolUse", &transcript);
+
+    let state = read_state(&home);
+    assert_eq!(session_status(&state, "sess-titled"), "active");
+    assert_eq!(
+        state["sessions"]["sess-titled"]["name"],
+        "App readiness for launch"
+    );
+}
+
+#[test]
+fn a_named_active_session_keeps_skipping_pre_tool_use_writes() {
+    // Renames follow at turn boundaries; mid-turn tool calls stay write-free.
+    let home = temp_home();
+    let old_timestamp = "2020-01-01T00:00:00Z";
+    seed_state(
+        &home,
+        &json!({
+            "sessions": {
+                "sess-titled": {
+                    "status": "active",
+                    "last_updated": old_timestamp,
+                    "project_path": null,
+                    "notification_type": null,
+                    "name": "First title",
+                }
+            }
+        }),
+    );
+    let transcript = write_titled_transcript(&home, &["First title", "Renamed by user"]);
+
+    run_hook_with_transcript(&home, "PreToolUse", &transcript);
+
+    let state = read_state(&home);
+    assert_eq!(
+        state["sessions"]["sess-titled"]["last_updated"],
+        old_timestamp
+    );
+    assert_eq!(state["sessions"]["sess-titled"]["name"], "First title");
+}
