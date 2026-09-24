@@ -975,18 +975,18 @@ Linux/macOS/Windows. Firmware tests mock GPIO, clock, serial and Bluetooth; they
 cannot establish wiring/radio behavior. See `site/README.md` and `site/guide/en/releasing.md`
 for website/release checks.
 
-The electronics and Mac-service observations below predate the BroGlow rebrand
-and were recorded with ClawLight. Repeat
-physical acceptance with matching BroGlow firmware before claiming those results.
+Apple Silicon results were repeated with the BroGlow 1.0.0 app and production
+firmware. First pairing was last exercised before the ClawLight → BroGlow rebrand.
+Firmware-reported PWM duties are diagnostics, not a visual check of the LEDs.
 
 | Area | Evidence and limits |
 | --- | --- |
-| Apple Silicon Mac | Signed service, USB pairing, bonded reconnect, status and brightness exercised. |
+| Apple Silicon Mac | Package install, signed service, bonded BLE reconnect, status, brightness, stale-status blanking and recovery exercised. |
 | LEDs | Check all colors and brightness on each assembly. |
 | Multiple lamps | Isolation tests pass; simultaneous operation with two physical boards remains unverified. |
 | Intel Mac / Windows / Linux | CI/build targets, no physical BLE or fresh-install claim. BLE is macOS-only. |
 | Distribution | Local package/site checks precede publication; public downloads, Pages and fresh-Mac Gatekeeper require release acceptance. |
-| Enclosure | Fit requirements and assembly checks are in the print guide; CAD/slicer reports are included in the print package. |
+| Enclosure | The owner confirmed that the complete printed case fits. Fit requirements and assembly checks are in the print guide; CAD/slicer reports are included in the print package. |
 
 Keep dated logs, board IDs and private recovery paths out of this manual.
 
