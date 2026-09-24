@@ -18,7 +18,6 @@ use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
 
 use crate::config;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-use crate::config::BillingMode;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::popover::{Popover, PopoverMsg};
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -338,17 +337,15 @@ fn start_lamp_setup(
 }
 
 /// Short usage readout for the tray: the plan's 5h-block percentage, or
-/// today's API-equivalent dollars — per the billing mode setting. `None`
-/// until the first scan lands (or plan data is unavailable and nothing ran
-/// today), which keeps the bar clean instead of showing a zero.
+/// today's token count when plan data is unavailable. `None` until the first
+/// scan lands (or nothing ran today), which keeps the bar clean instead of
+/// showing a zero.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-fn usage_readout(mode: BillingMode) -> Option<String> {
+fn usage_readout() -> Option<String> {
     let u = usage::latest()?;
-    let dollars = || (u.today_tokens > 0).then(|| format!("${:.2}", u.today_cost));
-    match mode {
-        BillingMode::Plan => u.five_hour_pct.map(|p| format!("{p:.0}%")).or_else(dollars),
-        BillingMode::Api => dollars(),
-    }
+    u.five_hour_pct.map(|p| format!("{p:.0}%")).or_else(|| {
+        (u.today_tokens > 0).then(|| format!("{} tok", usage::compact_tokens(u.today_tokens)))
+    })
 }
 
 /// Put the readout where the platform can show it: next to the menu bar icon
@@ -357,10 +354,7 @@ fn usage_readout(mode: BillingMode) -> Option<String> {
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 fn apply_readout(tray: &tray_icon::TrayIcon) {
     let cfg = config::read_config();
-    let text = cfg
-        .usage_enabled
-        .then(|| usage_readout(cfg.billing_mode))
-        .flatten();
+    let text = cfg.usage_enabled.then(usage_readout).flatten();
     #[cfg(target_os = "macos")]
     tray.set_title(text.as_deref());
     #[cfg(target_os = "windows")]
@@ -747,10 +741,9 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                     popover.push_state(&read_display_state());
                     popover.config_action_result(error);
                 }
-                PopoverMsg::SetUsage { enabled, mode } => {
+                PopoverMsg::SetUsage { enabled } => {
                     let error = config::update_config(|cfg| {
                         cfg.usage_enabled = enabled;
-                        cfg.billing_mode = mode;
                         Ok(())
                     })
                     .err()

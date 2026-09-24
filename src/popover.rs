@@ -15,7 +15,7 @@ use tao::window::{Window, WindowBuilder, WindowId};
 use tray_icon::Rect;
 use wry::WebView;
 
-use crate::config::{self, BillingMode, LedTransport, YellowMode};
+use crate::config::{self, LedTransport, YellowMode};
 use crate::menubar::{display_name, project_label, ICON_GREEN, ICON_NONE, ICON_RED, ICON_YELLOW};
 use crate::state::{aggregate, Aggregate, HookState, Status};
 use crate::usage::{self, UsageSnapshot};
@@ -85,12 +85,9 @@ pub enum PopoverMsg {
     SetAgentNames {
         enabled: bool,
     },
-    /// A usage-tracking option picked in the Settings view: whether to track
-    /// usage at all (`enabled`) and, when on, which readout (`mode`). The page
-    /// sends both together so "Off" and the Plan/API choice are one control.
+    /// The Settings view's usage-tracking toggle.
     SetUsage {
         enabled: bool,
-        mode: BillingMode,
     },
     /// The Lamp details control: connect (`enabled: true`) or disconnect the
     /// physical status lamp by toggling LED mirroring.
@@ -204,8 +201,6 @@ struct SettingsPayload {
     /// whether the usage section shows at all.
     #[serde(rename = "usageEnabled")]
     usage_enabled: bool,
-    #[serde(rename = "billingMode")]
-    billing_mode: BillingMode,
 }
 
 /// Physical status-lamp state for the footer connection indicator.
@@ -603,7 +598,6 @@ fn build_payload(state: &HookState, setup_busy: bool) -> String {
             show_agent_names: cfg.show_agent_names,
             yellow_mode: cfg.yellow_mode,
             usage_enabled: cfg.usage_enabled,
-            billing_mode: cfg.billing_mode,
         },
         // Only surface usage once the user has opted in — otherwise the section
         // stays absent even if a stale snapshot is still cached.
@@ -683,7 +677,7 @@ fn base64(data: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::{base64, AgentPayload, PopoverMsg};
-    use crate::config::{BillingMode, YellowMode};
+    use crate::config::YellowMode;
 
     #[test]
     fn dismiss_session_requires_an_id() {
@@ -725,30 +719,18 @@ mod tests {
         ));
     }
 
-    /// Pins the IPC wire format for the usage-tracking setting
-    /// (`{cmd:'set_usage', enabled:..., mode:'...'}` in assets/popover.html):
-    /// the "Off" row disables tracking; the Plan/API rows enable it and pick the
-    /// readout.
+    /// Pins the IPC wire format for the usage-tracking toggle
+    /// (`{cmd:'set_usage', enabled:...}` in assets/popover.html).
     #[test]
     fn set_usage_parses_from_page_json() {
-        let msg: PopoverMsg =
-            serde_json::from_str(r#"{"cmd":"set_usage","enabled":true,"mode":"api"}"#).unwrap();
-        assert!(matches!(
-            msg,
-            PopoverMsg::SetUsage {
-                enabled: true,
-                mode: BillingMode::Api
-            }
-        ));
-        let msg: PopoverMsg =
-            serde_json::from_str(r#"{"cmd":"set_usage","enabled":false,"mode":"plan"}"#).unwrap();
-        assert!(matches!(
-            msg,
-            PopoverMsg::SetUsage {
-                enabled: false,
-                mode: BillingMode::Plan
-            }
-        ));
+        for enabled in [true, false] {
+            let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
+                "cmd": "set_usage", "enabled": enabled
+            }))
+            .unwrap();
+            assert!(matches!(msg, PopoverMsg::SetUsage { enabled: e } if e == enabled));
+        }
+        assert!(serde_json::from_str::<PopoverMsg>(r#"{"cmd":"set_usage"}"#).is_err());
     }
 
     #[test]

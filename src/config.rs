@@ -20,17 +20,6 @@ pub enum YellowMode {
     ActiveWins,
 }
 
-/// Which usage readout the tray shows (design 1a/1c "billing" tweak).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum BillingMode {
-    /// Subscription view: 5-hour block and weekly rate-limit percentages.
-    #[default]
-    Plan,
-    /// API view: today's per-model tokens and list-price dollars.
-    Api,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum LedTransport {
@@ -76,16 +65,12 @@ pub struct Config {
     /// How idle sessions color the aggregate (tray icon / LED) — see
     /// [`YellowMode`]. Set from the tray popover's Settings view.
     pub yellow_mode: YellowMode,
-    /// Whether the tray shows today's Claude Code usage (the token/$ readout and
-    /// the popover's usage section). Off by default — strictly opt-in, like the
+    /// Whether the tray shows today's usage (the plan percentage or token
+    /// readout and the popover's usage section). Off by default — strictly opt-in, like the
     /// LEDs: until a user turns it on in the popover's Settings view, the daemon
     /// never scans transcripts, reads Claude Code's credentials, or contacts the
     /// usage endpoint. Enabling it is what authorizes that work.
     pub usage_enabled: bool,
-    /// Plan-percentage vs API-dollar usage readout — see [`BillingMode`]. Only
-    /// consulted when [`usage_enabled`](Self::usage_enabled) is set. Set from
-    /// the tray popover's Settings view.
-    pub billing_mode: BillingMode,
     /// Preserve settings introduced by newer versions or local integrations.
     #[serde(flatten)]
     pub extra: std::collections::BTreeMap<String, serde_json::Value>,
@@ -106,7 +91,6 @@ impl Default for Config {
             lamp_brightness: Default::default(),
             yellow_mode: YellowMode::default(),
             usage_enabled: false,
-            billing_mode: BillingMode::default(),
             extra: Default::default(),
         }
     }
@@ -235,7 +219,7 @@ pub fn write_config(cfg: &Config) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BillingMode, Config, YellowMode};
+    use super::{Config, YellowMode};
 
     #[test]
     fn preserves_unrelated_settings_with_ble_selection() {
@@ -264,7 +248,6 @@ mod tests {
             led_port: Some("/dev/cu.usbmodem101".to_string()),
             yellow_mode: YellowMode::ActiveWins,
             usage_enabled: true,
-            billing_mode: BillingMode::Api,
             led_brightness: 37,
             lamp_brightness: [("home".into(), 0), ("office".into(), 80)].into(),
             ..Config::default()
@@ -275,7 +258,6 @@ mod tests {
         assert_eq!(back.led_port.as_deref(), Some("/dev/cu.usbmodem101"));
         assert_eq!(back.yellow_mode, YellowMode::ActiveWins);
         assert!(back.usage_enabled);
-        assert_eq!(back.billing_mode, BillingMode::Api);
         assert_eq!(back.led_brightness_percent(), 37);
         assert_eq!(back.lamp_brightness_percent("home"), 0);
         assert_eq!(back.lamp_brightness_percent("office"), 80);
@@ -382,10 +364,13 @@ mod tests {
     }
 
     #[test]
-    fn billing_mode_defaults_to_plan() {
-        // Configs written before the setting existed default to the plan view.
-        let old: Config = serde_json::from_str(r#"{"led_enabled": true}"#).unwrap();
-        assert_eq!(old.billing_mode, BillingMode::Plan);
+    fn a_retired_billing_mode_is_kept_but_unused() {
+        // Configs from before dollar estimates were removed still load, and
+        // the old key survives a save like any other unknown setting.
+        let old: Config =
+            serde_json::from_str(r#"{"usage_enabled": true, "billing_mode": "api"}"#).unwrap();
+        assert!(old.usage_enabled);
+        assert_eq!(serde_json::to_value(&old).unwrap()["billing_mode"], "api");
     }
 
     #[test]

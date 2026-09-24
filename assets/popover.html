@@ -116,18 +116,12 @@ body.win .helprow .sname { color: #ff99a4; }
 body.win .optrow { border-radius: 5px; padding: 9px 12px; }
 .optrow:hover { background: rgba(255,255,255,.08); }
 body.win .optrow:hover { background: rgba(255,255,255,.06); }
-.radio {
-  width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
-  border: 1.5px solid rgba(255,255,255,.4);
-}
-.radio.rsel { border: 4.5px solid #3577f6; }
-body.win .radio.rsel { border-color: #4cc2ff; }
 .setdesc { white-space: normal; line-height: 1.35; }
 .optrow input { margin-top: 2px; accent-color: #3577f6; }
 body.win .optrow input { accent-color: #4cc2ff; }
 
 /* Usage section (design 1a/1c) — sits between the session groups and the
-   footer. Plan mode: 5h-block + week bars; API mode: per-model cost bar. */
+   footer: 5h-block + week bars, or today's tokens alone. */
 .usec {
   padding: 9px 14px 11px 14px; border-top: 1px solid rgba(255,255,255,.1);
   display: flex; flex-direction: column; gap: 5px;
@@ -141,20 +135,11 @@ body.win .usec { border-top: 1px solid rgba(255,255,255,.08); }
 }
 .uval { font-size: 12px; font-weight: 700; color: rgba(255,255,255,.9); letter-spacing: 0; text-transform: none; }
 .usub { font-size: 11px; font-weight: 400; color: rgba(255,255,255,.42); letter-spacing: 0; text-transform: none; }
-.ubar { height: 5px; border-radius: 99px; background: rgba(255,255,255,.1); overflow: hidden; display: flex; gap: 2px; }
+.ubar { height: 5px; border-radius: 99px; background: rgba(255,255,255,.1); overflow: hidden; display: flex; }
 .ufill { background: #3577f6; border-radius: 99px; }
 .uweek { opacity: .55; }
-.useg { height: 100%; }
 body.win .ubar { border-radius: 2px; }
 body.win .ufill { background: #4cc2ff; border-radius: 2px; }
-.mopus { background: #bf5af2 } .msonnet { background: #3577f6 }
-.mhaiku { background: #40c8e0 } .mother { background: #8e8e93 }
-body.win .msonnet { background: #4cc2ff; }
-.urow { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: rgba(255,255,255,.75); }
-.udot { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
-.uname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.utok { color: rgba(255,255,255,.4); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.ucost { color: rgba(255,255,255,.88); font-weight: 600; font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
 .mt4 { margin-top: 4px; }
 
 .emptybox {
@@ -269,19 +254,6 @@ const YELLOW_OPTIONS = [
   { value: 'active_wins', title: 'Green while any session is working' },
 ];
 
-// Usage tracking is opt-in. "Off" tracks nothing; the other two turn it on and
-// pick the readout. Turning it on lets broglow read local Claude Code
-// transcripts (and, for plan %, its usage endpoint) — hence the off default.
-const USAGE_OPTIONS = [
-  { value: 'off', title: 'Off' },
-  { value: 'plan', title: 'Plan percentages',
-    desc: '5-hour and weekly limits.' },
-  { value: 'api', title: 'API dollars',
-    desc: 'Estimated cost at API rates.' },
-];
-
-const FAMILY_CLASS = { opus: 'mopus', sonnet: 'msonnet', haiku: 'mhaiku' };
-
 let state = { aggregate: 'none', sessions: [], settings: { yellowMode: 'any_inactive' },
               lamp: { present: false, enabled: false, transport: 'usb', state: 'disabled' } };
 let view = 'sessions';
@@ -300,17 +272,12 @@ function fmtTokens(n) {
   return String(n);
 }
 
-function fmtCost(c) {
-  return '$' + (c >= 100 ? c.toFixed(0) : c.toFixed(2));
-}
-
-/* Usage section, per design 1a/1c. Plan mode: 5h-block + week bars from the
-   plan endpoint, with today's token/$ line under them (or alone, when the
-   percentages are unavailable). API mode: per-model cost bar + rows. */
+/* Usage section, per design 1a/1c: 5h-block + week bars from the plan
+   endpoint with today's token line under them, or the token line alone when
+   the percentages are unavailable. */
 function renderUsage() {
   const el = document.getElementById('usage');
   const u = state.usage;
-  const mode = (state.settings && state.settings.billingMode) || 'plan';
   const havePlan = u && u.fiveHourPct != null;
   if (view !== 'sessions' || !u || (!havePlan && !u.todayTokens)) {
     el.hidden = true;
@@ -318,10 +285,8 @@ function renderUsage() {
     return;
   }
 
-  const todayLine =
-    `Today ≈ ${fmtTokens(u.todayTokens)} tokens · ~${fmtCost(u.todayCost)} API-equivalent`;
   let html = '';
-  if (mode === 'plan' && havePlan) {
+  if (havePlan) {
     const pct = v => Math.max(0, Math.min(100, v));
     html +=
       `<div class="ulhead"><span>Usage · 5h block</span><span class="f1"></span>` +
@@ -335,36 +300,12 @@ function renderUsage() {
         (u.weekReset ? `<span class="usub">resets ${esc(u.weekReset)}</span>` : '') +
         `</div><div class="ubar"><span class="ufill uweek" style="width:${pct(u.weekPct)}%"></span></div>`;
     }
-    html += `<div class="usub mt4">${todayLine}</div>`;
-  } else if (mode === 'plan') {
-    // Plan mode without plan data (API-key install, no creds): today only.
-    html +=
-      `<div class="ulhead"><span>Usage · today</span><span class="f1"></span>` +
-      `<span class="uval">~${fmtCost(u.todayCost)}</span></div>` +
-      `<div class="usub">≈ ${fmtTokens(u.todayTokens)} tokens · API-equivalent estimate</div>`;
+    html += `<div class="usub mt4">Today ≈ ${fmtTokens(u.todayTokens)} tokens</div>`;
   } else {
+    // No plan data (API-key install, no creds, Codex only): today only.
     html +=
       `<div class="ulhead"><span>Usage · today</span><span class="f1"></span>` +
-      `<span class="uval">${fmtCost(u.todayCost)}</span></div>`;
-    const models = u.models || [];
-    // Segment widths by cost share; fall back to token share when today is
-    // all cache reads on unpriced models.
-    const total = models.reduce((a, m) => a + m.cost, 0);
-    const share = total > 0
-      ? m => m.cost / total
-      : m => m.tokens / Math.max(1, u.todayTokens);
-    html += `<div class="ubar">` + models.map(m =>
-      `<span class="useg ${FAMILY_CLASS[m.family] || 'mother'}"` +
-      ` style="width:${Math.max(1.5, share(m) * 100)}%"></span>`
-    ).join('') + `</div>`;
-    models.forEach((m, i) => {
-      html +=
-        `<div class="urow${i === 0 ? ' mt4' : ''}">` +
-        `<span class="udot ${FAMILY_CLASS[m.family] || 'mother'}"></span>` +
-        `<span class="uname">${esc(m.name)}</span><span class="f1"></span>` +
-        `<span class="utok">${fmtTokens(m.tokens)} tok</span>` +
-        `<span class="ucost">${fmtCost(m.cost)}</span></div>`;
-    });
+      `<span class="uval">≈ ${fmtTokens(u.todayTokens)} tokens</span></div>`;
   }
   el.innerHTML = html;
   el.hidden = false;
@@ -690,13 +631,11 @@ function render() {
         `<div class="lampdetail" id="lampdetail"></div></details>`;
     }
   } else if (view === 'settings') {
-    const focusedToggle = ['showdashboard', 'showagentnames'].includes(document.activeElement?.id)
-      ? document.activeElement.id : null;
+    // Rebuilding the view drops focus; keep keyboard users on their control.
+    const focused = ['showdashboard', 'showagentnames', 'trackusage',
+      ...YELLOW_OPTIONS.map(o => `yellow-${o.value}`)].includes(document.activeElement?.id)
+      ? document.activeElement.id : '';
     const mode = (state.settings && state.settings.yellowMode) || 'any_inactive';
-    // Off unless opted in; then reflect the chosen readout.
-    const usage = (state.settings && state.settings.usageEnabled)
-      ? ((state.settings && state.settings.billingMode) || 'plan')
-      : 'off';
     groupsEl.innerHTML =
       `<div class="grplabel">Appearance</div>` +
       `<label class="optrow" for="showdashboard">` +
@@ -708,23 +647,26 @@ function render() {
       `<span class="sinfo"><span class="sname">Show agent names</span>` +
       `<span class="smeta setdesc" id="agentnameshint">Name the coding agent beside its icon.</span></span></label>` +
       `<p class="lamperror" id="settingserror" role="alert" hidden></p>` +
-      `<div class="grplabel">Mixed sessions</div>` +
+      `<div class="grplabel" id="mixedlabel">Mixed sessions</div>` +
+      `<div role="radiogroup" aria-labelledby="mixedlabel">` +
       YELLOW_OPTIONS.map(o =>
-        `<div class="optrow" data-yellow="${o.value}">` +
-        `<span class="radio${o.value === mode ? ' rsel' : ''}"></span>` +
-        `<div class="sinfo"><span class="sname">${o.title}</span></div></div>`
-      ).join('') +
+        `<label class="optrow" for="yellow-${o.value}">` +
+        `<input type="radio" name="yellowmode" id="yellow-${o.value}" value="${o.value}">` +
+        `<span class="sinfo"><span class="sname">${o.title}</span></span></label>`
+      ).join('') + `</div>` +
       `<div class="grplabel">Usage tracking</div>` +
-      USAGE_OPTIONS.map(o =>
-        `<div class="optrow" data-usage="${o.value}">` +
-        `<span class="radio${o.value === usage ? ' rsel' : ''}"></span>` +
-        `<div class="sinfo"><span class="sname">${o.title}</span>` +
-        (o.desc ? `<span class="smeta setdesc">${o.desc}</span>` : '') + `</div></div>`
-      ).join('');
+      // Opt-in: turning it on lets BroGlow read local agent transcripts and
+      // Claude's usage endpoint — hence the off default.
+      `<label class="optrow" for="trackusage">` +
+      `<input type="checkbox" id="trackusage" aria-describedby="usagehint">` +
+      `<span class="sinfo"><span class="sname">Track usage</span>` +
+      `<span class="smeta setdesc" id="usagehint">5-hour and weekly limits, and today's tokens.</span></span></label>`;
     const dashboardToggle = document.getElementById('showdashboard');
     dashboardToggle.checked = state.settings?.showDashboardButton === true;
     document.getElementById('showagentnames').checked = state.settings?.showAgentNames !== false;
-    if (focusedToggle) document.getElementById(focusedToggle).focus();
+    document.getElementById(`yellow-${mode}`).checked = true;
+    document.getElementById('trackusage').checked = state.settings?.usageEnabled === true;
+    if (focused) document.getElementById(focused).focus();
     const error = document.getElementById('settingserror');
     error.textContent = configActionError;
     error.hidden = !configActionError;
@@ -826,6 +768,20 @@ document.addEventListener('change', ev => {
     post({ cmd: 'set_agent_names', enabled: ev.target.checked });
     return;
   }
+  // Update optimistically; the host confirms with a fresh __setState after
+  // writing the config.
+  if (ev.target.name === 'yellowmode') {
+    state.settings = state.settings || {};
+    state.settings.yellowMode = ev.target.value;
+    post({ cmd: 'set_yellow_mode', mode: ev.target.value });
+    return;
+  }
+  if (ev.target.id === 'trackusage') {
+    state.settings = state.settings || {};
+    state.settings.usageEnabled = ev.target.checked;
+    post({ cmd: 'set_usage', enabled: ev.target.checked });
+    return;
+  }
   if (!isBrightnessSlider(ev.target) || !canEditBrightness(ev.target)) return;
   const percent = brightnessPercent(ev.target.value);
   if (percent === null) return;
@@ -847,30 +803,6 @@ document.addEventListener('click', ev => {
   if (local) {
     if (view === 'lamp') stopBrightnessPreview();
     view = view === local.dataset.local ? 'sessions' : local.dataset.local;
-    render();
-    return;
-  }
-  const opt = ev.target.closest('[data-yellow]');
-  if (opt) {
-    // Update optimistically; the host confirms with a fresh __setState after
-    // writing the config.
-    state.settings = state.settings || {};
-    state.settings.yellowMode = opt.dataset.yellow;
-    post({ cmd: 'set_yellow_mode', mode: opt.dataset.yellow });
-    render();
-    return;
-  }
-  const usa = ev.target.closest('[data-usage]');
-  if (usa) {
-    const v = usa.dataset.usage;
-    const enabled = v !== 'off';
-    // Keep the last Plan/API choice when toggling Off, so turning it back on
-    // restores the previous readout.
-    const mode = enabled ? v : ((state.settings && state.settings.billingMode) || 'plan');
-    state.settings = state.settings || {};
-    state.settings.usageEnabled = enabled;
-    state.settings.billingMode = mode;
-    post({ cmd: 'set_usage', enabled, mode });
     render();
     return;
   }

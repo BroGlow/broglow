@@ -1,6 +1,6 @@
-//! Today's Claude Code usage — tokens and API-equivalent dollars — plus the
-//! plan rate-limit percentages, feeding the tray readout and the popover's
-//! usage section (designs 1a/1c in the Tray Menu Designs doc).
+//! Today's coding-agent token usage plus the plan rate-limit percentages,
+//! feeding the tray readout and the popover's usage section (designs 1a/1c in
+//! the Tray Menu Designs doc). BroGlow counts tokens; it never prices them.
 //!
 //! Token counts come from the transcript JSONLs Claude Code writes under
 //! `~/.claude/projects/<dir>/<session>.jsonl`: each assistant line carries the
@@ -13,7 +13,7 @@
 //! endpoint the Claude Code `/usage` screen reads, using the credentials
 //! Claude Code already stores. Everything here is best-effort: missing creds,
 //! an unreachable endpoint, or an unknown response shape degrade to `None`
-//! and the UI falls back to the token/$ line.
+//! and the UI falls back to the token line.
 
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
@@ -25,25 +25,10 @@ use std::sync::Mutex;
 use chrono::{DateTime, Local, NaiveDate};
 use serde::{Deserialize, Serialize};
 
-/// Dollar cost is an estimate of what today's tokens would cost at API list
-/// prices — for subscription users it is "API-equivalent", not a bill.
-#[derive(Debug, Clone, Serialize, PartialEq)]
-pub struct ModelUsage {
-    /// Human name parsed from the model id, e.g. "Opus 4.5".
-    pub name: String,
-    /// Color family for the popover's segmented bar: opus/sonnet/haiku/other.
-    pub family: &'static str,
-    pub tokens: u64,
-    pub cost: f64,
-}
-
 #[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageSnapshot {
     pub today_tokens: u64,
-    pub today_cost: f64,
-    /// Per-model breakdown, largest cost first.
-    pub models: Vec<ModelUsage>,
     /// Plan rate-limit utilization (0–100), when the OAuth endpoint is
     /// reachable with Claude Code's stored credentials.
     pub five_hour_pct: Option<f64>,
@@ -65,6 +50,18 @@ static LATEST: Mutex<Option<UsageSnapshot>> = Mutex::new(None);
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub fn latest() -> Option<UsageSnapshot> {
     LATEST.lock().ok()?.clone()
+}
+
+/// "1.2M" / "12k" / "950", matching the popover's `fmtTokens`.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+pub fn compact_tokens(n: u64) -> String {
+    if n >= 1_000_000 {
+        format!("{:.1}M", n as f64 / 1e6)
+    } else if n >= 1_000 {
+        format!("{}k", (n as f64 / 1e3).round())
+    } else {
+        n.to_string()
+    }
 }
 
 /// Background refresher for the tray daemon: rescans the transcripts every
@@ -130,32 +127,6 @@ pub fn run_once() -> anyhow::Result<()> {
 // ---------------------------------------------------------------------------
 // Transcript scanning
 
-/// Token counts split the way pricing splits them.
-#[derive(Debug, Default, Clone, Copy)]
-struct Tokens {
-    input: u64,
-    output: u64,
-    /// Cache writes at the 5-minute TTL (1.25× input price).
-    cache_5m: u64,
-    /// Cache writes at the 1-hour TTL (2× input price).
-    cache_1h: u64,
-    cache_read: u64,
-}
-
-impl Tokens {
-    fn total(&self) -> u64 {
-        self.input + self.output + self.cache_5m + self.cache_1h + self.cache_read
-    }
-
-    fn add(&mut self, other: &Tokens) {
-        self.input += other.input;
-        self.output += other.output;
-        self.cache_5m += other.cache_5m;
-        self.cache_1h += other.cache_1h;
-        self.cache_read += other.cache_read;
-    }
-}
-
 #[derive(Debug, Default, Clone, Copy)]
 struct FilePos {
     offset: u64,
@@ -164,19 +135,17 @@ struct FilePos {
 
 /// Codex `token_count` events carry **cumulative** session totals, so the
 /// per-file scan state must remember the last cumulative reading (usage per
-/// event is the delta) and the current model from the latest `turn_context`.
+/// event is the delta).
 #[derive(Debug, Default, Clone)]
 struct CodexFilePos {
     offset: u64,
     len: u64,
     prev: CodexCumulative,
-    model: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
 struct CodexCumulative {
     input: u64,
-    cached: u64,
     output: u64,
     total: u64,
 }
@@ -188,8 +157,8 @@ struct Tracker {
     codex_files: HashMap<PathBuf, CodexFilePos>,
     /// message id / request id already counted today, across all files.
     seen: HashSet<String>,
-    /// model id → today's tokens.
-    tallies: HashMap<String, Tokens>,
+    /// Tokens counted today.
+    today_tokens: u64,
 }
 
 /// One transcript line, reduced to the fields usage accounting needs.
@@ -222,15 +191,6 @@ struct RawUsage {
     cache_creation_input_tokens: u64,
     #[serde(default)]
     cache_read_input_tokens: u64,
-    cache_creation: Option<CacheCreation>,
-}
-
-#[derive(Deserialize)]
-struct CacheCreation {
-    #[serde(default)]
-    ephemeral_5m_input_tokens: u64,
-    #[serde(default)]
-    ephemeral_1h_input_tokens: u64,
 }
 
 fn projects_dir() -> Option<PathBuf> {
@@ -262,7 +222,7 @@ impl Tracker {
             files: HashMap::new(),
             codex_files: HashMap::new(),
             seen: HashSet::new(),
-            tallies: HashMap::new(),
+            today_tokens: 0,
         }
     }
 
@@ -275,7 +235,7 @@ impl Tracker {
             self.files.clear();
             self.codex_files.clear();
             self.seen.clear();
-            self.tallies.clear();
+            self.today_tokens = 0;
         }
 
         // Session files last written before local midnight can't contain
@@ -347,7 +307,6 @@ impl Tracker {
         // borrow checker won't allow holding the map entry across ingest).
         let mut offset = pos.offset;
         let mut prev = pos.prev;
-        let mut model = pos.model.clone();
         let Ok(mut file) = std::fs::File::open(&path) else {
             return;
         };
@@ -366,27 +325,21 @@ impl Tracker {
             }
             offset += n as u64;
             if let Ok(text) = std::str::from_utf8(&buf) {
-                self.ingest_codex_line(text, &mut prev, &mut model);
+                self.ingest_codex_line(text, &mut prev);
             }
         }
         let pos = self.codex_files.entry(path).or_default();
         pos.offset = offset;
         pos.len = len;
         pos.prev = prev;
-        pos.model = model;
     }
 
     /// Fold one rollout line into the tallies. `token_count` events carry
     /// cumulative totals: usage per event is the delta from the previous one,
     /// and a decrease means the counter reset (the current value is the new
-    /// delta). `cached_input_tokens` is a subset of `input_tokens`;
-    /// `output_tokens` already includes reasoning tokens.
-    fn ingest_codex_line(
-        &mut self,
-        text: &str,
-        prev: &mut CodexCumulative,
-        model: &mut Option<String>,
-    ) {
+    /// delta). Cached input is a subset of `input_tokens`; `output_tokens`
+    /// already includes reasoning tokens.
+    fn ingest_codex_line(&mut self, text: &str, prev: &mut CodexCumulative) {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(text) else {
             return;
         };
@@ -394,11 +347,6 @@ impl Tracker {
             return;
         };
         match v.get("type").and_then(|t| t.as_str()) {
-            Some("turn_context") => {
-                if let Some(m) = payload.get("model").and_then(|m| m.as_str()) {
-                    *model = Some(m.to_string());
-                }
-            }
             Some("event_msg")
                 if payload.get("type").and_then(|t| t.as_str()) == Some("token_count") =>
             {
@@ -409,7 +357,6 @@ impl Tracker {
                 let n = |k: &str| total.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
                 let cur = CodexCumulative {
                     input: n("input_tokens"),
-                    cached: n("cached_input_tokens"),
                     output: n("output_tokens"),
                     total: n("total_tokens"),
                 };
@@ -418,7 +365,6 @@ impl Tracker {
                 } else {
                     CodexCumulative {
                         input: cur.input.saturating_sub(prev.input),
-                        cached: cur.cached.saturating_sub(prev.cached),
                         output: cur.output.saturating_sub(prev.output),
                         total: cur.total.saturating_sub(prev.total),
                     }
@@ -435,16 +381,7 @@ impl Tracker {
                 if !today {
                     return;
                 }
-                // No turn_context yet (shouldn't happen mid-rollout): skip
-                // rather than misattribute to a guessed model.
-                let Some(model) = model.clone() else { return };
-                self.tallies.entry(model).or_default().add(&Tokens {
-                    input: delta.input.saturating_sub(delta.cached),
-                    output: delta.output,
-                    cache_5m: 0,
-                    cache_1h: 0,
-                    cache_read: delta.cached,
-                });
+                self.today_tokens += delta.input + delta.output;
             }
             _ => {}
         }
@@ -522,248 +459,21 @@ impl Tracker {
             }
         }
 
-        let (cache_5m, cache_1h) = match &usage.cache_creation {
-            Some(c) => (c.ephemeral_5m_input_tokens, c.ephemeral_1h_input_tokens),
-            // Older transcripts have only the total; assume the default 5m TTL.
-            None => (usage.cache_creation_input_tokens, 0),
-        };
-        self.tallies.entry(model).or_default().add(&Tokens {
-            input: usage.input_tokens,
-            output: usage.output_tokens,
-            cache_5m,
-            cache_1h,
-            cache_read: usage.cache_read_input_tokens,
-        });
+        self.today_tokens += usage.input_tokens
+            + usage.output_tokens
+            + usage.cache_creation_input_tokens
+            + usage.cache_read_input_tokens;
     }
 
     fn snapshot(&self, plan: Option<&PlanUsage>) -> UsageSnapshot {
-        // Merge model ids that render to the same display name (date-suffixed
-        // ids of one family+version), costing each id at its own rates.
-        let mut by_name: HashMap<String, ModelUsage> = HashMap::new();
-        for (model, tokens) in &self.tallies {
-            let cost = rates_for(model).cost(tokens);
-            let entry = by_name
-                .entry(model_display_name(model))
-                .or_insert_with_key(|name| ModelUsage {
-                    name: name.clone(),
-                    family: model_family(model),
-                    tokens: 0,
-                    cost: 0.0,
-                });
-            entry.tokens += tokens.total();
-            entry.cost += cost;
-        }
-        let mut models: Vec<ModelUsage> = by_name.into_values().collect();
-        models.sort_by(|a, b| b.cost.total_cmp(&a.cost).then(b.tokens.cmp(&a.tokens)));
-
         UsageSnapshot {
-            today_tokens: models.iter().map(|m| m.tokens).sum(),
-            today_cost: models.iter().map(|m| m.cost).sum(),
-            models,
+            today_tokens: self.today_tokens,
             five_hour_pct: plan.and_then(|p| p.five_hour_pct),
             five_hour_reset: plan.and_then(|p| p.five_hour_reset.clone()),
             week_pct: plan.and_then(|p| p.week_pct),
             week_reset: plan.and_then(|p| p.week_reset.clone()),
         }
     }
-}
-
-// ---------------------------------------------------------------------------
-// Pricing
-
-/// API list prices in $ per million tokens.
-struct Rates {
-    input: f64,
-    output: f64,
-    cache_read: f64,
-}
-
-impl Rates {
-    fn cost(&self, t: &Tokens) -> f64 {
-        (t.input as f64 * self.input
-            // Cache writes are priced off the input rate: 1.25× (5m TTL) / 2× (1h).
-            + t.cache_5m as f64 * self.input * 1.25
-            + t.cache_1h as f64 * self.input * 2.0
-            + t.cache_read as f64 * self.cache_read
-            + t.output as f64 * self.output)
-            / 1_000_000.0
-    }
-}
-
-const OPUS_45: Rates = Rates {
-    input: 5.0,
-    output: 25.0,
-    cache_read: 0.50,
-};
-const OPUS_LEGACY: Rates = Rates {
-    input: 15.0,
-    output: 75.0,
-    cache_read: 1.50,
-};
-const SONNET: Rates = Rates {
-    input: 3.0,
-    output: 15.0,
-    cache_read: 0.30,
-};
-const HAIKU_45: Rates = Rates {
-    input: 1.0,
-    output: 5.0,
-    cache_read: 0.10,
-};
-const HAIKU_35: Rates = Rates {
-    input: 0.80,
-    output: 4.0,
-    cache_read: 0.08,
-};
-const HAIKU_3: Rates = Rates {
-    input: 0.25,
-    output: 1.25,
-    cache_read: 0.03,
-};
-// OpenAI (Codex) — GPT-5.6 GA pricing; cached input is 10% of input, and
-// Codex reports no separate cache-write figure (those fields stay 0).
-const GPT56_SOL: Rates = Rates {
-    input: 5.0,
-    output: 30.0,
-    cache_read: 0.50,
-};
-const GPT56_TERRA: Rates = Rates {
-    input: 2.5,
-    output: 15.0,
-    cache_read: 0.25,
-};
-const GPT56_LUNA: Rates = Rates {
-    input: 1.0,
-    output: 6.0,
-    cache_read: 0.10,
-};
-const GPT5: Rates = Rates {
-    input: 1.25,
-    output: 10.0,
-    cache_read: 0.125,
-};
-
-/// Best-effort list-price lookup by model id. Unknown ids fall back to their
-/// family's latest rates (or Sonnet's) — the readout is an estimate either
-/// way, and new model releases shouldn't zero the meter.
-fn rates_for(model: &str) -> Rates {
-    let m = model.to_ascii_lowercase();
-    if m.contains("haiku") {
-        if m.contains("haiku-3-5") || m.contains("3-5-haiku") {
-            HAIKU_35
-        } else if m.contains("haiku-3") || m.contains("3-haiku") {
-            HAIKU_3
-        } else {
-            HAIKU_45
-        }
-    } else if m.contains("opus") {
-        // Opus dropped to $5/$25 at 4.5; earlier 3/4/4.1 were $15/$75.
-        match opus_minor(&m) {
-            Some(minor) if minor >= 5 => OPUS_45,
-            Some(_) => OPUS_LEGACY,
-            // Plain opus-4 (date-only suffix) and opus-3 predate the reprice.
-            None if m.contains("opus-4") || m.contains("opus-3") || m.contains("3-opus") => {
-                OPUS_LEGACY
-            }
-            // Unversioned or 5.x+: current pricing.
-            None => OPUS_45,
-        }
-    } else if m.contains("fable") || m.contains("mythos") {
-        // Claude 5 tier — no published transcript pricing pinned here yet;
-        // price at the top Opus tier so the estimate errs recognizably.
-        OPUS_45
-    } else if m.contains("gpt") {
-        // Codex models. Unknown GPT ids estimate at the older flagship rate.
-        if m.contains("5.6-sol") {
-            GPT56_SOL
-        } else if m.contains("5.6-terra") {
-            GPT56_TERRA
-        } else if m.contains("5.6-luna") {
-            GPT56_LUNA
-        } else {
-            GPT5
-        }
-    } else {
-        SONNET
-    }
-}
-
-/// The x in "opus-4-x". `None` for opus-3 ids, unversioned ids, or 5.x+ ids.
-fn opus_minor(model: &str) -> Option<u32> {
-    let rest = model.split("opus-4-").nth(1)?;
-    let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
-    // An 8-digit run is the date suffix of a plain "opus-4" id, not a minor.
-    if digits.is_empty() || digits.len() >= 8 {
-        return None;
-    }
-    digits.parse().ok()
-}
-
-/// Bar color family for a model id.
-fn model_family(model: &str) -> &'static str {
-    let m = model.to_ascii_lowercase();
-    for family in ["opus", "sonnet", "haiku"] {
-        if m.contains(family) {
-            return family;
-        }
-    }
-    if m.contains("fable") || m.contains("mythos") {
-        return "opus";
-    }
-    "other"
-}
-
-/// "claude-opus-4-5-20251101" → "Opus 4.5"; "claude-3-5-sonnet-20241022" →
-/// "Sonnet 3.5"; "claude-fable-5" → "Fable 5". The family is the first
-/// alphabetic segment, the version is the numeric segments around it, and an
-/// 8-digit date segment ends the id.
-fn model_display_name(model: &str) -> String {
-    // OpenAI ids don't follow the claude segment grammar: "gpt-5.6-sol" →
-    // "GPT-5.6 Sol", "gpt-5.1" → "GPT-5.1".
-    if let Some(rest) = model.strip_prefix("gpt-") {
-        let mut parts = rest.splitn(2, '-');
-        let version = parts.next().unwrap_or(rest);
-        let variant = parts.next().map(|v| {
-            let mut chars = v.chars();
-            match chars.next() {
-                Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
-                None => String::new(),
-            }
-        });
-        return match variant {
-            Some(v) if !v.is_empty() => format!("GPT-{version} {v}"),
-            _ => format!("GPT-{version}"),
-        };
-    }
-
-    let mut family: Option<&str> = None;
-    let mut version: Vec<&str> = Vec::new();
-    for seg in model.split('-') {
-        if seg.eq_ignore_ascii_case("claude") {
-            continue;
-        }
-        if seg.chars().all(|c| c.is_ascii_digit()) {
-            if seg.len() >= 8 {
-                break; // date suffix
-            }
-            version.push(seg);
-        } else if family.is_none() {
-            family = Some(seg);
-        }
-    }
-    let Some(family) = family else {
-        return model.to_string();
-    };
-    let mut chars = family.chars();
-    let mut name = match chars.next() {
-        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
-        None => return model.to_string(),
-    };
-    if !version.is_empty() {
-        name.push(' ');
-        name.push_str(&version.join("."));
-    }
-    name
 }
 
 // ---------------------------------------------------------------------------
@@ -1001,56 +711,8 @@ mod tests {
         // Garbage must never panic or count.
         t.ingest_line("not json at all\n");
 
-        let snap = t.snapshot(None);
-        assert_eq!(snap.models.len(), 1);
-        assert_eq!(snap.models[0].name, "Haiku 4.5");
-        assert_eq!(snap.models[0].family, "haiku");
-        // 2 × (10 in + 50 out + 100 cache5m + 1000 read)
-        assert_eq!(snap.today_tokens, 2 * 1160);
-        // 2 × (10·1.0 + 100·1.25 + 1000·0.10 + 50·5.0) / 1e6
-        let expected = 2.0 * (10.0 + 125.0 + 100.0 + 250.0) / 1e6;
-        assert!((snap.today_cost - expected).abs() < 1e-12);
-    }
-
-    #[test]
-    fn merges_model_ids_by_display_name() {
-        let mut t = Tracker::new();
-        let ts = today_ts(&t);
-        t.ingest_line(&line("claude-opus-4-5-20251101", "msg_a", &ts, 10));
-        t.ingest_line(&line("claude-opus-4-5", "msg_b", &ts, 10));
-        t.ingest_line(&line("claude-haiku-4-5-20251001", "msg_c", &ts, 10));
-        let snap = t.snapshot(None);
-        assert_eq!(snap.models.len(), 2);
-        assert!(snap.models.iter().any(|m| m.name == "Opus 4.5"));
-    }
-
-    #[test]
-    fn display_names() {
-        assert_eq!(model_display_name("claude-opus-4-5-20251101"), "Opus 4.5");
-        assert_eq!(model_display_name("claude-sonnet-4-20250514"), "Sonnet 4");
-        assert_eq!(
-            model_display_name("claude-3-5-sonnet-20241022"),
-            "Sonnet 3.5"
-        );
-        assert_eq!(model_display_name("claude-haiku-4-5-20251001"), "Haiku 4.5");
-        assert_eq!(model_display_name("claude-fable-5"), "Fable 5");
-        assert_eq!(model_display_name("claude-opus-4-8"), "Opus 4.8");
-    }
-
-    #[test]
-    fn pricing_tiers() {
-        // Opus repriced at 4.5; 4/4.1 keep legacy rates, 4.8 is current.
-        assert_eq!(rates_for("claude-opus-4-5-20251101").input, 5.0);
-        assert_eq!(rates_for("claude-opus-4-8").input, 5.0);
-        assert_eq!(rates_for("claude-opus-4-1-20250805").input, 15.0);
-        assert_eq!(rates_for("claude-opus-4-20250514").input, 15.0);
-        assert_eq!(rates_for("claude-3-opus-20240229").input, 15.0);
-        assert_eq!(rates_for("claude-3-5-haiku-20241022").input, 0.80);
-        assert_eq!(rates_for("claude-haiku-4-5-20251001").input, 1.0);
-        assert_eq!(rates_for("claude-sonnet-4-5-20250929").input, 3.0);
-        // Unknown ids estimate rather than zero out.
-        assert_eq!(rates_for("claude-fable-5").input, 5.0);
-        assert_eq!(rates_for("some-future-model").input, 3.0);
+        // 2 × (10 in + 50 out + 100 cache write + 1000 cache read)
+        assert_eq!(t.snapshot(None).today_tokens, 2 * 1160);
     }
 
     #[test]
@@ -1063,62 +725,35 @@ mod tests {
             )
         };
         let mut prev = CodexCumulative::default();
-        let mut model = None;
 
-        // A token_count before any turn_context is skipped, but still
-        // advances the cumulative baseline.
-        t.ingest_codex_line(&count(100, 0, 1, 101, &ts), &mut prev, &mut model);
-        assert!(t.tallies.is_empty());
-
+        t.ingest_codex_line(&count(100, 0, 1, 101, &ts), &mut prev);
+        // Non-usage lines are ignored.
         t.ingest_codex_line(
             r#"{"type":"turn_context","payload":{"turn_id":"t1","model":"gpt-5.6-sol"}}"#,
             &mut prev,
-            &mut model,
         );
         // Cumulative counters: each event contributes its delta.
-        t.ingest_codex_line(&count(14300, 9984, 5, 14305, &ts), &mut prev, &mut model);
-        t.ingest_codex_line(&count(20300, 14984, 505, 20805, &ts), &mut prev, &mut model);
+        t.ingest_codex_line(&count(14300, 9984, 5, 14305, &ts), &mut prev);
+        t.ingest_codex_line(&count(20300, 14984, 505, 20805, &ts), &mut prev);
         // Yesterday's line advances the baseline without counting.
         t.ingest_codex_line(
             &count(30300, 14984, 505, 30805, "2020-01-01T12:00:00Z"),
             &mut prev,
-            &mut model,
         );
         // A reset (smaller cumulative) becomes a fresh delta, never underflow.
-        t.ingest_codex_line(&count(50, 0, 10, 60, &ts), &mut prev, &mut model);
+        t.ingest_codex_line(&count(50, 0, 10, 60, &ts), &mut prev);
 
-        let snap = t.snapshot(None);
-        assert_eq!(snap.models.len(), 1);
-        assert_eq!(snap.models[0].name, "GPT-5.6 Sol");
-        assert_eq!(snap.models[0].family, "other");
-        // Event 1: 14305 (delta from 101 baseline: 14204 in + 4 out… the
-        // baseline event itself contributed 101 to prev, so deltas are
-        // (14300-100)+(5-1) then 6000+500, then the reset's 60.
-        let expected_tokens = (14300 - 100) + (5 - 1) + (6000 + 500) + 60;
-        assert_eq!(snap.today_tokens, expected_tokens as u64);
-        // Cost at Sol rates: uncached input ×$5, cached ×$0.50, output ×$30.
-        let uncached = (14200 - 9984) as f64 + 1000.0 + 50.0;
-        let cached = 9984.0 + 5000.0;
-        let output = 4.0 + 500.0 + 10.0;
-        let expected = (uncached * 5.0 + cached * 0.5 + output * 30.0) / 1e6;
-        assert!(
-            (snap.today_cost - expected).abs() < 1e-9,
-            "cost {} != {expected}",
-            snap.today_cost
-        );
+        // 101, then (14300-100)+(5-1), then 6000+500, then the reset's 60.
+        let expected_tokens = 101 + (14300 - 100) + (5 - 1) + (6000 + 500) + 60;
+        assert_eq!(t.snapshot(None).today_tokens, expected_tokens);
     }
 
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     #[test]
-    fn gpt_display_names_and_rates() {
-        assert_eq!(model_display_name("gpt-5.6-sol"), "GPT-5.6 Sol");
-        assert_eq!(model_display_name("gpt-5.6-terra"), "GPT-5.6 Terra");
-        assert_eq!(model_display_name("gpt-5.1"), "GPT-5.1");
-        assert_eq!(model_family("gpt-5.6-sol"), "other");
-        assert_eq!(rates_for("gpt-5.6-sol").input, 5.0);
-        assert_eq!(rates_for("gpt-5.6-sol").output, 30.0);
-        assert_eq!(rates_for("gpt-5.6-luna").input, 1.0);
-        // Unknown GPT ids estimate at the older flagship rate, not Sonnet's.
-        assert_eq!(rates_for("gpt-5.2-codex").input, 1.25);
+    fn compact_token_counts() {
+        assert_eq!(compact_tokens(950), "950");
+        assert_eq!(compact_tokens(12_400), "12k");
+        assert_eq!(compact_tokens(1_240_000), "1.2M");
     }
 
     #[test]

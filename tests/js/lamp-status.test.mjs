@@ -232,6 +232,57 @@ test('Settings toggles agent names and waits for the saved preference', () => {
   assert.equal(commands('set_dashboard_button').length, 0);
 });
 
+test('Settings uses native radios for mixed sessions and a checkbox for usage tracking', () => {
+  const { context, element, click, listeners, commands } = popoverPage();
+  const refresh = settings => context.window.__setState({ aggregate: 'none', sessions: [],
+    settings, lamp: lamp() });
+  refresh({});
+  click('settingsbtn');
+  const html = element('groups').innerHTML;
+  assert.match(html, /role="radiogroup" aria-labelledby="mixedlabel"/);
+  for (const value of ['any_inactive', 'active_wins']) {
+    assert.match(html, new RegExp(`<label[^>]*for="yellow-${value}"><input type="radio" name="yellowmode"`));
+  }
+  assert.match(html, /<label[^>]*for="trackusage"><input type="checkbox" id="trackusage"/);
+  assert.doesNotMatch(html, /dollar|API rates|\$/i);
+  assert.equal(element('yellow-any_inactive').checked, true, 'Default mode is selected');
+  assert.equal(element('trackusage').checked, false, 'Usage tracking is off by default');
+
+  const radio = element('yellow-active_wins');
+  Object.assign(radio, { name: 'yellowmode', value: 'active_wins', checked: true });
+  radio.focus();
+  listeners.change({ target: radio });
+  assert.deepEqual(commands('set_yellow_mode').at(-1), { cmd: 'set_yellow_mode', mode: 'active_wins' });
+  refresh({ yellowMode: 'active_wins' });
+  assert.equal(radio.checked, true);
+  assert.equal(context.document.activeElement, radio, 'Arrow-key users keep focus through refresh');
+
+  const usage = element('trackusage');
+  for (const enabled of [true, false]) {
+    usage.checked = enabled;
+    listeners.change({ target: usage });
+    assert.deepEqual(commands('set_usage').at(-1), { cmd: 'set_usage', enabled });
+    refresh({ usageEnabled: enabled });
+    assert.equal(usage.checked, enabled);
+  }
+});
+
+test('usage shows plan percentages and tokens, never dollar estimates', () => {
+  const { context, element } = popoverPage();
+  const show = usage => {
+    context.window.__setState({ aggregate: 'none', sessions: [], settings: { usageEnabled: true },
+      lamp: lamp(), usage });
+    return visibleLabel(element('usage'));
+  };
+  const plan = show({ todayTokens: 1240000, fiveHourPct: 62, fiveHourReset: '4:00 PM', weekPct: 31 });
+  assert.match(plan, /62%/);
+  assert.match(plan, /31%/);
+  assert.match(plan, /Today ≈ 1\.2M tokens/);
+  const tokensOnly = show({ todayTokens: 12400, fiveHourPct: null, weekPct: null });
+  assert.match(tokensOnly, /≈ 12k tokens/);
+  for (const text of [plan, tokensOnly]) assert.doesNotMatch(text, /\$|API/);
+});
+
 test('dashboard stays hidden unless explicitly enabled and follows live settings', () => {
   const { context, element } = popoverPage();
   assert.equal(element('dashboardbtn').hidden, true);
