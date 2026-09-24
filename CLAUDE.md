@@ -250,9 +250,11 @@ thin:
 - **Never write to state on a failed read.** `hook.rs` returns `Unreadable` when
   `state.json` can't be parsed (a mid-write snapshot, unknown future schema); the caller
   must not write, or it would wipe every other session's status.
-- **Claude owns its session titles.** At `SessionStart`/`UserPromptSubmit`/`Stop` the hook
-  reads the latest `custom-title` record (desktop auto-title or `/rename`) from the last
-  1 MiB of the transcript; it replaces any earlier name. Only an untitled first `Stop`
+- **Claude owns its session titles.** At `SessionStart`/`UserPromptSubmit`/`Stop`, and on
+  every event while a session is still unnamed, the hook reads the latest `custom-title`
+  record (desktop auto-title or `/rename`) from the last 1 MiB of the transcript; it
+  replaces any earlier name. The desktop app titles a session a few records into its
+  first turn, so a long first turn is named mid-turn. Only an untitled first `Stop`
   spawns the auto-namer. At startup the tray runs `backfill_claude_titles` once, so idle
   sessions get their title without waiting for a new turn; it never overwrites a name.
 - **The auto-namer runs detached** and sets `BROGLOW_NAMING=1` so the nested `claude`
@@ -287,9 +289,10 @@ thin:
   binary. Local installs use ad-hoc signing with a stable designated identifier;
   `BROGLOW_SIGNING_IDENTITY` supports a real signing identity. Terminal permission
   alone does not establish that the login-started service has permission.
-- **Usage/spend tracking is strictly opt-in** (`usage_enabled`, set in the popover's
-  Settings view; off by default). It covers both harness families: Claude transcripts
-  (per-message `usage` blocks) and Codex rollouts (cumulative `token_count` events,
+- **Usage tracking is strictly opt-in** (`usage_enabled`, set in the popover's
+  Settings view; off by default). It shows the plan's 5-hour/weekly percentages and
+  today's token total; BroGlow never prices tokens. It covers both harness families:
+  Claude transcripts (per-message `usage` blocks) and Codex rollouts (cumulative `token_count` events,
   folded as per-event deltas with reset detection). While off, `usage::spawn_refresher`
   does *no* work —
   it never scans the transcript JSONLs, reads Claude Code's credentials, or contacts the

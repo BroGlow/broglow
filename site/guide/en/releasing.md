@@ -24,8 +24,20 @@ release assets; keep them ignored and out of Git.
 Mac bundles also contain `BUILD.json`, an internal `SHA256SUMS`, flash offsets
 and the minimum macOS version extracted from the executable. They install the
 app locally with the [operating manual](hardware.md#install-a-prebuilt-package).
+Every app archive carries `THIRD-PARTY-NOTICES.md` for the Rust crates in that
+target's binary and the Rust standard library notices; Mac packages add the
+firmware's linked libraries. `scripts/third-party-notices.py` generates them from
+`Cargo.lock`, the crate sources and the firmware linker map; packaging runs it.
 Builds are not Developer ID notarized. Linux users build from source; there is
 no Homebrew or crates.io publishing workflow.
+
+The Linux tray uses GTK 3 through `tao` and `tray-icon`. The GTK 3 Rust bindings
+(0.18) are unmaintained and bring `glib` 0.18, which is affected by
+[RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html)
+(unsound `VariantStrIter`, which BroGlow does not call; fixed only in `glib` 0.20,
+which GTK 3 bindings cannot use), and the unmaintained build-time crate
+`proc-macro-error` ([RUSTSEC-2024-0370](https://rustsec.org/advisories/RUSTSEC-2024-0370.html)).
+Mac and Windows builds do not include these crates. No Linux binaries are published.
 
 ## Python version
 
@@ -133,7 +145,8 @@ are the enclosure release assets. The same directory contains
 For CI or a release rehearsal, use a clean matching tagged checkout:
 
 ```bash
-.venv-cad/bin/python scripts/package-enclosure.py --release-tag v1.0.0
+uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
+  python scripts/package-enclosure.py --release-tag v1.0.0
 ```
 
 The strict release mode validates tag, version and clean source before generation.

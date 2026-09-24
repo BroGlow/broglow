@@ -68,7 +68,8 @@ cargo install --locked --path .
 ```
 
 On Linux, install the [system development libraries](CONTRIBUTING.md#development-setup)
-before compiling. On Windows, use the Rust MSVC
+before compiling. The Linux tray uses GTK 3 bindings with known advisories; see
+[distribution](site/guide/en/releasing.md#distribution). On Windows, use the Rust MSVC
 toolchain and put the built executable on PATH, then run `broglow install`.
 No board is flashed by app installation.
 
@@ -117,5 +118,7 @@ See the [contributing guide](CONTRIBUTING.md) to get started.
 
 ## License
 
-[MIT](LICENSE). Packages include dependency notices. See the [media policy](site/guide/en/media.md)
+[MIT](LICENSE). Release packages include third-party notices: the licenses of the Rust crates
+the app is built from and the Rust standard library notices; Mac packages also list the
+firmware's linked libraries and their licenses. See the [media policy](site/guide/en/media.md)
 for project images.

@@ -28,8 +28,21 @@ title: Выпуск и публикация
 Пакеты Mac также содержат `BUILD.json`, внутренний `SHA256SUMS`, адреса записи
 прошивки и минимальную версию macOS, извлечённую из исполняемого файла.
 Приложение устанавливается локально по [руководству](hardware.md#install-a-prebuilt-package).
+Каждый архив приложения содержит `THIRD-PARTY-NOTICES.md` для Rust-крейтов в
+исполняемом файле этой платформы и уведомления стандартной библиотеки Rust; пакеты
+для Mac добавляют скомпонованные библиотеки прошивки. Их создаёт
+`scripts/third-party-notices.py` из `Cargo.lock`, исходников крейтов и карты
+компоновки прошивки; упаковка запускает его сама.
 Сборки не нотарифицированы с Developer ID. На Linux приложение собирают из
 исходников; процесса публикации в Homebrew или crates.io нет.
+
+Трей на Linux использует GTK 3 через `tao` и `tray-icon`. Rust-привязки GTK 3
+(0.18) больше не поддерживаются и подтягивают `glib` 0.18, затронутый
+[RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html)
+(некорректный `VariantStrIter`, который BroGlow не вызывает; исправлено только в `glib` 0.20,
+который привязки GTK 3 использовать не могут), и неподдерживаемый крейт сборки
+`proc-macro-error` ([RUSTSEC-2024-0370](https://rustsec.org/advisories/RUSTSEC-2024-0370.html)).
+Сборки для Mac и Windows этих крейтов не содержат. Готовые сборки для Linux не публикуются.
 
 <a name="python-version"></a>
 
@@ -154,7 +167,8 @@ CI включает форматирование, lint и тесты Rust, ин�
 checkout с соответствующим тегом:
 
 ```bash
-.venv-cad/bin/python scripts/package-enclosure.py --release-tag v1.0.0
+uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
+  python scripts/package-enclosure.py --release-tag v1.0.0
 ```
 
 Строгий релизный режим проверяет тег, версию и чистоту исходников до генерации.
