@@ -4,6 +4,7 @@
 import argparse
 from datetime import datetime, timezone
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import platform
@@ -17,6 +18,11 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 C3 = ROOT / "firmware/esp32-c3-supermini"
+_spec = importlib.util.spec_from_file_location(
+    "third_party_notices", ROOT / "scripts/third-party-notices.py"
+)
+notices = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(notices)
 
 
 def run(*args):
@@ -69,7 +75,7 @@ def copy_manual(package):
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / filename, destination)
     shutil.copytree(ROOT / "assets/icons", package / "assets/icons")
-    for suffix, locale, introduction, install, source, license_text, agent in (
+    for suffix, locale, introduction, install, source, licenses, agent in (
         (
             "",
             "en",
@@ -77,7 +83,7 @@ def copy_manual(package):
             "The enclosure is a separate download.",
             "Install and connect",
             "Source and contributor guide",
-            "Project license",
+            ("Project license", "Third-party notices", "Firmware dependencies"),
             "For installation, updates, lamp setup or service checks, follow the "
             "included [agent runbook](site/guide/en/hardware.md#agent-runbook). "
             "Use its prebuilt-package procedure and completion checks. Preserve "
@@ -90,7 +96,11 @@ def copy_manual(package):
             "Корпус скачивается отдельно.",
             "Установка и подключение",
             "Исходники и руководство для участников",
-            "Лицензия проекта",
+            (
+                "Лицензия проекта",
+                "Лицензии сторонних компонентов",
+                "Зависимости прошивки",
+            ),
             "Для установки, обновления, подключения лампы или проверки службы следуйте "
             "включённой [инструкции для агента](site/guide/ru/hardware.md#agent-runbook). "
             "Используйте процедуру готового пакета и её критерии проверки. Сохраняйте "
@@ -104,14 +114,104 @@ def copy_manual(package):
             "2. `BUILD.json` · `SHA256SUMS` · `bin/broglow`.\n"
             f"3. [{source}]({repository}/blob/HEAD/CONTRIBUTING{suffix}.md) · "
             f"[GitHub Releases]({repository}/releases).\n\n"
-            f"[{license_text}](LICENSE) · "
-            f"[{'Зависимости прошивки' if locale == 'ru' else 'Firmware dependencies'}]"
-            f"(firmware/esp32-c3-supermini/DEPENDENCIES{suffix}.md).\n"
+            f"[{licenses[0]}](LICENSE) · [{licenses[1]}]({notices.NOTICES}) · "
+            f"[{licenses[2]}](firmware/esp32-c3-supermini/DEPENDENCIES{suffix}.md).\n"
         )
         (package / f"AGENTS{suffix}.md").write_text(
             "[English](AGENTS.md) | [Русский](AGENTS.ru.md)\n\n"
             "# BroGlow\n\n" + agent + "\n"
         )
+
+
+FIRMWARE_DEPENDENCIES = {
+    "": """# Firmware dependencies
+
+[English](DEPENDENCIES.md) | [Русский](DEPENDENCIES.ru.md)
+
+The prebuilt images in this directory were built from the included `src/main.cpp`
+and `platformio.ini` with PlatformIO Core 6.2.0, platform espressif32 7.1.3,
+Arduino-ESP32 2.0.17 and its precompiled ESP-IDF v4.4.7 libraries. From the
+package root, `uv run flash` detects a connected board and flashes them with
+esptool 5.4.0.
+
+- [Third-party notices](THIRD-PARTY-NOTICES.md): every library linked into
+  `firmware.bin`, its license and the notice texts.
+- [ARDUINO-LICENSE.md](ARDUINO-LICENSE.md): Arduino-ESP32 core, LGPL-2.1-or-later.
+- [BLE-LICENSE.txt](BLE-LICENSE.txt): ESP32 BLE Arduino library, Apache-2.0.
+- Sources: https://github.com/espressif/arduino-esp32/tree/2.0.17 and
+  https://github.com/espressif/esp-idf/tree/v4.4.7.
+
+## Rebuild with a modified library
+
+The build compiles the Arduino-ESP32 core and the BLE library from the framework
+sources and links them with `src/main.cpp`; the ESP-IDF libraries are linked as
+precompiled archives. To build with your own version of the core or a library:
+
+1. Install [uv](https://docs.astral.sh/uv/). From the package root, run
+   `uv run --frozen flash --build-only`. PlatformIO downloads the pinned framework
+   to `~/.platformio/packages/framework-arduinoespressif32`.
+2. Copy that directory and edit the copy. In `platformio.ini`, add
+   `platform_packages = framework-arduinoespressif32 @ symlink:///path/to/copy`
+   to `[env:esp32-c3-supermini]`.
+3. Run `uv run --frozen flash --build-only` again. The new images are written to
+   `.pio/build/esp32-c3-supermini/` in this directory.
+4. To flash them, move `flash-manifest.json` out of this directory and run
+   `uv run flash`: without the manifest it uploads the source build through
+   PlatformIO instead of the prebuilt images.
+""",
+    ".ru": """# Зависимости прошивки
+
+[English](DEPENDENCIES.md) | [Русский](DEPENDENCIES.ru.md)
+
+Готовые образы в этой папке собраны из включённых `src/main.cpp` и
+`platformio.ini` с PlatformIO Core 6.2.0, платформой espressif32 7.1.3,
+Arduino-ESP32 2.0.17 и её предкомпилированными библиотеками ESP-IDF v4.4.7.
+Из корня пакета `uv run flash` находит подключённую плату и прошивает их
+через esptool 5.4.0.
+
+- [Лицензии сторонних компонентов](THIRD-PARTY-NOTICES.md): все библиотеки,
+  скомпонованные в `firmware.bin`, их лицензии и тексты уведомлений.
+- [ARDUINO-LICENSE.md](ARDUINO-LICENSE.md): ядро Arduino-ESP32, LGPL-2.1-or-later.
+- [BLE-LICENSE.txt](BLE-LICENSE.txt): библиотека ESP32 BLE Arduino, Apache-2.0.
+- Исходники: https://github.com/espressif/arduino-esp32/tree/2.0.17 и
+  https://github.com/espressif/esp-idf/tree/v4.4.7.
+
+## Сборка с изменённой библиотекой
+
+Сборка компилирует ядро Arduino-ESP32 и библиотеку BLE из исходников фреймворка
+и компонует их с `src/main.cpp`; библиотеки ESP-IDF подключаются готовыми
+предкомпилированными архивами. Чтобы собрать прошивку со своей версией ядра
+или библиотеки:
+
+1. Установите [uv](https://docs.astral.sh/uv/). Из корня пакета выполните
+   `uv run --frozen flash --build-only`. PlatformIO скачает закреплённый фреймворк
+   в `~/.platformio/packages/framework-arduinoespressif32`.
+2. Скопируйте эту папку и измените копию. В `platformio.ini` добавьте
+   `platform_packages = framework-arduinoespressif32 @ symlink:///path/to/copy`
+   в `[env:esp32-c3-supermini]`.
+3. Снова выполните `uv run --frozen flash --build-only`. Новые образы появятся
+   в `.pio/build/esp32-c3-supermini/` в этой папке.
+4. Чтобы прошить их, уберите `flash-manifest.json` из этой папки и выполните
+   `uv run flash`: без манифеста он загружает сборку из исходников через
+   PlatformIO вместо готовых образов.
+""",
+}
+
+
+def write_firmware_dependencies(destination):
+    for suffix, text in FIRMWARE_DEPENDENCIES.items():
+        (destination / f"DEPENDENCIES{suffix}.md").write_text(text, encoding="utf-8")
+
+
+def write_firmware_notices(destination, framework, document):
+    """Copy the firmware license files and write its notices and guides."""
+    shutil.copy2(
+        ROOT / "licenses/arduino-esp32-2.0.17-LICENSE.md",
+        destination / "ARDUINO-LICENSE.md",
+    )
+    shutil.copy2(framework / "libraries/BLE/LICENSE", destination / "BLE-LICENSE.txt")
+    (destination / notices.NOTICES).write_text(document, encoding="utf-8")
+    write_firmware_dependencies(destination)
 
 
 def release_identity(version, tag):
@@ -203,6 +303,12 @@ def main():
         framework_version.startswith("4.20017."),
         "Expected pinned Arduino-ESP32 2.0.17.",
     )
+    toolchain = args.platformio_core / "packages/toolchain-riscv32-esp"
+    linker_map = build / "firmware.map"
+    require(
+        linker_map.is_file(),
+        f"Missing {linker_map}; build the pinned PlatformIO project first.",
+    )
     segments = [
         (0x0000, build / "bootloader.bin"),
         (0x8000, build / "partitions.bin"),
@@ -255,11 +361,19 @@ def main():
     for artifact, sources in (
         (binary, source_files),
         (build / "firmware.bin", firmware_sources),
+        (linker_map, firmware_sources),
     ):
         require(
             all(p.stat().st_mtime_ns <= artifact.stat().st_mtime_ns for p in sources),
             f"{artifact.name} predates an input; rebuild before packaging.",
         )
+
+    try:
+        firmware_notices, linked = notices.firmware_notices(
+            framework, toolchain, linker_map
+        )
+    except notices.NoticeError as error:
+        raise SystemExit(f"Firmware notices: {error}")
 
     now = datetime.now(timezone.utc)
     name = f"broglow-v{version}-{target}"
@@ -286,38 +400,7 @@ def main():
             destination / "tests",
             ignore=shutil.ignore_patterns("__pycache__"),
         )
-        shutil.copy2(
-            ROOT / "licenses/arduino-esp32-2.0.17-LICENSE.md",
-            destination / "ARDUINO-LICENSE.md",
-        )
-        shutil.copy2(
-            framework / "libraries/BLE/LICENSE", destination / "BLE-LICENSE.txt"
-        )
-        (destination / "DEPENDENCIES.md").write_text(
-            "# Firmware dependencies\n\n"
-            "[English](DEPENDENCIES.md) | [Русский](DEPENDENCIES.ru.md)\n\n"
-            "This firmware uses Arduino-ESP32 2.0.17 (LGPL-2.1-or-later; see ARDUINO-LICENSE.md)\n"
-            "and its ESP32 BLE Arduino library (see BLE-LICENSE.txt).\n"
-            "Pinned framework source: https://github.com/espressif/arduino-esp32/tree/2.0.17\n"
-            "ESP-IDF source: https://github.com/espressif/esp-idf/tree/v4.4.7\n\n"
-            "The project's C3 source, PlatformIO configuration and host checks are included.\n"
-            "From the package root, detect and flash a connected board with `uv run flash`.\n"
-            "The locked toolchain uses PlatformIO Core 6.2.0 and esptool 5.4.0.\n"
-            "The pinned framework and SDK contain additional third-party components and notices.\n"
-        )
-        (destination / "DEPENDENCIES.ru.md").write_text(
-            "# Зависимости прошивки\n\n"
-            "[English](DEPENDENCIES.md) | [Русский](DEPENDENCIES.ru.md)\n\n"
-            "Прошивка использует Arduino-ESP32 2.0.17 (LGPL-2.1-or-later; см. ARDUINO-LICENSE.md)\n"
-            "и библиотеку ESP32 BLE Arduino (см. BLE-LICENSE.txt).\n"
-            "Исходники закреплённой версии: https://github.com/espressif/arduino-esp32/tree/2.0.17\n"
-            "Исходники ESP-IDF: https://github.com/espressif/esp-idf/tree/v4.4.7\n\n"
-            "Исходники C3, конфигурация PlatformIO и проверки прошивки включены в пакет.\n"
-            "Из корня пакета найдите и прошейте подключённую плату: `uv run flash`.\n"
-            "Закреплённый набор использует PlatformIO Core 6.2.0 и esptool 5.4.0.\n"
-            "Закреплённые версии фреймворка и SDK содержат дополнительные сторонние компоненты\n"
-            "и их лицензионные уведомления.\n"
-        )
+        write_firmware_notices(destination, framework, firmware_notices)
         manifest = {
             "chip": "esp32c3",
             "flash_mode": "dio",
@@ -333,6 +416,10 @@ def main():
             json.dumps(manifest, indent=2) + "\n"
         )
         copy_manual(package)
+        try:
+            crates, unlicensed = notices.write_rust_notices(package, target)
+        except notices.NoticeError as error:
+            raise SystemExit(f"Rust notices: {error}")
         provenance = {
             "packaged_at_utc": now.isoformat(),
             "package_version_from_source": version,
@@ -347,6 +434,13 @@ def main():
             "artifacts_rebuilt_by_packager": False,
             "provenance_note": "Existing builds; input age checks and hashes do not prove reproducibility or test results.",
             "arduino_framework_package": framework_version,
+            "third_party_notices": {
+                "rust_crates": len(crates),
+                "rust_crates_without_license_files": [
+                    f"{crate['name']} {crate['version']}" for crate, _ in unlicensed
+                ],
+                "firmware_linked_archives": len(linked),
+            },
             "source_inputs_sha256": {
                 str(p.relative_to(ROOT)): sha256(p)
                 for p in sorted(source_files + firmware_sources + flash_tool_sources())

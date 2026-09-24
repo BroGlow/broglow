@@ -20,21 +20,23 @@ jobs:
       - uses: astral-sh/setup-uv@v10
         with:
           version: '0.12.17'
+      # tests/package_macos.py generates third-party notices with cargo.
+      - uses: dtolnay/rust-toolchain@stable
       - run: uv sync --frozen
       - run: uv run --frozen python tests/package_macos.py
       - name: Check release version and source
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: uv run --frozen python scripts/package-macos.py --release-tag "$RELEASE_TAG" --check-only
-      - name: Install pinned CAD toolchain
-        run: python -m pip install -r models/broglow/requirements.txt
       - name: Generate, validate and package the enclosure
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          python scripts/package-enclosure.py --release-tag "$RELEASE_TAG"
-          python scripts/export-web-model.py --check
+          uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
+            python scripts/package-enclosure.py --release-tag "$RELEASE_TAG"
+          uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
+            python scripts/export-web-model.py --check
           test -z "$(git status --porcelain --untracked-files=normal)"
       - uses: actions/upload-artifact@v7
         with:
@@ -49,9 +51,24 @@ jobs:
       - source
     uses: ./.github/workflows/ci.yaml
 
+  # The website checks from pages.yaml, without uploading or deploying Pages.
+  website:
+    needs:
+      - source
+    # GitHub validates the called workflow's deploy-job permissions at startup,
+    # even though check-only skips that job; the build job keeps contents: read.
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yaml
+    with:
+      check-only: true
+
   mac:
     needs:
       - check
+      - website
     strategy:
       fail-fast: false
       matrix:
@@ -90,10 +107,17 @@ jobs:
   windows:
     needs:
       - check
+      - website
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: '0.12.17'
       - name: Build Windows tray app and CLI
         run: cargo build --release --locked --target x86_64-pc-windows-msvc
       - name: Package Windows tray app and CLI (no BLE or firmware)
@@ -102,11 +126,15 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          test "$(target/x86_64-pc-windows-msvc/release/broglow.exe --version)" = "broglow ${RELEASE_TAG#v}"
+          RELEASE=target/x86_64-pc-windows-msvc/release
+          test "$("$RELEASE/broglow.exe" --version)" = "broglow ${RELEASE_TAG#v}"
+          uv run --no-project --python 3.14 python scripts/third-party-notices.py rust \
+            --target x86_64-pc-windows-msvc --output-dir "$RELEASE"
           mkdir dist
           FILE="broglow-${RELEASE_TAG}-x86_64-pc-windows-msvc.tar.gz"
-          cp LICENSE target/x86_64-pc-windows-msvc/release/LICENSE
-          tar czf "dist/$FILE" -C target/x86_64-pc-windows-msvc/release broglow.exe LICENSE
+          cp LICENSE "$RELEASE/LICENSE"
+          tar czf "dist/$FILE" -C "$RELEASE" broglow.exe LICENSE \
+            THIRD-PARTY-NOTICES.md RUST-STANDARD-LIBRARY-COPYRIGHT.html
           cd dist
           sha256sum "$FILE" > "$FILE.sha256"
       - uses: actions/upload-artifact@v7
@@ -139,6 +167,21 @@ jobs:
             test -s "$FILE"
             sha256sum --check "$FILE.sha256"
           done
+          # Every app archive carries its third-party notices.
+          for TARGET in aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc; do
+            FILE="broglow-${RELEASE_TAG}-${TARGET}.tar.gz"
+            PREFIX="broglow-${RELEASE_TAG}-${TARGET}/"
+            NAMES="THIRD-PARTY-NOTICES.md RUST-STANDARD-LIBRARY-COPYRIGHT.html"
+            if [ "$TARGET" = x86_64-pc-windows-msvc ]; then
+              PREFIX=""
+            else
+              NAMES="$NAMES firmware/esp32-c3-supermini/THIRD-PARTY-NOTICES.md"
+            fi
+            LISTING="$(tar tzf "$FILE")"
+            for NAME in $NAMES; do
+              grep -qx "$PREFIX$NAME" <<<"$LISTING"
+            done
+          done
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -150,9 +193,9 @@ jobs:
             broglow-enclosure-*.zip
             broglow-enclosure-*.zip.sha256
           body: |
-            Mac archives contain the native BroGlow app, ESP32-C3 SuperMini firmware and its source, checksums and operating guide. Choose aarch64 for Apple Silicon or x86_64 for Intel. Install with the included guide; the app is not Developer ID notarized.
+            Mac archives contain the native BroGlow app, ESP32-C3 SuperMini firmware and its source, checksums, operating guide and third-party notices. Choose aarch64 for Apple Silicon or x86_64 for Intel. Install with the included guide; the app is not Developer ID notarized.
 
-            The Windows archive contains the graphical system-tray app and CLI in broglow.exe, with USB lamp support. In PowerShell, run `.\broglow.exe install` from its permanent folder to register hooks, enable startup at login and launch the tray app. Use `.\broglow.exe menubar` to launch the tray interface directly, or `.\broglow.exe` for the terminal dashboard. No installer, BLE support, firmware or manuals are included.
+            The Windows archive contains the graphical system-tray app and CLI in broglow.exe, with USB lamp support, its license and third-party notices. In PowerShell, run `.\broglow.exe install` from its permanent folder to register hooks, enable startup at login and launch the tray app. Use `.\broglow.exe menubar` to launch the tray interface directly, or `.\broglow.exe` for the terminal dashboard. No installer, BLE support, firmware or manuals are included.
 
             The enclosure ZIP contains the accepted release design: STL, STEP, CAD source, print guide and validation reports.
 
