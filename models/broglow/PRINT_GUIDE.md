@@ -105,15 +105,16 @@ Release проекта. Распакуйте ZIP и откройте `models/bro
 с Python 3.14**, свежий checkout исходников или распакованный полный комплект
 корпуса. Начинайте с папки, содержащей `Cargo.toml`. Codex, скилл агента,
 PlatformIO, подключённая плата и работающее приложение не нужны. Установите
-закреплённые [requirements.txt](requirements.txt) и выполните команду релизного CI:
+[uv](https://docs.astral.sh/uv/getting-started/installation/) и запустите тот же
+генератор, что и релизный CI, с закреплёнными [requirements.txt](requirements.txt):
 
 ```bash
-python3.14 -m venv .venv-cad
-.venv-cad/bin/python -m pip install -r models/broglow/requirements.txt
-.venv-cad/bin/python scripts/package-enclosure.py
+uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
+  python scripts/package-enclosure.py
 ```
 
-CAD-окружение `.venv-cad/` и каталог результатов `dist/enclosure/` игнорируются.
+uv хранит изолированное CAD-окружение в своём кеше; каталог результатов
+`dist/enclosure/` игнорируется.
 Локальные сборки с Python 3.14.2 и 3.14.6 воспроизвели все семь проверенных хешей STL.
 На других платформах триангуляция может отличаться: Linux создал другие байты STL
 с теми же версиями зависимостей и не прошёл строгую проверку свидетельств.

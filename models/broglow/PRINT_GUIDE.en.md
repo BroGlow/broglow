@@ -114,16 +114,17 @@ Edit dimensions and fits in [broglow.py](broglow.py); hand-joint parameters are 
 Use **macOS 15 on Apple Silicon with Python 3.14**, the verified generation
 platform, on a fresh source checkout or the extracted full enclosure package.
 Start in the directory containing `Cargo.toml`. No Codex, agent skill,
-PlatformIO, connected board or running app is required. Install the pinned
-[requirements.txt](requirements.txt) and run the same command used by release CI:
+PlatformIO, connected board or running app is required. Install
+[uv](https://docs.astral.sh/uv/getting-started/installation/) and run the same
+generator as release CI with the pinned [requirements.txt](requirements.txt):
 
 ```bash
-python3.14 -m venv .venv-cad
-.venv-cad/bin/python -m pip install -r models/broglow/requirements.txt
-.venv-cad/bin/python scripts/package-enclosure.py
+uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
+  python scripts/package-enclosure.py
 ```
 
-The CAD environment `.venv-cad/` and output directory `dist/enclosure/` are ignored.
+uv keeps the isolated CAD environment in its cache; the output directory
+`dist/enclosure/` is ignored.
 Local Python 3.14.2 and 3.14.6 builds reproduced all seven reviewed STL hashes.
 Other platforms may tessellate differently: Linux produced different STL bytes
 with the same dependency pins and failed the strict evidence check. Use the

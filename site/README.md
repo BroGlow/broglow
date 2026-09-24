@@ -45,13 +45,14 @@ includes; missing snippet sections fail the build.
 
 ## Build and preview
 
-Run from the **broglow repository root**. CI uses Python 3.14.
+Run from the **broglow repository root** with [uv](https://docs.astral.sh/uv/getting-started/installation/).
+CI uses Python 3.14. MkDocs commands run in an isolated environment from
+`site/requirements-docs.txt`.
 
 ```bash
-python3 -m venv site/.venv
-site/.venv/bin/python -m pip install -r site/requirements-docs.txt
-site/.venv/bin/mkdocs build --strict -f site/mkdocs.yaml
-python3 -m http.server 8080 --bind 127.0.0.1
+uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
+  mkdocs build --strict -f site/mkdocs.yaml
+uv run --no-project --python 3.14 python -m http.server 8080 --bind 127.0.0.1
 ```
 
 Open http://127.0.0.1:8080/site/ for the landing and
@@ -61,8 +62,9 @@ Website builds need no generated STL, STEP/STP or ZIP files and do not run CAD.
 Keep those exports ignored; printable downloads are release assets.
 
 For automatic guide refresh, use
-`site/.venv/bin/mkdocs serve -f site/mkdocs.yaml`. It serves only the guide;
-use the repository-root server above to check the landing and local downloads.
+`uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt mkdocs serve -f site/mkdocs.yaml`.
+It serves only the guide; use the repository-root server above to check the
+landing and local downloads.
 
 ## Interactive 3D and AR
 
@@ -110,14 +112,15 @@ need acceptance checks. See the [component's AR reference](https://modelviewer.d
 The model depicts our 1.0.0 enclosure with illustrative
 electronics. Use the separate enclosure package for printing. Source hashes and
 bounds live in `assets/broglow-model.json`; regenerate both outputs rather than
-editing them. From a full checkout, activate the CAD Python environment and run:
+editing them. From a full checkout, run the export with the pinned CAD requirements:
 
 ```bash
-python -m pip install -r models/broglow/requirements.txt
-python scripts/export-web-model.py
-python scripts/export-web-model.py --check
-python scripts/export-web-model.py --exploded
-python scripts/export-web-model.py --exploded --check
+uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
+  python scripts/export-web-model.py
+uv run --no-project --python 3.14 python scripts/export-web-model.py --check
+uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
+  python scripts/export-web-model.py --exploded
+uv run --no-project --python 3.14 python scripts/export-web-model.py --exploded --check
 ```
 
 Export needs the CAD skill at `~/.agents/skills/cad` or `--cad-skill /path/to/cad`.
@@ -141,15 +144,18 @@ external font service is configured.
 ## Check changes
 
 ```bash
-site/.venv/bin/python site/check-translations.py
+uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
+  python site/check-translations.py
 node site/i18n.test.cjs
 node site/model-preview.test.cjs
 node site/docs-language.test.cjs
 node site/docs-copy.test.cjs
-site/.venv/bin/python site/pages.test.py
-site/.venv/bin/mkdocs build --strict -f site/mkdocs.yaml
-python3 site/check-links.py
-python3 site/check-links.py --base-url http://127.0.0.1:8080/site/
+uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
+  python site/pages.test.py
+uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
+  mkdocs build --strict -f site/mkdocs.yaml
+uv run --no-project --python 3.14 python site/check-links.py
+uv run --no-project --python 3.14 python site/check-links.py --base-url http://127.0.0.1:8080/site/
 ```
 
 The link check covers generated pages, anchors, language links and downloads.
@@ -218,9 +224,10 @@ an app release.
 Replace `OWNER/REPOSITORY`; build from a full checkout. No GitHub access is needed:
 
 ```bash
-site/.venv/bin/python site/pages.py --repository OWNER/REPOSITORY
-python3 site/check-links.py --site-dir site/_pages
-python3 -m http.server 8081 --bind 127.0.0.1 --directory site/_pages
+uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
+  python site/pages.py --repository OWNER/REPOSITORY
+uv run --no-project --python 3.14 python site/check-links.py --site-dir site/_pages
+uv run --no-project --python 3.14 python -m http.server 8081 --bind 127.0.0.1 --directory site/_pages
 ```
 
 Open http://127.0.0.1:8081/. Only ignored `site/_pages/` is uploaded: landing,

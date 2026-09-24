@@ -21,7 +21,8 @@ files untracked and ignored everywhere, regardless of filename case. Preserve
 their `.gitignore` rules; never force-add these files or put them in Git LFS.
 Keep editable sources and reviewed evidence in Git; distribute generated files
 as release assets with checksums. After generation, verify output paths with
-`git check-ignore`; before committing, run `python3 scripts/check-generated-artifacts.py`.
+`git check-ignore`; before committing, run
+`uv run --frozen python scripts/check-generated-artifacts.py`.
 
 Keep the entire `models/broglow/preview/` directory ignored and untracked, including
 renders, dimension diagrams and render recipes. Keep selected app/site assets and
@@ -49,8 +50,9 @@ follow [website documentation maintenance](site/README.md#keep-the-instructions-
 in the same change. Keep English and Russian versions of every project guide and
 developer document in sync. The website includes the matching language source;
 preserve section IDs, commands and technical values across translations. Run
-`site/.venv/bin/python site/check-translations.py`, then build and check local and
-Pages documentation before finishing. Dependency license texts remain verbatim.
+`uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt python site/check-translations.py`,
+then build and check local and Pages documentation before finishing. Dependency
+license texts remain verbatim.
 
 For **YAML edits**, use block-style sequences throughout the project: one item per
 line, including `needs` and workflow matrices. Inline arrays are not our style.

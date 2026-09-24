@@ -66,10 +66,11 @@ With USB serial connected, the firmware reports
 This read-only diagnostic is allowed while BLE owns the lamp; LED-setting serial
 commands remain ignored until BLE disconnects.
 
-Use only the identified `BOARD_PORT`; close other serial monitors first:
+Use only the identified `BOARD_PORT`; close other serial monitors first. Run from
+the source checkout or the extracted package root:
 
 ```bash
-~/.platformio/penv/bin/python - "$BOARD_PORT" <<'PY'
+uv run --frozen python - "$BOARD_PORT" <<'PY'
 import sys
 import time
 import serial

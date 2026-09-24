@@ -54,13 +54,14 @@ Pages. Проверка переводов выявляет отсутствую
 
 ## Сборка и предварительный просмотр
 
-Выполняйте из **корня репозитория broglow**. В CI используется Python 3.14.
+Выполняйте из **корня репозитория broglow** через [uv](https://docs.astral.sh/uv/getting-started/installation/).
+В CI используется Python 3.14. Команды MkDocs работают в изолированном окружении
+из `site/requirements-docs.txt`.
 
 ```bash
-python3 -m venv site/.venv
-site/.venv/bin/python -m pip install -r site/requirements-docs.txt
-site/.venv/bin/mkdocs build --strict -f site/mkdocs.yaml
-python3 -m http.server 8080 --bind 127.0.0.1
+uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
+  mkdocs build --strict -f site/mkdocs.yaml
+uv run --no-project --python 3.14 python -m http.server 8080 --bind 127.0.0.1
 ```
 
 Откройте http://127.0.0.1:8080/site/ для главной страницы и
@@ -70,8 +71,9 @@ http://127.0.0.1:8080/site/docs/ для руководства. После пр�
 Эти результаты остаются игнорируемыми; файлы для печати публикуются в релизах.
 
 Для автоматического обновления руководства используйте
-`site/.venv/bin/mkdocs serve -f site/mkdocs.yaml`. Он обслуживает только руководство;
-главную страницу и локальные скачивания проверяйте через сервер из корня выше.
+`uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt mkdocs serve -f site/mkdocs.yaml`.
+Он обслуживает только руководство; главную страницу и локальные скачивания
+проверяйте через сервер из корня выше.
 
 <a name="interactive-3d-and-ar"></a>
 
@@ -124,15 +126,16 @@ GLB — метры. Safari на iPhone/iPad создаёт USDZ по запро�
 Модель показывает наш корпус версии 1.0.0 с иллюстративной
 электроникой. Для печати используйте отдельный пакет корпуса. Хеши исходников и
 габариты находятся в `assets/broglow-model.json`; оба результата нужно
-перегенерировать, а не править вручную. В полной рабочей копии активируйте
-Python-окружение CAD и выполните:
+перегенерировать, а не править вручную. В полной рабочей копии запустите экспорт
+с закреплёнными CAD-зависимостями:
 
 ```bash
-python -m pip install -r models/broglow/requirements.txt
-python scripts/export-web-model.py
-python scripts/export-web-model.py --check
-python scripts/export-web-model.py --exploded
-python scripts/export-web-model.py --exploded --check
+uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
+  python scripts/export-web-model.py
+uv run --no-project --python 3.14 python scripts/export-web-model.py --check
+uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
+  python scripts/export-web-model.py --exploded
+uv run --no-project --python 3.14 python scripts/export-web-model.py --exploded --check
 ```
 
 Для экспорта нужен CAD-скилл в `~/.agents/skills/cad` либо `--cad-skill /path/to/cad`.
@@ -162,15 +165,18 @@ Material предоставляет навигацию, локальный по�
 ## Проверка изменений
 
 ```bash
-site/.venv/bin/python site/check-translations.py
+uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
+  python site/check-translations.py
 node site/i18n.test.cjs
 node site/model-preview.test.cjs
 node site/docs-language.test.cjs
 node site/docs-copy.test.cjs
-site/.venv/bin/python site/pages.test.py
-site/.venv/bin/mkdocs build --strict -f site/mkdocs.yaml
-python3 site/check-links.py
-python3 site/check-links.py --base-url http://127.0.0.1:8080/site/
+uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
+  python site/pages.test.py
+uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
+  mkdocs build --strict -f site/mkdocs.yaml
+uv run --no-project --python 3.14 python site/check-links.py
+uv run --no-project --python 3.14 python site/check-links.py --base-url http://127.0.0.1:8080/site/
 ```
 
 Проверка ссылок охватывает собранные страницы, якоря, языковые ссылки и скачивания.
@@ -248,9 +254,10 @@ STEP-вида ведут на версионный комплект корпус
 Замените `OWNER/REPOSITORY`; запускайте из полной рабочей копии. Доступ к GitHub не нужен:
 
 ```bash
-site/.venv/bin/python site/pages.py --repository OWNER/REPOSITORY
-python3 site/check-links.py --site-dir site/_pages
-python3 -m http.server 8081 --bind 127.0.0.1 --directory site/_pages
+uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
+  python site/pages.py --repository OWNER/REPOSITORY
+uv run --no-project --python 3.14 python site/check-links.py --site-dir site/_pages
+uv run --no-project --python 3.14 python -m http.server 8081 --bind 127.0.0.1 --directory site/_pages
 ```
 
 Откройте http://127.0.0.1:8081/. Загружается только игнорируемая `site/_pages/`:

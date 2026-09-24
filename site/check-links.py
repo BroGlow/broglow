@@ -43,9 +43,10 @@ parser.add_argument(
 args = parser.parse_args()
 site = args.site_dir.resolve() if args.site_dir else Path(__file__).resolve().parent
 boundary = site if args.site_dir else site.parent
-assert (
-    site / "docs/index.html"
-).is_file(), "Build the guide first: .venv/bin/mkdocs build --strict -f mkdocs.yaml"
+assert (site / "docs/index.html").is_file(), (
+    "Build the guide first: uv run --no-project --python 3.14 --with-requirements "
+    "site/requirements-docs.txt mkdocs build --strict -f site/mkdocs.yaml"
+)
 pages = {}
 for path in [site / "index.html", *sorted((site / "docs").rglob("*.html"))]:
     page = Links()

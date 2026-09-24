@@ -129,10 +129,8 @@ BOARD_PORT='/dev/cu.REPLACE_WITH_IDENTIFIED_BOARD'
 и встроенный USB, а не разводку SuperMini. Определив плату, проверьте чип и память:
 
 ```bash
-~/.platformio/penv/bin/python ~/.platformio/packages/tool-esptoolpy/esptool.py \
-  --chip esp32c3 --port "$BOARD_PORT" chip_id
-~/.platformio/penv/bin/python ~/.platformio/packages/tool-esptoolpy/esptool.py \
-  --chip esp32c3 --port "$BOARD_PORT" flash_id
+uv run --frozen esptool --chip esp32c3 --port "$BOARD_PORT" chip-id
+uv run --frozen esptool --chip esp32c3 --port "$BOARD_PORT" flash-id
 ```
 
 Чтение перезапускает плату в загрузчик. Требуются **ESP32-C3 / 4 МБ**;
@@ -177,7 +175,7 @@ broglow ble off
 Подождите три секунды, закройте `broglow led` и мониторы порта, затем запишите:
 
 ```bash
-~/.platformio/penv/bin/pio run -d firmware/esp32-c3-supermini \
+uv run --frozen platformio run -d firmware/esp32-c3-supermini \
   -t upload --upload-port "$BOARD_PORT"
 ```
 
@@ -203,17 +201,15 @@ PlatformIO записывает загрузчик, таблицу раздел�
 и `firmware/esp32-c3-supermini/flash-manifest.json`; компилятор не нужен.
 После проверки контрольных сумм выполните `uv run flash` из корня пакета.
 Ручная процедура esptool ниже нужна для расширенного восстановления. Сначала
-[определите плату](#build-and-identify-the-board). Если esptool отсутствует, используйте Python 3
-([установщик macOS](https://www.python.org/downloads/macos/)):
+[определите плату](#build-and-identify-the-board). Выполняйте её из корня пакета,
+где uv предоставляет закреплённые esptool и pyserial:
 
 ```bash
-python3 -m venv "$HOME/.local/share/broglow-flash-tools"
-ESPTOOL_PY="$HOME/.local/share/broglow-flash-tools/bin/python"
-"$ESPTOOL_PY" -m pip install 'esptool==5.4.0'
-"$ESPTOOL_PY" -m serial.tools.list_ports -v
+cd "$PACKAGE_DIR"
+uv run --frozen python -m serial.tools.list_ports -v
 # Задайте BOARD_PORT по физически определённой плате, не по примеру из инструкции.
-"$ESPTOOL_PY" -m esptool --chip esp32c3 --port "$BOARD_PORT" chip-id
-"$ESPTOOL_PY" -m esptool --chip esp32c3 --port "$BOARD_PORT" flash-id
+uv run --frozen esptool --chip esp32c3 --port "$BOARD_PORT" chip-id
+uv run --frozen esptool --chip esp32c3 --port "$BOARD_PORT" flash-id
 ```
 
 Требуются **ESP32-C3 / 4 МБ** и проверенный `PACKAGE_DIR`. Отключите управление
@@ -225,7 +221,7 @@ RECOVERY_ROOT="$PACKAGE_DIR/.recovery"
 mkdir -p -m 700 "$RECOVERY_ROOT"
 chmod 700 "$RECOVERY_ROOT"
 FLASH_BACKUP="$RECOVERY_ROOT/c3-before-flash-$(date +%Y%m%d-%H%M%S).bin"
-(umask 077; "$ESPTOOL_PY" -m esptool --chip esp32c3 --port "$BOARD_PORT" \
+(umask 077; uv run --frozen esptool --chip esp32c3 --port "$BOARD_PORT" \
   read-flash 0x0 0x400000 "$FLASH_BACKUP")
 shasum -a 256 "$FLASH_BACKUP"
 ```
@@ -236,7 +232,7 @@ shasum -a 256 "$FLASH_BACKUP"
 ```bash
 FIRMWARE_DIR="$PACKAGE_DIR/firmware/esp32-c3-supermini"
 cat "$FIRMWARE_DIR/flash-manifest.json"
-"$ESPTOOL_PY" -m esptool --chip esp32c3 --port "$BOARD_PORT" \
+uv run --frozen esptool --chip esp32c3 --port "$BOARD_PORT" \
   --baud 460800 write-flash --flash-mode dio --flash-freq 40m --flash-size 4MB \
   0x0 "$FIRMWARE_DIR/bootloader.bin" \
   0x8000 "$FIRMWARE_DIR/partitions.bin" \
@@ -275,10 +271,10 @@ cat "$FIRMWARE_DIR/flash-manifest.json"
 broglow ble off
 # Подождите, пока работающий обработчик лампы освободит устройство.
 sleep 3
-~/.platformio/penv/bin/pio run -d firmware/esp32-c3-supermini -e led-test
-~/.platformio/penv/bin/pio run -d firmware/esp32-c3-supermini -e led-test \
+uv run --frozen platformio run -d firmware/esp32-c3-supermini -e led-test
+uv run --frozen platformio run -d firmware/esp32-c3-supermini -e led-test \
   -t upload --upload-port "$BOARD_PORT"
-~/.platformio/penv/bin/pio device monitor --port "$BOARD_PORT" --baud 115200
+uv run --frozen platformio device monitor --port "$BOARD_PORT" --baud 115200
 ```
 
 Дождитесь проверенной записи. Сравните `led-test color=red gpio=0 duration_ms=1000`
@@ -294,7 +290,7 @@ sleep 3
 порт и верните основную прошивку:
 
 ```bash
-~/.platformio/penv/bin/pio run -d firmware/esp32-c3-supermini \
+uv run --frozen platformio run -d firmware/esp32-c3-supermini \
   -e esp32-c3-supermini -t upload --upload-port "$BOARD_PORT"
 ```
 
@@ -308,13 +304,10 @@ sleep 3
 
 Нужны **основная прошивка**, определённый `BOARD_PORT`, отключённое управление
 лампой и закрытые мониторы порта. Отключите BLE: подключённый клиент управляет LED.
-Используйте Python PlatformIO или [окружение для готовой прошивки](#flash-prebuilt-c3-firmware):
+Запускайте через uv из каталога исходников или [корня пакета](#flash-prebuilt-c3-firmware):
 
 ```bash
-# Установка из исходников:
-SERIAL_PY="$HOME/.platformio/penv/bin/python"
-# Для готового пакета вместо этого: SERIAL_PY="$HOME/.local/share/broglow-flash-tools/bin/python"
-"$SERIAL_PY" - "$BOARD_PORT" <<'PY'
+uv run --frozen python - "$BOARD_PORT" <<'PY'
 import sys
 import time
 import re
@@ -501,10 +494,9 @@ export PATH="$HOME/.cargo/bin:$PATH"
 - Инструменты Apple: `xcode-select -p`; при отсутствии `xcode-select --install`.
 - [Rust stable](https://doc.rust-lang.org/book/ch01-01-installation.html);
   проверки добавляются через `rustup component add rustfmt clippy`.
-- [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/methods/installer-script.html)
-  для прошивки (обычно `~/.platformio/penv/bin/pio`).
-- [Node.js](https://nodejs.org/en/download) для JS-тестов;
-  [Python 3](https://www.python.org/downloads/macos/) для проверок прошивки/упаковки.
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) для Python 3.14,
+  PlatformIO и проверок прошивки/упаковки (версии закреплены в `uv.lock`).
+- [Node.js](https://nodejs.org/en/download) для JS-тестов.
 
 Из корня исходников соберите и проверьте без записи на плату:
 
@@ -517,11 +509,10 @@ node --test tests/js/*.test.mjs
 cargo build --release --locked
 
 # Прошивка лампы: только сборка и проверки, без записи на плату.
-~/.platformio/penv/bin/python -m pip install clang-format==23.1.1
-~/.platformio/penv/bin/clang-format --dry-run --Werror \
+uv run --frozen --group dev clang-format --dry-run --Werror \
   firmware/esp32-c3-supermini/src/*.cpp firmware/esp32-c3-supermini/tests/*.cpp
-python3 firmware/esp32-c3-supermini/tests/check.py
-~/.platformio/penv/bin/pio run -d firmware/esp32-c3-supermini
+uv run --frozen python firmware/esp32-c3-supermini/tests/check.py
+uv run --frozen platformio run -d firmware/esp32-c3-supermini
 ```
 
 Первая сборка скачивает закреплённые зависимости; `--offline` подходит только
@@ -575,7 +566,7 @@ export PATH="$HOME/.cargo/bin:$PATH"
 После проверок и пересборки изменённых исходников приложения/прошивки:
 
 ```bash
-python3 scripts/package-macos.py
+uv run --frozen python scripts/package-macos.py
 ```
 
 Команда упаковывает готовые результаты в игнорируемый `dist/`, проверяет адреса
@@ -1059,8 +1050,8 @@ cargo fmt --check
 cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
 node --test tests/js/*.test.mjs
-python3 firmware/esp32-c3-supermini/tests/check.py
-~/.platformio/penv/bin/pio run -d firmware/esp32-c3-supermini -e esp32-c3-supermini -e led-test
+uv run --frozen python firmware/esp32-c3-supermini/tests/check.py
+uv run --frozen platformio run -d firmware/esp32-c3-supermini -e esp32-c3-supermini -e led-test
 ```
 
 CI также проверяет C++ через clang-format **23.1.1** и сборки/тесты приложения
