@@ -1,0 +1,99 @@
+{
+  "revision": "round3x2-fit5",
+  "slicer": "BambuStudio 02.07.01.62",
+  "profile": "A1 mini / PETG Basic / 0.4 mm nozzle / 0.20 mm layers / 4 walls / 15% infill / 5 top and bottom layers / no supports",
+  "evidence": "Existing sliced fit5 3MF projects reviewed on 2026-09-28. G-code present, objects inside bed, no supports. Bed-temperature/filament and timelapse advisories is retained below; choose temperatures for the actual filament. This is slicing evidence, not a physical print test.",
+  "physical_fit": "Pocket diameter 3.05 mm confirmed with measured magnets 3.01–3.04 mm. Current 2.30 mm depth and assembled magnetic retention await a physical check.",
+  "parts": [
+    {
+      "file": "stl/01_mascot_magnetic_orange.stl",
+      "sha256": "dadcb66f2dae2f4b9db72972e2e682888796ae862a0540e04c7f8041c35e277d",
+      "sliced_project_sha256": "7421182f9dc29a1d3852cc60f771e1d6d88c75940f6e17269673a9d85712c291",
+      "support_used": false,
+      "outside": false,
+      "slicer_warnings": [
+        {
+          "msg": "bed_temperature_too_high_than_filament",
+          "level": "3",
+          "error_code": "1000C001"
+        }
+      ]
+    },
+    {
+      "file": "stl/02_eye_black_x2.stl",
+      "sha256": "f359a0b093c473b2433ca5a7c3785376105a9ab09b3c02ae31882567b03433eb",
+      "sliced_project_sha256": "a6d2d2ed07d3790114b697fadebdfe5bcf27d936bc14fa73a73b17dfe9ea5836",
+      "support_used": false,
+      "outside": false,
+      "slicer_warnings": [
+        {
+          "msg": "bed_temperature_too_high_than_filament",
+          "level": "3",
+          "error_code": "1000C001"
+        },
+        {
+          "msg": "not_support_traditional_timelapse",
+          "level": "2",
+          "error_code": "10018003"
+        },
+        {
+          "msg": "not_support_traditional_timelapse",
+          "level": "3",
+          "error_code": "1000C003"
+        }
+      ]
+    },
+    {
+      "file": "stl/03_tower_magnetic_black.stl",
+      "sha256": "eedc3bfe6adbb07fe1153dc2f481212d0d0f7f15280c6cce5688c341bb463f3d",
+      "sliced_project_sha256": "7d4c1d452f95e5758939c7c96ab18bd466d8655685011673f8d3fc43ae9ab55a",
+      "support_used": false,
+      "outside": false,
+      "slicer_warnings": [
+        {
+          "msg": "bed_temperature_too_high_than_filament",
+          "level": "3",
+          "error_code": "1000C001"
+        }
+      ]
+    },
+    {
+      "file": "stl/04_rear_cover_black.stl",
+      "sha256": "78c66c0e4e20e9d40ac3880ee4e4e5820121022d0cae532a6bea754f88d66e5a",
+      "sliced_project_sha256": "054ab9f8bb86cb89880428b8931d982c0c7716da24f50e1422fdd284b7f68fd9",
+      "support_used": false,
+      "outside": false,
+      "slicer_warnings": [
+        {
+          "msg": "bed_temperature_too_high_than_filament",
+          "level": "3",
+          "error_code": "1000C001"
+        }
+      ]
+    },
+    {
+      "file": "stl/05_LED_retainer_black.stl",
+      "sha256": "e02a9814bd5b191e213442ce1c97c53e5f5fade9cd171fe41016f5c78f7cbcdd",
+      "sliced_project_sha256": "01378091739c5cb32932d5e075ca8eed56ae00985eac5b20b11d7ba32db4cbf8",
+      "support_used": false,
+      "outside": false,
+      "slicer_warnings": [
+        {
+          "msg": "bed_temperature_too_high_than_filament",
+          "level": "3",
+          "error_code": "1000C001"
+        },
+        {
+          "msg": "not_support_traditional_timelapse",
+          "level": "2",
+          "error_code": "10018003"
+        },
+        {
+          "msg": "not_support_traditional_timelapse",
+          "level": "3",
+          "error_code": "1000C003"
+        }
+      ]
+    }
+  ]
+}

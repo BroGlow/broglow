@@ -289,7 +289,7 @@ def tower_blank(y0, y1):
     return chamfer(s.edges().filter_by(Axis.Y), length=TOWER_CHAMFER)
 
 
-def mascot():
+def mascot(*, hand_connection=True):
     def bevel(piece, front, amount):
         piece = chamfer(piece.edges().filter_by(Axis.Y), length=BODY_CHAMFER)
         return chamfer(y_face_edges(piece, front), length=amount)
@@ -345,7 +345,7 @@ def mascot():
             40 + half_h,
         )
     s = s.scale(MASCOT_SCALE)
-    for pin in joint.hand_pins().solids():
+    for pin in joint.hand_pins().solids() if hand_connection else ():
         s += pin
     return label(
         s, "orange_mascot_four_feet_straight_pins_with_45_degree_haunches", ORANGE
@@ -413,7 +413,7 @@ def cover_screw_boss(x, z):
     return boss
 
 
-def tower():
+def tower(*, hand_connection=True):
     outer = tower_blank(0, REAR)
     outer = chamfer(y_face_edges(outer, 0), length=BED_CHAMFER)
     s = outer
@@ -467,7 +467,7 @@ def tower():
     # Fixed C-guides capture the PCB edges directly; they grow from the front
     # wall in the +Y print direction and stop at the cover seam.
     s += pcb_guides()
-    for y, z in joint.JOINT_CENTERS_YZ:
+    for y, z in joint.JOINT_CENTERS_YZ if hand_connection else ():
         # A blind reinforced socket leaves the inside cavity closed. Shared
         # nested sections allow straight insertion; the rear haunch prints at 45 degrees.
         s += joint.diamond_socket(

@@ -4,7 +4,7 @@
   "purpose": "Web/AR visualization of the enclosure",
   "source_sha256": {
     "models/broglow/exploded.py": "fb43281d9784cc9f4afaf21c544c6029a09158d4de990cc73eec737d6ae0d85b",
-    "models/broglow/broglow.py": "9f8fde5eb2e6928a7b4a307c1aceb83900005bd6e29787df6a19c0359605d8f4",
+    "models/broglow/broglow.py": "dc12212c1468e9a728b6e6fcd2711ff699338ab1ad326c7928d46078debde788",
     "models/broglow/hand_joint.py": "031ee6d6fb650a14932008af05faca70a37432f1488e6805c67a1480f0a9abfe",
     "models/broglow/requirements.txt": "7e19cc593c31f82d94efbe33f846e2eb5201ddc004dc3ebb93d5930c32ee9116"
   },
