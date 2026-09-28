@@ -18,7 +18,7 @@ Edit Markdown sources; never edit or commit generated HTML.
 | Troubleshooting and agent prompt | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
 | Hardware reference | `guide/en/hardware.md` | `guide/ru/hardware.md` |
 | Firmware, releases, images, enclosure design | `guide/en/NAME.md` | `guide/ru/NAME.md` |
-| Printing and assembly | `../models/broglow/PRINT_GUIDE.en.md` | `../models/broglow/PRINT_GUIDE.md` |
+| Printing and assembly | `../models/magnetic/GUIDE_ROUND3X2.en.md` | `../models/magnetic/GUIDE_ROUND3X2.md` |
 
 To add a page, create matching filenames in both language folders and update
 `nav` and `nav_translations` in `mkdocs.yaml`. Use fenced `text` blocks for
@@ -163,9 +163,15 @@ Keep the preview server running for the HTTP check.
 
 ## Local downloads and factual limits
 
+The recommended download is `broglow-enclosure-magnetic-vVERSION.zip`, with its
+`.sha256`; `printing.md` includes the magnetic guide. `printing-glued.md` preserves
+the older guide and its `broglow-enclosure-vVERSION.zip` download. The current
+interactive CAD illustrations depict the glued alternative. The magnetic design
+is shown in the STEP views included in its release package.
+
 `pages.py` expands `<!-- mac-downloads -->` and `<!-- model-download -->`:
 local previews link to the newest complete Mac archive in `dist/` and enclosure
-archive `dist/enclosure/broglow-enclosure-vVERSION.zip`, each with a sibling
+archive `dist/enclosure/broglow-enclosure-magnetic-vVERSION.zip`, each with a sibling
 `.sha256`. Without archives, they offer source instructions. Public builds link
 to Releases and the source ZIP. GitHub's automatic source ZIP contains editable
 source and instructions, without STL, STEP/STP or ready-to-print ZIPs; use the

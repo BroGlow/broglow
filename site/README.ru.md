@@ -22,7 +22,7 @@
 | Решение проблем и запрос агенту | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
 | Справочник по оборудованию | `guide/en/hardware.md` | `guide/ru/hardware.md` |
 | Прошивка, релизы, изображения, проектирование корпуса | `guide/en/NAME.md` | `guide/ru/NAME.md` |
-| Печать и сборка | `../models/broglow/PRINT_GUIDE.en.md` | `../models/broglow/PRINT_GUIDE.md` |
+| Печать и сборка | `../models/magnetic/GUIDE_ROUND3X2.en.md` | `../models/magnetic/GUIDE_ROUND3X2.md` |
 
 Чтобы добавить страницу, создайте одноимённые файлы в обеих языковых папках и
 обновите `nav` и `nav_translations` в `mkdocs.yaml`. Запросы агенту с кнопкой
@@ -186,9 +186,15 @@ uv run --no-project --python 3.14 python site/check-links.py --base-url http://1
 
 ## Локальные скачивания и границы подтверждённых фактов
 
+Рекомендуемый архив — `broglow-enclosure-magnetic-vVERSION.zip` с его `.sha256`;
+`printing.md` включает магнитную инструкцию. `printing-glued.md` сохраняет прежнюю
+инструкцию и загрузку `broglow-enclosure-vVERSION.zip`. Текущие интерактивные
+CAD-иллюстрации показывают клеевой вариант. Магнитный вариант представлен
+STEP-видами в своём релизном комплекте.
+
 `pages.py` раскрывает `<!-- mac-downloads -->` и `<!-- model-download -->`:
 локальный просмотр ссылается на новейший полный архив Mac в `dist/` и архив корпуса
-`dist/enclosure/broglow-enclosure-vVERSION.zip`, каждый с соседним `.sha256`.
+`dist/enclosure/broglow-enclosure-magnetic-vVERSION.zip`, каждый с соседним `.sha256`.
 Без архивов предлагаются инструкции для исходников. Публичная сборка ссылается
 на Releases и ZIP исходников. Автоматический ZIP исходников GitHub содержит
 редактируемые исходники и инструкции, без STL, STEP/STP и готовых ZIP для печати;

@@ -4,6 +4,8 @@
 
 # BroGlow — compact version for single-extruder printing
 
+This is the **glued alternative**. The recommended enclosure uses a removable mascot and four Ø3×2 mm N52 magnets; see the magnetic print guide in `models/magnetic/`.
+
 Download **`broglow-enclosure-vVERSION.zip` and its `.sha256`** from this project's
 GitHub Release assets. Extract the ZIP and open `models/broglow/PRINT_GUIDE.en.md`;
 its links point to the included STL, STEP, CAD source and reports. GitHub's
@@ -120,7 +122,7 @@ generator as release CI with the pinned [requirements.txt](requirements.txt):
 
 ```bash
 uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-  python scripts/package-enclosure.py
+  python scripts/package-enclosure.py --variant glued
 ```
 
 uv keeps the isolated CAD environment in its cache; the output directory
@@ -166,7 +168,7 @@ Copy this request while the agent is working in the source checkout:
 ```text
 Generate the enclosure release artifacts from this checkout's CAD source. Follow
 PRINT_GUIDE.en.md's macOS 15 Apple Silicon platform and pinned Python 3.14
-environment, then run scripts/package-enclosure.py.
+environment, then run scripts/package-enclosure.py --variant glued.
 Export all printable STLs and all four STEP views, generate dimensions, run full
 CAD/mesh and packaging checks, and verify the reviewed slicer evidence against
 the generated meshes. Investigate any mismatch; do not replace evidence with

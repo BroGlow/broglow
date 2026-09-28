@@ -21,6 +21,7 @@ __pycache__/
 *.[sS][tT][eE][pP]
 *.[sS][tT][pP]
 *.[zZ][iI][pP]
+*.3[mM][fF]
 
 # CAD viewer conversion caches
 /models/**/.*.step.glb

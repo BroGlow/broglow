@@ -32,7 +32,10 @@ for locale in ("en", "ru"):
             )
         else:
             assert "https://github.com/example/lamp/releases" in public
-            assert "broglow-enclosure-vVERSION.zip" in public and ".sha256" in public
+            assert (
+                "broglow-enclosure-magnetic-vVERSION.zip" in public
+                and ".sha256" in public
+            )
             assert "(printing.md)" in public
             assert "https://github.com/example/lamp/archive/HEAD.zip" in public
             assert "1.0.0" in public and "broglow-print-pack.zip" not in public
@@ -70,12 +73,14 @@ for locale in ("en", "ru"):
                     "broglow-print-pack.zip" not in local
                     and "{ download }" not in local
                 )
-                guide = "PRINT_GUIDE.md" if locale == "ru" else "PRINT_GUIDE.en.md"
+                guide = (
+                    "GUIDE_ROUND3X2.md" if locale == "ru" else "GUIDE_ROUND3X2.en.md"
+                )
                 start = "START_HERE.ru.md" if locale == "ru" else "START_HERE.md"
-                assert f"models/broglow/{guide}" in local and "(printing.md)" in local
+                assert f"models/magnetic/{guide}" in local and "(printing.md)" in local
                 dist = Path(temporary) / "dist/enclosure"
                 dist.mkdir(parents=True)
-                archive = dist / "broglow-enclosure-v1.0.0.zip"
+                archive = dist / "broglow-enclosure-magnetic-v1.0.0.zip"
                 archive.touch()
                 assert "{ download }" not in on_page_markdown(
                     source, page=page, config=SimpleNamespace(repo_url=None)
@@ -92,7 +97,7 @@ for locale in ("en", "ru"):
                     f"]({prefix}dist/enclosure/{archive.name}.sha256){{ download }}"
                     in local
                 )
-                assert start in local and f"models/broglow/{guide}" in local
+                assert start in local and f"models/magnetic/{guide}" in local
         pages.SITE = SITE
 
 print(
@@ -111,7 +116,9 @@ with TemporaryDirectory() as temporary:
     (model / "broglow.py").touch()
     (root / "Cargo.toml").write_text('[package]\nversion = "1.2.3"\n')
     for locale in ("en", "ru"):
-        page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/printing.md"))
+        page = SimpleNamespace(
+            file=SimpleNamespace(src_uri=f"{locale}/printing-glued.md")
+        )
         for generated in (
             "stl/01_mascot_orange.stl",
             "stl/coupons/01_USB_base_coupon.stl",
@@ -171,7 +178,9 @@ with TemporaryDirectory() as temporary:
     archive.touch()
     archive.with_name(archive.name + ".sha256").touch()
     for locale in ("en", "ru"):
-        page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/printing.md"))
+        page = SimpleNamespace(
+            file=SimpleNamespace(src_uri=f"{locale}/printing-glued.md")
+        )
         local = on_page_content(
             '<a href="broglow.step">Assembly</a>',
             page=page,

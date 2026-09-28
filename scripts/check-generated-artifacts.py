@@ -19,7 +19,7 @@ def is_generated(path):
     return bool(
         path.lower().startswith("docs/")
         or path.lower() in RETIRED_MEDIA
-        or re.search(r"\.(zip|stl|step|stp)$", path, re.I)
+        or re.search(r"\.(zip|stl|step|stp|3mf)$", path, re.I)
         or path.lower().startswith("models/broglow/preview/")
         or re.fullmatch(
             r"models/broglow/(?:cad|coupon|usb-coupon)-inspection\.json",
@@ -44,7 +44,7 @@ def main():
             + "\n".join(forbidden)
         )
     print(
-        "No top-level docs, generated STL, STEP/STP, ZIP, CAD previews, disposable JSON or retired media are tracked."
+        "No top-level docs, generated STL, STEP/STP, 3MF, ZIP, CAD previews, disposable JSON or retired media are tracked."
     )
 
 

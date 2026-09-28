@@ -22,7 +22,8 @@ title: Выпуск и публикация
 | `broglow-vVERSION-aarch64-apple-darwin.tar.gz` | Приложение для Apple Silicon, прошивка C3 и её исходники, руководство, лицензии и контрольные суммы. |
 | `broglow-vVERSION-x86_64-apple-darwin.tar.gz` | Такой же пакет с нативным приложением для Mac на Intel. |
 | `broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz` | Графическое приложение в трее и CLI для Windows в `broglow.exe`, с поддержкой лампы по USB и лицензией; без установщика, BLE, прошивки и руководств. |
-| `broglow-enclosure-vVERSION.zip` | STL и STEP корпуса, исходники CAD, руководство по печати и отчёты проверок. |
+| `broglow-enclosure-magnetic-vVERSION.zip` | Рекомендуемый съёмный корпус: пять рабочих деталей STL/STEP, виды сборки, исходники, инструкция и отчёты; четыре магнита Ø3×2 мм N52. |
+| `broglow-enclosure-vVERSION.zip` | Клеевая альтернатива: STL и STEP, исходники CAD, руководство и отчёты проверок. |
 | Соответствующий `.sha256` | Контрольная сумма каждого архива с его исходным именем. |
 
 Пакеты Mac также содержат `BUILD.json`, внутренний `SHA256SUMS`, адреса записи
@@ -104,7 +105,8 @@ Apple Silicon `macos-15` устанавливает закреплённые CAD
 генерирует все печатные STL и четыре STEP-вида из выбранного тега. Он выполняет полные CAD/mesh-проверки, пересоздаёт размерные
 изображения, сверяет точные хеши STL с проверенными свидетельствами слайсера,
 собирает и проверяет комплекты, прикладывает
-`dist/enclosure/broglow-enclosure-vVERSION.zip` и его `.sha256`.
+`dist/enclosure/broglow-enclosure-magnetic-vVERSION.zip` (рекомендуемый) и
+`dist/enclosure/broglow-enclosure-vVERSION.zip` (клеевой), каждый со своим `.sha256`.
 Финальная проверка чистоты исходников защищает отслеживаемые файлы от изменений
 сгенерированными отчётами. Процесс проверяет каждый ожидаемый архив приложения
 и корпуса с контрольной суммой, затем создаёт **черновик GitHub Release**.
@@ -138,9 +140,30 @@ CI включает форматирование, lint и тесты Rust, ин�
 
 ## Локальная упаковка без публикации
 
+По умолчанию генерируется рекомендуемый магнитный комплект. Его самостоятельная
+инструкция — `models/magnetic/GUIDE_ROUND3X2.md`: состав печати, вклейка магнитов
+и генерация из исходников. Команда:
+
+```bash
+uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
+  python scripts/package-enclosure.py --variant magnetic
+```
+
+Результат — `dist/enclosure/broglow-enclosure-magnetic-vVERSION.zip` и его
+`.sha256`; изолированная генерация выполняется в `dist/enclosure/magnetic-build/source/`.
+Проверяются и экспортируются только текущий вариант и детали 01–05; купонов,
+нарезанных под принтер 3MF/G-code нет. Хеши всех пяти STL должны совпадать с
+сохранённой проверкой слайсера. Диаметр кармана 3,05 мм подтверждён примеркой;
+окончательная глубина 2,30 мм и удержание сборки ещё не проверены физически.
+
+Релизный CI запускает `--variant magnetic` и `--variant glued`, прикладывая оба
+ZIP и контрольные суммы к одному черновику релиза. Процедура ниже описывает
+прежнюю **клеевую альтернативу**; передавайте `--variant glued` явно.
+
+
 Используйте готовую [процедуру ручной генерации](../../../models/broglow/PRINT_GUIDE.md#generate-from-source)
 или эквивалентный [запрос агенту](../../../models/broglow/PRINT_GUIDE.md#agent-generation).
-Оба варианта запускают `scripts/package-enclosure.py` на macOS 15 Apple Silicon
+Оба варианта запускают `scripts/package-enclosure.py --variant glued` на macOS 15 Apple Silicon
 с Python 3.14 и закреплёнными `models/broglow/requirements.txt`; плата, PlatformIO
 и скилл агента не нужны.
 Команда генерирует геометрию, размерные изображения и полную проверку мешей
@@ -168,7 +191,7 @@ checkout с соответствующим тегом:
 
 ```bash
 uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-  python scripts/package-enclosure.py --release-tag v1.0.0
+  python scripts/package-enclosure.py --variant glued --release-tag v1.0.0
 ```
 
 Строгий релизный режим проверяет тег, версию и чистоту исходников до генерации.

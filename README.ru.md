@@ -45,7 +45,7 @@ BroGlow — отдельное, независимо поддерживаемо�
 - **Установка или обновление:** [руководство по настройке](site/guide/ru/hardware.md#install-or-update-the-mac-service).
 - **Подключение прошитой лампы:** [настройка через USB](site/guide/ru/hardware.md#usb-assisted-setup).
 - **Сборка и подключение C3:** [руководство по устройству](site/guide/ru/hardware.md#wiring-and-resistor-choice).
-- **Печать необязательного корпуса:** [печать и сборка](models/broglow/PRINT_GUIDE.md).
+- **Печать необязательного корпуса:** [рекомендуемый магнитный корпус](models/magnetic/GUIDE_ROUND3X2.md) со съёмным маскотом и четырьмя магнитами Ø3×2 мм N52. [Клеевая альтернатива](models/broglow/PRINT_GUIDE.md).
 
 Для новой или непрошитой C3 следуйте [инструкции по прошивке и резервному копированию](site/guide/ru/hardware.md#flash-and-recover-usb-upload).
 

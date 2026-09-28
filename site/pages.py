@@ -20,6 +20,10 @@ from mkdocs.config import load_config
 SITE = Path(__file__).resolve().parent
 REFERENCE_SOURCES = {
     "printing.md": (
+        "models/magnetic/GUIDE_ROUND3X2.en.md",
+        "models/magnetic/GUIDE_ROUND3X2.md",
+    ),
+    "printing-glued.md": (
         "models/broglow/PRINT_GUIDE.en.md",
         "models/broglow/PRINT_GUIDE.md",
     ),
@@ -38,10 +42,15 @@ GUIDE_ROUTES = {
 }
 
 
-def enclosure_package():
+def enclosure_package(variant="glued"):
+    pattern = (
+        "broglow-enclosure-magnetic-v*.zip"
+        if variant == "magnetic"
+        else "broglow-enclosure-v*.zip"
+    )
     packages = [
         path
-        for path in (SITE.parent / "dist/enclosure").glob("broglow-enclosure-v*.zip")
+        for path in (SITE.parent / "dist/enclosure").glob(pattern)
         if path.with_name(path.name + ".sha256").is_file()
     ]
     return max(packages, key=lambda path: path.stat().st_mtime_ns, default=None)
@@ -201,14 +210,16 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
         guide = "printing.md"
         models = (
             f"[Комплект для печати корпуса · релизы]({releases})\n\n"
-            "Выберите `broglow-enclosure-vVERSION.zip` и одноимённый файл `.sha256`. "
+            "Рекомендуем магнитный корпус: `broglow-enclosure-magnetic-vVERSION.zip` и одноимённый `.sha256`. "
+            "Клеевая альтернатива: `broglow-enclosure-vVERSION.zip` и её `.sha256`; [инструкция](printing-glued.md). "
             "Это отдельный комплект с исходниками CAD, STL, STEP и руководством; он не входит в пакет приложения. "
             f"[Инструкция по печати]({guide}). Если релиз ещё не опубликован, "
             f"[скачайте исходники]({source}) и сгенерируйте комплект по инструкции. "
             "Автоматический ZIP исходников GitHub не содержит готовых STL, STEP или архивов печати."
             if ru
             else f"[Enclosure print package · releases]({releases})\n\n"
-            "Choose `broglow-enclosure-vVERSION.zip` and its matching `.sha256` file. "
+            "Recommended: magnetic enclosure, `broglow-enclosure-magnetic-vVERSION.zip` and its matching `.sha256`. "
+            "Glued alternative: `broglow-enclosure-vVERSION.zip` and its `.sha256`; [guide](printing-glued.md). "
             "This separate package contains CAD source, STL, STEP and a print guide; it is not part of the app bundle. "
             f"[Print guide]({guide}). Before the release is published, "
             f"[download the source]({source}) and generate the package using the guide. "
@@ -240,13 +251,13 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
                 else "This checkout has no prebuilt package. [Build from source](hardware.md#build-from-source) "
                 "or obtain a complete Mac + C3 bundle and checksum from the project owner."
             )
-        print_package = enclosure_package()
+        print_package = enclosure_package("magnetic")
         if print_package:
             prefix = "../../../" if ru else "../../"
             label = (
-                "Комплект для печати корпуса и инструкция"
+                "Рекомендуемый магнитный корпус и инструкция"
                 if ru
-                else "Enclosure print package and guide"
+                else "Recommended magnetic enclosure and guide"
             )
             checksum = "Контрольная сумма" if ru else "Checksum"
             models = (
@@ -254,26 +265,26 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
                 f"[{checksum}]({prefix}dist/enclosure/{print_package.name}.sha256){{ download }}"
             )
             models += (
-                "\n\nРаспакуйте архив и откройте `START_HERE.ru.md`, затем `models/broglow/PRINT_GUIDE.md`. "
+                "\n\nРаспакуйте архив и откройте `START_HERE.ru.md`, затем `models/magnetic/GUIDE_ROUND3X2.md`. "
                 "В комплекте — CAD, STL и настройки печати; приложение и прошивка скачиваются отдельно."
                 if ru
-                else "\n\nExtract the archive and open `START_HERE.md`, then `models/broglow/PRINT_GUIDE.en.md`. "
+                else "\n\nExtract the archive and open `START_HERE.md`, then `models/magnetic/GUIDE_ROUND3X2.en.md`. "
                 "The package includes CAD, STL and print settings; download the app and firmware separately."
             )
         else:
             models = (
-                "В этом checkout нет архива корпуса. Откройте `models/broglow/PRINT_GUIDE.md` "
+                "В этом checkout нет архива корпуса. Откройте `models/magnetic/GUIDE_ROUND3X2.md` "
                 "в полных исходниках проекта и [сгенерируйте комплект](releasing.md) "
                 "или получите комплект корпуса из релиза проекта."
                 if ru
-                else "This checkout has no enclosure archive. Open `models/broglow/PRINT_GUIDE.en.md` "
+                else "This checkout has no enclosure archive. Open `models/magnetic/GUIDE_ROUND3X2.en.md` "
                 "in the full project source and [generate the package](releasing.md) "
                 "or obtain the enclosure package from the project's release."
             )
         models += (
-            "\n\n[Инструкция по печати и сборке](printing.md)."
+            "\n\n[Магнитный корпус — рекомендуемый](printing.md). [Клеевая альтернатива](printing-glued.md)."
             if ru
-            else "\n\n[Printing and assembly instructions](printing.md)."
+            else "\n\n[Magnetic enclosure — recommended](printing.md). [Glued alternative](printing-glued.md)."
         )
     return markdown.replace("<!-- mac-downloads -->", mac).replace(
         "<!-- model-download -->", models

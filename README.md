@@ -38,7 +38,7 @@ The lamp still needs power and is designed for DIY assembly.
 - **Install or update:** [setup manual](site/guide/en/hardware.md#install-or-update-the-mac-service).
 - **Connect a flashed lamp:** [USB-assisted setup](site/guide/en/hardware.md#usb-assisted-setup).
 - **Build/wire a C3:** [hardware guide](site/guide/en/hardware.md#wiring-and-resistor-choice).
-- **Print the optional enclosure:** [printing and assembly](models/broglow/PRINT_GUIDE.en.md).
+- **Print the optional enclosure:** [recommended magnetic enclosure](models/magnetic/GUIDE_ROUND3X2.en.md), with a removable mascot and four Ø3×2 mm N52 magnets. [Glued alternative](models/broglow/PRINT_GUIDE.en.md).
 
 For a new or unflashed C3, follow the [flashing and backup instructions](site/guide/en/hardware.md#flash-and-recover-usb-upload).
 

@@ -2,6 +2,8 @@
 
 [English](PRINT_GUIDE.en.md) | [Русский](PRINT_GUIDE.md)
 
+Это **клеевая альтернатива**. Рекомендуемый корпус — со съёмным маскотом на четырёх магнитах Ø3×2 мм N52; инструкция находится в `models/magnetic/`.
+
 Скачайте **`broglow-enclosure-vVERSION.zip` и его `.sha256`** из файлов GitHub
 Release проекта. Распакуйте ZIP и откройте `models/broglow/PRINT_GUIDE.md`;
 ссылки ведут к включённым STL, STEP, исходникам CAD и отчётам. Для архива
@@ -110,7 +112,7 @@ PlatformIO, подключённая плата и работающее прил
 
 ```bash
 uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-  python scripts/package-enclosure.py
+  python scripts/package-enclosure.py --variant glued
 ```
 
 uv хранит изолированное CAD-окружение в своём кеше; каталог результатов
@@ -158,7 +160,7 @@ CI проверяет существующие соответствующие с
 ```text
 Сгенерируй файлы релиза корпуса из CAD-исходников этого checkout. Используй
 платформу macOS 15 Apple Silicon и закреплённое окружение Python 3.14 из
-PRINT_GUIDE.md, затем запусти scripts/package-enclosure.py.
+PRINT_GUIDE.md, затем запусти scripts/package-enclosure.py --variant glued.
 Экспортируй все печатные STL и четыре STEP-вида, создай размерные изображения,
 выполни полные CAD/mesh-проверки и проверки упаковки, сверь проверенные
 свидетельства слайсера с созданными мешами. Исследуй любое несовпадение;

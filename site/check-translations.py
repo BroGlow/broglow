@@ -62,6 +62,13 @@ pairs.append(
     )
 )
 
+pairs.append(
+    (
+        ROOT / "models/magnetic/GUIDE_ROUND3X2.en.md",
+        ROOT / "models/magnetic/GUIDE_ROUND3X2.md",
+    )
+)
+
 en_pages = {path.name for path in (SITE / "guide/en").glob("*.md")}
 ru_pages = {path.name for path in (SITE / "guide/ru").glob("*.md")}
 assert en_pages == ru_pages, f"Missing website translations: {en_pages ^ ru_pages}"

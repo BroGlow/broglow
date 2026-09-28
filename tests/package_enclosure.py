@@ -2,6 +2,9 @@
 """Check isolated CAD staging and release guards without CAD dependencies or hardware."""
 
 import importlib.util
+import hashlib
+import json
+from zipfile import ZipFile
 from pathlib import Path
 import subprocess
 import sys
@@ -31,6 +34,7 @@ with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
         Path("LICENSE"),
         *(Path(name) for name in package.prints.REFERENCE_FILES),
         *(package.MODEL / name for name in package.CAD_FILES),
+        *(package.MAGNETIC / name for name in package.MAGNETIC_FILES),
     }:
         target = root / path
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -39,6 +43,57 @@ with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
     (model / "PRINT_GUIDE.en.md").write_text("[Dimensions](preview/dimensions.png)\n")
     # A fresh checkout has no preview directory; staging creates it for dimensions.
     files = package.source_files()
+    # A clean magnetic release contains only the five production meshes, never coupons.
+    magnetic_inputs = package.source_files("magnetic")
+    magnetic_stage = package.prepare_source(root / "dist/magnetic", magnetic_inputs)
+    magnetic_model = magnetic_stage / package.MAGNETIC
+    records = []
+    for name in (
+        "01_mascot_magnetic_orange",
+        "02_eye_black_x2",
+        "03_tower_magnetic_black",
+        "04_rear_cover_black",
+        "05_LED_retainer_black",
+    ):
+        path = magnetic_model / "stl" / f"{name}.stl"
+        path.parent.mkdir(exist_ok=True)
+        path.write_bytes(b"reviewed mesh")
+        records.append(
+            {
+                "file": f"stl/{name}.stl",
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            }
+        )
+        step = magnetic_model / "step" / f"{name}.step"
+        step.parent.mkdir(exist_ok=True)
+        step.write_bytes(b"STEP")
+    (magnetic_model / "stl/06_old_coupon.stl").write_bytes(b"stale")
+    (magnetic_model / "slicer-validation.json").write_text(
+        json.dumps({"parts": records})
+    )
+    (magnetic_model / "validation.json").write_text('{"status": "passed"}')
+    for name in ("round3x2.step", "round3x2_exploded.step"):
+        (magnetic_model / name).write_bytes(b"STEP")
+    (magnetic_stage / "BUILD.json").write_text("{}")
+    archive = package.package_magnetic(
+        magnetic_stage, root / "dist", "1.2.3", magnetic_inputs
+    )
+    with ZipFile(archive) as zipped:
+        assert len([n for n in zipped.namelist() if n.endswith(".stl")]) == 5
+        assert not any(
+            "coupon" in n and n.endswith((".stl", ".step")) for n in zipped.namelist()
+        )
+        assert "START_HERE.ru.md" in zipped.namelist()
+        for row in zipped.read("SHA256SUMS").decode().splitlines():
+            digest, name = row.split("  ", 1)
+            assert hashlib.sha256(zipped.read(name)).hexdigest() == digest
+    path.write_bytes(b"changed mesh")
+    rejected(
+        lambda: package.package_magnetic(
+            magnetic_stage, root / "dist", "1.2.3", magnetic_inputs
+        ),
+        "Stale magnetic slicer evidence",
+    )
     stage = package.prepare_source(root / "dist/enclosure", files)
     assert (stage / package.MODEL / "preview").is_dir()
     (model / "preview").mkdir()
@@ -108,6 +163,7 @@ with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
         "elsewhere/part.StP",
         "outside/mesh.sTl",
         "view.STEP",
+        "outside/project.3MF",
         "models/broglow/cad-inspection.json",
         "models/broglow/coupon-inspection.json",
         "models/broglow/USB-COUPON-INSPECTION.JSON",

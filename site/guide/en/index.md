@@ -16,6 +16,7 @@ Already assembled? [Install BroGlow and connect the lamp](installation.md).
 
 | Part | What to look for |
 | --- | --- |
+| Magnets · 4 | Axially magnetized Ø3×2 mm N52 for the recommended detachable mascot. |
 | Board · 1 | ESP32-C3 SuperMini; the project's firmware targets this board. |
 | LEDs · 3 | One red, one yellow, one green. The enclosure uses 5 mm LEDs. |
 | Resistors · 3 | One for each LED; use the values in the wiring diagram below. |
