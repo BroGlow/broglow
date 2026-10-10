@@ -29,9 +29,9 @@ __pycache__/
 
 # Ad hoc CAD inspection output and revision-specific render jobs.
 # Keep new runs under dist/enclosure/; these paths cover older commands.
-/models/broglow/cad-inspection.json
-/models/broglow/coupon-inspection.json
-/models/broglow/usb-coupon-inspection.json
+/models/broglow/[cC][aA][dD]-[iI][nN][sS][pP][eE][cC][tT][iI][oO][nN].[jJ][sS][oO][nN]
+/models/broglow/[cC][oO][uU][pP][oO][nN]-[iI][nN][sS][pP][eE][cC][tT][iI][oO][nN].[jJ][sS][oO][nN]
+/models/broglow/[uU][sS][bB]-[cC][oO][uU][pP][oO][nN]-[iI][nN][sS][pP][eE][cC][tT][iI][oO][nN].[jJ][sS][oO][nN]
 
 # Generated CAD renders, dimensions and disposable preview files.
 /models/broglow/preview/
