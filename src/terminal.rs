@@ -678,6 +678,7 @@ pub enum HostKind {
 }
 
 impl HostKind {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     pub fn as_str(self) -> &'static str {
         match self {
             HostKind::App => "app",

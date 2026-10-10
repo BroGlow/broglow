@@ -174,6 +174,7 @@ pub fn set_dashboard_button(enabled: bool) -> anyhow::Result<()> {
     })
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 pub fn set_agent_names(enabled: bool) -> anyhow::Result<()> {
     update_config(|cfg| {
         cfg.show_agent_names = enabled;
