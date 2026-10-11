@@ -35,17 +35,18 @@ installs `~/Applications/BroGlow.app` and reloads the existing LaunchAgent
 (`io.github.broglow.menubar`) via `launchctl bootout`/`bootstrap`/`kickstart`.
 Inspect the installed service and preserve unrelated hooks/settings before deployment.
 
-**Always redeploy after code changes.** Whenever you change code in this repo, finish
-by updating the app that is already running on this machine so it can be tested live:
+**Redeploy only for live checks.** Builds and tests do not need an installed app.
+When a change must be verified in the app already running on this machine, and
+replacing that installation is intended, update it:
 
 ```bash
 cargo install --path . && broglow install
 ```
 
-Redeploy the installed daemon for live tests. A process-lifetime lock rejects a
-second macOS tray instance; a separate BLE lock prevents discovery and the worker
-from using the radio concurrently. Builds do not prove permission grant or board
-operation: record those acceptance checks separately.
+A process-lifetime lock rejects a second macOS tray instance; a separate BLE lock
+prevents discovery and the worker from using the radio concurrently. Builds do
+not prove permission grant or board operation: record those acceptance checks
+separately.
 
 ## Subcommands (src/main.rs)
 
