@@ -128,13 +128,10 @@ pub fn install_hooks() -> anyhow::Result<()> {
     }
 
     let exe = std::env::current_exe().context("Resolving current executable path")?;
-    let contents = serde_json::to_string_pretty(&hooks_file_value(&exe))
-        .context("Serializing Copilot hooks")?;
-
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).context("Creating Copilot hooks dir")?;
-    }
-    std::fs::write(&path, contents + "\n").context("Writing Copilot hooks file")?;
+    // Temp file + rename, like the Codex and Claude settings writers: a crash
+    // mid-write must never leave Copilot a half-written hooks file.
+    crate::codex::write_json_atomic(&path, &hooks_file_value(&exe))
+        .context("Writing Copilot hooks file")?;
     println!("Wrote Copilot hooks to {}", path.display());
     println!("  (restart any running copilot sessions to pick them up)");
     Ok(())
