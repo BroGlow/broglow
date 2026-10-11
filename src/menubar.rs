@@ -18,7 +18,6 @@ use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
 
 use crate::config;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-#[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::popover::{Popover, PopoverMsg};
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 use crate::state::Status;
@@ -842,8 +841,6 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                     }
                 }
             },
-            // Dismiss like a real popover: losing focus (clicking anywhere
-            // else) hides it.
             // Dismiss like a real popover: losing focus (clicking anywhere
             // else) hides it.
             #[cfg(any(target_os = "macos", target_os = "windows"))]

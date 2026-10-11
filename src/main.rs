@@ -66,7 +66,7 @@ enum Commands {
         #[command(subcommand)]
         command: ble::BleCommand,
     },
-    /// (internal) Print today's usage snapshot (tokens / $ / plan %) as JSON
+    /// (internal) Print today's usage snapshot (tokens / plan %) as JSON
     #[command(hide = true)]
     Usage,
     /// (internal) Hook backend invoked by Claude Code over stdin
