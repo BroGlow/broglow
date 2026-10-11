@@ -70,13 +70,34 @@ pub fn is_running() -> bool {
         .any(is_menubar_cmdline)
 }
 
+/// `ps` prints the binary path unquoted, so a home directory with a space
+/// (`/Users/Jo Doe/Applications/BroGlow.app/.../broglow menubar`) splits
+/// across tokens; match the `broglow` token immediately before `menubar`
+/// instead of assuming the path is the first token.
 #[cfg(unix)]
 fn is_menubar_cmdline(line: &str) -> bool {
-    let mut parts = line.split_whitespace();
-    let Some(bin) = parts.next() else {
-        return false;
-    };
-    (bin == "broglow" || bin.ends_with("/broglow")) && parts.next() == Some("menubar")
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    parts
+        .windows(2)
+        .any(|w| (w[0] == "broglow" || w[0].ends_with("/broglow")) && w[1] == "menubar")
+}
+
+#[cfg(all(test, unix))]
+mod cmdline_tests {
+    use super::is_menubar_cmdline;
+
+    #[test]
+    fn menubar_daemon_is_recognized_even_with_spaces_in_its_path() {
+        assert!(is_menubar_cmdline("broglow menubar"));
+        assert!(is_menubar_cmdline("/usr/local/bin/broglow menubar"));
+        assert!(is_menubar_cmdline(
+            "/Users/Jo Doe/Applications/BroGlow.app/Contents/MacOS/broglow menubar"
+        ));
+        assert!(!is_menubar_cmdline("broglow"));
+        assert!(!is_menubar_cmdline("/usr/local/bin/broglow hook"));
+        assert!(!is_menubar_cmdline("vim notes/broglow menubar.md"));
+        assert!(!is_menubar_cmdline("my-broglow menubar"));
+    }
 }
 
 /// Windows: the daemon holds a named mutex for its lifetime (see
