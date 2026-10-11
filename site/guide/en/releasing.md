@@ -97,8 +97,8 @@ A final clean-source check prevents generated reports from changing tracked file
 The workflow verifies every expected app/enclosure archive and checksum and
 creates a **draft GitHub Release**.
 CI covers Rust format/lint/tests, JavaScript integration, firmware host checks,
-firmware formatting and both C3 firmware builds. Website checks run in the
-separate **Website** workflow.
+firmware formatting and both C3 firmware builds. Before packaging, the release
+also runs the **Website** checks without deploying the site.
 
 Before selecting **Publish release** in GitHub:
 
