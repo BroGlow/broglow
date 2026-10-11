@@ -114,7 +114,10 @@ fn main() -> anyhow::Result<()> {
         Some(Commands::Install) => install_hooks(),
         Some(Commands::Uninstall) => uninstall_hooks(),
         Some(Commands::Menubar) => {
-            #[cfg(target_os = "macos")]
+            // One tray per machine: `install` and the TUI's `t` spawn the
+            // daemon without checking first, so a second launch must exit.
+            // Windows uses a named mutex instead (menubar.rs).
+            #[cfg(unix)]
             let _instance_lock = {
                 std::fs::create_dir_all(hook_dir())?;
                 let lock = std::fs::OpenOptions::new()
