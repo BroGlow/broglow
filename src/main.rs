@@ -733,12 +733,6 @@ fn install_launch_agent() -> anyhow::Result<()> {
         "Recovery bundle already exists: {}",
         previous.display()
     );
-    create_mac_bundle(
-        &exe,
-        &staging,
-        &std::env::var("BROGLOW_SIGNING_IDENTITY").unwrap_or_else(|_| "-".to_string()),
-    )?;
-
     let plist_content = LAUNCH_AGENT_PLIST
         .replace("{{LABEL}}", LAUNCH_AGENT_LABEL)
         .replace(
@@ -755,16 +749,27 @@ fn install_launch_agent() -> anyhow::Result<()> {
     let target = format!("gui/{uid}");
     let service = format!("gui/{uid}/{LAUNCH_AGENT_LABEL}");
 
-    stop_launch_agent(&service)?;
-
-    if bundle.exists() {
-        std::fs::rename(&bundle, &previous)?;
-    }
-    if let Err(error) = std::fs::rename(&staging, &bundle) {
+    // Everything between creating the staging bundle and swapping it into
+    // place can fail (codesign, a daemon that won't stop); never leave a
+    // hidden .BroGlow.<pid>.app behind in ~/Applications when it does.
+    let installed = (|| -> anyhow::Result<()> {
+        create_mac_bundle(
+            &exe,
+            &staging,
+            &std::env::var("BROGLOW_SIGNING_IDENTITY").unwrap_or_else(|_| "-".to_string()),
+        )?;
+        stop_launch_agent(&service)?;
+        if bundle.exists() {
+            std::fs::rename(&bundle, &previous)?;
+        }
+        std::fs::rename(&staging, &bundle).context("Installing BroGlow.app")
+    })();
+    if let Err(error) = installed {
+        let _ = std::fs::remove_dir_all(&staging);
         if previous.exists() {
             let _ = std::fs::rename(&previous, &bundle);
         }
-        return Err(error).context("Installing BroGlow.app");
+        return Err(error);
     }
     std::fs::write(&plist_path, plist_content)?;
     println!("Wrote LaunchAgent plist to {}", plist_path.display());
