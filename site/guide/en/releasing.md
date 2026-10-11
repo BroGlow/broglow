@@ -85,6 +85,9 @@ git push YOUR_REMOTE HEAD
 git push YOUR_REMOTE v1.0.0
 ```
 
+Push only this tag. Every pushed `v*` tag starts the **Release** workflow, and the
+inherited `v0.*` tags fail its version check, so do not use `git push --tags`.
+
 The **Release** workflow checks the tag/version and clean source, runs the
 reusable CI suite, builds on native Apple Silicon and Intel runners plus Windows,
 uses the Apple Silicon `macos-15` source job to install the pinned Python CAD
