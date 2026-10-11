@@ -408,6 +408,13 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
     #[allow(unused_mut)]
     let mut event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
 
+    // One tray per machine: `install` and the TUI's `t` spawn the daemon
+    // without checking first, so a second launch must exit. Taken only once
+    // a graphical session exists, so a headless launch touches no files.
+    // Windows uses the named mutex above.
+    #[cfg(unix)]
+    let _instance_lock = acquire_instance_lock()?;
+
     // If the daemon is up but the hooks were never registered (e.g. launched
     // manually before `broglow install`), wire them in so sessions report
     // status. Hooks only — never autostart from here, or we'd spawn a duplicate
@@ -968,6 +975,23 @@ fn launch_dashboard() {
             return;
         }
     }
+}
+
+/// Process-lifetime flock beside `config.json`; a second daemon fails to take
+/// it and exits. Released by the OS when this process ends, however it ends.
+#[cfg(unix)]
+fn acquire_instance_lock() -> anyhow::Result<std::fs::File> {
+    let path = config::config_file_path().with_file_name(".menubar.lock");
+    std::fs::create_dir_all(path.parent().expect("config path must have a parent"))?;
+    let lock = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(path)?;
+    lock.try_lock()
+        .map_err(|e| anyhow::anyhow!("A BroGlow tray service is already running: {e}"))?;
+    Ok(lock)
 }
 
 /// Acquire a process-lifetime named mutex to ensure only one tray daemon runs

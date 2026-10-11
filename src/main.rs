@@ -113,26 +113,7 @@ fn main() -> anyhow::Result<()> {
     match command {
         Some(Commands::Install) => install_hooks(),
         Some(Commands::Uninstall) => uninstall_hooks(),
-        Some(Commands::Menubar) => {
-            // One tray per machine: `install` and the TUI's `t` spawn the
-            // daemon without checking first, so a second launch must exit.
-            // Windows uses a named mutex instead (menubar.rs).
-            #[cfg(unix)]
-            let _instance_lock = {
-                std::fs::create_dir_all(hook_dir())?;
-                let lock = std::fs::OpenOptions::new()
-                    .create(true)
-                    .truncate(false)
-                    .read(true)
-                    .write(true)
-                    .open(hook_dir().join(".menubar.lock"))?;
-                lock.try_lock().map_err(|e| {
-                    anyhow::anyhow!("A BroGlow tray service is already running: {e}")
-                })?;
-                lock
-            };
-            menubar::run(app_launch)
-        }
+        Some(Commands::Menubar) => menubar::run(app_launch),
         Some(Commands::DashboardButton { visibility }) => {
             let enabled = visibility == "show";
             config::set_dashboard_button(enabled)?;
