@@ -43,10 +43,10 @@ replacing that installation is intended, update it:
 cargo install --path . && broglow install
 ```
 
-A process-lifetime lock rejects a second tray instance (a lock file on macOS/Linux, a named mutex on Windows); a separate BLE lock
-prevents discovery and the worker from using the radio concurrently. Builds do
-not prove permission grant or board operation: record those acceptance checks
-separately.
+A process-lifetime lock rejects a second tray instance (a lock file on
+macOS/Linux, a named mutex on Windows); a separate BLE lock prevents discovery
+and the worker from using the radio concurrently. Builds do not prove permission
+grant or board operation: record those acceptance checks separately.
 
 ## Subcommands (src/main.rs)
 
