@@ -462,7 +462,6 @@ test('opening details is read-only; lamp controls stay there and Escape returns'
   assert.match(element('lamplist').innerHTML, /USB lamp/);
   assert.ok(!element('lamplist').innerHTML.includes('lampforget'), 'USB has no remembered Bluetooth lamp to forget');
   assert.equal(element('brightnesscontrol').hidden, true);
-  assert.equal(element('brightnesshint').textContent, 'Brightness control requires Bluetooth.');
   update(lamp({ transport: 'usb', present: false, enabled: false, devices: [] }));
   assert.equal(element('lampcontrol').dataset.cmd, 'set_led');
   assert.equal(element('lampcontrol').textContent, 'Enable lamp');
@@ -709,8 +708,6 @@ test('Identify targets only the selected connected lamp, including at zero brigh
     { id: 'home-id', state: 'connected' }, { id: 'work-id', state: 'connected' },
   ] }));
   click('lampbtn');
-  assert.equal(element('lampidentifyhelp-1').textContent, '');
-  assert.equal(element('lampidentifyhelp-1').hidden, true);
   assert.equal(element('lampbrightnesshint-1').hidden, true);
   assert.equal(element('lampidentify-1').disabled, false);
   click('lampidentify-1');
@@ -740,16 +737,11 @@ test('Identify requires that lamp to have a fresh enabled Bluetooth connection',
   for (const unavailable of [
     { enabled: false }, { state: 'unavailable' }, { state: 'searching' }, { setup_busy: true },
     { devices: [{ id: 'saved-lamp', state: 'searching' }, { id: 'other-lamp', state: 'connected' }], selected_count: 2 },
-    { devices: [{ id: 'saved-lamp', state: 'connected', brightness_supported: false }] },
   ]) {
     update(lamp(unavailable));
     assert.equal(element('lampidentify-0').disabled, true);
     click('lampidentify-0');
   }
-  assert.match(element('lampidentifyhelp-0').textContent, /Update.*firmware/);
-  assert.equal(element('lampidentifyhelp-0').hidden, false);
-  update(lamp());
-  assert.equal(element('lampidentifyhelp-0').hidden, true);
   update(lamp({ transport: 'usb' }));
   assert.ok(!element('lamplist').innerHTML.includes('lampidentify'));
   click('lampidentify-0'); // A stale control cannot bypass the transport guard.
@@ -790,15 +782,6 @@ test('per-lamp brightness targets one slider through throttle, heartbeat, statio
   assert.equal(element('lamplist').writes, listBuilds);
   assert.equal(commands('set_brightness').length, 0);
   assert.equal(commands('set_led').length, 0);
-  update({ ...current, devices: [current.devices[0], { ...current.devices[1], brightness_supported: false }] });
-  assert.equal(slider.disabled, false, 'Older firmware still accepts a saved preference for a later upgrade');
-  assert.match(element('lampbrightnesshint-1').textContent, /Update.*firmware/);
-  slider.value = '35';
-  listeners.input({ target: slider });
-  listeners.change({ target: slider });
-  assert.equal(commands('preview_brightness').length, sent, 'An unsupported target cannot preview through its connected neighbor');
-  assert.deepEqual(commands('set_lamp_brightness').at(-1), { cmd: 'set_lamp_brightness', id: 'work', percent: 35 });
-  update(current);
   // Removing the active row must stop its timer, not retarget an index or broadcast.
   listeners.pointerdown({ target: slider, pointerId: 9 });
   update(lamp({ devices: [{ id: 'home', state: 'connected' }] }));
@@ -806,7 +789,7 @@ test('per-lamp brightness targets one slider through throttle, heartbeat, statio
   listeners.change({ target: slider });
   advance(3000);
   assert.equal(commands('preview_brightness').length, afterRemoval);
-  assert.equal(commands('set_lamp_brightness').length, 2);
+  assert.equal(commands('set_lamp_brightness').length, 1);
 });
 
 test('offline per-lamp saves never broadcast and All lamps resets effective values only from host state', () => {
@@ -1017,7 +1000,6 @@ test('keyboard preview validates percentages and requires an enabled connected w
   for (const unavailable of [
     { enabled: false }, { state: 'searching' }, { state: 'connecting' }, { state: 'error' },
     { state: 'unavailable' }, { devices: [] },
-    { devices: [{ id: 'saved-lamp', state: 'connected', brightness_supported: false }] },
     { devices: [{ id: 'saved-lamp', state: 'searching' }] }, { transport: 'usb', present: true },
   ]) {
     update(lamp(unavailable));

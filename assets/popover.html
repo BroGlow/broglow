@@ -209,7 +209,7 @@ summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outl
 .brightness { padding: 0 10px 12px; color: rgba(255,255,255,.8); font-size: 12px; }
 .brightness label { display: flex; justify-content: space-between; margin-bottom: 7px; }
 .brightness input { width: 100%; accent-color: #3577f6; }
-.brightness p, .lampidentify p, .lampsetup p { margin-top: 5px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.brightness p, .lampsetup p { margin-top: 5px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 body.win .brightness input { accent-color: #4cc2ff; }
 .pophead, .popfoot, .usec { flex-shrink: 0; }
 </style>
@@ -332,7 +332,7 @@ function canIdentifyLamp(id) {
   const lamp = state.lamp || {};
   return !lampSetupBusy() && !lampActionPending() && lamp.transport === 'ble' &&
     lamp.enabled && lamp.state === 'connected' &&
-    (lamp.devices || []).some(device => device.id === id && device.state === 'connected' && device.brightness_supported !== false);
+    (lamp.devices || []).some(device => device.id === id && device.state === 'connected');
 }
 window.__lampSetupResult = error => {
   lampSetupPending = false;
@@ -359,7 +359,7 @@ function canEditBrightness(slider) {
 function canPreviewBrightness(id) {
   const lamp = state.lamp || {};
   return !lampSetupBusy() && !lampActionPending() && view === 'lamp' && lamp.transport === 'ble' && lamp.enabled && lamp.state === 'connected' &&
-    (lamp.devices || []).some(device => device.state === 'connected' && device.brightness_supported !== false && (id === undefined || device.id === id));
+    (lamp.devices || []).some(device => device.state === 'connected' && (id === undefined || device.id === id));
 }
 function flushBrightnessPreview() {
   clearTimeout(previewTimer);
@@ -401,15 +401,10 @@ function renderBrightness(slider, outputId, hintId, percent) {
       document.activeElement !== slider && !slider.matches(':active')) slider.value = String(percent);
   document.getElementById(outputId).textContent = slider.value + '%';
   const targeted = slider.dataset.brightnessId !== undefined;
-  const candidates = (state.lamp?.devices || []).filter(device => targeted ?
-    device.id === slider.dataset.brightnessId : device.state === 'connected');
-  const needsUpdate = candidates.length > 0 && candidates.every(device => device.brightness_supported === false);
   const hint = document.getElementById(hintId);
-  hint.textContent = state.lamp?.transport !== 'ble' ? 'Brightness control requires Bluetooth.' :
-    lampSetupBusy() || lampActionPending() ? 'Lamp action in progress.' :
-    needsUpdate ? 'Update firmware to preview brightness.' :
+  hint.textContent = lampSetupBusy() || lampActionPending() ? 'Lamp action in progress.' :
     canPreviewBrightness(slider.dataset.brightnessId) ? '' :
-    state.lamp.enabled ? (targeted ? 'Connect this lamp to preview.' : 'Connect a lamp to preview.') : 'Enable a lamp to preview.';
+    state.lamp?.enabled ? (targeted ? 'Connect this lamp to preview.' : 'Connect a lamp to preview.') : 'Enable a lamp to preview.';
   if (!targeted && state.lamp?.transport === 'ble') {
     hint.textContent += (hint.textContent ? ' ' : '') + 'Replaces individual brightness settings.';
   }
@@ -470,8 +465,7 @@ function renderLamp() {
         (wireless ? `<div class="lampnameedit"><label for="lampname-${i}">Name</label><div class="lampnamefields">` +
           `<input id="lampname-${i}" type="text" autocomplete="off" placeholder="Automatic name">` +
           `<button class="pbtn" type="button" id="lampsave-${i}">Save</button></div></div>` +
-          `<div class="lampidentify"><button class="pbtn" type="button" id="lampidentify-${i}" aria-describedby="lampidentifyhelp-${i}">Identify</button>` +
-          `<p id="lampidentifyhelp-${i}" hidden></p></div>` +
+          `<div class="lampidentify"><button class="pbtn" type="button" id="lampidentify-${i}">Identify</button></div>` +
           `<div class="brightness"><label for="lampbrightness-${i}">Light brightness<output id="lampbrightnessvalue-${i}" for="lampbrightness-${i}"></output></label>` +
           `<input id="lampbrightness-${i}" type="range" min="0" max="100" step="1" value="100" aria-describedby="lampbrightnesshint-${i}">` +
           `<p id="lampbrightnesshint-${i}"></p></div>` : '') +
@@ -509,9 +503,6 @@ function renderLamp() {
         identify.dataset.id = device.id;
         identify.disabled = !canIdentifyLamp(device.id);
         identify.textContent = pendingIdentifyId === device.id ? 'Sending…' : 'Identify';
-        const identifyHint = document.getElementById('lampidentifyhelp-' + i);
-        identifyHint.textContent = device.brightness_supported === false ? 'Update firmware to use Identify.' : '';
-        identifyHint.hidden = !identifyHint.textContent;
         const input = document.getElementById('lampname-' + i);
         input.dataset.lampNameId = device.id;
         input.disabled = setupBusy || lampActionPending();

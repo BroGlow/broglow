@@ -225,7 +225,7 @@ pub(crate) fn identify_lamp(_: &str) -> anyhow::Result<()> {
 pub(crate) fn preview_brightness(_: u8) {}
 #[cfg(target_os = "windows")]
 pub(crate) fn preview_lamp_brightness(_: &str, _: u8) -> anyhow::Result<()> {
-    anyhow::bail!("Bluetooth lamp identification is supported on macOS only")
+    anyhow::bail!("Bluetooth lamp brightness preview is supported on macOS only")
 }
 #[cfg(target_os = "macos")]
 use mac::{pair, scan};
@@ -317,15 +317,12 @@ mod mac {
             cfg.led_enabled && cfg.led_transport == LedTransport::Ble,
             "Enable Bluetooth lamps before previewing brightness"
         );
-        let status = crate::led::connection_status();
-        let device = status
-            .devices
-            .iter()
-            .find(|device| device.id == id && device.state == "connected")
-            .context("This lamp is not connected; wait for it to reconnect")?;
         anyhow::ensure!(
-            device.brightness_supported != Some(false),
-            "Update this lamp's C3 firmware to use Identify or brightness preview"
+            crate::led::connection_status()
+                .devices
+                .iter()
+                .any(|device| device.id == id && device.state == "connected"),
+            "This lamp is not connected; wait for it to reconnect"
         );
         store_preview(Some(target), percent, identify);
         Ok(())
@@ -785,11 +782,10 @@ mod mac {
                     })
                     .collect::<Vec<_>>(),
             );
-            let update = |id: &str, state: &str, detail: &str, brightness_supported| {
+            let update = |id: &str, state: &str, detail: &str| {
                 let mut devices = statuses.borrow_mut();
                 if let Some(device) = devices.iter_mut().find(|d| d.id == id) {
                     *device = crate::led::DeviceStatus::new(id, state, detail);
-                    device.brightness_supported = brightness_supported;
                 }
                 crate::led::publish_ble_status(cfg, devices.clone());
             };
@@ -871,9 +867,9 @@ mod mac {
         advertisements: &Advertisements,
         scan_error: &RefCell<Option<String>>,
         keep: &impl Fn() -> bool,
-        update: &impl Fn(&str, &str, &str, Option<bool>),
+        update: &impl Fn(&str, &str, &str),
     ) {
-        let publish = |state: &str, detail: &str| update(id, state, detail, None);
+        let publish = |state: &str, detail: &str| update(id, state, detail);
         while keep() {
             // Subscribe anew after each disconnect: cached/queued advertisements
             // cannot reconnect a stale native CoreBluetooth peripheral handle.
@@ -902,10 +898,7 @@ mod mac {
             match discovered {
                 Ok(peripheral) => {
                     publish("connecting", "Connecting to saved lamp");
-                    let result = drive(&peripheral, keep, &|state, detail, supported| {
-                        update(id, state, detail, Some(supported));
-                    })
-                    .await;
+                    let result = drive(&peripheral, keep, &publish).await;
                     // Cancelling a Rust future doesn't cancel a native pending connect.
                     let _ = timeout(Duration::from_secs(2), peripheral.disconnect()).await;
                     if let Err(error) = result {
@@ -937,7 +930,7 @@ mod mac {
     async fn drive(
         p: &Peripheral,
         keep: &impl Fn() -> bool,
-        publish: &impl Fn(&str, &str, bool),
+        publish: &impl Fn(&str, &str),
     ) -> Result<()> {
         let id = Uuid::parse_str(&p.id().to_string())?;
         let target = id.to_string();
@@ -978,7 +971,7 @@ mod mac {
                 tokio::select! {
                     result = &mut write => return Ok(result?),
                     _ = sleep(HEARTBEAT) => {
-                        publish("connecting", "Waiting for an encrypted write; approve any macOS pairing request for this lamp", true);
+                        publish("connecting", "Waiting for an encrypted write; approve any macOS pairing request for this lamp");
                     }
                 }
             }
@@ -1034,7 +1027,7 @@ mod mac {
                 } else {
                     format!("Status acknowledged; brightness {brightness}% applied")
                 };
-                publish("connected", &detail, true);
+                publish("connected", &detail);
                 Ok(())
             },
             || {
@@ -1233,10 +1226,6 @@ mod mac {
             );
             assert_eq!(std::fs::read(&path).unwrap(), configured);
 
-            let mut devices = connected();
-            devices[1].brightness_supported = Some(false);
-            crate::led::publish_ble_status(&cfg, devices);
-            rejects(&names[1], 100);
             let mut devices = connected();
             devices[1].state = "searching".into();
             crate::led::publish_ble_status(&cfg, devices);

@@ -273,9 +273,6 @@ pub struct DeviceStatus {
     pub state: String,
     pub detail: String,
     pub updated: u64,
-    /// None until discovery, including status written by older service versions.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub brightness_supported: Option<bool>,
 }
 
 impl DeviceStatus {
@@ -285,7 +282,6 @@ impl DeviceStatus {
             state: state.into(),
             detail: detail.into(),
             updated: now_secs(),
-            brightness_supported: None,
         }
     }
 }
@@ -442,7 +438,6 @@ mod transport_tests {
             DeviceStatus::new("work", "connected", "ACK"),
         ];
         devices[0].updated = 100;
-        devices[0].brightness_supported = Some(false);
         devices[1].updated = 107;
         let record = StatusRecord {
             status: summarize_devices(devices),
@@ -452,18 +447,12 @@ mod transport_tests {
             port: None,
         };
         let json = serde_json::to_value(&record).unwrap();
-        assert_eq!(json["status"]["devices"][0]["brightness_supported"], false);
-        assert!(json["status"]["devices"][1]
-            .get("brightness_supported")
-            .is_none());
         let record = serde_json::from_value(json).unwrap();
         let status = status_for(&cfg, Some(record), 107);
         assert_eq!(status.state, "connected");
         assert_eq!(status.detail, "1/2 lamps connected");
         assert_eq!(status.devices[0].state, "unavailable");
-        assert_eq!(status.devices[0].brightness_supported, Some(false));
         assert_eq!(status.devices[1].state, "connected");
-        assert_eq!(status.devices[1].brightness_supported, None);
     }
 
     #[test]
