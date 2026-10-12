@@ -110,6 +110,8 @@ def prepare_source(output, inputs):
         target = source / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / name, target)
+        if target.suffix == ".md":
+            release.resolve_repo_url(target)
     (source / MODEL / "preview").mkdir(exist_ok=True)
     return source
 

@@ -38,7 +38,8 @@ for locale in ("en", "ru"):
             )
             assert "(printing.md)" in public
             assert "https://github.com/example/lamp/archive/HEAD.zip" in public
-            assert "1.0.0" in public and "broglow-print-pack.zip" not in public
+            assert "broglow-print-pack.zip" not in public
+            assert "printing.md#generate-from-source" in public
             assert "STL, STEP" in public
             assert (
                 "source with CAD and STL" not in public
@@ -296,3 +297,29 @@ else:
 print(
     "PASS: shared source snippets, live source edits, reference links/icons and anchors"
 )
+
+# Prompts link the planned repository; the base URL is set once in Cargo.toml.
+document = markdown.Markdown(
+    extensions=[
+        "pymdownx.superfences",
+        pages.SectionAnchors("https://github.com/example/lamp"),
+    ]
+)
+html = document.convert(
+    "```text\nRead {{ repo_url }}/blob/HEAD/README.md\n```\n\n{{ repo_url }}"
+)
+assert (
+    "{{ repo_url }}" not in html and html.count("https://github.com/example/lamp") == 2
+)
+assert pages.repository_url() == "https://github.com/broglow/broglow"
+print("PASS: {{ repo_url }} resolves in text and code blocks")
+
+# Remote links to published guides (needed inside ZIPs) stay on-site in the website.
+page = SimpleNamespace(file=SimpleNamespace(src_uri="ru/printing.md"))
+html = on_page_content(
+    '<a href="https://github.com/example/lamp/blob/HEAD/site/guide/ru/hardware.md#usb-assisted-setup">x</a>',
+    page=page,
+    config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
+)
+assert 'href="../hardware/#usb-assisted-setup"' in html, html
+print("PASS: remote guide links map to site routes")

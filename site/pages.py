@@ -64,15 +64,41 @@ class SectionAnchorPreprocessor(Preprocessor):
         ).split("\n")
 
 
+class RepoUrlPreprocessor(Preprocessor):
+    def __init__(self, md, repo_url):
+        super().__init__(md)
+        self.repo_url = repo_url
+
+    def run(self, lines):
+        return [line.replace("{{ repo_url }}", self.repo_url) for line in lines]
+
+
 class SectionAnchors(Extension):
+    def __init__(self, repo_url=None, **kwargs):
+        super().__init__(**kwargs)
+        self.repo_url = repo_url
+
     def extendMarkdown(self, md):
         # After snippets (32) and fenced code (25), before HTML blocks (20).
         md.preprocessors.register(SectionAnchorPreprocessor(md), "section_anchors", 24)
+        if self.repo_url:
+            # After snippets, before fenced code: reaches included guides and prompts.
+            md.preprocessors.register(
+                RepoUrlPreprocessor(md, self.repo_url), "repo_url", 31.5
+            )
+
+
+def repository_url():
+    """The planned public repository, set once in Cargo.toml."""
+    cargo = tomllib.loads((SITE.parent / "Cargo.toml").read_text())
+    return cargo["package"].get("repository", "").rstrip("/")
 
 
 def on_config(config, **kwargs):
     config.mdx_configs["pymdownx.snippets"]["base_path"] = [str(SITE.parent)]
-    config.markdown_extensions.append(SectionAnchors())
+    config.markdown_extensions.append(
+        SectionAnchors((config.repo_url or repository_url()).rstrip("/"))
+    )
     return config
 
 
@@ -126,6 +152,18 @@ def on_page_content(html, *, page, config, **kwargs):
             normalized = re.sub(r"-{2,}", "-", url)
             if f'id="{normalized[1:]}"' in html:
                 return f'<a href="{normalized}"{attributes}>{label}</a>'
+        # Guides shipped outside the site link the published guide remotely; stay on-site here.
+        guide = (
+            f"{(config.repo_url or repository_url()).rstrip('/')}/blob/HEAD/site/guide/"
+        )
+        if unescape(url).startswith(guide):
+            page_path, _, fragment = unescape(url)[len(guide) :].partition("#")
+            if page_path.endswith(".md"):
+                target = page_path.removesuffix(".md").removeprefix("en/")
+                target = posixpath.relpath(target, current) + "/"
+                if fragment:
+                    target += "#" + quote(fragment)
+                return f'<a href="{escape(target, quote=True)}"{attributes}>{label}</a>'
         path = source_path(url, allow_generated=True)
         if path is None:
             return match[0]
@@ -199,30 +237,30 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
         mac += (
             "\n\nВыберите полный пакет для своего Mac: `broglow-vVERSION-aarch64-apple-darwin.tar.gz` "
             "для Apple Silicon или `broglow-vVERSION-x86_64-apple-darwin.tar.gz` для Intel, "
-            "и одноимённый файл `.sha256`. Архивы Windows (`broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz`) не содержат прошивку и руководство. "
-            f"Если полного пакета ещё нет, [скачайте исходники]({source}) и соберите по инструкции ниже."
+            "и файл `.sha256` с тем же именем. Архивы Windows (`broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz`) не содержат прошивку и руководство. "
+            f"Если полного пакета ещё нет, [скачайте исходники]({source}) и соберите их по [инструкции](hardware.md#build-from-source)."
             if ru
             else "\n\nChoose the complete bundle for your Mac: `broglow-vVERSION-aarch64-apple-darwin.tar.gz` "
             "for Apple Silicon or `broglow-vVERSION-x86_64-apple-darwin.tar.gz` for Intel, "
             "plus its matching `.sha256` file. Windows archives (`broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz`) omit the firmware and manual. "
-            f"If no complete package is available, [download the source]({source}) and build using the guide below."
+            f"If no complete package is available yet, [download the source]({source}) and [build from source](hardware.md#build-from-source)."
         )
         guide = "printing.md"
         models = (
             f"[Комплект для печати корпуса · релизы]({releases})\n\n"
-            "Рекомендуем магнитный корпус: `broglow-enclosure-magnetic-vVERSION.zip` и одноимённый `.sha256`. "
-            "Клеевая альтернатива: `broglow-enclosure-vVERSION.zip` и её `.sha256`; [инструкция](printing-glued.md). "
+            f"Рекомендуем [магнитный корпус]({guide}): `broglow-enclosure-magnetic-vVERSION.zip` и файл `.sha256` с тем же именем. "
+            "Клеевая альтернатива: `broglow-enclosure-vVERSION.zip` и файл `.sha256` с тем же именем; [инструкция](printing-glued.md). "
             "Это отдельный комплект с исходниками CAD, STL, STEP и руководством; он не входит в пакет приложения. "
-            f"[Инструкция по печати]({guide}). Если релиз ещё не опубликован, "
-            f"[скачайте исходники]({source}) и сгенерируйте комплект по инструкции. "
+            "Если релиз ещё не опубликован, "
+            f"[скачайте исходники]({source}) и [сгенерируйте комплект]({guide}#generate-from-source). "
             "Автоматический ZIP исходников GitHub не содержит готовых STL, STEP или архивов печати."
             if ru
             else f"[Enclosure print package · releases]({releases})\n\n"
-            "Recommended: magnetic enclosure, `broglow-enclosure-magnetic-vVERSION.zip` and its matching `.sha256`. "
-            "Glued alternative: `broglow-enclosure-vVERSION.zip` and its `.sha256`; [guide](printing-glued.md). "
+            f"Recommended: [magnetic enclosure]({guide}), `broglow-enclosure-magnetic-vVERSION.zip` and its matching `.sha256`. "
+            "Glued alternative: `broglow-enclosure-vVERSION.zip` and its matching `.sha256`; [guide](printing-glued.md). "
             "This separate package contains CAD source, STL, STEP and a print guide; it is not part of the app bundle. "
-            f"[Print guide]({guide}). Before the release is published, "
-            f"[download the source]({source}) and generate the package using the guide. "
+            "Before the release is published, "
+            f"[download the source]({source}) and [generate the package]({guide}#generate-from-source). "
             "GitHub's automatic source ZIP contains no ready-to-print STL, STEP or print archives."
         )
 
@@ -245,10 +283,10 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
             )
         else:
             mac = (
-                "Готового пакета в этом checkout нет. [Соберите из исходников](hardware.md#build-from-source) "
+                "В этой копии исходников нет готового пакета. [Соберите из исходников](hardware.md#build-from-source) "
                 "или попросите владельца проекта предоставить полный пакет Mac + C3 и контрольную сумму."
                 if ru
-                else "This checkout has no prebuilt package. [Build from source](hardware.md#build-from-source) "
+                else "This source copy has no prebuilt package. [Build from source](hardware.md#build-from-source) "
                 "or obtain a complete Mac + C3 bundle and checksum from the project owner."
             )
         print_package = enclosure_package("magnetic")
@@ -273,13 +311,13 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
             )
         else:
             models = (
-                "В этом checkout нет архива корпуса. Откройте `models/magnetic/GUIDE_ROUND3X2.md` "
-                "в полных исходниках проекта и [сгенерируйте комплект](releasing.md) "
-                "или получите комплект корпуса из релиза проекта."
+                "В этой копии исходников нет архива корпуса. [Сгенерируйте комплект](printing.md#generate-from-source) "
+                "по `models/magnetic/GUIDE_ROUND3X2.md` в полных исходниках проекта "
+                "или скачайте комплект корпуса из релиза проекта."
                 if ru
-                else "This checkout has no enclosure archive. Open `models/magnetic/GUIDE_ROUND3X2.en.md` "
-                "in the full project source and [generate the package](releasing.md) "
-                "or obtain the enclosure package from the project's release."
+                else "This source copy has no enclosure archive. [Generate the package](printing.md#generate-from-source) "
+                "with `models/magnetic/GUIDE_ROUND3X2.en.md` in the full project source "
+                "or download the enclosure package from the project's release."
             )
         models += (
             "\n\n[Магнитный корпус — рекомендуемый](printing.md). [Клеевая альтернатива](printing-glued.md)."
@@ -306,6 +344,10 @@ def main():
         str(SITE / "mkdocs.yaml"),
         strict=True,
         repo_url=f"https://github.com/{args.repository}",
+        # Default GitHub Pages address; fixes sitemap/canonical URLs.
+        site_url="https://{}.github.io/{}/docs/".format(
+            *args.repository.lower().split("/")
+        ),
         site_dir=str(output / "docs"),
     )
     build(config)

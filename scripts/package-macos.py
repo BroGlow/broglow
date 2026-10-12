@@ -60,10 +60,20 @@ def copy_flash_tool(package):
     )
 
 
-def copy_manual(package):
-    repository = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"][
+def repository_url():
+    """The planned public repository, set once in Cargo.toml."""
+    return tomllib.loads((ROOT / "Cargo.toml").read_text())["package"][
         "repository"
     ].rstrip("/")
+
+
+def resolve_repo_url(path):
+    """Replace the docs' {{ repo_url }} token, as the website build does."""
+    path.write_text(path.read_text().replace("{{ repo_url }}", repository_url()))
+
+
+def copy_manual(package):
+    repository = repository_url()
     for filename in (
         "LICENSE",
         "site/guide/en/hardware.md",
@@ -74,6 +84,8 @@ def copy_manual(package):
         destination = package / filename
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / filename, destination)
+        if destination.suffix == ".md":
+            resolve_repo_url(destination)
     shutil.copytree(ROOT / "assets/icons", package / "assets/icons")
     for suffix, locale, introduction, install, source, licenses, agent in (
         (
