@@ -5,8 +5,9 @@
 # Участие в разработке BroGlow
 
 Спасибо за помощь в развитии BroGlow. В сообщениях об ошибках указывайте ОС,
-версию BroGlow, шаги воспроизведения и ожидаемый результат. В описании изменений
-расскажите, что изменилось и как вы это проверили.
+версию BroGlow, шаги воспроизведения, ожидаемый и фактический результат, а также
+относящийся к делу вывод (например, `broglow ble status` или логи). В описании
+изменений расскажите, что изменилось и как вы это проверили.
 
 Эти инструкции относятся к репозиторию исходников. Для установки и использования
 приложения начните с [README](README.ru.md) и [руководства по настройке](site/guide/ru/hardware.md).
@@ -16,7 +17,7 @@
 ## Подготовка окружения
 
 Выполняйте команды из корня репозитория. Используйте стабильный Rust с rustfmt
-и Clippy; на Windows нужен MSVC. На Debian/Ubuntu установите системные библиотеки
+и Clippy; на Windows нужен набор инструментов MSVC. На Debian/Ubuntu установите системные библиотеки
 для зависимостей трея, webview и последовательного порта:
 
 ```bash
@@ -25,16 +26,17 @@ sudo apt-get install -y --no-install-recommends \
   libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libudev-dev
 ```
 
-Python 3.14 соответствует версии в CI. Установите
-[uv](https://docs.astral.sh/uv/getting-started/installation/), синхронизируйте
-закреплённые инструменты разработки и включите хук коммита:
+Установите [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.12.17
+или новее (в CI используется 0.12.17). Проекту нужен Python 3.14 или новее; если
+его нет, uv скачает его сам. Синхронизируйте закреплённые инструменты разработки
+и включите хук коммита:
 
 ```bash
 uv sync --frozen --group dev
 uv run --frozen --group dev prek install
 ```
 
-Группа разработки в `pyproject.toml` фиксирует версии Black, clang-format и prek,
+Группа зависимостей `dev` в `pyproject.toml` фиксирует версии Black, clang-format и prek,
 а `uv.lock` — их транзитивные зависимости. Хуки используют нативную конфигурацию
 [`prek.toml`](prek.toml).
 
@@ -45,19 +47,25 @@ uv run --frozen --group dev prek install
 ```bash
 cargo fmt
 uv run --frozen --group dev black .
+uv run --frozen --group dev clang-format -i firmware/esp32-c3-supermini/src/*.cpp firmware/esp32-c3-supermini/tests/*.cpp
 uv run --frozen --group dev prek run --all-files
 ```
 
-Black применяет стандартный стиль ко всем Python-файлам. Хук prek форматирует
-Python-файлы, добавленные в индекс; перед повторным коммитом добавьте исправления
-форматирования в индекс. CI запускает
+Black применяет стандартный стиль ко всем Python-файлам. Хук prek запускает Black
+для Python-файлов в индексе. Если Black изменил файлы, коммит прерывается:
+добавьте исправления в индекс (`git add`) и повторите коммит. CI запускает
 `uv run --frozen --group dev black --check --diff .` и завершается с ошибкой,
 если требуется форматирование. Сохраняйте одинаковую версию Black в
 `pyproject.toml` и `prek.toml`.
 
-Прошивка использует clang-format 23.1.1 с конфигурацией стиля Google из репозитория.
-Последовательности YAML записывайте в блочном стиле: один элемент на строку,
-включая `needs` и матрицы процессов CI.
+Прошивка форматируется clang-format 23.1.1 по конфигурации на основе стиля Google:
+[`firmware/esp32-c3-supermini/.clang-format`](firmware/esp32-c3-supermini/.clang-format).
+Хук prek не запускает clang-format, поэтому форматируйте исходники прошивки сами;
+CI падает на неотформатированной прошивке.
+
+Соглашение (автоматически не проверяется): в YAML записывайте последовательности
+в блочном стиле, по одному элементу на строку, в том числе `needs` и `matrix`
+в workflow CI.
 
 <a name="build-and-test"></a>
 
@@ -69,27 +77,37 @@ cargo fmt --check
 cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
 uv run --frozen --group dev black --check --diff .
+uv run --frozen --group dev clang-format --dry-run --Werror firmware/esp32-c3-supermini/src/*.cpp firmware/esp32-c3-supermini/tests/*.cpp
+uv run --frozen python firmware/esp32-c3-supermini/tests/check.py
 uv run --frozen python -m unittest discover -s tests -p 'test_flash.py'
 uv run --frozen flash --build-only
 uv run --frozen python scripts/check-generated-artifacts.py
 ```
 
-Тесты Rust включают сквозные проверки собранного исполняемого файла. При изменении
-интеграций агентов после сборки также запускайте `node --test tests/js/*.test.mjs`;
-CI выполняет этот набор на Linux. Подробности — в описании
+Хостовый тест прошивки (`tests/check.py`) компилирует логику прошивки системным
+`c++`, поэтому нужен компилятор с поддержкой C++17. Тесты Rust включают сквозные
+проверки собранного исполняемого файла. При изменении интеграций агентов, popover
+или статуса ламп также запускайте `node --test tests/js/*.test.mjs` после
+`cargo build --locked`; нужен Node.js 24, как в CI, где этот набор выполняется
+на Linux. Подробности — в описании
 [покрытия тестами и ограничений платформ](CLAUDE.ru.md#ci).
-[Процесс CI](.github/workflows/ci.yaml) содержит полный набор проверок прошивки,
-упаковки и платформ; запускайте проверки, относящиеся к вашим изменениям.
+
+[Workflow CI](.github/workflows/ci.yaml) содержит полный набор проверок прошивки,
+упаковки и платформ. При изменениях упаковки, иконок или сборки прошивки также
+запускайте соответствующие шаги его задания `firmware`: `tests/package_macos.py`,
+`tests/package_enclosure.py`, `assets/icons/render.py --check` и сборку
+PlatformIO `led-test`.
 
 Для локального обновления приложения и проверки работающей службы следуйте
 [процедуре установки из исходников](site/guide/ru/hardware.md#install-or-update-the-mac-service).
-Успешная сборка сама по себе не подтверждает разрешения Bluetooth или работу LED.
+Успешная сборка сама по себе не подтверждает разрешения Bluetooth или работу
+светодиодов.
 
 <a name="documentation-and-generated-files"></a>
 
 ## Документация и сгенерированные файлы
 
-README описывает продукт, установку и повседневное использование. Общие инструкции
+Держите README сосредоточенным на продукте, установке и повседневном использовании. Общие инструкции
 для разработки размещайте здесь; [CLAUDE.ru.md](CLAUDE.ru.md) содержит карту кода
 и заметки о реализации.
 
@@ -97,11 +115,14 @@ README описывает продукт, установку и повседне
 и технические значения. Проверки переводов, локальная сборка, сборка Pages
 и проверка ссылок описаны в [руководстве по документации сайта](site/README.ru.md#keep-the-instructions-in-sync).
 
-Сгенерированные STL, STEP/STP и ZIP должны игнорироваться и оставаться вне Git
-независимо от регистра имени. Создавайте файлы корпуса в `dist/enclosure/`
-и проверяйте пути через `git check-ignore`. Коммитьте редактируемые исходники
-и проверенные свидетельства. Используйте наши изображения и соблюдайте
-[правила работы с ними](site/guide/ru/media.md).
+Сгенерированные STL, STEP/STP, 3MF и ZIP должны игнорироваться и оставаться вне
+Git независимо от регистра имени. Создавайте файлы корпуса в `dist/enclosure/`:
+этот каталог игнорируется целиком. Если инструмент пишет в другое место, например
+в `models/`, перед коммитом убедитесь, что путь игнорируется:
+`git check-ignore -v <путь>`. Коммитьте редактируемые исходники и проверенные
+результаты нарезки (см. [инструкцию для сопровождающих](site/guide/ru/releasing.md)).
+Используйте только собственные изображения проекта и соблюдайте
+[правила работы с медиа](site/guide/ru/media.md).
 
 <a name="releases-and-website-publishing"></a>
 

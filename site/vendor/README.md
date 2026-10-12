@@ -10,7 +10,7 @@ The npm archive SHA-512 integrity was verified before copying:
 
 `model-viewer-module-4.3.1.min.js` is the unmodified upstream module build.
 `model-viewer-LICENSE` is the package's Apache-2.0 license. Source maps are not
-shipped. The landing automatically loads 3D with Working selected.
+shipped. The landing automatically loads 3D with **Working** selected.
 
 `model-viewer-with-effects.js` is our small entrypoint: it loads model-viewer,
 then the effects module, and forwards retry query parameters to both imports.

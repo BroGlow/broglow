@@ -75,10 +75,10 @@ after loading errors. Its separated parts expose the LED retainer and mounting
 points. Signal effects and AR remain in the hero. Without JavaScript, the page
 directs visitors to enable it.
 
-The 3D preview starts automatically with Working selected. Self-hosted
+The 3D preview starts automatically with **Working** selected. Self-hosted
 `@google/model-viewer` 4.3.1 and the effects module share Three.js via a local import
-map (see `vendor/README.md`). Working, Idle and Needs you light only the green,
-yellow or red lens; Off dims all three and removes the glow. A restrained bloom
+map (see [vendor/README.md](vendor/README.md)). **Working**, **Paused** and **Needs help** light only the green,
+yellow or red lens; **Off** dims all three and removes the glow. A restrained bloom
 keeps the lens color visible. One Three.js point light follows the active LED and
 casts its color onto nearby surfaces with distance falloff; Off disables it.
 The light attaches through the effects composer's public mesh selection, so it
@@ -109,7 +109,7 @@ other iOS browsers are unverified. WebXR requires HTTPS or loopback, and a phone
 cannot reach another device's localhost. Physical phone placement and size still
 need acceptance checks. See the [component's AR reference](https://modelviewer.dev/examples/augmentedreality/).
 
-The model depicts our 1.0.0 enclosure with illustrative
+The model depicts the glued release enclosure with illustrative
 electronics. Use the separate enclosure package for printing. Source hashes and
 bounds live in `assets/broglow-model.json`; regenerate both outputs rather than
 editing them. From a full checkout, run the export with the pinned CAD requirements:
@@ -127,7 +127,7 @@ Export needs the CAD skill at `~/.agents/skills/cad` or `--cad-skill /path/to/ca
 `--check` needs only stdlib and verifies source hashes when the CAD tree is present;
 it reports skipped comparisons in reduced exports. Ordinary website builds use
 the committed GLB without CAD dependencies. Keep optional codecs self-hosted if
-adding Draco/KTX compression. Vendor sources and licenses are in `vendor/README.md`.
+adding Draco/KTX compression. Vendor sources and licenses are in [vendor/README.md](vendor/README.md).
 
 ## Languages and behavior
 
@@ -211,7 +211,7 @@ labels accurate and theme/library license notices intact.
 
 The [Website workflow](../.github/workflows/pages.yaml) publishes the landing at
 `https://OWNER.github.io/REPOSITORY/` and guides at `docs/` and `docs/ru/`.
-Site guide changes on `master` deploy automatically; adjust `push.branches` for another
+Pushes to `master` that touch the site, docs, models or other paths listed in the workflow's `push.paths` deploy automatically; adjust `push.branches` for another
 default branch. PRs check without deploying. Configure custom domains in Pages
 settings; relative paths support both domain roots and repository prefixes.
 
