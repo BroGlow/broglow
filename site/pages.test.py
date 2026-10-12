@@ -323,3 +323,9 @@ html = on_page_content(
 )
 assert 'href="../hardware/#usb-assisted-setup"' in html, html
 print("PASS: remote guide links map to site routes")
+
+# The root 404 page links home and both guides with absolute URLs.
+page = pages.not_found_page("https://example.github.io/lamp/")
+for link in ("lamp/", "lamp/docs/", "lamp/docs/ru/"):
+    assert f'href="https://example.github.io/{link}"' in page, link
+print("PASS: root 404 page links home and both guides")

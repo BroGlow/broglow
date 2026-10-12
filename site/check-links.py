@@ -47,6 +47,8 @@ assert (site / "docs/index.html").is_file(), (
     "Build the guide first: uv run --no-project --python 3.14 --with-requirements "
     "site/requirements-docs.txt mkdocs build --strict -f site/mkdocs.yaml"
 )
+if args.site_dir:
+    assert "/docs/" in (site / "404.html").read_text(), "Missing root 404.html"
 pages = {}
 for path in [site / "index.html", *sorted((site / "docs").rglob("*.html"))]:
     page = Links()

@@ -328,6 +328,32 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
     )
 
 
+def not_found_page(home):
+    """GitHub Pages serves a root 404.html for every missing path, so links are absolute."""
+    home = escape(home, quote=True)
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Page not found · BroGlow</title>
+<style>
+body {{ margin: 0; min-height: 100vh; display: grid; place-items: center; background: #111; color: #eee; font: 18px/1.5 system-ui, sans-serif; text-align: center; }}
+a {{ color: #ff8a3d; }}
+</style>
+</head>
+<body>
+<main>
+<h1>Page not found</h1>
+<p><a href="{home}">BroGlow home</a> · <a href="{home}docs/">Guide</a></p>
+<p lang="ru">Страница не найдена. <a href="{home}">Главная</a> · <a href="{home}docs/ru/">Руководство</a></p>
+</main>
+</body>
+</html>
+"""
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -339,14 +365,13 @@ def main():
     output = SITE / "_pages"
     if output.exists():
         shutil.rmtree(output)
+    # Default GitHub Pages address; fixes sitemap/canonical URLs and the 404 page.
+    home = "https://{}.github.io/{}/".format(*args.repository.lower().split("/"))
     config = load_config(
         str(SITE / "mkdocs.yaml"),
         strict=True,
         repo_url=f"https://github.com/{args.repository}",
-        # Default GitHub Pages address; fixes sitemap/canonical URLs.
-        site_url="https://{}.github.io/{}/docs/".format(
-            *args.repository.lower().split("/")
-        ),
+        site_url=home + "docs/",
         site_dir=str(output / "docs"),
     )
     build(config)
@@ -354,6 +379,7 @@ def main():
         shutil.copy2(SITE / name, output / name)
     shutil.copytree(SITE / "assets", output / "assets")
     shutil.copytree(SITE / "vendor", output / "vendor")
+    (output / "404.html").write_text(not_found_page(home))
     (output / ".nojekyll").touch()
     print(f"Pages artifact: {output}")
 
