@@ -80,7 +80,7 @@ cargo install --locked --path .
 
 On Linux, install the [system development libraries](CONTRIBUTING.md#development-setup)
 before compiling. The Linux tray uses GTK 3 bindings with known advisories; see
-[distribution](site/guide/en/releasing.md#distribution). On Windows, use the Rust MSVC
+[development setup](CONTRIBUTING.md#development-setup). On Windows, use the Rust MSVC
 toolchain, run `cargo install --locked --path .`, then `broglow install`.
 No board is flashed by app installation.
 

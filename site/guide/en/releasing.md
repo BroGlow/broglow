@@ -36,13 +36,8 @@ generates them from `Cargo.lock`, the crate sources and the firmware linker map;
 packaging runs it. Builds are not signed with a Developer ID certificate or notarized by Apple. Linux users build from
 source; there is no Homebrew or crates.io publishing workflow.
 
-The Linux tray uses GTK 3 through `tao` and `tray-icon`. The GTK 3 Rust bindings
-(0.18) are unmaintained and bring `glib` 0.18, which is affected by
-[RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html)
-(unsound `VariantStrIter`, which BroGlow does not call; fixed only in `glib` 0.20,
-which GTK 3 bindings cannot use), and the unmaintained build-time crate
-`proc-macro-error` ([RUSTSEC-2024-0370](https://rustsec.org/advisories/RUSTSEC-2024-0370.html)).
-Mac and Windows builds do not include these crates. No Linux binaries are published.
+No Linux binaries are published; for the Linux tray's GTK 3 advisories see
+[CONTRIBUTING](../../../CONTRIBUTING.md#development-setup).
 
 ## Python version
 

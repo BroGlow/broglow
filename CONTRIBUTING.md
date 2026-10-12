@@ -22,6 +22,14 @@ sudo apt-get install -y --no-install-recommends \
   libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libudev-dev
 ```
 
+The Linux tray uses GTK 3 through `tao` and `tray-icon`. The GTK 3 Rust bindings
+(0.18) are unmaintained and bring `glib` 0.18, which is affected by
+[RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html)
+(unsound `VariantStrIter`, which BroGlow does not call; fixed only in `glib` 0.20,
+which GTK 3 bindings cannot use), and the unmaintained build-time crate
+`proc-macro-error` ([RUSTSEC-2024-0370](https://rustsec.org/advisories/RUSTSEC-2024-0370.html)).
+Mac and Windows builds do not include these crates.
+
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.12.17 or
 newer (CI uses 0.12.17). The project requires Python 3.14 or newer; uv downloads
 it if it is missing. Sync the locked development tools and enable the commit hook:

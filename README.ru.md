@@ -89,7 +89,7 @@ cargo install --locked --path .
 
 На Linux перед компиляцией установите [системные библиотеки разработки](CONTRIBUTING.ru.md#development-setup).
 Трей на Linux использует привязки GTK 3 с известными предупреждениями безопасности; см.
-[распространение](site/guide/ru/releasing.md#distribution).
+[настройку окружения](CONTRIBUTING.ru.md#development-setup).
 На Windows используйте набор инструментов Rust MSVC, выполните `cargo install --locked --path .`,
 затем `broglow install`.
 Установка приложения не прошивает плату.

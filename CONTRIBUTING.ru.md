@@ -26,6 +26,14 @@ sudo apt-get install -y --no-install-recommends \
   libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libudev-dev
 ```
 
+Трей на Linux использует GTK 3 через `tao` и `tray-icon`. Rust-привязки GTK 3
+(0.18) больше не поддерживаются и подтягивают `glib` 0.18, затронутый
+[RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html)
+(некорректный `VariantStrIter`, который BroGlow не вызывает; исправлено только в `glib` 0.20,
+который привязки GTK 3 использовать не могут), и неподдерживаемый крейт сборки
+`proc-macro-error` ([RUSTSEC-2024-0370](https://rustsec.org/advisories/RUSTSEC-2024-0370.html)).
+Сборки для Mac и Windows этих крейтов не содержат.
+
 Установите [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.12.17
 или новее (в CI используется 0.12.17). Проекту нужен Python 3.14 или новее; если
 его нет, uv скачает его сам. Синхронизируйте закреплённые инструменты разработки
