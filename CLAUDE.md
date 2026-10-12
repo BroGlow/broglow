@@ -344,22 +344,24 @@ suite drives the *compiled binary* end-to-end: Claude hook events on stdin →
 `state.json` assertions, the auto-namer against a fake `claude` on PATH
 (hook_lifecycle.rs, unix-only — `$HOME` can't be redirected on Windows),
 normalized harness events → `state.json` (event_lifecycle.rs, unix-only, same
-reason), Copilot per-event payloads through the shim (copilot_lifecycle.rs,
-unix-only, same reason), install/uninstall round-trip incl. the opencode
-plugin and the Copilot hooks file (install.rs,
+reason), Codex Claude-dialect payloads through the shim (codex_lifecycle.rs,
+unix-only, same reason), Copilot per-event payloads through the shim
+(copilot_lifecycle.rs, unix-only, same reason), install/uninstall round-trip
+incl. the opencode plugin, Codex hooks.json and the Copilot hooks file (install.rs,
 Linux-only — on macOS it would `launchctl bootout` the dev machine's real
 daemon), and CLI smoke tests incl. a `node --check` parse of the embedded
 opencode plugin when node is present (cli.rs, all platforms). Prefer extending
 these over unit tests for new behavior. A `Stop` event with a `transcript_path` spawns the real detached
 namer — tests must omit it or pre-seed a name.
 
-`tests/js/` holds the opencode plugin **integration** tests (`node --test`,
-Linux CI): they drive the real `assets/opencode-plugin.js` with opencode's
+`tests/js/` holds two `node --test` suites (Linux CI). opencode-integration.test.mjs
+holds the opencode plugin **integration** tests: they drive the real `assets/opencode-plugin.js` with opencode's
 actual event shapes and assert the `state.json` the built binary writes — the
 one boundary the Rust suite (which feeds `broglow event` directly) can't cover.
 `exit-child.mjs` is a helper process, not a test, so the plugin's
 `process.on("exit")` shutdown path can be exercised for real.
+lamp-status.test.mjs loads `assets/popover.html` and covers its worker-driven
+lamp status and lamp controls.
 
 `.github/workflows/release.yaml` builds and packages release binaries per platform.
 CI also builds the pinned C3 PlatformIO environment and runs its host mock checks.
-The JavaScript suite includes the popover's worker-driven lamp status regression.
