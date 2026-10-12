@@ -33,7 +33,6 @@ SELF_CONTAINED_REFERENCES = {
     "firmware.md",
     "releasing.md",
     "media.md",
-    "enclosure.md",
 }
 GUIDE_ROUTES = {
     ("" if locale == "en" else "ru/") + path.stem
