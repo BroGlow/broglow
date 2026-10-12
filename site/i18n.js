@@ -1,6 +1,9 @@
 (() => {
   const picker = document.querySelector("#language");
   const translations = [];
+  // Docs pages read ?lang, so the chosen language survives when storage is unavailable.
+  const docLinks = [...document.querySelectorAll('a[href^="docs/"]')]
+    .map((link) => [link, link.getAttribute("href")]);
 
   // Russian is the HTML fallback; English lives next to each translated value.
   for (const attribute of [null, "content", "alt", "aria-label"]) {
@@ -19,6 +22,10 @@
     for (const entry of translations) {
       if (entry.attribute) entry.element.setAttribute(entry.attribute, entry[language]);
       else entry.element.textContent = entry[language];
+    }
+    for (const [link, href] of docLinks) {
+      const [path, hash] = href.split("#");
+      link.setAttribute("href", `${path}?lang=${language}${hash === undefined ? "" : `#${hash}`}`);
     }
     document.documentElement.lang = language;
     picker.value = language;

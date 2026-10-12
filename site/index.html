@@ -5,8 +5,8 @@
   <meta name="author" content="Suren Khorenyan">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#181a19">
-  <meta name="description" content="BroGlow DIY — настольный светофор для coding-агентов. Три цвета, SuperMini, Bluetooth и корпус для 3D-печати." data-en-content="BroGlow DIY — a desk traffic light for coding agents. Three colors, SuperMini, Bluetooth, and a 3D-printable enclosure.">
-  <title data-en="BroGlow DIY — your agent’s status at a glance">BroGlow DIY — статус агента одним взглядом</title>
+  <meta name="description" content="BroGlow DIY — настольный светофор для ИИ-агентов. Три цвета, плата SuperMini, Bluetooth или USB и корпус для 3D-печати." data-en-content="BroGlow DIY — a desk traffic light for AI coding agents. Three colors, a SuperMini board, Bluetooth or USB, and a 3D-printable enclosure.">
+  <title data-en="BroGlow DIY — your agent’s status at a glance">BroGlow DIY — статус агента с одного взгляда</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23181a19'/%3E%3Ccircle cx='16' cy='8' r='3' fill='%23f07c6b'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23e9c665'/%3E%3Ccircle cx='16' cy='24' r='3' fill='%239ccb8e'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
   <script type="importmap">
@@ -21,7 +21,7 @@
       <nav aria-label="Основная навигация" data-en-aria-label="Main navigation">
         <a href="#signals" data-en="Signals">Сигналы</a>
         <a href="#build" data-en="Build yours">Собрать свою</a>
-        <a href="docs/"><span data-en="Docs">Инструкция</span></a>
+        <a href="docs/"><span data-en="Guide">Инструкция</span></a>
       </nav>
       <select id="language" class="language-picker" aria-label="Язык" data-en-aria-label="Language" hidden>
         <option value="ru" lang="ru" aria-label="Русский">RU</option>
@@ -33,14 +33,14 @@
   <main id="main">
     <section class="hero wrap" aria-labelledby="hero-title">
       <div class="hero-copy">
-        <p class="eyebrow" data-en="Your agent. At a glance.">Ваш агент. Один взгляд.</p>
+        <p class="eyebrow" data-en="Your agent. At a glance.">Ваш агент — с одного взгляда.</p>
         <h1 id="hero-title"><span data-en="Fewer tabs.">Меньше вкладок.</span><br><span class="accent" data-en="More clarity.">Больше ясности.</span></h1>
-        <p class="intro" data-en="A small traffic light on your desk shows what your coding agent is doing: working, waiting, or asking for your attention.">Маленький светофор на столе показывает, чем занят ваш coding-агент. Работает, ждёт или зовёт вас.</p>
+        <p class="intro" data-en="A small traffic light on your desk shows what your coding agent is doing: working, waiting, or asking for your attention.">Маленький светофор на столе показывает, чем занят ваш ИИ-агент: работает, ждёт или зовёт вас.</p>
         <a class="button" href="#build"><span data-en="Build your BroGlow">Собрать свой BroGlow</span> <span aria-hidden="true">↗</span></a>
       </div>
       <figure class="hero-visual" id="view-in-space">
         <div class="model-stage" id="signals">
-          <img id="model-poster" src="assets/broglow.png?v=working-soft-light" width="1400" height="1000" alt="Рендер состояния «Работает»: оранжевый персонаж, тёмная стойка и один горящий зелёный светодиод" data-en-alt="Working-state render: an orange character, dark tower, and one glowing green LED" fetchpriority="high">
+          <img id="model-poster" src="assets/broglow.png?v=working-soft-light" width="1400" height="1000" alt="Рендер состояния Working: оранжевый маскот на тёмной башне, горит зелёный светодиод" data-en-alt="Working-state render: an orange mascot on a dark tower with the green LED lit" fetchpriority="high">
           <model-viewer id="lamp-model" data-model-src="assets/broglow.glb" poster="assets/broglow.png?v=working-soft-light" alt="3D-модель нашей лампы. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Our lamp's 3D model. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="25deg 80deg 95%" shadow-intensity="0.8" exposure="0.85" interaction-prompt="none" loading="eager" ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" hidden>
             <effect-composer render-mode="quality" msaa="2">
               <bloom-effect strength="0.2" radius="0.6" threshold="0.9"></bloom-effect>
@@ -51,19 +51,19 @@
         </div>
         <figcaption>
           <fieldset class="signal-demo" aria-controls="lamp-model">
-            <legend data-en="Tap a signal to light the model">Выберите сигнал — он загорится на модели</legend>
+            <legend data-en="Pick a signal to light it on the model">Выберите сигнал — он загорится на модели</legend>
             <div class="signal-options">
               <label class="signal-option green">
                 <input type="radio" name="signal" value="working" checked>
-                <span class="signal-dot" aria-hidden="true"></span><span data-en="Working">Работает</span>
+                <span class="signal-dot" aria-hidden="true"></span><span data-en="Working">Working</span>
               </label>
               <label class="signal-option yellow">
                 <input type="radio" name="signal" value="idle">
-                <span class="signal-dot" aria-hidden="true"></span><span data-en="Idle">Ждёт</span>
+                <span class="signal-dot" aria-hidden="true"></span><span data-en="Paused">Paused</span>
               </label>
               <label class="signal-option red">
                 <input type="radio" name="signal" value="needs-you">
-                <span class="signal-dot" aria-hidden="true"></span><span data-en="Needs you">Нужны вы</span>
+                <span class="signal-dot" aria-hidden="true"></span><span data-en="Needs help">Needs help</span>
               </label>
               <label class="signal-option off">
                 <input type="radio" name="signal" value="off">
@@ -72,12 +72,12 @@
             </div>
             <div class="signal-message" aria-live="polite">
               <p class="message-working"><strong data-en="Work in progress.">Работа идёт.</strong> <span data-en="Your agent is handling a task. You can get on with yours.">Агент выполняет задачу. Можно заняться своей.</span></p>
-              <p class="message-idle"><strong data-en="Ready for the next task.">Пауза в работе.</strong> <span data-en="An open session is waiting for its next task.">Открытая сессия ждёт следующей задачи.</span></p>
+              <p class="message-idle"><strong data-en="Ready for the next task.">Готов к следующей задаче.</strong> <span data-en="An open session is paused, waiting for its next task.">Открытая сессия на паузе и ждёт следующей задачи.</span></p>
               <p class="message-needs-you"><strong data-en="Time to step in.">Пора подключиться.</strong> <span data-en="A session has reported that it needs attention, such as approval to continue.">Сессия сообщила, что ей нужно внимание, например разрешение на действие.</span></p>
-              <p class="message-off"><strong data-en="Lights off.">Свет выключен.</strong> <span data-en="No steady session light. Status clears after 10 seconds without updates; brief setup or waiting flashes can still appear.">Постоянный свет статуса выключен. Без обновлений статус сбрасывается через 10 секунд; короткие сигналы настройки или ожидания возможны.</span></p>
+              <p class="message-off"><strong data-en="Lights off.">Свет выключен.</strong> <span data-en="No session light. The status clears after 10 seconds without updates. Pairing and setup patterns, and a faint flash every 30 seconds while waiting for the Mac, can still appear.">Сигнала сессий нет. Если 10 секунд нет обновлений, статус гаснет. Сигналы сопряжения и настройки, а также слабая вспышка раз в 30 секунд, пока лампа ждёт Mac, всё равно возможны.</span></p>
             </div>
           </fieldset>
-          <p class="priority-note" data-en="Red always takes priority. When some sessions are working and others are idle, you choose which takes priority in BroGlow settings.">Красный всегда важнее. Для одновременно работающих и ожидающих сессий приоритет выбирается в настройках BroGlow.</p>
+          <p class="priority-note" data-en="Red always takes priority. When some sessions are working and others are paused, you choose which color wins in BroGlow settings; by default, any paused session turns the lamp yellow.">Красный всегда важнее. Когда одни сессии работают, а другие на паузе, что показывать — решаете вы в настройках BroGlow; по умолчанию любая сессия на паузе включает жёлтый.</p>
           <div class="model-tools">
             <button id="model-load" type="button" class="model-button" data-viewer-src="vendor/model-viewer-with-effects.js" data-en="Retry 3D" hidden>Загрузить 3D снова</button>
             <button id="model-space" type="button" class="model-button" aria-haspopup="dialog" aria-controls="ar-dialog" data-en="View in your space" hidden>Примерить у себя</button>
@@ -85,28 +85,28 @@
           </div>
           <p id="model-loading" role="status" data-en="Loading 3D…" hidden>Загружаем 3D…</p>
           <p id="model-error" role="status" data-en="3D could not load. This still image does not show the selected signal; try again." hidden>Не удалось загрузить 3D. На статичном изображении выбранный сигнал не отображается; попробуйте снова.</p>
-          <p id="model-help" data-en="Drag or use arrow keys to rotate. Pinch, scroll, or use Page Up / Page Down to zoom." hidden>Вращайте мышью или стрелками. Масштаб — жестом, прокруткой или Page Up / Page Down.</p>
+          <p id="model-help" data-en="Drag or use arrow keys to rotate. Pinch, scroll, or use Page Up / Page Down to zoom." hidden>Перетаскивайте модель или используйте стрелки, чтобы вращать. Масштаб — жестом, прокруткой или Page Up / Page Down.</p>
           <p class="model-ar-note" data-en="For real-size AR, open in Safari on iPhone/iPad or a supported Android browser." >Для AR в натуральную величину откройте в Safari на iPhone/iPad или поддерживаемом браузере Android.</p>
         </figcaption>
       </figure>
     </section>
 
-    <div class="agents wrap" aria-label="Поддерживаемые coding-агенты" data-en-aria-label="Supported coding agents">
-      <span class="agents-label" data-en="One signal for your local coding sessions">Один сигнал для локальных сессий coding-агентов</span>
-      <ul><li>Claude Code</li><li>Codex</li><li>opencode</li><li>Copilot CLI</li></ul>
+    <div class="agents wrap" aria-label="Поддерживаемые ИИ-агенты" data-en-aria-label="Supported AI coding agents">
+      <span class="agents-label" data-en="One signal for your local coding sessions">Один сигнал для всех локальных сессий ИИ-агентов</span>
+      <ul><li>Claude Code</li><li>Codex</li><li>opencode</li><li>GitHub Copilot CLI</li></ul>
     </div>
 
     <section class="connection" aria-labelledby="connection-title">
       <div class="wrap connection-inner">
         <div>
-          <p class="eyebrow" data-en="Power nearby. Status over the air.">Питание рядом. Статус по воздуху.</p>
+          <p class="eyebrow" data-en="Power nearby. Status by Bluetooth or USB.">Питание рядом. Статус по Bluetooth или USB.</p>
           <h2 id="connection-title"><span data-en="A lamp on your desk.">На столе — лампа.</span><br><span data-en="Your agents on your Mac.">На Mac — ваши агенты.</span></h2>
-          <p data-en="BroGlow combines session statuses and sends them over Bluetooth. Power the lamp from your Mac’s USB port or a separate USB adapter.">BroGlow собирает статусы сессий и передаёт их по Bluetooth. Лампа получает питание по USB от Mac или отдельного блока.</p>
+          <p data-en="BroGlow combines your session statuses and sends them to the lamp over Bluetooth on macOS, or over the USB cable on macOS and Windows. Power the lamp from your computer’s USB port or a USB adapter.">BroGlow собирает статусы сессий и передаёт их лампе по Bluetooth на macOS или по USB-кабелю на macOS и Windows. Питание лампа получает по USB от компьютера или USB-блока питания.</p>
         </div>
         <dl class="connection-facts">
-          <div><dt>Bluetooth LE</dt><dd data-en="Connects directly to your Mac">Прямое соединение с Mac</dd></div>
-          <div><dt data-en="USB power">Питание USB</dt><dd data-en="From your Mac or a USB adapter">От Mac или отдельного блока</dd></div>
-          <div><dt data-en="No Wi-Fi">Без Wi-Fi</dt><dd data-en="No network or cloud for the lamp">Ни сети, ни облака для лампы</dd></div>
+          <div><dt>Bluetooth LE</dt><dd data-en="Direct link to your Mac (macOS only)">Прямое соединение с Mac (только macOS)</dd></div>
+          <div><dt>USB</dt><dd data-en="Power from your computer or a USB adapter; also a status link on Windows">Питание от компьютера или USB-блока; на Windows — ещё и канал статуса</dd></div>
+          <div><dt data-en="No Wi-Fi">Без Wi-Fi</dt><dd data-en="The lamp needs no network or cloud">Лампе не нужны ни сеть, ни облако</dd></div>
         </dl>
       </div>
     </section>
@@ -114,11 +114,11 @@
     <section class="build wrap" id="build" aria-labelledby="build-title">
       <figure class="assembly-visual">
         <div class="model-stage">
-          <model-viewer id="assembly-model" src="assets/assembly.glb" alt="Разнесённая сборка: корпус, крышка, держатель светодиодов и плата. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Separated assembly: enclosure, rear cover, LED retainer and board. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="-35deg 65deg 105%" shadow-intensity="0.5" exposure="0.85" interaction-prompt="auto" loading="lazy" aria-describedby="assembly-help"></model-viewer>
+          <model-viewer id="assembly-model" src="assets/assembly.glb" alt="Сборка в разнесённом виде: маскот, корпус, задняя крышка, держатель светодиодов и плата. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Exploded view: mascot, enclosure, rear cover, LED retainer and board. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="-35deg 65deg 105%" shadow-intensity="0.5" exposure="0.85" interaction-prompt="auto" loading="lazy" aria-describedby="assembly-help"></model-viewer>
         </div>
         <figcaption>
           <p data-en="Explore the assembly">Рассмотрите сборку</p>
-          <p id="assembly-help" data-en="Drag or use arrow keys to rotate. Pinch, scroll, or use Page Up / Page Down to zoom.">Вращайте мышью или стрелками. Масштаб — жестом, прокруткой или Page Up / Page Down.</p>
+          <p id="assembly-help" data-en="Drag or use arrow keys to rotate. Pinch, scroll, or use Page Up / Page Down to zoom.">Перетаскивайте модель или используйте стрелки, чтобы вращать. Масштаб — жестом, прокруткой или Page Up / Page Down.</p>
           <p id="assembly-loading" role="status" data-en="Loading 3D…" hidden>Загружаем 3D…</p>
           <p id="assembly-error" role="status" data-en="The assembly could not load. Try again or open the setup guide." hidden>Не удалось загрузить сборку. Попробуйте снова или откройте инструкцию.</p>
           <div class="model-tools">
@@ -129,15 +129,16 @@
         </figcaption>
       </figure>
       <div class="build-copy">
-        <h2 id="build-title"><span data-en="A small project.">Небольшой проект.</span><br><span data-en="Something real.">Настоящая вещь.</span></h2>
-        <p data-en="An ESP32-C3 SuperMini board, three LEDs, and one resistor per LED. We recommend the removable mascot with four Ø3×2 mm N52 magnets. The CAD illustration shows the glued alternative.">Плата ESP32-C3 SuperMini, три светодиода и по одному резистору на каждый. Рекомендуем съёмного маскота на четырёх магнитах Ø3×2 мм N52. CAD-иллюстрация показывает клеевой вариант.</p>
+        <h2 id="build-title"><span data-en="A weekend build.">Проект на выходные.</span><br><span data-en="A real device on your desk.">Настоящее устройство на столе.</span></h2>
+        <p data-en="An ESP32-C3 SuperMini board, three LEDs, and one resistor per LED. We recommend the removable mascot with four Ø3×2 mm N52 magnets. The 3D view shows the glued version; the magnetic mascot uses the same enclosure.">Плата ESP32-C3 SuperMini, три светодиода и по одному резистору на каждый. Рекомендуем съёмного маскота на четырёх магнитах Ø3×2 мм N52. В 3D-просмотре — клеевой вариант; магнитный маскот ставится в тот же корпус.</p>
         <ol class="build-steps">
-          <li><span>01</span><div><strong data-en="Choose your parts">Выберите детали</strong><p data-en="Choose the board and LEDs, then download the optional enclosure print package.">Выберите плату и светодиоды, затем скачайте комплект для печати корпуса — он необязателен.</p></div></li>
-          <li><span>02</span><div><strong data-en="Wire it up">Соберите электронику</strong><p data-en="Follow the setup guide for wiring and firmware.">Схема подключения и прошивка — в пошаговой инструкции.</p></div></li>
-          <li><span>03</span><div><strong data-en="Select your lamp on your Mac">Выберите лампу на Mac</strong><p data-en="BroGlow remembers your device and sends it session updates.">BroGlow запомнит устройство и будет отправлять статусы.</p></div></li>
+          <li><span>01</span><div><strong data-en="Gather the parts">Подготовьте детали</strong><p><span data-en="An ESP32-C3 SuperMini board, three LEDs and resistors. The enclosure is optional; its print package is in the">Плата ESP32-C3 SuperMini, три светодиода и резисторы. Корпус — по желанию: комплект для печати есть в</span> <a href="docs/#parts" data-en="build guide">инструкции</a>.</p></div></li>
+          <li><span>02</span><div><strong data-en="Wire and flash the board">Соберите и прошейте плату</strong><p data-en="Wire the LEDs and flash the firmware by following the build guide.">Подключите светодиоды и прошейте плату по пошаговой инструкции.</p></div></li>
+          <li><span>03</span><div><strong data-en="Install BroGlow">Установите BroGlow</strong><p><span data-en="Install the app and connect it to your coding agent:">Установите приложение и подключите его к своему агенту:</span> <a href="docs/installation/" data-en="installation guide">инструкция по установке</a>.</p></div></li>
+          <li><span>04</span><div><strong data-en="Connect your lamp">Подключите лампу</strong><p data-en="Plug one flashed lamp into your Mac by USB. BroGlow sets it up automatically, pairs it over Bluetooth and remembers it. To retry, use Lamps → Add lamp. On Windows, the lamp works over USB.">Подключите одну прошитую лампу к Mac по USB. BroGlow настроит её сам: выполнит сопряжение по Bluetooth и запомнит лампу. Повторить можно через Lamps → Add lamp. На Windows лампа работает по USB.</p></div></li>
         </ol>
         <div class="build-links" id="setup">
-          <a class="text-link" href="docs/"><span data-en="Open the setup guide">Открыть инструкцию</span> <span aria-hidden="true">→</span></a>
+          <a class="text-link" href="docs/"><span data-en="Open the build guide">Открыть инструкцию по сборке</span> <span aria-hidden="true">→</span></a>
         </div>
         <p class="project-note"><a href="docs/hardware/#repeatable-checks-and-results" data-en="Current hardware test results">Актуальные результаты проверки устройства</a>.</p>
       </div>
@@ -146,8 +147,8 @@
   </main>
 
   <footer class="footer wrap">
-    <div><a class="brand" href="#">BroGlow<span class="edition">DIY</span></a><p data-en="Your agent’s status, right on your desk.">Статус агента — часть вашего стола.</p><p>© 2026 Suren Khorenyan</p></div>
-    <div class="footer-links"><a href="docs/installation/"><span data-en="Install this project">Установить этот проект</span> <span aria-hidden="true">→</span></a><span data-en="DIY lamp · macOS">DIY-лампа · macOS</span></div>
+    <div><a class="brand" href="#">BroGlow<span class="edition">DIY</span></a><p data-en="Your agent’s status, right on your desk.">Статус агента — прямо на вашем столе.</p><p>© 2026 Suren Khorenyan</p></div>
+    <div class="footer-links"><a href="docs/installation/"><span data-en="Install and connect">Установка и подключение</span> <span aria-hidden="true">→</span></a><span data-en="DIY lamp · macOS (Bluetooth, USB) · Windows (USB)">DIY-лампа · macOS (Bluetooth, USB) · Windows (USB)</span></div>
   </footer>
   <dialog id="ar-dialog" class="ar-dialog" aria-labelledby="ar-title" aria-describedby="ar-description">
     <form method="dialog" class="ar-close-form">

@@ -8,8 +8,9 @@ function load({ languages, language, saved, blocked = false } = {}) {
   const meta = { content: "Описание", "data-en-content": "Description" };
   const image = { alt: "Рендер", "data-en-alt": "Render" };
   const picker = { value: "ru", hidden: true, "aria-label": "Язык", "data-en-aria-label": "Language" };
+  const link = { href: "docs/hardware/#checks" };
   const elements = [text, meta, image, picker];
-  for (const element of elements) {
+  for (const element of [...elements, link]) {
     element.getAttribute = (key) => element[key];
     element.setAttribute = (key, value) => { element[key] = value; };
   }
@@ -21,7 +22,8 @@ function load({ languages, language, saved, blocked = false } = {}) {
   const document = {
     documentElement: { lang: "ru" },
     querySelector: (selector) => { assert.equal(selector, "#language"); return picker; },
-    querySelectorAll: (selector) => elements.filter((element) => selector.slice(1, -1) in element),
+    querySelectorAll: (selector) => selector === 'a[href^="docs/"]' ? [link]
+      : elements.filter((element) => selector.slice(1, -1) in element),
     getElementById: (id) => elements.find((element) => element.id === id),
   };
   const storage = { saved };
@@ -43,7 +45,7 @@ function load({ languages, language, saved, blocked = false } = {}) {
   });
   assert.equal(picker.hidden, false);
   assert.equal(picker.value, document.documentElement.lang);
-  return { document, text, meta, image, picker, storage, switchTo(value) { picker.value = value; change(); } };
+  return { document, text, meta, image, picker, link, storage, switchTo(value) { picker.value = value; change(); } };
 }
 
 for (const [options, expected] of [
@@ -64,8 +66,10 @@ assert.equal(page.text.textContent, "Working");
 assert.equal(page.meta.content, "Description");
 assert.equal(page.image.alt, "Render");
 assert.equal(page.picker["aria-label"], "Language");
+assert.equal(page.link.href, "docs/hardware/?lang=en#checks");
 page.switchTo("ru");
 assert.equal(page.document.documentElement.lang, "ru");
+assert.equal(page.link.href, "docs/hardware/?lang=ru#checks");
 assert.equal(page.text.textContent, "Работает");
 assert.equal(page.meta.content, "Описание");
 assert.equal(page.image.alt, "Рендер");
