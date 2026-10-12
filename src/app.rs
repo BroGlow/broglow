@@ -88,7 +88,7 @@ impl App {
                         anyhow::bail!("Add a lamp: hold its BOOT button 3s, broglow ble scan, then broglow ble add <ID>");
                     }
                     config::LedTransport::Usb if cfg.led_port.is_none() && !usb_present => {
-                        anyhow::bail!("No USB board detected — connect it, or select a lamp with broglow ble scan / select <ID>.");
+                        anyhow::bail!("No USB board detected — connect it, or add a Bluetooth lamp with broglow ble scan, then broglow ble add <ID>.");
                     }
                     _ => {}
                 }
