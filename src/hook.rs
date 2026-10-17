@@ -225,14 +225,14 @@ fn dismissed_session_returns_on_activity() {
     );
 }
 
-/// `broglow hook`: read one hook event as JSON on stdin and update
-/// `state.json`. Mirrors the semantics of the previous `hook.sh` exactly.
 /// A desktop-hosted session whose stored identity predates capturing the
 /// desktop app's session ID.
 fn host_id_missing(t: &crate::state::TerminalInfo) -> bool {
     t.host_session_id.is_none() && std::env::var_os("CLAUDE_CODE_HOST_SESSION_ID").is_some()
 }
 
+/// `broglow hook`: read one hook event as JSON on stdin and update
+/// `state.json`. Mirrors the semantics of the previous `hook.sh` exactly.
 pub fn run() -> anyhow::Result<()> {
     // A nested Claude session that broglow spawns for auto-naming sets this,
     // so its own hooks must not recurse back into state tracking.
