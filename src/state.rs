@@ -68,6 +68,10 @@ pub struct TerminalInfo {
     /// com.microsoft.VSCode, com.anthropic.claudefordesktop, …
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bundle_id: Option<String>,
+    /// CLAUDE_CODE_HOST_SESSION_ID: the Claude desktop app's own session ID
+    /// ("local_…"), which its `claude://code/continue` link selects.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host_session_id: Option<String>,
     /// Controlling terminal device, e.g. "/dev/ttys012" (unix).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tty: Option<String>,

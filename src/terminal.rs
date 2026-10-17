@@ -25,6 +25,7 @@ pub fn capture() -> TerminalInfo {
         term_session_id: env("TERM_SESSION_ID"),
         iterm_session_id: env("ITERM_SESSION_ID"),
         bundle_id: env("__CFBundleIdentifier"),
+        host_session_id: env("CLAUDE_CODE_HOST_SESSION_ID"),
         wt_session: env("WT_SESSION"),
         kitty_window_id: env("KITTY_WINDOW_ID"),
         wezterm_pane: env("WEZTERM_PANE"),
@@ -282,6 +283,14 @@ pub fn focus(
         return open_codex_thread(session_id);
     }
     if let Some(t) = info {
+        if t.bundle_id.as_deref() == Some(CLAUDE_BUNDLE) {
+            if let Some(id) = t.host_session_id.as_deref().filter(|id| is_local_id(id)) {
+                return open_bundle(
+                    CLAUDE_BUNDLE,
+                    Some(&format!("claude://code/continue?session={id}")),
+                );
+            }
+        }
         if focus_macos(t, project_path) {
             return true;
         }
@@ -294,6 +303,19 @@ pub fn focus(
     // Sessions recorded before terminal capture existed: fall back to
     // scanning Terminal.app window titles for the project directory name.
     project_path.is_some_and(focus_terminal_by_title)
+}
+
+#[cfg(target_os = "macos")]
+const CLAUDE_BUNDLE: &str = "com.anthropic.claudefordesktop";
+
+/// The desktop app's own session ID shape, which its link handler also
+/// requires; anything else must not reach the URL.
+#[cfg(target_os = "macos")]
+fn is_local_id(id: &str) -> bool {
+    id.strip_prefix("local_").is_some_and(|rest| {
+        (1..=64).contains(&rest.len())
+            && rest.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+    })
 }
 
 #[cfg(target_os = "macos")]
@@ -911,6 +933,27 @@ mod tests {
             std::fs::write(&log, "").unwrap();
             assert!(!focus("new?prompt=injected", Some("codex"), None, None));
             assert!(std::fs::read_to_string(&log).unwrap().is_empty());
+
+            // Claude desktop: select the session itself, not just the app.
+            let local = "local_00000000-0000-4000-8000-000000000002";
+            let mut claude = TerminalInfo {
+                bundle_id: Some(CLAUDE_BUNDLE.into()),
+                host_session_id: Some(local.into()),
+                ..Default::default()
+            };
+            std::fs::write(&log, "").unwrap();
+            assert!(focus(id, None, Some(&claude), None));
+            assert_eq!(
+                std::fs::read_to_string(&log).unwrap(),
+                format!("open\n-b\n{CLAUDE_BUNDLE}\nclaude://code/continue?session={local}\n")
+            );
+            claude.host_session_id = Some("local_x&prompt=injected".into());
+            std::fs::write(&log, "").unwrap();
+            assert!(focus(id, None, Some(&claude), None));
+            assert_eq!(
+                std::fs::read_to_string(&log).unwrap(),
+                format!("open\n-b\n{CLAUDE_BUNDLE}\n")
+            );
 
             std::fs::write(std::path::Path::new(&dir).join("fail-open"), "").unwrap();
             assert!(!focus(id, Some("codex"), None, Some("/tmp/project")));
