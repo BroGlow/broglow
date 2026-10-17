@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "v*"
+      # The inherited v0.* tags belong to the pre-BroGlow history.
+      - "!v0.*"
 
 permissions:
   contents: read

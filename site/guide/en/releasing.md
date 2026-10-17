@@ -98,9 +98,9 @@ If the check fails (dirty tree or version mismatch), delete the local tag with
 when it changes the site, docs, models or `Cargo.toml`, deploys the website
 automatically.
 
-Push only this tag, by name. Every pushed `v*` tag starts the **Release**
-workflow, and the inherited `v0.*` tags fail its version check, so never use
-`git push --tags`. For the next release, bump `version` in `Cargo.toml` and
+Push only this tag, by name. Every pushed `v*` tag other than the ignored `v0.*`
+ones starts the **Release** workflow, and the inherited `v0.*` tags belong to the
+pre-BroGlow history, so never use `git push --tags`. For the next release, bump `version` in `Cargo.toml` and
 `Cargo.lock`, commit, then create and push only that version's tag:
 `git push YOUR_REMOTE vX.Y.Z`.
 
