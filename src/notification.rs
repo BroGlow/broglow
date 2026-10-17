@@ -20,7 +20,11 @@ pub fn send_notification(title: &str, message: &str) {
         escape(title),
     );
 
-    let _ = Command::new("osascript").arg("-e").arg(&script).spawn();
+    // Wait off-thread: a dropped, unwaited child stays a zombie for the
+    // life of the TUI, and the caller is its event loop.
+    std::thread::spawn(move || {
+        let _ = Command::new("osascript").arg("-e").arg(&script).status();
+    });
 }
 
 #[cfg(not(target_os = "macos"))]

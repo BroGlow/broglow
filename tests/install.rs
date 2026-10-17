@@ -21,10 +21,17 @@ const HOOK_EVENTS: [&str; 6] = [
 ];
 
 fn run(home: &TempDir, subcommand: &str) {
+    // A real DISPLAY would make `install` spawn a detached tray that outlives
+    // the test; a real CODEX_HOME/COPILOT_HOME would point at the developer's
+    // own hook files instead of this sandbox.
     Command::cargo_bin("broglow")
         .expect("binary built")
         .arg(subcommand)
         .env("HOME", home.path())
+        .env_remove("DISPLAY")
+        .env_remove("WAYLAND_DISPLAY")
+        .env_remove("CODEX_HOME")
+        .env_remove("COPILOT_HOME")
         .assert()
         .success();
 }
@@ -124,6 +131,25 @@ fn claude_foreign_hooks_survive_install_reinstall_and_uninstall() {
     let settings = read_settings(&home);
     assert_eq!(settings["model"], "opus");
     assert_eq!(settings["hooks"]["SessionStart"], json!([foreign, mixed]));
+}
+
+#[test]
+fn uninstall_leaves_no_placeholder_in_front_of_a_foreign_claude_hook() {
+    // Codex trusts hooks by position, so there ours becomes an inert
+    // placeholder; Claude does not, so ours must simply disappear.
+    let home = TempDir::new().unwrap();
+    run(&home, "install");
+    let dir = home.path().join(".claude");
+    let mut settings = read_settings(&home);
+    let foreign = json!({"matcher":"*", "hooks":[{"type":"command","command":"guard.sh"}]});
+    settings["hooks"]["Stop"]
+        .as_array_mut()
+        .unwrap()
+        .push(foreign.clone());
+    std::fs::write(dir.join("settings.json"), settings.to_string()).unwrap();
+    run(&home, "uninstall");
+    let settings = read_settings(&home);
+    assert_eq!(settings["hooks"]["Stop"], json!([foreign]));
 }
 
 #[test]

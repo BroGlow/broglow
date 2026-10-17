@@ -127,6 +127,7 @@ fn startup_backfill_titles_only_unnamed_live_claude_sessions() {
     assert!(find_claude_transcript("../escape").is_none());
 }
 
+#[cfg(all(test, unix))]
 #[test]
 fn dismissed_session_returns_on_activity() {
     // Isolate the real filesystem path in a child, never change this runner's HOME.
@@ -932,7 +933,7 @@ fn first_user_prompt(transcript_path: &str) -> Option<String> {
     let file = File::open(transcript_path).ok()?;
     let reader = BufReader::new(file);
     for line in reader.lines() {
-        let line = line.ok()?;
+        let Ok(line) = line else { continue };
         let v: Value = match serde_json::from_str(&line) {
             Ok(v) => v,
             Err(_) => continue,

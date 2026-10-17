@@ -1453,7 +1453,7 @@ mod mac {
                 identity
             );
             for invalid in [
-                reply.replace("broglow_pair", "clawlight_pair"),
+                reply.replace("broglow_pair", "other_pair"),
                 reply.replace("146393924524", "14639392452"),
                 reply.replace("146393924524", "14AA93924524"),
                 reply.replace(&SERVICE.to_string(), &STATUS.to_string()),

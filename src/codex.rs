@@ -169,7 +169,7 @@ pub(crate) fn command_is_broglow(cmd: &str) -> bool {
 
 /// A matcher group is ours only when *every* hook in it is broglow's — a
 /// group mixing in anyone else's command is never replaced or removed.
-fn group_is_broglow(group: &Value) -> bool {
+pub(crate) fn group_is_broglow(group: &Value) -> bool {
     let Some(hooks) = group.get("hooks").and_then(|h| h.as_array()) else {
         return false;
     };
@@ -296,7 +296,7 @@ pub fn first_user_message(transcript_path: &str) -> Option<String> {
     let file = File::open(transcript_path).ok()?;
     let mut fallback: Option<String> = None;
     for line in BufReader::new(file).lines() {
-        let line = line.ok()?;
+        let Ok(line) = line else { continue };
         let Ok(v) = serde_json::from_str::<Value>(&line) else {
             continue;
         };

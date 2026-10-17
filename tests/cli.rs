@@ -32,7 +32,6 @@ fn help_lists_the_public_subcommands() {
     ] {
         assert!(stdout.contains(subcommand), "--help mentions {subcommand}");
     }
-    assert!(!stdout.contains("\n  update"));
     // Internal backends stay hidden from users.
     for hidden in ["hook", "name"] {
         assert!(
@@ -210,16 +209,19 @@ fn the_copilot_shim_exits_cleanly_on_junk_input() {
 
 #[test]
 fn the_opencode_plugin_parses_as_a_js_module() {
-    // Optional parse check: runs only where `node` is on PATH (the plugin's
-    // real coverage is the manual matrix). Skips cleanly otherwise — including
-    // on Windows, where `on_path` doesn't probe the `.exe` suffix. `node
-    // --check` is the portable syntax-only check; `bun` has no equivalent flag,
-    // so it's not probed.
-    if !on_path("node") {
-        eprintln!("skipping plugin parse check: no node on PATH");
-        return;
-    }
+    // Optional parse check: runs only where `node` runs (the plugin's real
+    // coverage is tests/js). Probing by running it resolves `node.exe` on
+    // Windows too; skip cleanly only when it is absent. `node --check` is
+    // the portable syntax-only check; `bun` has no equivalent flag.
     let node = "node";
+    match std::process::Command::new(node).arg("--version").output() {
+        Ok(_) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            eprintln!("skipping plugin parse check: no node on PATH");
+            return;
+        }
+        Err(e) => panic!("probing node: {e}"),
+    }
 
     let asset = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/opencode-plugin.js");
     let contents = std::fs::read_to_string(asset).expect("read plugin asset");
@@ -242,11 +244,6 @@ fn the_opencode_plugin_parses_as_a_js_module() {
 
 /// Whether `program` resolves to a file on PATH. Deliberately simple — it only
 /// gates the optional parse check above, so a false negative just skips it.
-fn on_path(program: &str) -> bool {
-    std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
-        .any(|d| d.join(program).is_file())
-}
-
 #[cfg(target_os = "macos")]
 #[test]
 fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {

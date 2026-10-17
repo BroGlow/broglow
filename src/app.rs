@@ -486,7 +486,11 @@ mod tests {
 
         let screen = rows_80x24(&mut app);
         // The status line drops empty chips rather than cut off the lamp.
-        assert!(screen[0].contains("BroGlow v1.0.0 "), "{:?}", screen[0]);
+        assert!(
+            screen[0].contains(concat!("BroGlow v", env!("CARGO_PKG_VERSION"), " ")),
+            "{:?}",
+            screen[0]
+        );
         assert!(screen[0].contains("● 3 paused") && !screen[0].contains("needs help"));
         assert!(
             screen[0].trim_end().ends_with("BLE 1/2 connected"),

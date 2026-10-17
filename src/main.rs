@@ -44,7 +44,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Install hooks into ~/.claude/settings.json and start the tray daemon
+    /// Install agent hooks, enable start at login and launch the tray app
     Install,
     /// Uninstall hooks and clean up
     Uninstall,
@@ -429,7 +429,9 @@ fn uninstall_hooks() -> anyhow::Result<()> {
         if let Some(hooks) = settings.get_mut("hooks").and_then(|h| h.as_object_mut()) {
             for event in HOOK_EVENTS {
                 if let Some(groups) = hooks.get_mut(event).and_then(|v| v.as_array_mut()) {
-                    codex::remove_broglow_groups(groups);
+                    // Claude trusts hooks by content, not position, so ours
+                    // simply go; the positional placeholder is Codex-only.
+                    groups.retain(|g| !codex::group_is_broglow(g));
                     if groups.is_empty() {
                         hooks.remove(event);
                     }
@@ -743,37 +745,41 @@ fn install_launch_agent() -> anyhow::Result<()> {
         if bundle.exists() {
             std::fs::rename(&bundle, &previous)?;
         }
-        std::fs::rename(&staging, &bundle).context("Installing BroGlow.app")
+        std::fs::rename(&staging, &bundle).context("Installing BroGlow.app")?;
+
+        std::fs::write(&plist_path, &plist_content)?;
+        println!("Wrote LaunchAgent plist to {}", plist_path.display());
+
+        let bootstrap = std::process::Command::new("launchctl")
+            .args(["bootstrap", &target])
+            .arg(&plist_path)
+            .output()
+            .context("Running `launchctl bootstrap`")?;
+        if !bootstrap.status.success() {
+            let stderr = String::from_utf8_lossy(&bootstrap.stderr);
+            anyhow::bail!("launchctl bootstrap failed: {}", stderr.trim());
+        }
+
+        // RunAtLoad usually starts it already; no -k/redundant restart is needed.
+        let start = std::process::Command::new("launchctl")
+            .args(["kickstart", &service])
+            .output()?;
+        anyhow::ensure!(
+            start.status.success(),
+            "launchctl kickstart failed: {}",
+            String::from_utf8_lossy(&start.stderr).trim()
+        );
+        Ok(())
     })();
     if let Err(error) = installed {
         let _ = std::fs::remove_dir_all(&staging);
         if previous.exists() {
+            // The swap may already have happened; put the old app back.
+            let _ = std::fs::remove_dir_all(&bundle);
             let _ = std::fs::rename(&previous, &bundle);
         }
         return Err(error);
     }
-    std::fs::write(&plist_path, plist_content)?;
-    println!("Wrote LaunchAgent plist to {}", plist_path.display());
-
-    let bootstrap = std::process::Command::new("launchctl")
-        .args(["bootstrap", &target])
-        .arg(&plist_path)
-        .output()
-        .context("Running `launchctl bootstrap`")?;
-    if !bootstrap.status.success() {
-        let stderr = String::from_utf8_lossy(&bootstrap.stderr);
-        anyhow::bail!("launchctl bootstrap failed: {}", stderr.trim());
-    }
-
-    // RunAtLoad usually starts it already; no -k/redundant restart is needed.
-    let start = std::process::Command::new("launchctl")
-        .args(["kickstart", &service])
-        .output()?;
-    anyhow::ensure!(
-        start.status.success(),
-        "launchctl kickstart failed: {}",
-        String::from_utf8_lossy(&start.stderr).trim()
-    );
 
     if previous.exists() {
         std::fs::remove_dir_all(previous)?;
