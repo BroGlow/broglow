@@ -176,7 +176,7 @@ impl App {
             if session.status == Status::NeedsHelp {
                 let prev = self.previous_statuses.get(&session.session_id);
                 if prev != Some(&Status::NeedsHelp) {
-                    send_notification("broglow", &format!("\"{}\" needs help!", session.name));
+                    send_notification("BroGlow", &format!("\"{}\" needs help!", session.name));
                 }
             }
         }

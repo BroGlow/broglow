@@ -149,8 +149,9 @@ pub fn uninstall_hooks() {
     if !file_is_ours(&contents) {
         return;
     }
-    if std::fs::remove_file(&path).is_ok() {
-        println!("Removed {}", path.display());
+    match std::fs::remove_file(&path) {
+        Ok(()) => println!("Removed {}", path.display()),
+        Err(e) => eprintln!("broglow: could not remove {}: {e}", path.display()),
     }
 }
 

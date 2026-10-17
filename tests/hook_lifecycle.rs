@@ -194,6 +194,20 @@ fn malformed_input_is_a_safe_noop() {
 }
 
 #[test]
+fn an_empty_state_file_is_treated_as_fresh() {
+    // A crash during the write's rename, or a hand truncation, leaves a
+    // zero-length file; hooks must recover from it instead of freezing.
+    let home = temp_home();
+    let path = state_path(&home);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, "").unwrap();
+
+    run_hook(&home, &event("SessionStart", "sess-1")).success();
+
+    assert_eq!(session_status(&read_state(&home), "sess-1"), "active");
+}
+
+#[test]
 fn a_corrupt_state_file_is_never_clobbered() {
     let home = temp_home();
     // Simulate a mid-write snapshot / unknown future schema on disk.

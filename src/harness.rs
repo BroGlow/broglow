@@ -186,8 +186,9 @@ fn remove_if_managed(path: &std::path::Path) {
     if !contents.contains(MANAGED_MARKER) {
         return;
     }
-    if std::fs::remove_file(path).is_ok() {
-        println!("Removed {}", path.display());
+    match std::fs::remove_file(path) {
+        Ok(()) => println!("Removed {}", path.display()),
+        Err(e) => eprintln!("broglow: could not remove {}: {e}", path.display()),
     }
 }
 

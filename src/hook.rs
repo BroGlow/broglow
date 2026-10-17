@@ -362,7 +362,7 @@ pub fn run() -> anyhow::Result<()> {
 
 /// `broglow event`: read one normalized harness event as JSON on stdin and
 /// update `state.json`. This is the ingestion path for non-Claude harnesses
-/// (opencode today; Codex/Copilot adapters later emit the same shape). The
+/// (opencode's plugin and the in-process Codex/Copilot shims all emit it). The
 /// on-disk schema and every reader (TUI, tray, LED) are shared with the Claude
 /// hook path, so a harness session written here shows up everywhere a Claude
 /// session does with no reader changes.
@@ -919,6 +919,13 @@ fn read_state_raw() -> LoadedState {
         }
         Err(_) => return LoadedState::Unreadable,
     };
+    // A zero-length file is not a mid-write snapshot (writes land by rename);
+    // it is what a crash during that rename, or a hand truncation, leaves
+    // behind. Calling it unreadable would freeze every hook until someone
+    // deleted the file.
+    if content.trim().is_empty() {
+        return LoadedState::Fresh(HookState::default());
+    }
     match serde_json::from_str(&content) {
         Ok(s) => LoadedState::Ok(s),
         Err(_) => LoadedState::Unreadable,

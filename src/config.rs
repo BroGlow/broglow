@@ -1,7 +1,8 @@
 //! Persistent user settings at `~/.claude/broglow/config.json`.
 //!
 //! Kept separate from the hook-written `state.json` so the daemon and the TUI
-//! can share opt-in preferences (currently just the ESP32 status LEDs).
+//! can share opt-in preferences: lamp transport, remembered lamps and
+//! brightness, yellow mode, usage tracking and agent-name display.
 
 use std::path::PathBuf;
 

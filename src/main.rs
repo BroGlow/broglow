@@ -269,7 +269,7 @@ fn register_hooks() -> anyhow::Result<()> {
 
     println!("Updated {}", settings_file.display());
 
-    // Set up every detected non-Claude harness (opencode today). Best-effort and
+    // Set up every detected non-Claude harness (opencode, Codex, Copilot). Best-effort and
     // detection-gated per adapter: a failure never breaks Claude hook
     // registration, and machines without those agents see nothing. Sits in
     // register_hooks (not install_hooks) so both first-run paths — the TUI's full
@@ -296,7 +296,7 @@ fn install_hooks() -> anyhow::Result<()> {
     );
     println!("Run `broglow` to launch the TUI dashboard.");
     if !lamp_enabled {
-        println!("Optional: enable a USB lamp with `l`, or use `broglow ble scan` to select a BLE lamp. See site/guide/en/hardware.md.");
+        println!("Optional: enable a USB lamp with `l`, or use `broglow ble scan` to select a BLE lamp. See https://broglow.github.io/broglow/docs/hardware/.");
     }
     Ok(())
 }
@@ -413,8 +413,10 @@ pub fn first_run_setup_daemon() {
 }
 
 fn uninstall_hooks() -> anyhow::Result<()> {
-    // Stop the daemon before deleting its bundle/state.
-    uninstall_autostart()?;
+    // Hooks and harness wiring go first: they never depend on the daemon, and
+    // a daemon that refuses to stop must not leave Claude Code calling a binary
+    // that is about to be removed. The running tray re-registers hooks only at
+    // its own startup (`first_run_setup_daemon`), so it cannot undo this.
 
     // Remove every harness's wiring (best-effort; each is marker-guarded so a
     // hand-rolled file is never deleted).
@@ -445,6 +447,9 @@ fn uninstall_hooks() -> anyhow::Result<()> {
         codex::write_json_atomic(&settings_file, &settings)?;
         println!("Removed hooks from {}", settings_file.display());
     }
+
+    // Stop the daemon before deleting its bundle/state.
+    uninstall_autostart()?;
 
     // Remove hook state and logs
     let dir = hook_dir();
@@ -546,8 +551,11 @@ fn uninstall_run_key() -> anyhow::Result<()> {
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     if let Ok(key) = hkcu.open_subkey_with_flags(RUN_KEY, winreg::enums::KEY_ALL_ACCESS) {
-        let _ = key.delete_value(RUN_VALUE);
-        println!("Removed tray autostart registry value.");
+        match key.delete_value(RUN_VALUE) {
+            Ok(()) => println!("Removed tray autostart registry value."),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e).context("Removing the tray autostart registry value"),
+        }
     }
     println!(
         "Note: a running tray icon stays until you quit it (tray menu \u{2192} Quit) or log out."
@@ -774,9 +782,17 @@ fn install_launch_agent() -> anyhow::Result<()> {
     if let Err(error) = installed {
         let _ = std::fs::remove_dir_all(&staging);
         if previous.exists() {
-            // The swap may already have happened; put the old app back.
+            // The swap may already have happened: put the old app back and
+            // reload the agent that `stop_launch_agent` booted out, so the
+            // tray does not stay down until the next login.
             let _ = std::fs::remove_dir_all(&bundle);
             let _ = std::fs::rename(&previous, &bundle);
+            if plist_path.exists() {
+                let _ = std::process::Command::new("launchctl")
+                    .args(["bootstrap", &target])
+                    .arg(&plist_path)
+                    .output();
+            }
         }
         return Err(error);
     }

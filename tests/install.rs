@@ -101,6 +101,36 @@ fn install_registers_hooks_and_uninstall_reverts_them() {
 }
 
 #[test]
+fn install_and_uninstall_write_through_a_settings_symlink() {
+    // Dotfiles setups link ~/.claude/settings.json to a file they manage; the
+    // link must survive and its target must change, never the link itself.
+    let home = TempDir::new().unwrap();
+    let claude_dir = home.path().join(".claude");
+    std::fs::create_dir_all(&claude_dir).unwrap();
+    let real = home.path().join("dotfiles-settings.json");
+    std::fs::write(&real, json!({"model": "opus"}).to_string()).unwrap();
+    let link = claude_dir.join("settings.json");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+
+    run(&home, "install");
+    assert!(std::fs::symlink_metadata(&link)
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    let settings: Value = serde_json::from_str(&std::fs::read_to_string(&real).unwrap()).unwrap();
+    assert_eq!(settings["model"], "opus");
+    assert!(settings["hooks"]["SessionStart"].is_array());
+
+    run(&home, "uninstall");
+    assert!(std::fs::symlink_metadata(&link)
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    let settings: Value = serde_json::from_str(&std::fs::read_to_string(&real).unwrap()).unwrap();
+    assert_eq!(settings, json!({"model": "opus"}));
+}
+
+#[test]
 fn claude_foreign_hooks_survive_install_reinstall_and_uninstall() {
     let home = TempDir::new().unwrap();
     let dir = home.path().join(".claude");

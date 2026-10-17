@@ -142,8 +142,11 @@ pub fn uninstall_hooks() {
             }
         }
     }
-    if changed && write_json_atomic(&path, &root).is_ok() {
-        println!("Removed Codex hooks from {}", path.display());
+    if changed {
+        match write_json_atomic(&path, &root) {
+            Ok(()) => println!("Removed Codex hooks from {}", path.display()),
+            Err(e) => eprintln!("broglow: could not update {}: {e:#}", path.display()),
+        }
     }
 }
 
@@ -243,6 +246,10 @@ pub(crate) fn upsert_broglow_group(groups: &mut Vec<Value>, group: &Value) {
 /// Atomic JSON write (sibling temp file + rename): a crash mid-write must
 /// never leave Codex a half-written hooks file.
 pub(crate) fn write_json_atomic(path: &Path, value: &Value) -> anyhow::Result<()> {
+    // Write through a symlink (dotfiles setups link ~/.claude/settings.json)
+    // instead of replacing the link itself with a plain file.
+    let resolved = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let path = resolved.as_path();
     let dir = path.parent().context("hooks.json must have a parent")?;
     std::fs::create_dir_all(dir)?;
     let tmp = dir.join(format!(".broglow.{}.tmp", std::process::id()));

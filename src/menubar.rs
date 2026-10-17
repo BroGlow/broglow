@@ -612,8 +612,8 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                 }
             }
             Event::UserEvent(UserEvent::Tick) => {
-                // ponytail: five-second polling can miss a faster unplug/replug;
-                // Add lamp retries immediately. Use USB events if that matters.
+                // Five-second polling can miss a faster unplug/replug; switch
+                // to USB hotplug events if that ever matters.
                 #[cfg(target_os = "macos")]
                 if !popover.setup_busy && usb_auto_pair.poll() {
                     start_lamp_setup(&mut popover, &setup_proxy, true);
