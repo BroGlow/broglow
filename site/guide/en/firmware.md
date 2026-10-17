@@ -116,8 +116,8 @@ PY
 ```
 
 The line reports stored session `state`, commanded `red/yellow/green` on/off flags, `owner`,
-`connected`, `authenticated`, `pairing`, `bonds`, `age_ms` (board uptime before the
-first status), and valid-state
+`connected`, `authenticated`, `pairing`, `bonds`, `age_ms` (time since the last
+accepted status; board uptime before the first one), and valid-state
 `accepted` count. It also reports `mode`, `red_pwm`, `yellow_pwm`, `green_pwm`,
 `builtin_pwm`, `builtin_pin`, and `brightness` (current percentage; volatile, resets
 to 100 on reboot). The last four fields, `gatt_change_manual`, `gatt_change_requests`,

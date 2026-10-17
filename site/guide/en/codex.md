@@ -19,7 +19,7 @@ but Codex still needs your approval before running them.
 3. Send a prompt in a new local Codex task, in the CLI or desktop app.
    In BroGlow's session list, check that this task shows **Working** while it runs and
    **Paused** after the response. A permission request shows **Needs help**. Other live
-   sessions and the Yellow mode setting also affect the lamp's color.
+   sessions and the **Settings → Mixed sessions** choice also affect the lamp's color.
 
 <a name="codex-missing-hooks"></a>
 

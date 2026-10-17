@@ -176,7 +176,7 @@ export const broglow = async ({ directory, worktree, project }) => {
             break;
           case "session.error":
             // Treat an errored session as needing the user — they usually have
-            // to act. Revisit once real payloads are logged (spike item).
+            // to act.
             if (sid) send("needs_input", sid);
             break;
           case "server.connected":

@@ -128,7 +128,7 @@ PY
 
 Строка сообщает сохранённое состояние сессии `state`, заданные флаги
 включения `red/yellow/green`, `owner`, `connected`, `authenticated`,
-`pairing`, `bonds`, `age_ms` (до первого статуса — время работы платы)
+`pairing`, `bonds`, `age_ms` (время с последнего принятого статуса; до первого — время работы платы)
 и число принятых корректных статусов `accepted`.
 Она также сообщает `mode`, `red_pwm`, `yellow_pwm`, `green_pwm`,
 `builtin_pwm`, `builtin_pin` и `brightness` (текущий процент; не сохраняется

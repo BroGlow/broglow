@@ -57,7 +57,7 @@ grant or board operation: record those acceptance checks separately.
 | `menubar` | Run the tray daemon in the foreground |
 | `led [--port]` | Foreground ESP32 LED mirror (debugging) |
 | `ble pair [--port]` | Identify BroGlow firmware over USB, open pairing and remember its matching BLE ID; actual tray handles encryption/macOS approval |
-| `ble scan/add/remove/list/on/off/usb/status` | Discover, remember/forget CoreBluetooth IDs, list per-lamp state, enable/disable the selected transport, restore USB, or inspect worker status |
+| `ble scan/add/remove/rename/brightness/list/on/off/usb/status` | Discover, remember/forget CoreBluetooth IDs, name a lamp, save per-lamp or global brightness, list per-lamp state, enable/disable the selected transport, restore USB, or inspect worker status |
 | `hook` *(hidden)* | Claude Code hook backend; reads one event as JSON on stdin |
 | `event` *(hidden)* | Normalized-event backend for non-Claude harnesses (opencode); reads one event as JSON on stdin |
 | `codex-hook` *(hidden)* | Codex shim: reads one Claude-dialect hook payload on stdin, maps it to a normalized event |
