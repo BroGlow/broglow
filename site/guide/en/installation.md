@@ -4,6 +4,20 @@
 
 # Install and connect
 
+<a name="homebrew"></a>
+
+## Install with Homebrew
+
+```bash
+brew install broglow/tap/broglow
+broglow install
+```
+
+`broglow install` is a required step: it registers BroGlow's hooks in your coding
+agents (Claude Code always; Codex, opencode and GitHub Copilot CLI when they are
+installed), installs the menu-bar app and starts it at login. Prefer a downloaded
+package? Continue below; it ends with the same `broglow install`.
+
 <a name="installation"></a>
 
 ## Download the Mac package
@@ -54,14 +68,15 @@ Its traffic-light icon opens the session controls. You can also open
 It starts at login. The plain `broglow` command opens the terminal dashboard; on its
 first run on an unconfigured Mac it also registers the hooks and login startup.
 
-The `broglow` command lives in `~/.cargo/bin/broglow`; the prebuilt package does not
-need Cargo. In a fresh terminal outside the project, check:
+With Homebrew, the `broglow` command lives in `$(brew --prefix)/bin/broglow`, which is
+already on PATH. The package and source routes put it in `~/.cargo/bin/broglow` (the
+prebuilt package does not need Cargo). In a fresh terminal outside the project, check:
 
 --8<-- "site/guide/en/hardware.md:path-check"
 
-If the first line is not your `~/.cargo/bin/broglow` (shown as a full path, such as
-`/Users/you/.cargo/bin/broglow`), add this line **once** to `~/.zshrc` (default macOS
-shell), preserving existing settings:
+If you installed from a package or source and the first line is not your
+`~/.cargo/bin/broglow` (shown as a full path, such as `/Users/you/.cargo/bin/broglow`),
+add this line **once** to `~/.zshrc` (default macOS shell), preserving existing settings:
 
 --8<-- "site/guide/en/hardware.md:path-setup"
 

@@ -7,7 +7,7 @@ title: Hardware reference
 BroGlow sends local agent session status to ESP32-C3 SuperMini lamps over USB or,
 on macOS, over Bluetooth LE. One Mac can drive several lamps. A lamp needs only USB
 power; it does not use Wi-Fi. Run source commands from the root of the source checkout
-and package commands from the extracted package folder. The optional enclosure is a
+and package commands from the extracted package folder. The enclosure is a
 separate print package. Before claiming hardware support, see the
 [verification limits](#repeatable-checks-and-results).
 
@@ -15,6 +15,7 @@ separate print package. Before claiming hardware support, see the
 
 | Task | Start here |
 | --- | --- |
+| Install with Homebrew | [Homebrew install]({{ repo_url }}/blob/HEAD/site/guide/en/installation.md#homebrew), then the required `broglow install` (registers BroGlow's hooks in your coding agents) |
 | Ask Codex or another agent to do the setup | [Agent runbook](#agent-runbook) |
 | Install without compiling Rust | [Install a prebuilt package](#install-a-prebuilt-package) |
 | Build on your own Mac | [Build from source](#build-from-source) |
@@ -541,7 +542,8 @@ Then finish the [service validation](#menu-bar-icon-and-service-validation), the
 
 ### Run broglow from any directory (PATH)
 
-Both installation routes put the CLI at `~/.cargo/bin/broglow`. Source files are needed
+The package and source routes put the CLI at `~/.cargo/bin/broglow`; Homebrew puts it
+in `$(brew --prefix)/bin/broglow`, which is already on PATH. Source files are needed
 only to rebuild. Check PATH from outside the source or package folder:
 
 <!-- --8<-- [start:path-check] -->
@@ -553,8 +555,8 @@ broglow --help
 ```
 <!-- --8<-- [end:path-check] -->
 
-The first path should be your `~/.cargo/bin/broglow`. If it is missing or another copy
-comes first, add this line **once** to `~/.zshrc`, open a new terminal and check again:
+The first path should be your `~/.cargo/bin/broglow` (or Homebrew's `bin/broglow`).
+If the package or source install is missing or another copy comes first, add this line **once** to `~/.zshrc`, open a new terminal and check again:
 
 <!-- --8<-- [start:path-setup] -->
 ```bash
@@ -1031,7 +1033,7 @@ are diagnostics, not a visual check of the LEDs.
 | Multiple lamps | Isolation tests pass; simultaneous operation of two physical boards is unverified. |
 | Intel Mac, Windows, Linux | CI and build targets only; no physical Bluetooth or fresh-install claim. Bluetooth lamps are macOS-only. |
 | Distribution | Local package and site checks run before publication; public downloads, the website and Gatekeeper on a fresh Mac need release acceptance. |
-| Enclosure | A complete printed case was verified to fit. Fit requirements and assembly checks are in the print guide; CAD and slicer reports are included in the print package. |
+| Enclosure | Fit requirements and assembly checks are in the [print guide]({{ repo_url }}/blob/HEAD/models/magnetic/GUIDE_ROUND3X2.en.md); the magnet pocket depth and holding force still need physical confirmation. The print package holds STL, STEP, two assembly views and `BUILD.json`. |
 
 ### Physical and background-service acceptance
 
