@@ -138,7 +138,14 @@ session's entry in `~/.claude/broglow/state.json`. The TUI and the tray daemon b
 watch that file (via `notify`) and re-render on change. Status mapping:
 
 - `SessionStart` / `UserPromptSubmit` / `PreToolUse` → `Active`
-- `Stop` → `Inactive`
+- `PreToolUse` of a tool that hands the turn to the user → `NeedsHelp`, because no
+  `Notification` fires for it: `AskUserQuestion` (marker `ask_user_question`; the tool
+  blocks the turn, so the next event clears it), and the desktop app's
+  `mcp__ccd_turn__wrap_up` when it carries an `ask` or `blocked: true` (marker
+  `question_box`). A recap-only wrap-up is a normal turn end.
+- `Stop` → `Inactive`, except right after a `question_box` wrap-up: the app ends the
+  turn the moment the box is shown, so that `Stop` keeps `NeedsHelp` until the user's
+  reply (`UserPromptSubmit`) lands.
 - `Notification` → `NeedsHelp` (except `idle_prompt`, which is ignored)
 - `SessionEnd` → `Done`
 

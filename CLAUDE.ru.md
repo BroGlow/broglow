@@ -169,7 +169,15 @@ Claude Code вызывает хук → `broglow hook` читает JSON соб�
 Соответствие событий статусам:
 
 - `SessionStart` / `UserPromptSubmit` / `PreToolUse` → `Active`
-- `Stop` → `Inactive`
+- `PreToolUse` инструмента, который передаёт ход пользователю → `NeedsHelp`, потому
+  что `Notification` для него не приходит: `AskUserQuestion` (маркер
+  `ask_user_question`; инструмент блокирует ход, поэтому следующее событие его
+  снимает) и `mcp__ccd_turn__wrap_up` приложения Claude, когда в нём есть `ask` или
+  `blocked: true` (маркер `question_box`). Wrap-up только с recap — обычное
+  завершение хода.
+- `Stop` → `Inactive`, кроме `Stop` сразу после wrap-up с `question_box`: приложение
+  завершает ход в момент показа поля с вопросом, поэтому такой `Stop` сохраняет
+  `NeedsHelp`, пока не придёт ответ пользователя (`UserPromptSubmit`).
 - `Notification` → `NeedsHelp` (кроме `idle_prompt`, которое игнорируется)
 - `SessionEnd` → `Done`
 
