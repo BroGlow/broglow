@@ -12,6 +12,7 @@
   let choice = supported(saved) ? saved : "auto";
 
   function apply() {
+    root.dataset.themeChoice = choice;
     root.dataset.theme = choice === "auto" ? (media.matches ? "light" : "dark") : choice;
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = root.dataset.theme === "light" ? "#f5f3ec" : "#181a19";
