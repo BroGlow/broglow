@@ -647,6 +647,32 @@ mod mac {
                 .is_some_and(|bytes| bytes.as_slice() == identity)
     }
 
+    /// Only USB mirroring holds the lamp's serial port; then INFO must wait
+    /// until the paused worker releases it.
+    fn info_before_pause(cfg: &Config) -> bool {
+        !(cfg.led_enabled && cfg.led_transport == LedTransport::Usb)
+    }
+
+    fn open_usb(path: &str) -> Result<(Box<dyn serialport::SerialPort>, [u8; 6])> {
+        let mut serial = serialport::new(path, 115_200)
+            .timeout(Duration::from_millis(100))
+            .open()
+            .with_context(|| format!("Opening USB lamp at {path}; close other serial monitors"))?;
+        serial.write_data_terminal_ready(true)?;
+        serial.clear(serialport::ClearBuffer::Input)?;
+        let identity = usb_identity(serial.as_mut(), b"INFO\n")?;
+        Ok((serial, identity))
+    }
+
+    fn usb_key(identity: &[u8; 6]) -> String {
+        identity.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+
+    /// The tray never re-runs setup for a verified board; Add lamp always may.
+    fn already_set_up(automatic: bool, cfg: &Config, identity: &[u8; 6]) -> bool {
+        automatic && cfg.usb_lamps.contains_key(&usb_key(identity))
+    }
+
     pub(super) fn pair(port_override: Option<String>, automatic: bool) -> Result<()> {
         let ports = if port_override.is_some() {
             Vec::new()
@@ -665,6 +691,18 @@ mod mac {
         _setup.try_lock().map_err(|e| {
             anyhow::anyhow!("Lamp setup is already running; wait for it to finish: {e}")
         })?;
+        // BLE mirroring never touches the cable, so INFO runs before the pause:
+        // replugging a known lamp then leaves every connected lamp alone.
+        let current = read_setup_config()?;
+        let usb = if info_before_pause(&current) {
+            let (serial, identity) = open_usb(&path)?;
+            if already_set_up(automatic, &current, &identity) {
+                return Ok(());
+            }
+            Some((serial, identity))
+        } else {
+            None
+        };
         let (original_bytes, original, paused) = {
             let _config_lock = config::acquire_config_lock()?;
             let original_bytes = match std::fs::read(config::config_file_path()) {
@@ -694,17 +732,11 @@ mod mac {
                 }
             };
             let _radio = radio_lock()?;
-            let mut serial = serialport::new(&path, 115_200)
-                .timeout(Duration::from_millis(100))
-                .open()
-                .with_context(|| {
-                    format!("Opening USB lamp at {path}; close other serial monitors")
-                })?;
-            serial.write_data_terminal_ready(true)?;
-            serial.clear(serialport::ClearBuffer::Input)?;
-            let identity = usb_identity(serial.as_mut(), b"INFO\n")?;
-            let usb_key: String = identity.iter().map(|byte| format!("{byte:02x}")).collect();
-            if automatic && original.usb_lamps.contains_key(&usb_key) {
+            let (mut serial, identity) = match usb {
+                Some(usb) => usb,
+                None => open_usb(&path)?,
+            };
+            if already_set_up(automatic, &original, &identity) {
                 return Ok(false);
             }
             println!("Verified BroGlow firmware on {path}; opening its pairing window.");
@@ -733,7 +765,7 @@ mod mac {
                 found
             })?;
             config::update_config(|latest| {
-                remember_usb(latest, &original, usb_key, id.clone(), automatic)
+                remember_usb(latest, &original, usb_key(&identity), id.clone(), automatic)
             })?;
             println!("Remembered lamp {id}. The tray service will connect automatically; approve any macOS pairing request for this lamp.");
             Ok(true)
@@ -1439,6 +1471,28 @@ mod mac {
             let mut restarted = UsbAutoPair::default();
             assert!(!restarted.observe(&[lamp, twin], &cfg));
             assert!(restarted.observe(&[other], &cfg));
+        }
+
+        #[test]
+        fn usb_identity_is_checked_before_pausing_the_bluetooth_worker() {
+            let identity = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55];
+            let mut cfg = Config {
+                led_enabled: true,
+                led_transport: LedTransport::Ble,
+                ..Config::default()
+            };
+            // BLE mirroring leaves the cable free: INFO goes first, and a known
+            // board ends automatic setup before any lamp is paused.
+            assert!(info_before_pause(&cfg));
+            cfg.usb_lamps.insert(usb_key(&identity), "saved".into());
+            assert!(already_set_up(true, &cfg, &identity));
+            assert!(!already_set_up(false, &cfg, &identity));
+            assert!(!already_set_up(true, &cfg, &[0xaa; 6]));
+            // The USB worker owns the serial port until it is paused.
+            cfg.led_transport = LedTransport::Usb;
+            assert!(!info_before_pause(&cfg));
+            cfg.led_enabled = false;
+            assert!(info_before_pause(&cfg));
         }
 
         #[test]
