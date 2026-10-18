@@ -18,36 +18,6 @@ agents (Claude Code always; Codex, opencode and GitHub Copilot CLI when they are
 installed), installs the menu-bar app and starts it at login. No Homebrew, or on
 Windows or Linux? See [Alternative installations](alternatives.md).
 
-<a name="agent-setup"></a>
-
-## Set it up with your agent
-
-Open a folder in your agent (Codex, Claude Code or similar) and paste this request.
-If you use the [Mac package](alternatives.md#mac-package), unpack it first, keep the
-archive and its `.sha256` file next to it and open that folder. Prefer manual setup? Follow the
-[installation steps](hardware.md#install-or-update-the-mac-service).
-
-```text
-Set up BroGlow on this Mac following the Agent runbook:
-{{ repo_url }}/blob/HEAD/site/guide/en/hardware.md#agent-runbook
-Use the BroGlow package or source in this folder. If there is none, download the Mac
-package for this Mac from {{ repo_url }}/releases and verify its .sha256.
-Snapshot my settings before changes. Preserve unrelated hooks and their order, lamp
-names, brightness and Bluetooth bonds; keep one menu-bar service.
-Lamp (if attached): first confirm the board is an ESP32-C3 SuperMini. Flash it only if
-it lacks working BroGlow firmware, and only after I agree. Then set it up over USB
-(retry: broglow ble pair).
-Leave macOS Bluetooth and pairing prompts and Codex /hooks trust to me; for Codex, use
-the same CODEX_HOME as the Codex app.
-Verify: broglow runs from a fresh terminal outside this folder; broglow ble status
-shows my lamp connected; a real local agent task goes from Working to Paused (if I use
-the Codex app, test a task there).
-Then ask me to press Identify for the lamp and confirm a red → yellow → green scan.
-If nothing scans, the firmware may predate Identify: report it, do not flash.
-Report: what you installed or changed, each check with its result, and what is left
-for me to confirm.
-```
-
 <a name="path"></a>
 
 ## Open BroGlow and check the command

@@ -27,13 +27,13 @@ separate print package. Before claiming hardware support, see the
 
 ### Agent runbook
 
-Paste this request into your agent (Codex, Claude Code or similar), ideally opened in
-the unpacked package or source folder:
+Paste this request into your agent (Codex, Claude Code or similar). Open it in the
+unpacked package or source folder only if you want that route instead of Homebrew:
 
 > Set up BroGlow on this Mac following the Agent runbook:
 > {{ repo_url }}/blob/HEAD/site/guide/en/hardware.md#agent-runbook
-> Use the BroGlow package or source in this folder. If there is none, download the Mac
-> package for this Mac from {{ repo_url }}/releases and verify its .sha256.
+> Install with Homebrew: brew install broglow/tap/broglow, then broglow install. If this
+> folder holds a BroGlow package or source checkout, use that instead of Homebrew.
 > Snapshot my settings before changes. Preserve unrelated hooks and their order, lamp
 > names, brightness and Bluetooth bonds; keep one menu-bar service.
 > If a lamp is attached, first confirm it is an ESP32-C3 SuperMini. Flash it only if it
@@ -47,8 +47,11 @@ The agent follows these steps:
 1. **Pick the installation route.** A folder with `BUILD.json` and `bin/broglow` is a
    prebuilt package: follow [Install a prebuilt package](#install-a-prebuilt-package).
    A folder with `Cargo.toml` and `src/` is a source checkout: follow
-   [Build from source](#build-from-source). Check the Mac architecture with `uname -m`
-   (`arm64` needs `aarch64-apple-darwin`, `x86_64` needs `x86_64-apple-darwin`).
+   [Build from source](#build-from-source). Any other folder means Homebrew:
+   `brew install broglow/tap/broglow`, then `broglow install` (after the snapshot
+   below); the command then lives in `$(brew --prefix)/bin/broglow`. Check the Mac
+   architecture with `uname -m` (`arm64` needs `aarch64-apple-darwin`, `x86_64`
+   needs `x86_64-apple-darwin`).
 2. **Inspect, then snapshot.** Run the inspection commands in
    [Install or update the Mac service](#install-or-update-the-mac-service) and take one
    snapshot before changing anything. If BroGlow is already installed and working and
@@ -67,7 +70,8 @@ The agent follows these steps:
       `state = running`, and exactly one `broglow menubar` process runs from
       `~/Applications/BroGlow.app` ([service checks](#menu-bar-icon-and-service-validation)).
     - In a new terminal outside the package or source folder, `command -v broglow`
-      prints your `~/.cargo/bin/broglow` ([PATH](#run-broglow-from-any-directory-path)).
+      prints your `~/.cargo/bin/broglow`, or Homebrew's `bin/broglow` for the Homebrew
+      route ([PATH](#run-broglow-from-any-directory-path)).
     - `broglow ble status` starts with `connected`, for example
       `connected: 1/1 lamps connected`.
     - A real local agent task shows **Working**, then **Paused** after its response.

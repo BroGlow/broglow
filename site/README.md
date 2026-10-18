@@ -13,7 +13,7 @@ Edit Markdown sources; never edit or commit generated HTML.
 | Topic | English | Russian |
 | --- | --- | --- |
 | Parts, models and wiring | `guide/en/index.md` | `guide/ru/index.md` |
-| Installation, agent prompt and Bluetooth | `guide/en/installation.md` | `guide/ru/installation.md` |
+| Homebrew installation, PATH and Bluetooth | `guide/en/installation.md` | `guide/ru/installation.md` |
 | Mac package, source builds, Windows and Linux | `guide/en/alternatives.md` | `guide/ru/alternatives.md` |
 | Codex integration | `guide/en/codex.md` | `guide/ru/codex.md` |
 | Troubleshooting and agent prompt | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |

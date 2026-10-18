@@ -33,13 +33,14 @@ BroGlow передаёт статусы сессий локальных аген
 
 ### Инструкция для агента
 
-Вставьте этот запрос в агента (Codex, Claude Code или похожего), лучше всего открытого
-в распакованном пакете или каталоге исходников:
+Вставьте этот запрос в агента (Codex, Claude Code или похожего). Открывайте его в
+распакованном пакете или каталоге исходников, только если хотите этот способ вместо
+Homebrew:
 
 > Настрой BroGlow на этом Mac по «Инструкции для агента»:
 > {{ repo_url }}/blob/HEAD/site/guide/ru/hardware.md#agent-runbook
-> Используй пакет или исходники BroGlow в этой папке. Если их нет, скачай пакет для
-> этого Mac из {{ repo_url }}/releases и проверь его .sha256.
+> Установи через Homebrew: brew install broglow/tap/broglow, затем broglow install. Если
+> в этой папке есть пакет или исходники BroGlow, используй их вместо Homebrew.
 > Перед изменениями сохрани копию моих настроек. Сохрани посторонние хуки и их порядок,
 > имена ламп, яркость и Bluetooth-сопряжения; служба в строке меню должна быть одна.
 > Если лампа подключена, сначала убедись, что плата — ESP32-C3 SuperMini. Прошивай её,
@@ -54,8 +55,11 @@ BroGlow передаёт статусы сессий локальных аген
 1. **Выберите способ установки.** Каталог с `BUILD.json` и `bin/broglow` — готовый
    пакет: следуйте разделу [Установка готового пакета](#install-a-prebuilt-package).
    Каталог с `Cargo.toml` и `src/` — исходники: следуйте разделу
-   [Сборка из исходников](#build-from-source). Архитектуру Mac покажет `uname -m`
-   (для `arm64` нужен `aarch64-apple-darwin`, для `x86_64` — `x86_64-apple-darwin`).
+   [Сборка из исходников](#build-from-source). Любой другой каталог означает Homebrew:
+   `brew install broglow/tap/broglow`, затем `broglow install` (после снимка ниже);
+   команда тогда лежит в `$(brew --prefix)/bin/broglow`. Архитектуру Mac покажет
+   `uname -m` (для `arm64` нужен `aarch64-apple-darwin`, для `x86_64` —
+   `x86_64-apple-darwin`).
 2. **Проверьте установку и сделайте снимок.** Выполните команды проверки из раздела
    [Установка или обновление службы на Mac](#install-or-update-the-mac-service)
    и сделайте один снимок до любых изменений. Если BroGlow уже установлен и работает,
@@ -75,7 +79,8 @@ BroGlow передаёт статусы сессий локальных аген
       `state = running`, и из `~/Applications/BroGlow.app` запущен ровно один процесс
       `broglow menubar` ([проверка службы](#menu-bar-icon-and-service-validation)).
     - В новом терминале вне каталога пакета или исходников `command -v broglow`
-      выводит ваш `~/.cargo/bin/broglow` ([PATH](#run-broglow-from-any-directory-path)).
+      выводит ваш `~/.cargo/bin/broglow`, а для Homebrew — его `bin/broglow`
+      ([PATH](#run-broglow-from-any-directory-path)).
     - `broglow ble status` начинается с `connected`, например
       `connected: 1/1 lamps connected`.
     - Реальная локальная задача агента показывает **Working**, а после ответа — **Paused**.

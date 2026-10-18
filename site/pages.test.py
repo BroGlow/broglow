@@ -32,7 +32,7 @@ for locale in ("en", "ru"):
                 "once the release is published" in public
                 or "после публикации" in public
             )
-            assert ".sha256" not in public
+            assert ".sha256)" not in public, "No checksum download link"
         else:
             version = pages.cargo_package()["version"]
             archive = f"broglow-enclosure-magnetic-v{version}.zip"

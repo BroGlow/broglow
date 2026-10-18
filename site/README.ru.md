@@ -17,7 +17,7 @@
 | Тема | Английский | Русский |
 | --- | --- | --- |
 | Детали, модели и проводка | `guide/en/index.md` | `guide/ru/index.md` |
-| Установка, запрос агенту и Bluetooth | `guide/en/installation.md` | `guide/ru/installation.md` |
+| Установка через Homebrew, PATH и Bluetooth | `guide/en/installation.md` | `guide/ru/installation.md` |
 | Пакет для Mac, сборка из исходников, Windows и Linux | `guide/en/alternatives.md` | `guide/ru/alternatives.md` |
 | Интеграция Codex | `guide/en/codex.md` | `guide/ru/codex.md` |
 | Решение проблем и запрос агенту | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
