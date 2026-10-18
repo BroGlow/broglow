@@ -180,6 +180,9 @@ body.win .pbtnpri { background: #4cc2ff; color: #0b2a3a; }
 body.win .pbtnpri:hover { background: #63cbff; }
 .pbtnghost { background: transparent; color: rgba(255,255,255,.55); }
 .pbtnghost:hover { background: rgba(255,255,255,.08); }
+/* Destructive action: dark red at rest, bright red once pointed at or focused. */
+.pbtndanger { color: #c4463c; }
+.pbtndanger:hover, .pbtndanger:focus-visible { color: #ff453a; }
 .pbtn[disabled] { opacity: .55; pointer-events: none; }
 .pbtn[hidden] { display: none; }
 .f1 { flex: 1; }
@@ -500,7 +503,7 @@ function renderLamp() {
         `<details class="lamptechnical"><summary>Connection details</summary>` +
         `<dl><dt>${wireless ? 'Device ID' : 'Connection'}</dt><dd class="lampid" id="lampid-${i}"></dd>` +
         `<dt>Diagnostic</dt><dd id="lampdiagnostic-${i}"></dd></dl></details>` +
-        (wireless ? `<div class="lampforget"><button class="pbtn pbtnghost" type="button" id="lampforget-${i}" ` +
+        (wireless ? `<div class="lampforget"><button class="pbtn pbtnghost pbtndanger" type="button" id="lampforget-${i}" ` +
           `aria-label="Forget lamp ${i + 1}">Forget lamp</button></div>` : '') +
         `</details>`
       ).join('');
