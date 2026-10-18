@@ -808,7 +808,6 @@ mod mac {
                         })
                         .collect();
                     crate::led::publish_ble_status(cfg, devices.clone());
-                    *targets.borrow_mut() = ids.clone();
                 }
                 ids
             };
@@ -818,16 +817,20 @@ mod mac {
             // prompt cannot delay another lamp's writes or heartbeat.
             let (keep, targets, advertisements, scan_error, update) =
                 (&keep, &targets, &advertisements, &scan_error, &update);
-            let lamp = |id: String| {
-                async move {
-                    let keep = || keep() && targets.borrow().contains(&id);
-                    lamp_loop(&id, advertisements, scan_error, &keep, update).await;
-                }
-                .boxed_local()
-            };
             tokio::join!(
                 discover(&adapter, targets, advertisements, scan_error, keep),
-                supervise(refresh, lamp, keep),
+                supervise(
+                    targets,
+                    refresh,
+                    |id, saved| {
+                        async move {
+                            let keep = || saved();
+                            lamp_loop(&id, advertisements, scan_error, &keep, update).await;
+                        }
+                        .boxed_local()
+                    },
+                    keep,
+                ),
             );
             Ok(())
         })
@@ -836,19 +839,25 @@ mod mac {
     type Advertisements = broadcast::Sender<(String, Peripheral)>;
 
     /// Runs one task per saved lamp, starting tasks for newly saved lamps.
-    /// A forgotten lamp's task stops itself; the others keep their connections.
-    async fn supervise<'a>(
+    /// Each task gets a keep that turns false once its lamp is forgotten, so
+    /// it stops while the others keep their connections.
+    async fn supervise<'a, K: Fn() -> bool>(
+        targets: &'a RefCell<Vec<String>>,
         refresh: impl Fn() -> Vec<String>,
-        lamp: impl Fn(String) -> LocalBoxFuture<'a, ()>,
-        keep: &impl Fn() -> bool,
+        lamp: impl Fn(String, Box<dyn Fn() -> bool + 'a>) -> LocalBoxFuture<'a, ()>,
+        keep: &'a K,
     ) {
         let mut running = Vec::new();
         let mut tasks = FuturesUnordered::new();
         while keep() {
-            for id in refresh() {
+            let ids = refresh();
+            *targets.borrow_mut() = ids.clone();
+            for id in ids {
                 if !running.contains(&id) {
                     running.push(id.clone());
-                    tasks.push(lamp(id.clone()).map(move |()| id));
+                    let saved = id.clone();
+                    let keep = Box::new(move || keep() && targets.borrow().contains(&saved));
+                    tasks.push(lamp(id.clone(), keep).map(move |()| id));
                 }
             }
             tokio::select! {
@@ -1605,17 +1614,8 @@ mod mac {
                 let stopped = RefCell::new(Vec::new());
                 let active = Cell::new(true);
                 let keep = || active.get();
+                let targets = RefCell::new(Vec::new());
                 let (saved, started, stopped) = (&saved, &started, &stopped);
-                let lamp = |id: String| {
-                    started.borrow_mut().push(id.clone());
-                    async move {
-                        while keep() && saved.borrow().contains(&id) {
-                            sleep(POLL).await;
-                        }
-                        stopped.borrow_mut().push(id);
-                    }
-                    .boxed_local()
-                };
                 let script = async {
                     sleep(POLL * 2).await;
                     assert_eq!(*started.borrow(), ["home", "work"]);
@@ -1629,7 +1629,25 @@ mod mac {
                     active.set(false);
                 };
                 timeout(Duration::from_secs(5), async {
-                    tokio::join!(supervise(|| saved.borrow().clone(), lamp, &keep), script)
+                    tokio::join!(
+                        supervise(
+                            &targets,
+                            || saved.borrow().clone(),
+                            // Each lamp runs until the keep supervise hands it says stop.
+                            |id, keep| {
+                                started.borrow_mut().push(id.clone());
+                                async move {
+                                    while keep() {
+                                        sleep(POLL).await;
+                                    }
+                                    stopped.borrow_mut().push(id);
+                                }
+                                .boxed_local()
+                            },
+                            &keep,
+                        ),
+                        script
+                    )
                 })
                 .await
                 .expect("supervisor stops once the worker is cancelled");
