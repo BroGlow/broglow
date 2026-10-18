@@ -306,6 +306,8 @@ impl Popover {
             })
             .build(&window)
             .context("Building popover webview")?;
+        #[cfg(target_os = "macos")]
+        unlock_frame_rate(&webview);
 
         Ok(Self {
             setup_busy: false,
@@ -657,6 +659,52 @@ fn build_payload(state: &HookState, setup_busy: bool) -> String {
     };
     serde_json::to_string(&payload)
         .unwrap_or_else(|_| r#"{"aggregate":"none","sessions":[]}"#.to_string())
+}
+
+/// WKWebView renders at 60 fps by default, even on a 120 Hz ProMotion display,
+/// so popover scrolling looks choppier than native views. Turn off WebKit's
+/// `PreferPageRenderingUpdatesNear60FPSEnabled` feature (Safari's "Prefer Page
+/// Rendering Updates near 60fps" flag) through the private `_WKFeature` API.
+/// Each selector is checked first, so a WebKit without it keeps 60 fps.
+#[cfg(target_os = "macos")]
+fn unlock_frame_rate(webview: &WebView) {
+    use objc2::rc::Retained;
+    use objc2::runtime::{AnyClass, AnyObject};
+    use objc2::{msg_send, sel};
+    use std::ffi::{c_char, CStr};
+    use wry::WebViewExtMacOS;
+
+    const FEATURE: &CStr = c"PreferPageRenderingUpdatesNear60FPSEnabled";
+    let Some(class) = AnyClass::get(c"WKPreferences") else {
+        return;
+    };
+    let wk = webview.webview();
+    // SAFETY: plain Objective-C messages to WebKit objects; every private
+    // selector is guarded by respondsToSelector:.
+    unsafe {
+        let has_features: bool = msg_send![class, respondsToSelector: sel!(_features)];
+        if !has_features {
+            return;
+        }
+        let config: Retained<AnyObject> = msg_send![&*wk, configuration];
+        let prefs: Retained<AnyObject> = msg_send![&*config, preferences];
+        let can_set: bool = msg_send![&*prefs, respondsToSelector: sel!(_setEnabled:forFeature:)];
+        if !can_set {
+            return;
+        }
+        let features: Retained<AnyObject> = msg_send![class, _features];
+        let count: usize = msg_send![&*features, count];
+        for i in 0..count {
+            let feature: Retained<AnyObject> = msg_send![&*features, objectAtIndex: i];
+            let key: Option<Retained<AnyObject>> = msg_send![&*feature, key];
+            let Some(key) = key else { continue };
+            let utf8: *const c_char = msg_send![&*key, UTF8String];
+            if !utf8.is_null() && CStr::from_ptr(utf8) == FEATURE {
+                let _: () = msg_send![&*prefs, _setEnabled: false, forFeature: &*feature];
+                return;
+            }
+        }
+    }
 }
 
 fn popover_html() -> String {

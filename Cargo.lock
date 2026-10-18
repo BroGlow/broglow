@@ -411,6 +411,7 @@ dependencies = [
  "libc",
  "notify",
  "notify-rust",
+ "objc2",
  "ratatui",
  "serde",
  "serde_json",

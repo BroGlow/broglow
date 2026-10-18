@@ -67,6 +67,9 @@ winreg = "0.56"
 
 # BLE is opt-in on the Mac app; other platforms keep USB support.
 [target.'cfg(target_os = "macos")'.dependencies]
+# WebKit private API to lift the popover's 60 fps cap (popover.rs). Same
+# version wry already pulls in.
+objc2 = "0.6"
 btleplug = "=0.13.1"
 futures-util = "0.3"
 tokio = { version = "1", features = ["rt", "time", "macros", "sync"] }
