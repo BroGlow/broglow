@@ -111,7 +111,9 @@ grant or board operation: record those acceptance checks separately.
   The worker follows saved-lamp edits itself (one task per lamp): `same_target` and
   `status_for` must not compare the lamp list, or Forget reconnects every lamp.
   USB-assisted `pair` requires exact INFO identity before PAIR and matches the
-  service plus full six-byte base MAC in manufacturer data (`0xffff`). The tray checks
+  service plus full six-byte base MAC in manufacturer data (`0xffff`). INFO runs before
+  the worker pause unless USB mirroring holds the port, so a known board never pauses
+  the other lamps; PAIR and the BLE scan still pause. The tray checks
   USB every five seconds and attempts setup once per new attachment; `usb_lamps`
   records verified boards so Disable/Forget survive restart. Retain exact identity
   checks, serial/worker locks, failure rollback and macOS consent.

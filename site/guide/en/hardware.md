@@ -740,9 +740,12 @@ their transport and their enabled setting; a forgotten lamp can only be added ag
 with **Add lamp**. Progress and errors appear under **Lamps**. Windows and Linux keep
 the USB behavior; automatic Bluetooth setup is macOS-only.
 
-During setup BroGlow pauses lamp control and waits up to **eight seconds** for the
-worker to stop. It then exchanges `INFO` and `PAIR` at **115200 baud**, releases the
-serial port and scans for **eight seconds**. A busy port causes an error; BroGlow does
+Setup first reads `INFO` at **115200 baud**; a board already in `usb_lamps` ends
+automatic setup there, so replugging a saved lamp leaves the other lamps connected.
+Otherwise BroGlow pauses lamp control and waits up to **eight seconds** for the worker
+to stop, sends `PAIR`, releases the serial port and scans for **eight seconds**. While
+lamps are mirrored over USB, the worker holds the port, so the pause comes before
+`INFO`. A busy port causes an error; BroGlow does
 not take it over. On failure, the previous lamp settings return while unrelated
 settings changed in the meantime are kept. Closing the popover does not stop setup or
 recovery. USB-assisted setup still uses Just Works pairing and needs macOS consent.
