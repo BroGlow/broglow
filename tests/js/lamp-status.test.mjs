@@ -13,6 +13,7 @@ function popoverPage() {
       id, dataset: {}, attributes: {}, offsetHeight: 200, value: '100', active: false,
       textContent: '', hidden: false, open: false, tagName: 'DIV',
       focus() { context.document.activeElement = this; },
+      click() { click(id); },
       setAttribute(name, value) { this.attributes[name] = value; },
       matches(selector) {
         return selector === ':active' ? this.active : selector === 'details' && this.tagName === 'DETAILS';
@@ -605,6 +606,20 @@ test('names render as text and drafts survive heartbeat, focus changes and faile
   assert.equal(input.value, 'Дом 🏡');
   assert.equal(element('lamperror').hidden, true);
   assert.equal(list.writes, builds, 'Names and drafts do not rebuild disclosure controls');
+});
+
+test('Enter in a lamp name saves it like the Save button', () => {
+  const { element, update, click, listeners, commands } = popoverPage();
+  update(lamp({ state: 'searching', devices: [{ id: 'saved-lamp', state: 'searching' }], names: {} }));
+  click('lampbtn');
+  const input = element('lampname-0');
+  input.value = ' Desk ';
+  let prevented = false;
+  listeners.keydown({ key: 'Enter', isComposing: true, target: input, preventDefault() {} });
+  assert.equal(commands('rename_lamp').length, 0, 'IME composition Enter does not save');
+  listeners.keydown({ key: 'Enter', target: input, preventDefault() { prevented = true; } });
+  assert.deepEqual(commands('rename_lamp'), [{ cmd: 'rename_lamp', id: 'saved-lamp', name: 'Desk' }]);
+  assert.ok(prevented);
 });
 
 test('rename accepts 40 Unicode characters, rejects longer names and resets to automatic with blank input', () => {

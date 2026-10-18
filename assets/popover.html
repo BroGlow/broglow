@@ -853,6 +853,11 @@ document.addEventListener('click', ev => {
   post(msg);
 });
 document.addEventListener('keydown', ev => {
+  if (ev.key === 'Enter' && !ev.isComposing && ev.target.id?.startsWith('lampname-')) {
+    ev.preventDefault();
+    document.getElementById(ev.target.id.replace('lampname-', 'lampsave-'))?.click();
+    return;
+  }
   if (ev.key !== 'Escape') return;
   stopBrightnessPreview();
   if (view !== 'sessions') { view = 'sessions'; render(); }
