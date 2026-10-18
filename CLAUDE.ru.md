@@ -112,7 +112,8 @@ BLE не даёт поиску устройств и рабочему проце
   Все имена приходят из хуков.
 - **config.rs** — `~/.claude/broglow/config.json`: явное включение LED,
   `led_transport` по умолчанию USB, необязательный `led_port`, сохранённые
-  `ble_peripherals`, `yellow_mode` и `show_agent_names` (по умолчанию включено).
+  `ble_peripherals`, `yellow_mode`, `show_agent_names` (по умолчанию включено)
+  и `group_by_project` (по умолчанию выключено).
   Используйте `ble_ids()`, чтобы удалять
   дубликаты сохранённых `ble_peripherals`. При выборе лампы
   сохраняйте посторонние и неизвестные настройки.

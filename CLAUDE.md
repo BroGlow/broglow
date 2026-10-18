@@ -94,8 +94,8 @@ grant or board operation: record those acceptance checks separately.
 - **session.rs** — turns hook state into the TUI's `DisplaySession`s: display names,
   sort order and the five most recent finished sessions. Every name comes from the hooks.
 - **config.rs** — `~/.claude/broglow/config.json` (LED opt-in, `led_transport`
-  defaulting to USB, optional `led_port`, remembered `ble_peripherals`, `yellow_mode`, and
-  `show_agent_names`, on by default).
+  defaulting to USB, optional `led_port`, remembered `ble_peripherals`, `yellow_mode`,
+  `show_agent_names`, on by default, and `group_by_project`, off by default).
   Use `ble_ids()` to deduplicate remembered `ble_peripherals`.
   Preserve unrelated and unknown settings when changing the lamp selection.
 - **app.rs** — TUI event loop: file watcher + 5s timer refresh, key handling, notifications.

@@ -37,6 +37,11 @@ pub struct Config {
     /// Name each session's coding agent beside its icon in the tray popover;
     /// off leaves the icon alone. On by default.
     pub show_agent_names: bool,
+    /// List sessions under their working directory (the popover's project
+    /// headings, the TUI's sort order and the Linux menu's headings) instead
+    /// of under their status. Off by default; set from the popover's
+    /// Settings view, or by hand on Linux.
+    pub group_by_project: bool,
     /// Whether the menu bar daemon should mirror session state to an ESP32 over
     /// serial. Off by default; macOS USB setup can enable a newly added lamp.
     pub led_enabled: bool,
@@ -82,6 +87,7 @@ impl Default for Config {
         Self {
             show_dashboard_button: false,
             show_agent_names: true,
+            group_by_project: false,
             led_enabled: false,
             led_port: None,
             led_transport: LedTransport::default(),
@@ -399,6 +405,19 @@ mod tests {
 
         assert!(!Config::default().led_enabled);
         assert!(!Config::default().show_dashboard_button);
+    }
+
+    #[test]
+    fn grouping_by_project_is_off_unless_turned_on() {
+        assert!(!Config::default().group_by_project);
+        let cfg: Config = serde_json::from_str("{}").unwrap();
+        assert!(!cfg.group_by_project);
+        let cfg: Config = serde_json::from_str(r#"{"group_by_project":true}"#).unwrap();
+        assert!(cfg.group_by_project);
+        assert_eq!(
+            serde_json::to_value(&cfg).unwrap()["group_by_project"],
+            true
+        );
     }
 
     #[test]
