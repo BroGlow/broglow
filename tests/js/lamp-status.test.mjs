@@ -268,6 +268,86 @@ test('Settings uses native radios for mixed sessions and a checkbox for usage tr
   }
 });
 
+test('Settings toggles project grouping and keeps focus through the saved preference', () => {
+  const { context, element, click, listeners, commands } = popoverPage();
+  const refresh = settings => context.window.__setState({ aggregate: 'none', sessions: [], settings, lamp: lamp() });
+  refresh({});
+  click('settingsbtn');
+  const html = element('groups').innerHTML;
+  assert.match(html, /for="showagentnames"[\s\S]*<label class="optrow" for="groupbyproject"><input type="checkbox" id="groupbyproject"/,
+    'Sits in Appearance after agent names');
+  const toggle = element('groupbyproject');
+  assert.equal(toggle.checked, false, 'Off by default');
+  toggle.focus();
+  for (const enabled of [true, false]) {
+    toggle.checked = enabled;
+    listeners.change({ target: toggle });
+    assert.deepEqual(commands('set_group_by_project').at(-1), { cmd: 'set_group_by_project', enabled });
+    refresh({ groupByProject: enabled });
+    assert.equal(toggle.checked, enabled);
+    assert.equal(context.document.activeElement, toggle, 'Keep keyboard focus through refresh');
+  }
+  assert.equal(commands('set_agent_names').length, 0);
+});
+
+test('grouping by project lists sessions under directory headings with the status in each row', () => {
+  const { context, element } = popoverPage();
+  const at = minutes => new Date(Date.now() - minutes * 60000).toISOString();
+  const agent = { label: 'Claude', icon: 'M8 1.5v13', badge: 'cc' };
+  const session = (id, status, projectPath, project, minutes) =>
+    ({ id, name: 'Task ' + id, status, projectPath, project, lastUpdated: at(minutes), agent });
+  const sessions = [
+    session('focus', 'inactive', '/d/broglow', 'broglow', 17),
+    session('notes', 'inactive', '', 'No project', 120),
+    session('review', 'active', '/a/recco', 'a/recco', 1),
+    session('grouping', 'active', '/d/broglow', 'broglow', 0),
+    session('deploy', 'inactive', '/b/recco', 'b/recco', 42),
+    session('help', 'needs_help', '/a/recco', 'a/recco', 3),
+    session('odd', 'future', '/a/recco', 'a/recco', 0),
+  ];
+  const refresh = settings => context.window.__setState({ aggregate: 'red', sessions, settings, lamp: lamp() });
+  const text = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+  refresh({ groupByProject: true });
+  const html = element('groups').innerHTML;
+  const order = [...html.matchAll(/class="projhead"[^>]*>(?:<svg[\s\S]*?<\/svg>)?<span>([^<]*)<\/span>|data-id="([^"]+)" title="Open session"/g)]
+    .map(m => m[1] ?? m[2]);
+  assert.deepEqual(order, ['a/recco', 'help', 'review', 'broglow', 'grouping', 'focus', 'b/recco', 'deploy', 'No project', 'notes'],
+    'Most urgent project first, then recency; status then recency inside; unknown directory last; unknown statuses dropped');
+  assert.match(html, /<div class="grphead"><div class="grplabel">By project<\/div><button[^>]*id="clearpaused" data-cmd="clear_paused"/,
+    'Clear paused moves to the By project heading');
+  assert.doesNotMatch(html, /Needs help<\/div>|Working<\/div>|Paused<\/div>/, 'No status headings');
+  assert.match(html, /<div class="projhead" role="heading" aria-level="3" title="\/a\/recco" aria-label="a\/recco, \/a\/recco"><svg/,
+    'The path is hover text and part of the accessible name');
+  assert.match(html, /<div class="projhead" role="heading" aria-level="3"><span>No project<\/span>/, 'No glyph or path for an unknown directory');
+  const row = id => html.slice(html.indexOf(`data-id="${id}" title`)).match(/<span class="smeta">(.*?)<\/span><\/div>/)[1];
+  assert.equal(text(row('help')), 'Claude · needs help');
+  assert.equal(text(row('grouping')), 'Claude · working');
+  assert.equal(text(row('deploy')), 'Claude · paused');
+  assert.match(html.slice(html.indexOf('data-id="help"') - 40), /class="srow helprow"[\s\S]*?<button class="focusbtn" data-cmd="focus" data-id="help"/,
+    'Needs-help rows keep the tint and Focus button');
+  assert.equal((html.match(/class="dismissbtn"/g) || []).length, 6);
+  assert.match(element('chips').innerHTML, /title="1 needs help" aria-label="1 needs help"/);
+  assert.match(element('chips').innerHTML, /title="3 paused" aria-label="3 paused"/);
+
+  refresh({});
+  const flat = element('groups').innerHTML;
+  assert.match(flat, /Needs help<\/div>/);
+  assert.doesNotMatch(flat, /projhead|By project/);
+  assert.equal(text(flat.slice(flat.indexOf('data-id="deploy" title')).match(/<span class="smeta">(.*?)<\/span><\/div>/)[1]), 'Claude · b/recco');
+  assert.equal(text(flat.slice(flat.indexOf('data-id="notes" title')).match(/<span class="smeta">(.*?)<\/span><\/div>/)[1]), 'Claude · No project');
+
+  context.window.__setState({ aggregate: 'red', sessions: [session('odd', 'future', '/x', 'x', 0)], settings: { groupByProject: true }, lamp: lamp() });
+  assert.doesNotMatch(element('groups').innerHTML, /By project/, 'No heading without any row to show');
+
+  // Equal urgency and time: the path decides, and nothing paused means no Clear paused.
+  const tied = ['/z', '/m', '/a'].map(path => ({ ...session('t' + path.slice(1), 'active', path, path.slice(1), 0), lastUpdated: at(0) }));
+  context.window.__setState({ aggregate: 'green', sessions: tied, settings: { groupByProject: true }, lamp: lamp() });
+  const tiedHtml = element('groups').innerHTML;
+  assert.deepEqual([...tiedHtml.matchAll(/class="projhead"[^>]*><svg[\s\S]*?<\/svg><span>([^<]*)<\/span>/g)].map(m => m[1]), ['a', 'm', 'z']);
+  assert.doesNotMatch(tiedHtml, /clearpaused/);
+});
+
 test('usage shows plan percentages and tokens, never dollar estimates', () => {
   const { context, element } = popoverPage();
   const show = usage => {

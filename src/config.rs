@@ -189,6 +189,14 @@ pub fn set_agent_names(enabled: bool) -> anyhow::Result<()> {
     })
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+pub fn set_group_by_project(enabled: bool) -> anyhow::Result<()> {
+    update_config(|cfg| {
+        cfg.group_by_project = enabled;
+        Ok(())
+    })
+}
+
 /// Serialize settings edits across the tray, CLI and setup subprocess. The lock
 /// releases when this file drops; never hold it across device I/O or prompts.
 pub fn acquire_config_lock() -> anyhow::Result<std::fs::File> {

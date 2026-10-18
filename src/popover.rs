@@ -16,8 +16,8 @@ use tray_icon::Rect;
 use wry::WebView;
 
 use crate::config::{self, LedTransport, YellowMode};
-use crate::menubar::{display_name, project_label, ICON_GREEN, ICON_NONE, ICON_RED, ICON_YELLOW};
-use crate::state::{aggregate, Aggregate, HookState, Status};
+use crate::menubar::{display_name, ICON_GREEN, ICON_NONE, ICON_RED, ICON_YELLOW};
+use crate::state::{aggregate, Aggregate, HookState, SessionStatus, Status};
 use crate::usage::{self, UsageSnapshot};
 
 /// Logical width of the popover window. Must match the card width in
@@ -85,6 +85,10 @@ pub enum PopoverMsg {
     SetAgentNames {
         enabled: bool,
     },
+    /// List sessions under their working directory instead of their status.
+    SetGroupByProject {
+        enabled: bool,
+    },
     /// The Settings view's usage-tracking toggle.
     SetUsage {
         enabled: bool,
@@ -141,7 +145,13 @@ fn deserialize_brightness_percent<'de, D: serde::Deserializer<'de>>(
 struct SessionPayload<'a> {
     id: &'a str,
     name: String,
+    /// The shared project label (`session::project_labels`), computed over
+    /// the live sessions; "No project" when the directory is unknown.
     project: String,
+    /// The working directory as recorded, the grouping key; `""` when
+    /// unknown (the page relies on the empty sentinel for "No project").
+    #[serde(rename = "projectPath")]
+    project_path: &'a str,
     status: &'a Status,
     #[serde(rename = "lastUpdated")]
     last_updated: &'a str,
@@ -195,6 +205,8 @@ struct SettingsPayload {
     show_dashboard_button: bool,
     #[serde(rename = "showAgentNames")]
     show_agent_names: bool,
+    #[serde(rename = "groupByProject")]
+    group_by_project: bool,
     #[serde(rename = "yellowMode")]
     yellow_mode: YellowMode,
     /// Whether usage tracking is opted into; drives the Settings selection and
@@ -573,29 +585,48 @@ fn agg_str(agg: Aggregate) -> &'static str {
 
 /// Serialize hook state for `window.__setState`. Grouping, sorting, and
 /// relative-time formatting happen in the page.
-fn build_payload(state: &HookState, setup_busy: bool) -> String {
-    let cfg = config::read_config();
-    let connection = crate::led::connection_status();
-    let sessions: Vec<SessionPayload> = state
+/// The page's session rows: live sessions only, labelled over exactly those,
+/// so a stale done session never lengthens a live one's label.
+fn session_payloads(state: &HookState) -> Vec<SessionPayload<'_>> {
+    let live: Vec<(&String, &SessionStatus)> = state
         .sessions
         .iter()
         .filter(|(_, s)| s.status != Status::Done)
+        .collect();
+    let labels = crate::session::project_labels(
+        live.iter()
+            .filter_map(|(_, s)| s.project_path.as_deref())
+            .filter(|p| !p.is_empty()),
+    );
+    live.into_iter()
         .map(|(id, s)| SessionPayload {
             id,
             name: display_name(id, s),
-            project: project_label(s),
+            project: s
+                .project_path
+                .as_deref()
+                .and_then(|p| labels.get(p))
+                .cloned()
+                .unwrap_or_else(|| crate::session::NO_PROJECT.to_string()),
+            project_path: s.project_path.as_deref().unwrap_or_default(),
             status: &s.status,
             last_updated: &s.last_updated,
             agent: crate::harness::agent(s.harness.as_deref()).into(),
             host: crate::terminal::host(s.harness.as_deref(), s.terminal.as_ref()).map(Into::into),
         })
-        .collect();
+        .collect()
+}
+
+fn build_payload(state: &HookState, setup_busy: bool) -> String {
+    let cfg = config::read_config();
+    let connection = crate::led::connection_status();
     let payload = StatePayload {
         aggregate: agg_str(aggregate(state, cfg.yellow_mode)),
-        sessions,
+        sessions: session_payloads(state),
         settings: SettingsPayload {
             show_dashboard_button: cfg.show_dashboard_button,
             show_agent_names: cfg.show_agent_names,
+            group_by_project: cfg.group_by_project,
             yellow_mode: cfg.yellow_mode,
             usage_enabled: cfg.usage_enabled,
         },
@@ -676,8 +707,9 @@ fn base64(data: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{base64, AgentPayload, PopoverMsg};
+    use super::{base64, session_payloads, AgentPayload, PopoverMsg, SettingsPayload};
     use crate::config::YellowMode;
+    use crate::state::{HookState, SessionStatus, Status};
 
     #[test]
     fn dismiss_session_requires_an_id() {
@@ -731,6 +763,97 @@ mod tests {
             assert!(matches!(msg, PopoverMsg::SetUsage { enabled: e } if e == enabled));
         }
         assert!(serde_json::from_str::<PopoverMsg>(r#"{"cmd":"set_usage"}"#).is_err());
+    }
+
+    /// Pins the IPC wire format for the Settings view's project grouping
+    /// toggle (`{cmd:'set_group_by_project', enabled:...}` in assets/popover.html).
+    #[test]
+    fn group_by_project_requires_an_explicit_boolean() {
+        for enabled in [true, false] {
+            let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
+                "cmd": "set_group_by_project", "enabled": enabled
+            }))
+            .unwrap();
+            assert!(
+                matches!(msg, PopoverMsg::SetGroupByProject { enabled: value } if value == enabled)
+            );
+        }
+        for payload in [
+            r#"{"cmd":"set_group_by_project"}"#,
+            r#"{"cmd":"set_group_by_project","enabled":"true"}"#,
+        ] {
+            assert!(serde_json::from_str::<PopoverMsg>(payload).is_err());
+        }
+    }
+
+    /// Pins the session shape the page groups by: `projectPath` is the key
+    /// (`""` = unknown) and `project` the shared label, computed over the live
+    /// sessions only.
+    #[test]
+    fn session_payloads_carry_the_project_path_and_a_label_over_live_sessions() {
+        let session = |status: Status, path: Option<&str>| SessionStatus {
+            status,
+            last_updated: "2026-01-01T00:00:00Z".into(),
+            project_path: path.map(str::to_string),
+            notification_type: None,
+            name: Some("Task".into()),
+            terminal: None,
+            harness: None,
+        };
+        let mut state = HookState::default();
+        state
+            .sessions
+            .insert("a".into(), session(Status::Active, Some("/a/recco")));
+        state
+            .sessions
+            .insert("b".into(), session(Status::Inactive, Some("/b/recco")));
+        state
+            .sessions
+            .insert("none".into(), session(Status::Active, None));
+        state
+            .sessions
+            .insert("old".into(), session(Status::Done, Some("/c/recco")));
+        let payloads = serde_json::to_value(session_payloads(&state)).unwrap();
+        let by_id = |id: &str| {
+            payloads
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|p| p["id"] == id)
+                .cloned()
+        };
+        assert!(by_id("old").is_none(), "done sessions stay off the page");
+        assert_eq!(by_id("a").unwrap()["projectPath"], "/a/recco");
+        assert_eq!(by_id("a").unwrap()["project"], "a/recco");
+        assert_eq!(by_id("b").unwrap()["project"], "b/recco");
+        assert_eq!(by_id("none").unwrap()["projectPath"], "");
+        assert_eq!(by_id("none").unwrap()["project"], "No project");
+
+        // Without the paused one, the done /c/recco must not keep the
+        // live label long.
+        state.sessions.remove("b");
+        let payloads = serde_json::to_value(session_payloads(&state)).unwrap();
+        let live = payloads
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["id"] == "a")
+            .unwrap();
+        assert_eq!(live["project"], "recco");
+    }
+
+    /// Pins the settings key the page reads for the grouping checkbox.
+    #[test]
+    fn settings_payload_names_group_by_project_for_the_page() {
+        let settings = serde_json::to_value(SettingsPayload {
+            show_dashboard_button: false,
+            show_agent_names: true,
+            group_by_project: true,
+            yellow_mode: YellowMode::AnyInactive,
+            usage_enabled: false,
+        })
+        .unwrap();
+        assert_eq!(settings["groupByProject"], true);
     }
 
     #[test]

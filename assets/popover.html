@@ -67,6 +67,19 @@ body.win .pop {
 body.win .grplabel { color: rgba(255,255,255,.45); }
 .grphead { display: flex; align-items: center; justify-content: space-between; padding-right: 4px; }
 .grphead .pbtn { font-size: 11px; padding: 3px 6px; }
+/* Project heading when sessions are grouped by working directory: the folder
+   name in sentence case (uppercase would mangle repo names), the full path on
+   hover, and a folder glyph of our own. */
+.projhead {
+  display: flex; align-items: center; gap: 6px; margin-top: 4px; padding: 6px 10px 2px 10px;
+  font-size: 11px; font-weight: 600; color: rgba(255,255,255,.6);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.grphead + .projhead { margin-top: 0; }
+.projhead svg { width: 12px; height: 12px; flex-shrink: 0;
+  fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.projhead span { overflow: hidden; text-overflow: ellipsis; }
+body.win .projhead { color: rgba(255,255,255,.7); }
 
 .srow { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; cursor: pointer; }
 .srow:active { filter: brightness(.85); }
@@ -244,10 +257,13 @@ const ICONS = {
   none: "__ICON_NONE__",
 };
 const GROUPS = [
-  { status: 'needs_help', label: 'Needs help', dot: 'dred' },
-  { status: 'active',     label: 'Working',    dot: 'dgreen' },
-  { status: 'inactive',   label: 'Paused',     dot: 'dyellow' },
+  { status: 'needs_help', label: 'Needs help', dot: 'dred',    word: 'needs help' },
+  { status: 'active',     label: 'Working',    dot: 'dgreen',  word: 'working' },
+  { status: 'inactive',   label: 'Paused',     dot: 'dyellow', word: 'paused' },
 ];
+const BY_STATUS = Object.fromEntries(GROUPS.map((g, rank) => [g.status, { ...g, rank }]));
+// Folder glyph for project headings (our own geometry, placed in a `d` attribute).
+const FOLDER_ICON = 'M1.5 4.5a1 1 0 0 1 1-1h3.2l1.6 1.6h6.2a1 1 0 0 1 1 1v6.4a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z';
 
 const YELLOW_OPTIONS = [
   { value: 'any_inactive', title: 'Yellow when any session is idle' },
@@ -591,11 +607,13 @@ function render() {
   document.getElementById('aggline').textContent = agg;
 
   const chipDefs = [
-    ['dgreen', counts.active], ['dyellow', counts.inactive], ['dred', counts.needs_help],
+    ['dgreen', counts.active, 'working'], ['dyellow', counts.inactive, 'paused'], ['dred', counts.needs_help, 'needs help'],
   ];
+  // The colour is the only visual legend; name the count for hover and
+  // assistive tech, since the grouped-by-project list has no status headings.
   document.getElementById('chips').innerHTML = chipDefs
     .filter(([, n]) => n > 0)
-    .map(([dot, n]) => `<span class="chip"><span class="dot ${dot}"></span>${n}</span>`)
+    .map(([dot, n, word]) => `<span class="chip" role="img" title="${n} ${word}" aria-label="${n} ${word}"><span class="dot ${dot}"></span>${n}</span>`)
     .join('');
 
   const settingsBtn = document.getElementById('settingsbtn');
@@ -623,7 +641,7 @@ function render() {
     }
   } else if (view === 'settings') {
     // Rebuilding the view drops focus; keep keyboard users on their control.
-    const focused = ['showdashboard', 'showagentnames', 'trackusage',
+    const focused = ['showdashboard', 'showagentnames', 'groupbyproject', 'trackusage',
       ...YELLOW_OPTIONS.map(o => `yellow-${o.value}`)].includes(document.activeElement?.id)
       ? document.activeElement.id : '';
     const mode = (state.settings && state.settings.yellowMode) || 'any_inactive';
@@ -637,6 +655,10 @@ function render() {
       `<input type="checkbox" id="showagentnames" aria-describedby="agentnameshint">` +
       `<span class="sinfo"><span class="sname">Show agent names</span>` +
       `<span class="smeta setdesc" id="agentnameshint">Name the coding agent beside its icon.</span></span></label>` +
+      `<label class="optrow" for="groupbyproject">` +
+      `<input type="checkbox" id="groupbyproject" aria-describedby="groupbyprojecthint">` +
+      `<span class="sinfo"><span class="sname">Group by project</span>` +
+      `<span class="smeta setdesc" id="groupbyprojecthint">List sessions by working directory, not by status.</span></span></label>` +
       `<p class="lamperror" id="settingserror" role="alert" hidden></p>` +
       `<div class="grplabel" id="mixedlabel">Mixed sessions</div>` +
       `<div role="radiogroup" aria-labelledby="mixedlabel">` +
@@ -655,6 +677,7 @@ function render() {
     const dashboardToggle = document.getElementById('showdashboard');
     dashboardToggle.checked = state.settings?.showDashboardButton === true;
     document.getElementById('showagentnames').checked = state.settings?.showAgentNames !== false;
+    document.getElementById('groupbyproject').checked = state.settings?.groupByProject === true;
     document.getElementById(`yellow-${mode}`).checked = true;
     document.getElementById('trackusage').checked = state.settings?.usageEnabled === true;
     if (focused) document.getElementById(focused).focus();
@@ -667,27 +690,61 @@ function render() {
       `<span>No live sessions</span></div>`;
   } else {
     const showAgentNames = state.settings?.showAgentNames !== false;
+    const byRecency = (a, b) => Date.parse(b.lastUpdated) - Date.parse(a.lastUpdated);
+    const clearPaused = `<button class="pbtn pbtnghost" type="button" id="clearpaused" data-cmd="clear_paused"` +
+      ` title="Dismiss all paused sessions until new activity">Clear paused</button>`;
+    // A session row; the meta line names the agent and host, then `detail`:
+    // the project under status headings, the status word under project ones.
+    const row = (s, detail) => {
+      const help = s.status === 'needs_help';
+      const meta = agentMeta(s.agent, showAgentNames, s.host) + esc(detail);
+      const tail = help
+        ? `<button class="focusbtn" data-cmd="focus" data-id="${esc(s.id)}">Focus</button>`
+        : `<span class="time">${relTime(s.lastUpdated)}</span>`;
+      return `<div class="srow${help ? ' helprow' : ''}" data-cmd="focus"` +
+        ` data-id="${esc(s.id)}" title="Open session">` +
+        `<span class="dot ${BY_STATUS[s.status].dot}"></span>` +
+        `<div class="sinfo"><span class="sname" title="${esc(s.name)}">${esc(s.name)}</span>` +
+        `<span class="smeta">${meta}</span></div>${tail}` +
+        `<button class="dismissbtn" type="button" id="dismiss-${esc(s.id)}" data-cmd="clear_session" data-id="${esc(s.id)}"` +
+        ` aria-label="Dismiss ${esc(s.name)} from BroGlow" title="Dismiss until new activity">×</button></div>`;
+    };
     let html = '';
-    for (const g of GROUPS) {
-      const rows = sessions.filter(s => s.status === g.status);
-      if (!rows.length) continue;
-      rows.sort((a, b) => Date.parse(b.lastUpdated) - Date.parse(a.lastUpdated));
-      html += `<div class="grphead"><div class="grplabel">${g.label}</div>` +
-        (g.status === 'inactive' ? `<button class="pbtn pbtnghost" type="button" id="clearpaused" data-cmd="clear_paused"` +
-          ` title="Dismiss all paused sessions until new activity">Clear paused</button>` : '') + `</div>`;
-      for (const s of rows) {
-        const help = s.status === 'needs_help';
-        const meta = agentMeta(s.agent, showAgentNames, s.host) + esc(s.project);
-        const tail = help
-          ? `<button class="focusbtn" data-cmd="focus" data-id="${esc(s.id)}">Focus</button>`
-          : `<span class="time">${relTime(s.lastUpdated)}</span>`;
-        html += `<div class="srow${help ? ' helprow' : ''}" data-cmd="focus"` +
-          ` data-id="${esc(s.id)}" title="Open session">` +
-          `<span class="dot ${g.dot}"></span>` +
-          `<div class="sinfo"><span class="sname" title="${esc(s.name)}">${esc(s.name)}</span>` +
-          `<span class="smeta">${meta}</span></div>${tail}` +
-          `<button class="dismissbtn" type="button" id="dismiss-${esc(s.id)}" data-cmd="clear_session" data-id="${esc(s.id)}"` +
-          ` aria-label="Dismiss ${esc(s.name)} from BroGlow" title="Dismiss until new activity">×</button></div>`;
+    if (state.settings?.groupByProject === true) {
+      // One heading per working directory: the full path is the key (two
+      // folders can share a name) and `project` is the host's label, already
+      // extended with parent folders where names collide. Most urgent project
+      // first, then the most recently active; sessions without a known
+      // directory come last.
+      const projects = new Map();
+      for (const s of sessions) {
+        if (!(s.status in BY_STATUS)) continue;
+        const key = s.projectPath || '';
+        if (!projects.has(key)) projects.set(key, { key, label: s.project, rows: [] });
+        projects.get(key).rows.push(s);
+      }
+      const byUrgency = (a, b) => BY_STATUS[a.status].rank - BY_STATUS[b.status].rank || byRecency(a, b);
+      const groups = [...projects.values()];
+      for (const p of groups) p.rows.sort(byUrgency);
+      groups.sort((a, b) => (a.key === '') - (b.key === '') || byUrgency(a.rows[0], b.rows[0]) || (a.key < b.key ? -1 : 1));
+      if (groups.length) html += `<div class="grphead"><div class="grplabel">By project</div>` + (counts.inactive ? clearPaused : '') + `</div>`;
+      for (const p of groups) {
+        // The path is hover text for the mouse and part of the accessible
+        // name for everyone else.
+        html += `<div class="projhead" role="heading" aria-level="3"` +
+          (p.key ? ` title="${esc(p.key)}" aria-label="${esc(p.label)}, ${esc(p.key)}"` : '') + `>` +
+          (p.key ? `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${FOLDER_ICON}"/></svg>` : '') +
+          `<span>${esc(p.label)}</span></div>`;
+        for (const s of p.rows) html += row(s, BY_STATUS[s.status].word);
+      }
+    } else {
+      for (const g of GROUPS) {
+        const rows = sessions.filter(s => s.status === g.status);
+        if (!rows.length) continue;
+        rows.sort(byRecency);
+        html += `<div class="grphead"><div class="grplabel">${g.label}</div>` +
+          (g.status === 'inactive' ? clearPaused : '') + `</div>`;
+        for (const s of rows) html += row(s, s.project);
       }
     }
     groupsEl.innerHTML = html;
@@ -757,6 +814,12 @@ document.addEventListener('change', ev => {
     configActionError = '';
     document.getElementById('settingserror').hidden = true;
     post({ cmd: 'set_agent_names', enabled: ev.target.checked });
+    return;
+  }
+  if (ev.target.id === 'groupbyproject') {
+    configActionError = '';
+    document.getElementById('settingserror').hidden = true;
+    post({ cmd: 'set_group_by_project', enabled: ev.target.checked });
     return;
   }
   // Update optimistically; the host confirms with a fresh __setState after

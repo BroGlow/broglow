@@ -1,3 +1,4 @@
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 use std::path::Path;
 use std::sync::mpsc;
 use std::thread;
@@ -184,7 +185,9 @@ pub(crate) fn display_name(id: &str, s: &state::SessionStatus) -> String {
     })
 }
 
-/// Last path component of the session's project directory.
+/// Last path component of the session's project directory. Linux menu only;
+/// the popover takes the shared `session::project_labels`.
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub(crate) fn project_label(s: &state::SessionStatus) -> String {
     s.project_path
         .as_deref()
@@ -765,6 +768,13 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                     let error = config::set_agent_names(enabled)
                         .err()
                         .map(|error| format!("Could not save agent name setting: {error}"));
+                    popover.push_state(&read_display_state());
+                    popover.config_action_result(error);
+                }
+                PopoverMsg::SetGroupByProject { enabled } => {
+                    let error = config::set_group_by_project(enabled)
+                        .err()
+                        .map(|error| format!("Could not save project grouping: {error}"));
                     popover.push_state(&read_display_state());
                     popover.config_action_result(error);
                 }
