@@ -980,8 +980,13 @@ fn launch_dashboard() {
 /// Process-lifetime flock beside `config.json`; a second daemon fails to take
 /// it and exits. Released by the OS when this process ends, however it ends.
 #[cfg(unix)]
+pub(crate) fn instance_lock_path() -> std::path::PathBuf {
+    config::config_file_path().with_file_name(".menubar.lock")
+}
+
+#[cfg(unix)]
 fn acquire_instance_lock() -> anyhow::Result<std::fs::File> {
-    let path = config::config_file_path().with_file_name(".menubar.lock");
+    let path = instance_lock_path();
     std::fs::create_dir_all(path.parent().expect("config path must have a parent"))?;
     let lock = std::fs::OpenOptions::new()
         .create(true)

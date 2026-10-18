@@ -739,6 +739,7 @@ fn install_launch_agent() -> anyhow::Result<()> {
     let uid = current_uid()?;
     let target = format!("gui/{uid}");
     let service = format!("gui/{uid}/{LAUNCH_AGENT_LABEL}");
+    let lock = menubar::instance_lock_path();
 
     // Everything between creating the staging bundle and swapping it into
     // place can fail (codesign, a daemon that won't stop); never leave a
@@ -750,6 +751,9 @@ fn install_launch_agent() -> anyhow::Result<()> {
             &std::env::var("BROGLOW_SIGNING_IDENTITY").unwrap_or_else(|_| "-".to_string()),
         )?;
         stop_launch_agent(&service)?;
+        // A tray started by opening BroGlow.app is not the launchd job, so
+        // bootout leaves it running and holding the lock the new job needs.
+        stop_lock_holders(&lock)?;
         if bundle.exists() {
             std::fs::rename(&bundle, &previous)?;
         }
@@ -777,7 +781,18 @@ fn install_launch_agent() -> anyhow::Result<()> {
             "launchctl kickstart failed: {}",
             String::from_utf8_lossy(&start.stderr).trim()
         );
-        Ok(())
+        // kickstart succeeds even when the tray exits at once; only a held
+        // lock proves it came up.
+        for _ in 0..40 {
+            if !lock_holders(&lock)?.is_empty() {
+                return Ok(());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+        anyhow::bail!(
+            "The BroGlow tray did not start; see {}",
+            home.join(".claude/broglow/menubar.err").display()
+        )
     })();
     if let Err(error) = installed {
         let _ = std::fs::remove_dir_all(&staging);
@@ -785,6 +800,7 @@ fn install_launch_agent() -> anyhow::Result<()> {
             // The swap may already have happened: put the old app back and
             // reload the agent that `stop_launch_agent` booted out, so the
             // tray does not stay down until the next login.
+            let _ = stop_launch_agent(&service);
             let _ = std::fs::remove_dir_all(&bundle);
             let _ = std::fs::rename(&previous, &bundle);
             if plist_path.exists() {
@@ -826,10 +842,47 @@ fn stop_launch_agent(service: &str) -> anyhow::Result<()> {
     anyhow::bail!("LaunchAgent did not stop: {service}; app and state were retained")
 }
 
+/// PIDs with the tray's instance lock open: every running tray, whether the
+/// launchd job or one started by opening BroGlow.app.
+#[cfg(target_os = "macos")]
+fn lock_holders(lock: &std::path::Path) -> anyhow::Result<Vec<i32>> {
+    // lsof exits 1 with no output when nothing (or no file) matches.
+    let out = std::process::Command::new("/usr/sbin/lsof")
+        .arg("-t")
+        .arg(lock)
+        .output()
+        .context("Running `lsof`")?;
+    Ok(String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter_map(|l| l.trim().parse().ok())
+        .filter(|&pid| pid != std::process::id() as i32)
+        .collect())
+}
+
+/// SIGTERM every tray still holding the lock and wait for it to let go.
+#[cfg(target_os = "macos")]
+fn stop_lock_holders(lock: &std::path::Path) -> anyhow::Result<()> {
+    let holders = lock_holders(lock)?;
+    for &pid in &holders {
+        println!("Stopping a BroGlow tray outside the LaunchAgent (pid {pid})");
+        unsafe { libc::kill(pid, libc::SIGTERM) };
+    }
+    for _ in 0..20 {
+        if lock_holders(lock)?.is_empty() {
+            return Ok(());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+    anyhow::bail!(
+        "BroGlow tray {holders:?} did not quit; quit it from its menu and re-run this command"
+    )
+}
+
 #[cfg(target_os = "macos")]
 fn uninstall_launch_agent() -> anyhow::Result<()> {
     let service = format!("gui/{}/{LAUNCH_AGENT_LABEL}", current_uid()?);
     stop_launch_agent(&service)?;
+    stop_lock_holders(&menubar::instance_lock_path())?;
 
     let plist_path = launch_agent_path();
     if plist_path.exists() {
@@ -918,6 +971,22 @@ mod mac_install_tests {
             std::path::Path::new("/usr/local/bin/broglow"),
             false
         ));
+    }
+
+    #[test]
+    fn a_tray_outside_launchd_holding_the_lock_is_stopped() {
+        let dir = tempfile::tempdir().unwrap();
+        let lock = dir.path().join(".menubar.lock");
+        assert!(lock_holders(&lock).unwrap().is_empty());
+        let mut tray = std::process::Command::new("/bin/sleep")
+            .arg("30")
+            .stdin(std::fs::File::create(&lock).unwrap())
+            .spawn()
+            .unwrap();
+        assert_eq!(lock_holders(&lock).unwrap(), vec![tray.id() as i32]);
+        stop_lock_holders(&lock).unwrap();
+        assert!(!tray.wait().unwrap().success());
+        assert!(lock_holders(&lock).unwrap().is_empty());
     }
 
     #[test]
