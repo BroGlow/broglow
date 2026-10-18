@@ -27,10 +27,10 @@
     <circle cx="156" cy="206" r="3.4"/>
   </g>
   <g fill="none">
-    <path d="M160 86H410V266H317"/>
-    <path d="M160 176H216M260 176H295M317 176H410"/>
-    <path d="M160 236H216M260 236H295M317 236H410"/>
-    <path d="M160 266H216M260 266H295"/>
+    <path d="M160 86H410V266H310"/>
+    <path d="M160 176H216M260 176H296M310 176H410"/>
+    <path d="M160 236H216M260 236H296M310 236H410"/>
+    <path d="M160 266H216M260 266H296"/>
     <rect x="216" y="169" width="44" height="14" rx="2"/>
     <rect x="216" y="229" width="44" height="14" rx="2"/>
     <rect x="216" y="259" width="44" height="14" rx="2"/>
@@ -44,14 +44,12 @@
     <text x="188" y="256">GPIO0</text>
     <text x="300" y="80">GND</text>
   </g>
-  <g stroke-width="1.2">
-    <circle cx="306" cy="176" r="11" fill="#4fa847"/>
-    <circle cx="306" cy="236" r="11" fill="#e4bb3c"/>
-    <circle cx="306" cy="266" r="11" fill="#e2493a"/>
-  </g>
-  <g stroke="none" font-size="11" text-anchor="middle">
-    <text x="296" y="162">+</text><text x="317" y="162">−</text>
-    <text x="296" y="222">+</text><text x="317" y="222">−</text>
-    <text x="296" y="252">+</text><text x="317" y="252">−</text>
+  <g stroke-width="1.2" stroke-linejoin="round">
+    <path d="M296 168V184L310 176Z" fill="#4fa847"/>
+    <path d="M310 168V184M300 166l6-6m-4 0h4v4M305 166l6-6m-4 0h4v4" fill="none"/>
+    <path d="M296 228V244L310 236Z" fill="#e4bb3c"/>
+    <path d="M310 228V244M300 226l6-6m-4 0h4v4M305 226l6-6m-4 0h4v4" fill="none"/>
+    <path d="M296 258V274L310 266Z" fill="#e2493a"/>
+    <path d="M310 258V274M300 256l6-6m-4 0h4v4M305 256l6-6m-4 0h4v4" fill="none"/>
   </g>
 </svg>
