@@ -171,6 +171,105 @@ fn pre_tool_use_reactivates_an_inactive_session() {
     );
 }
 
+/// A `PreToolUse` event for `tool_name` with the given `tool_input`.
+fn tool_event(session_id: &str, tool_name: &str, tool_input: Value) -> String {
+    json!({
+        "hook_event_name": "PreToolUse",
+        "session_id": session_id,
+        "cwd": "/tmp/some-project",
+        "tool_name": tool_name,
+        "tool_input": tool_input,
+    })
+    .to_string()
+}
+
+#[test]
+fn a_wrap_up_question_stays_needs_help_through_the_stop_that_follows() {
+    let home = temp_home();
+    run_hook(&home, &event("UserPromptSubmit", "sess-q")).success();
+
+    // The desktop app's next-step box: the model asks, the box ends the turn.
+    let wrap_up = json!({
+        "recap": "Install fix is one commit.",
+        "ask": "Split it into 3 commits?",
+        "blocked": true,
+    });
+    run_hook(
+        &home,
+        &tool_event("sess-q", "mcp__ccd_turn__wrap_up", wrap_up),
+    )
+    .success();
+    let state = read_state(&home);
+    assert_eq!(session_status(&state, "sess-q"), "needs_help");
+    assert_eq!(
+        state["sessions"]["sess-q"]["notification_type"],
+        "question_box"
+    );
+
+    run_hook(&home, &event("Stop", "sess-q")).success();
+    assert_eq!(session_status(&read_state(&home), "sess-q"), "needs_help");
+
+    // The user's answer (a button click is a prompt) clears it.
+    run_hook(&home, &event("UserPromptSubmit", "sess-q")).success();
+    let state = read_state(&home);
+    assert_eq!(session_status(&state, "sess-q"), "active");
+    assert_eq!(
+        state["sessions"]["sess-q"]["notification_type"],
+        Value::Null
+    );
+}
+
+#[test]
+fn an_unblocked_ask_counts_as_a_question_too() {
+    let home = temp_home();
+    let wrap_up = json!({ "recap": "Done.", "ask": "Commit it?" });
+    run_hook(
+        &home,
+        &tool_event("sess-ask", "mcp__ccd_turn__wrap_up", wrap_up),
+    )
+    .success();
+    assert_eq!(session_status(&read_state(&home), "sess-ask"), "needs_help");
+}
+
+#[test]
+fn a_recap_only_wrap_up_is_a_normal_turn_end() {
+    let home = temp_home();
+    run_hook(&home, &event("UserPromptSubmit", "sess-recap")).success();
+
+    let wrap_up = json!({ "recap": "All done, nothing pending." });
+    run_hook(
+        &home,
+        &tool_event("sess-recap", "mcp__ccd_turn__wrap_up", wrap_up),
+    )
+    .success();
+    assert_eq!(session_status(&read_state(&home), "sess-recap"), "active");
+
+    run_hook(&home, &event("Stop", "sess-recap")).success();
+    assert_eq!(session_status(&read_state(&home), "sess-recap"), "inactive");
+}
+
+#[test]
+fn ask_user_question_is_needs_help_until_the_turn_moves_on() {
+    let home = temp_home();
+    run_hook(&home, &event("UserPromptSubmit", "sess-auq")).success();
+
+    let input = json!({ "questions": [{ "question": "Which fix first?" }] });
+    run_hook(&home, &tool_event("sess-auq", "AskUserQuestion", input)).success();
+    let state = read_state(&home);
+    assert_eq!(session_status(&state, "sess-auq"), "needs_help");
+    assert_eq!(
+        state["sessions"]["sess-auq"]["notification_type"],
+        "ask_user_question"
+    );
+
+    // The tool blocks the turn; once answered the model keeps working …
+    run_hook(&home, &tool_event("sess-auq", "Read", json!({}))).success();
+    assert_eq!(session_status(&read_state(&home), "sess-auq"), "active");
+    // … and a plain Stop ends the turn as usual.
+    run_hook(&home, &event("Stop", "sess-auq")).success();
+    assert_eq!(session_status(&read_state(&home), "sess-auq"), "inactive");
+}
+
 #[test]
 fn unknown_events_and_missing_session_ids_write_nothing() {
     let home = temp_home();

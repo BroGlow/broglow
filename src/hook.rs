@@ -254,7 +254,6 @@ pub fn run() -> anyhow::Result<()> {
     let hook_event = field("hook_event_name").unwrap_or_default();
     let session_id = field("session_id");
     let cwd = field("cwd");
-    let notification_type = field("notification_type");
     let transcript_path = field("transcript_path").unwrap_or_default();
 
     let session_id = match session_id {
@@ -262,8 +261,21 @@ pub fn run() -> anyhow::Result<()> {
         None => return Ok(()),
     };
 
+    // A tool call that hands the turn to the user is a help request with no
+    // `Notification` behind it (see `question_marker`).
+    let question = if hook_event == "PreToolUse" {
+        question_marker(&field("tool_name").unwrap_or_default(), v.get("tool_input"))
+    } else {
+        None
+    };
+    let notification_type = question
+        .map(str::to_string)
+        .or_else(|| field("notification_type"));
+
     let status = match hook_event.as_str() {
-        "SessionStart" | "UserPromptSubmit" | "PreToolUse" => Status::Active,
+        "SessionStart" | "UserPromptSubmit" => Status::Active,
+        "PreToolUse" if question.is_some() => Status::NeedsHelp,
+        "PreToolUse" => Status::Active,
         "Stop" => Status::Inactive,
         "Notification" => {
             // idle_prompt is an informational nudge, not a help request — skip
@@ -302,7 +314,7 @@ pub fn run() -> anyhow::Result<()> {
     update_state(|state| {
         // PreToolUse fires very frequently; skip the write if already active,
         // unless it brings the session's first title.
-        if hook_event == "PreToolUse" {
+        if hook_event == "PreToolUse" && question.is_none() {
             if let Some(s) = state.sessions.get(&session_id) {
                 if s.status == Status::Active
                     && (claude_title.is_none() || s.name.is_some())
@@ -316,6 +328,21 @@ pub fn run() -> anyhow::Result<()> {
         // Claude owns its titles; otherwise preserve an existing name across
         // status updates.
         let existing = state.sessions.get(&session_id);
+
+        // The desktop app's next-step box ends the turn right after its
+        // `wrap_up` call, so the `Stop` that follows must not downgrade the
+        // question it just asked: the user still owes an answer.
+        let (status, notification_type) = match existing {
+            Some(s)
+                if hook_event == "Stop"
+                    && s.status == Status::NeedsHelp
+                    && s.notification_type.as_deref() == Some(QUESTION_BOX) =>
+            {
+                (Status::NeedsHelp, s.notification_type.clone())
+            }
+            _ => (status.clone(), notification_type.clone()),
+        };
+
         let name = claude_title
             .clone()
             .or_else(|| existing.and_then(|s| s.name.clone()));
@@ -335,10 +362,10 @@ pub fn run() -> anyhow::Result<()> {
         state.sessions.insert(
             session_id.clone(),
             SessionStatus {
-                status: status.clone(),
+                status,
                 last_updated: timestamp,
                 project_path: cwd.clone(),
-                notification_type: notification_type.clone(),
+                notification_type,
                 name: name.clone(),
                 terminal,
                 // Claude Code sessions carry no harness tag (absent = claude).
@@ -358,6 +385,37 @@ pub fn run() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// `notification_type` recorded when the Claude desktop app's `wrap_up` tool
+/// put a question in its next-step box. The box ends the turn, so this marker
+/// is what keeps the session red through the `Stop` that follows.
+const QUESTION_BOX: &str = "question_box";
+
+/// `notification_type` recorded while an `AskUserQuestion` tool call waits
+/// for the user's pick. The tool blocks the turn, so the next hook (`Stop`,
+/// `PreToolUse`) is the answer and clears it normally.
+const ASK_USER_QUESTION: &str = "ask_user_question";
+
+/// Tool calls that hand the turn to the user without a `Notification` hook:
+/// which marker they leave in `notification_type`, or `None` for every other
+/// tool. The desktop app's `mcp__ccd_turn__wrap_up` only counts when it shows
+/// a question (`ask` text or `blocked: true`); a recap-only wrap-up is a
+/// normal turn end.
+fn question_marker(tool_name: &str, tool_input: Option<&Value>) -> Option<&'static str> {
+    match tool_name {
+        "AskUserQuestion" => Some(ASK_USER_QUESTION),
+        "mcp__ccd_turn__wrap_up" => {
+            let input = tool_input?;
+            let asks = input
+                .get("ask")
+                .and_then(Value::as_str)
+                .is_some_and(|ask| !ask.trim().is_empty());
+            let blocked = input.get("blocked").and_then(Value::as_bool) == Some(true);
+            (asks || blocked).then_some(QUESTION_BOX)
+        }
+        _ => None,
+    }
 }
 
 /// `broglow event`: read one normalized harness event as JSON on stdin and
