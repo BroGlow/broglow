@@ -639,12 +639,18 @@ mod mac {
         bail!("No BroGlow INFO/PAIR reply over USB; close serial monitors and flash the current C3 firmware")
     }
 
+    /// The whole `0xffff` manufacturer data of a BroGlow service advertisement.
+    fn advertised_identity(props: &btleplug::api::PeripheralProperties) -> Option<&[u8]> {
+        props
+            .services
+            .contains(&SERVICE)
+            .then(|| props.manufacturer_data.get(&0xffff))
+            .flatten()
+            .map(Vec::as_slice)
+    }
+
     fn identity_matches(props: &btleplug::api::PeripheralProperties, identity: &[u8; 6]) -> bool {
-        props.services.contains(&SERVICE)
-            && props
-                .manufacturer_data
-                .get(&0xffff)
-                .is_some_and(|bytes| bytes.as_slice() == identity)
+        advertised_identity(props) == Some(identity.as_slice())
     }
 
     /// Only USB mirroring holds the lamp's serial port; then INFO must wait
@@ -907,6 +913,7 @@ mod mac {
         scan_error: &RefCell<Option<String>>,
         keep: &impl Fn() -> bool,
     ) {
+        let mut sightings = SightingLog::default();
         while keep() {
             let result = async {
                 let mut events = adapter.events().await?;
@@ -923,6 +930,17 @@ mod mac {
                                     }
                                 }
                             }
+                            Some(CentralEvent::ManufacturerDataAdvertisement { id, .. })
+                                if sightings.active() =>
+                            {
+                                if let Ok(peripheral) = adapter.peripheral(&id).await {
+                                    if let Ok(Some(props)) = peripheral.properties().await {
+                                        if let Some(identity) = advertised_identity(&props) {
+                                            sightings.record(id.to_string(), identity);
+                                        }
+                                    }
+                                }
+                            }
                             Some(CentralEvent::StateUpdate(state)) if state != CentralState::PoweredOn => {
                                 bail!("Bluetooth unavailable; check power and BroGlow permission")
                             }
@@ -931,6 +949,7 @@ mod mac {
                         },
                         _ = sleep(POLL) => {}
                     }
+                    sightings.flush();
                 }
                 Ok(())
             }.await;
@@ -947,6 +966,98 @@ mod mac {
                 keep,
             )
             .await;
+        }
+    }
+
+    /// `ble pair` asks the running worker for setup advertisements instead of
+    /// pausing it, so a new USB lamp is found while the other lamps stay connected.
+    const SETUP_REQUEST_TTL_MS: u64 = 30_000;
+
+    fn setup_request_path() -> std::path::PathBuf {
+        config::config_file_path().with_file_name(".ble-setup-request")
+    }
+
+    fn sightings_path() -> std::path::PathBuf {
+        config::config_file_path().with_file_name("ble-sightings.json")
+    }
+
+    fn now_ms() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64
+    }
+
+    fn fresh_request(requested: u64, now: u64) -> bool {
+        now.checked_sub(requested)
+            .is_some_and(|age| age < SETUP_REQUEST_TTL_MS)
+    }
+
+    /// Written only by the worker while a setup request is fresh.
+    #[derive(Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+    struct Sightings {
+        /// The worker's last write; proves it is scanning for this request.
+        updated_ms: u64,
+        /// CoreBluetooth ID → advertised `0xffff` identity and when it was seen.
+        lamps: BTreeMap<String, (Vec<u8>, u64)>,
+    }
+
+    #[derive(Default)]
+    struct SightingLog {
+        request: Option<u64>,
+        checked: Option<StdInstant>,
+        written: Option<StdInstant>,
+        lamps: BTreeMap<String, (Vec<u8>, u64)>,
+    }
+
+    impl SightingLog {
+        /// Re-reads the setup request at most once per poll.
+        fn active(&mut self) -> bool {
+            if self.checked.is_none_or(|at| at.elapsed() >= POLL) {
+                self.checked = Some(StdInstant::now());
+                let request = std::fs::read_to_string(setup_request_path())
+                    .ok()
+                    .and_then(|text| text.trim().parse().ok())
+                    .filter(|&requested| fresh_request(requested, now_ms()));
+                if request != self.request {
+                    // Each request starts empty: only advertisements seen for it count.
+                    if request.is_none() {
+                        let _ = std::fs::remove_file(sightings_path());
+                    }
+                    self.lamps.clear();
+                    self.written = None;
+                    self.request = request;
+                }
+            }
+            self.request.is_some()
+        }
+
+        fn record(&mut self, id: String, identity: &[u8]) {
+            self.lamps.insert(id, (identity.to_vec(), now_ms()));
+        }
+
+        /// Once a second while requested, even with nothing new, so `ble pair`
+        /// can tell a scanning worker from a stopped one.
+        fn flush(&mut self) {
+            if !self.active()
+                || self
+                    .written
+                    .is_some_and(|at| at.elapsed() < Duration::from_secs(1))
+            {
+                return;
+            }
+            self.written = Some(StdInstant::now());
+            let sightings = Sightings {
+                updated_ms: now_ms(),
+                lamps: self.lamps.clone(),
+            };
+            let path = sightings_path();
+            let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
+            if let Ok(json) = serde_json::to_vec(&sightings) {
+                if std::fs::write(&tmp, json).is_ok() {
+                    let _ = std::fs::rename(tmp, path);
+                }
+            }
         }
     }
 
