@@ -1,11 +1,15 @@
 {
-  "source": "models/broglow/exploded.py",
+  "source": "models/magnetic/exploded.py",
   "status": "release",
   "purpose": "Web/AR visualization of the enclosure",
   "source_sha256": {
-    "models/broglow/exploded.py": "fb43281d9784cc9f4afaf21c544c6029a09158d4de990cc73eec737d6ae0d85b",
+    "models/magnetic/exploded.py": "d150720d8a926b651bb3a4dca175062b8da9076d56da4571553de02c2a06b8c5",
+    "models/magnetic/refined.py": "5939efc56f70be52681bf742b4402e6a3f47c6cfe36f9637adef777fef047ed4",
+    "models/magnetic/magnetic.py": "ba7d256f71515eee0fad4c676767ad6b8b16f8a2d2a9601ccc3e731dd9f14d24",
     "models/broglow/broglow.py": "dc12212c1468e9a728b6e6fcd2711ff699338ab1ad326c7928d46078debde788",
     "models/broglow/hand_joint.py": "031ee6d6fb650a14932008af05faca70a37432f1488e6805c67a1480f0a9abfe",
+    "models/broglow/check.py": "e91412054717300c9b6241655df6a5a7d4adb31ec20e8a106932ae174c9da0d3",
+    "models/broglow/usb_coupon.py": "edd9fb3f4520f5ba1202b22752b931438d207e15e5dd6e7bd371573300f9190e",
     "models/broglow/requirements.txt": "7e19cc593c31f82d94efbe33f846e2eb5201ddc004dc3ebb93d5930c32ee9116"
   },
   "source_changed_during_export": false,
@@ -42,20 +46,24 @@
     ]
   ],
   "labels": [
-    "orange_mascot_four_feet_straight_pins_with_45_degree_haunches",
+    "Mascot_slim_round2",
     "black_eye_left",
-    "black_eye_right",
-    "black_tower_open_rear_straight_hand_sockets",
+    "Traffic_Light_flush_round2",
     "black_flat_rear_cover_USB_and_PCB_end_stops",
-    "black_LED_retainer_rigid_roof_tab_one_lower_screw",
+    "black_LED_retainer_magnet_depth_2p4_clearance",
+    "black_eye_right",
     "REFERENCE_ONLY_provisional_PCB",
     "REFERENCE_ONLY_USB_shell",
     "REFERENCE_ONLY_LED_0",
     "REFERENCE_ONLY_LED_1",
-    "REFERENCE_ONLY_LED_2"
+    "REFERENCE_ONLY_LED_2",
+    "REFERENCE_ONLY_mascot_magnet_1_round2",
+    "REFERENCE_ONLY_tower_magnet_1_round2",
+    "REFERENCE_ONLY_mascot_magnet_2_round2",
+    "REFERENCE_ONLY_tower_magnet_2_round2"
   ],
-  "triangles": 12102,
-  "materials": 7,
-  "bytes": 435256,
-  "glb_sha256": "0aaf0f3ca7651c7ee999d383538b541cb6fe34192e9c88509cb0d8f406aa2d94"
+  "triangles": 14532,
+  "materials": 8,
+  "bytes": 522424,
+  "glb_sha256": "28b8bdbd051d7b39efba6c8233f31de42b4af542a2a25c91eda0cf0535c62211"
 }

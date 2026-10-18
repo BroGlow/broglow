@@ -1,4 +1,4 @@
-"""Shared geometry for the recommended Ø3×2 magnetic enclosure (millimetres)."""
+"""Shared geometry for the Ø3×2 magnetic enclosure (millimetres)."""
 
 from math import sqrt
 from pathlib import Path

@@ -18,7 +18,20 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL = ROOT / "models/broglow"
+MODEL = ROOT / "models/magnetic"
+# The magnetic generators import the base CAD from models/broglow by relative path.
+SOURCES = {
+    "appearance": ("models/magnetic/appearance.py", "models/magnetic/refined.py"),
+    "exploded": ("models/magnetic/exploded.py", "models/magnetic/refined.py"),
+}
+SHARED = (
+    "models/magnetic/magnetic.py",
+    "models/broglow/broglow.py",
+    "models/broglow/hand_joint.py",
+    "models/broglow/check.py",
+    "models/broglow/usb_coupon.py",
+    "models/broglow/requirements.txt",
+)
 
 
 def digest(data):
@@ -41,18 +54,22 @@ def glb_facts(path):
         "uri" not in item for item in document.get("images", [])
     ), "External image URL"
     points, labels, triangles = [], [], 0
+    identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 
-    def visit(index, offset=(0, 0, 0)):
+    def multiply(a, b):  # Column-major glTF matrices.
+        return [
+            sum(a[k * 4 + r] * b[c * 4 + k] for k in range(4))
+            for c in range(4)
+            for r in range(4)
+        ]
+
+    def visit(index, parent=identity):
         nonlocal triangles
         node = document["nodes"][index]
         assert not any(
             key in node for key in ("rotation", "scale", "translation")
         ), "Review new exporter transform"
-        matrix = node.get("matrix", [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
-        assert (
-            matrix[:12] == [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0] and matrix[15] == 1
-        ), "Review rotated exporter transform"
-        offset = [offset[i] + matrix[12 + i] for i in range(3)]
+        world = multiply(parent, node.get("matrix", identity))
         if "mesh" in node:
             labels.append(node["name"])
             for primitive in document["meshes"][node["mesh"]]["primitives"]:
@@ -70,7 +87,13 @@ def glb_facts(path):
                         "<3f", binary, start + index * view.get("byteStride", 12)
                     )
                     assert all(math.isfinite(value) for value in point)
-                    points.append([point[i] + offset[i] for i in range(3)])
+                    points.append(
+                        [
+                            sum(world[k * 4 + r] * point[k] for k in range(3))
+                            + world[12 + r]
+                            for r in range(3)
+                        ]
+                    )
                 count = (
                     document["accessors"][primitive["indices"]]["count"]
                     if "indices" in primitive
@@ -79,7 +102,7 @@ def glb_facts(path):
                 assert count % 3 == 0
                 triangles += count // 3
         for child in node.get("children", []):
-            visit(child, offset)
+            visit(child, world)
 
     for node in document["scenes"][document.get("scene", 0)]["nodes"]:
         visit(node)
@@ -162,19 +185,20 @@ def main():
         / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     )
     snapshot.mkdir(parents=True)
-    names = (f"{source}.py", "broglow.py", "hand_joint.py", "requirements.txt")
-    inputs = {name: (MODEL / name).read_bytes() for name in names}
+    names = SOURCES[source] + SHARED
+    inputs = {name: (ROOT / name).read_bytes() for name in names}
     for name, data in inputs.items():
+        (snapshot / name).parent.mkdir(parents=True, exist_ok=True)
         (snapshot / name).write_bytes(data)
     assert all(
-        (MODEL / name).read_bytes() == data for name, data in inputs.items()
+        (ROOT / name).read_bytes() == data for name, data in inputs.items()
     ), "CAD changed while copying; retry"
     step = snapshot / f"{source}.step"
     subprocess.run(
         [
             sys.executable,
             str(args.cad_skill / "scripts/step"),
-            str(snapshot / f"{source}.py"),
+            str(snapshot / names[0]),
             "--output",
             str(step),
             "--glb",
@@ -210,15 +234,12 @@ def main():
         len(mesh["labels"]) == summary["leafOccurrenceCount"]
     ), "Assembly inventory changed; review labels"
     metadata = {
-        "source": f"models/broglow/{source}.py",
+        "source": names[0],
         "status": "release",
         "purpose": "Web/AR visualization of the enclosure",
-        "source_sha256": {
-            f"models/broglow/{name}": digest(content)
-            for name, content in inputs.items()
-        },
+        "source_sha256": {name: digest(content) for name, content in inputs.items()},
         "source_changed_during_export": any(
-            (MODEL / name).read_bytes() != content for name, content in inputs.items()
+            (ROOT / name).read_bytes() != content for name, content in inputs.items()
         ),
         "exporter": {
             "tool": "cad/scripts/step --glb",
