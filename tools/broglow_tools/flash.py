@@ -146,8 +146,9 @@ def read_identity(port: str, timeout: float = 5) -> str:
         connection.dtr = True
         connection.reset_input_buffer()
         while time.monotonic() < deadline:
+            # No flush(): tcdrain() ignores write_timeout and blocks forever when
+            # the board stops reading USB (foreign or wedged firmware).
             connection.write(b"INFO\n")
-            connection.flush()
             reply_deadline = min(deadline, time.monotonic() + 0.5)
             while time.monotonic() < reply_deadline:
                 line = connection.readline(257)

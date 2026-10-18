@@ -86,6 +86,15 @@ class HardwareTests(unittest.TestCase):
         with self.assertRaisesRegex(flash.FlashError, "requires 4 MB"):
             flash.verify_hardware("port")
 
+    @mock.patch.object(flash, "Serial")
+    def test_identity_probe_never_drains_output(self, serial):
+        connection = serial.return_value.__enter__.return_value
+        connection.flush.side_effect = AssertionError("tcdrain blocks forever")
+        connection.readline.return_value = (
+            f"broglow_pair identity=146393924524 service={flash.SERVICE}\n".encode()
+        )
+        self.assertEqual(flash.read_identity("port"), "146393924524")
+
     @mock.patch.object(flash, "read_identity")
     def test_skip_info_only_skips_preflash_probe(self, read_identity):
         self.assertEqual(flash.inspect_current_firmware("port", True), "skipped")
