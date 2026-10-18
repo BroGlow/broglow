@@ -1,48 +1,57 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 470 266" width="470" height="266" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" font-family="system-ui, sans-serif" font-size="12" class="wiring">
-  <rect x="24" y="30" width="112" height="220" rx="8" fill="none"/>
-  <rect x="62" y="16" width="36" height="20" rx="4" fill="none"/>
-  <text x="80" y="30" text-anchor="middle" stroke="none" font-size="9">USB-C</text>
-  <text x="80" y="66" text-anchor="middle" stroke="none" font-weight="600">ESP32-C3</text>
-  <text x="80" y="82" text-anchor="middle" stroke="none">SuperMini</text>
-  <g stroke="none">
-    <text x="118" y="114" text-anchor="end">0</text>
-    <text x="118" y="144" text-anchor="end">1</text>
-    <text x="118" y="174" text-anchor="end">2</text>
-    <text x="118" y="204" text-anchor="end">3</text>
-    <text x="118" y="234" text-anchor="end">G</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 470 306" width="470" height="306" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" font-family="system-ui, sans-serif" font-size="12" class="wiring">
+  <rect x="24" y="30" width="132" height="260" rx="8" fill="none"/>
+  <rect x="72" y="16" width="36" height="20" rx="4" fill="none"/>
+  <text x="90" y="30" text-anchor="middle" stroke="none" font-size="9">USB-C</text>
+  <text x="70" y="156" text-anchor="middle" stroke="none" font-weight="600">ESP32-C3</text>
+  <text x="70" y="172" text-anchor="middle" stroke="none">SuperMini</text>
+  <g stroke="none" text-anchor="end">
+    <text x="146" y="60">5V</text>
+    <text x="146" y="90">G</text>
+    <text x="146" y="120">3V3</text>
+    <text x="146" y="150">4</text>
+    <text x="146" y="180">3</text>
+    <text x="146" y="210">2</text>
+    <text x="146" y="240">1</text>
+    <text x="146" y="270">0</text>
   </g>
   <g stroke="none">
-    <circle cx="136" cy="110" r="4"/>
-    <circle cx="136" cy="140" r="4"/>
-    <circle cx="136" cy="200" r="4"/>
-    <circle cx="136" cy="230" r="4"/>
+    <circle cx="156" cy="86" r="4"/>
+    <circle cx="156" cy="176" r="4"/>
+    <circle cx="156" cy="236" r="4"/>
+    <circle cx="156" cy="266" r="4"/>
   </g>
-  <circle cx="136" cy="170" r="3.4" fill="var(--md-default-bg-color, #fff)" stroke-width="1.2"/>
+  <g fill="var(--md-default-bg-color, #fff)" stroke-width="1.2">
+    <circle cx="156" cy="56" r="3.4"/>
+    <circle cx="156" cy="116" r="3.4"/>
+    <circle cx="156" cy="146" r="3.4"/>
+    <circle cx="156" cy="206" r="3.4"/>
+  </g>
   <g fill="none">
-    <path d="M140 110H196M240 110H286M314 110H400V230H140"/>
-    <path d="M140 140H196M240 140H286M314 140H400"/>
-    <path d="M140 200H196M240 200H286M314 200H400"/>
-    <rect x="196" y="103" width="44" height="14" rx="2"/>
-    <rect x="196" y="133" width="44" height="14" rx="2"/>
-    <rect x="196" y="193" width="44" height="14" rx="2"/>
+    <path d="M160 86H410V266H317"/>
+    <path d="M160 176H216M260 176H295M317 176H410"/>
+    <path d="M160 236H216M260 236H295M317 236H410"/>
+    <path d="M160 266H216M260 266H295"/>
+    <rect x="216" y="169" width="44" height="14" rx="2"/>
+    <rect x="216" y="229" width="44" height="14" rx="2"/>
+    <rect x="216" y="259" width="44" height="14" rx="2"/>
   </g>
   <g stroke="none" font-size="11" text-anchor="middle">
-    <text x="218" y="97">330 Ω</text>
-    <text x="218" y="127">330 Ω</text>
-    <text x="218" y="187">220 Ω</text>
-    <text x="168" y="100">GPIO0</text>
-    <text x="168" y="130">GPIO1</text>
-    <text x="168" y="190">GPIO3</text>
-    <text x="330" y="244">GND</text>
+    <text x="238" y="163">220 Ω</text>
+    <text x="238" y="223">330 Ω</text>
+    <text x="238" y="253">330 Ω</text>
+    <text x="188" y="166">GPIO3</text>
+    <text x="188" y="226">GPIO1</text>
+    <text x="188" y="256">GPIO0</text>
+    <text x="300" y="80">GND</text>
   </g>
   <g stroke-width="1.2">
-    <circle cx="300" cy="110" r="12" fill="#e2493a"/>
-    <circle cx="300" cy="140" r="12" fill="#e4bb3c"/>
-    <circle cx="300" cy="200" r="12" fill="#4fa847"/>
+    <circle cx="306" cy="176" r="11" fill="#4fa847"/>
+    <circle cx="306" cy="236" r="11" fill="#e4bb3c"/>
+    <circle cx="306" cy="266" r="11" fill="#e2493a"/>
   </g>
   <g stroke="none" font-size="11" text-anchor="middle">
-    <text x="289" y="98">+</text><text x="312" y="98">−</text>
-    <text x="289" y="128">+</text><text x="312" y="128">−</text>
-    <text x="289" y="188">+</text><text x="312" y="188">−</text>
+    <text x="296" y="162">+</text><text x="317" y="162">−</text>
+    <text x="296" y="222">+</text><text x="317" y="222">−</text>
+    <text x="296" y="252">+</text><text x="317" y="252">−</text>
   </g>
 </svg>

@@ -45,7 +45,7 @@ LED anode (+). All cathodes (−) go to GND; do not connect the LEDs to 5 V.
 
 --8<-- "site/guide/en/hardware.md:lamp-wiring"
 
-<div class="wiring-figure" role="img" aria-label="Wiring diagram: pads 0, 1 and 3 each through a 330, 330 or 220 ohm resistor to the anode of the red, yellow or green LED; pad 2 stays unconnected; all cathodes to GND">
+<div class="wiring-figure" role="img" aria-label="Wiring diagram, USB-C at the top; the pad edge reads 5V, G, 3V3, 4, 3, 2, 1, 0 from top to bottom: pad 3 through 220 ohms to the green LED anode, pad 1 through 330 ohms to the yellow, pad 0 through 330 ohms to the red; pads 5V, 3V3, 4 and 2 stay unconnected; all cathodes to G">
 --8<-- "site/guide/assets/wiring.svg"
 </div>
 

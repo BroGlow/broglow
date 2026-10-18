@@ -104,8 +104,8 @@ Use separate indicator LEDs, not an RGB LED or an addressable strip.
 | Green / bottom | `3` / GPIO3 | `G` | A session is working |
 | No session color | — | `N` | Off while status is fresh, except startup, connection confirmation, brightness preview or Identify |
 
-The pad labels **0, 1, 3 and G (GND) are on the same side** of the board; they are
-labels, not physical pin positions. Leave pad 2 unused. GPIO0, GPIO1 and GPIO3 support
+Pads **0, 1, 3 and G (GND) are on the same edge** of the board. With USB-C at the top,
+that edge reads 5V, G, 3V3, 4, 3, 2, 1, 0 from top to bottom. Leave pad 2 unused. GPIO0, GPIO1 and GPIO3 support
 PWM and avoid the boot-strapping pins 2, 8 and 9, the USB pins 18 and 19, the BOOT
 button (9) and the blue LED (8). This lamp does not use the optional 32.768 kHz crystal
 function of GPIO0 and GPIO1.
