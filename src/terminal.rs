@@ -19,6 +19,12 @@ use std::process::Command;
 /// and ancestry. Called by the hook backend while handling an event.
 pub fn capture() -> TerminalInfo {
     let env = |key: &str| std::env::var(key).ok().filter(|v| !v.is_empty());
+    let ancestors = capture_ancestors();
+    // Windows has no controlling tty: the owner is the nearest ancestor that
+    // isn't a wrapper shell, taken from the same ToolHelp walk focus uses.
+    #[cfg(target_os = "windows")]
+    let (tty, owner_pid) = (None, ancestors.as_deref().and_then(owner_from_ancestors));
+    #[cfg(not(target_os = "windows"))]
     let (tty, owner_pid) = capture_tty_owner();
     TerminalInfo {
         term_program: env("TERM_PROGRAM"),
@@ -34,12 +40,38 @@ pub fn capture() -> TerminalInfo {
         tmux_pane: env("TMUX").and_then(|_| env("TMUX_PANE")),
         tty,
         owner_pid,
-        ancestors: capture_ancestors(),
+        ancestors,
     }
 }
 
+/// Whether an exe/comm name is a shell that merely wraps the hook (`sh -c`,
+/// `cmd /c`, …). Such a shell dies with the hook, so it can never be the
+/// session's owner. Matched by basename, minus the login-shell dash ("-zsh")
+/// and a Windows `.exe` suffix, case-insensitively.
+fn is_wrapper_shell(name: &str) -> bool {
+    let base = name.rsplit(['/', '\\']).next().unwrap_or(name);
+    let base = base.trim_start_matches('-').to_ascii_lowercase();
+    let base = base.strip_suffix(".exe").unwrap_or(&base);
+    matches!(
+        base,
+        "sh" | "bash" | "zsh" | "dash" | "ksh" | "fish" | "cmd" | "powershell" | "pwsh"
+    )
+}
+
+/// Owner pid from a nearest-first ancestor chain: the first process above the
+/// wrapper shells is the harness (`claude.exe`, `node.exe`, `codex.exe`, …).
+/// The harness outlives the hook, so its pid is what the reap may probe later.
+#[cfg(any(target_os = "windows", test))]
+fn owner_from_ancestors(chain: &[Ancestor]) -> Option<u32> {
+    chain
+        .iter()
+        .find(|a| !is_wrapper_shell(&a.name))
+        .map(|a| a.pid)
+}
+
 /// The session's controlling terminal device ("/dev/ttys012") and the PID that
-/// owns it. Claude Code spawns hook subprocesses without a controlling tty, so
+/// owns it (unix; Windows derives the owner from the ancestor chain in
+/// [`capture`]). Claude Code spawns hook subprocesses without a controlling tty, so
 /// walk up the parent chain (one `ps` snapshot) to the first ancestor that does
 /// own a tty — that is the `claude` process itself. Its tty identifies the
 /// window for click-to-focus; its PID lets the readers tell later whether the
@@ -90,17 +122,6 @@ fn tty_owner_from(
     table: &std::collections::HashMap<u32, (u32, String, String)>,
     self_pid: u32,
 ) -> (Option<String>, Option<u32>) {
-    // A wrapper shell (`sh -c` between the harness and us) dies with the hook,
-    // so it can never be the owner. Matched by basename, minus the login-shell
-    // dash ("-zsh").
-    let is_wrapper_shell = |comm: &str| {
-        let base = comm.rsplit('/').next().unwrap_or(comm);
-        matches!(
-            base.trim_start_matches('-'),
-            "sh" | "bash" | "zsh" | "dash" | "ksh" | "fish"
-        )
-    };
-
     let mut tty_dev = None;
     let mut pid = self_pid;
     for _ in 0..16 {
@@ -128,7 +149,7 @@ fn tty_owner_from(
     (tty_dev, None)
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, target_os = "windows")))]
 fn capture_tty_owner() -> (Option<String>, Option<u32>) {
     (None, None)
 }
@@ -788,6 +809,51 @@ pub fn host(harness: Option<&str>, info: Option<&TerminalInfo>) -> Option<Host> 
         Some(name) => found(HostKind::Terminal, name),
         None if harness == Some("codex") => found(HostKind::App, "Codex app"),
         None => None,
+    }
+}
+
+#[cfg(test)]
+mod owner_tests {
+    use super::*;
+
+    fn chain(names: &[&str]) -> Vec<Ancestor> {
+        names
+            .iter()
+            .enumerate()
+            .map(|(i, n)| Ancestor {
+                pid: 100 + i as u32,
+                name: n.to_string(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn owner_is_the_first_ancestor_above_the_wrapper_shells() {
+        // Claude on Windows: hook ← cmd /c ← bash -c ← node.exe ← Windows Terminal.
+        assert_eq!(
+            owner_from_ancestors(&chain(&[
+                "cmd.exe",
+                "bash.exe",
+                "node.exe",
+                "WindowsTerminal.exe"
+            ])),
+            Some(102)
+        );
+        // A harness that spawns the hook directly is the owner itself.
+        assert_eq!(
+            owner_from_ancestors(&chain(&["claude.exe", "pwsh.exe"])),
+            Some(100)
+        );
+        assert_eq!(
+            owner_from_ancestors(&chain(&[
+                "C:\\Program Files\\PowerShell\\7\\pwsh.EXE",
+                "Codex.exe"
+            ])),
+            Some(101)
+        );
+        // Nothing but shells: no owner, so the staleness backstop applies.
+        assert_eq!(owner_from_ancestors(&chain(&["sh", "-zsh"])), None);
+        assert_eq!(owner_from_ancestors(&[]), None);
     }
 }
 
