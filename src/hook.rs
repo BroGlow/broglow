@@ -472,6 +472,7 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
     let session_id = field("session_id");
     let title = field("title");
     let directory = field("directory");
+    let notification_type = field("notification_type");
 
     // `reconnected` is a maintenance sweep, not a per-session status — it
     // carries no session id.
@@ -523,6 +524,20 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
         }
         let existing = state.sessions.get(&session_id);
 
+        // Code-mode tools can finish concurrently with a blocking question.
+        // Only that question's completion (or a lifecycle event) resolves it.
+        if harness == "codex"
+            && v["hook_event_name"] == "PostToolUse"
+            && existing
+                .and_then(|s| s.notification_type.as_deref())
+                .is_some_and(|pending| {
+                    pending.starts_with("codex_question:")
+                        && Some(pending) != notification_type.as_deref()
+                })
+        {
+            return terminal_changed;
+        }
+
         // `ended` for a session we never saw is a no-op: creating a fresh `Done`
         // row (and paying a `terminal::capture` `ps` to do it) would only add a
         // ghost. The plugin's exit handler can emit `ended` for ids whose first
@@ -572,6 +587,14 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
             .clone()
             .or_else(|| existing.and_then(|s| s.project_path.clone()));
 
+        let notification_type = if status == Status::NeedsHelp {
+            notification_type
+                .clone()
+                .or_else(|| existing.and_then(|s| s.notification_type.clone()))
+        } else {
+            None
+        };
+
         // Capture the host terminal once, on first sighting (the `created`
         // event), and carry it forward afterward so chatty events don't each
         // spawn a `ps`. The captured owner PID is what lets the reader reap a
@@ -590,7 +613,7 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
                 status: status.clone(),
                 last_updated: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
                 project_path,
-                notification_type: None,
+                notification_type,
                 name,
                 terminal,
                 harness: Some(harness.clone()),
@@ -669,7 +692,14 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
         "harness": "codex",
         "event": event,
         "session_id": session_id,
+        "hook_event_name": hook_event,
     });
+    if v["tool_name"] == "request_user_input" {
+        ev["notification_type"] = Value::String(format!(
+            "codex_question:{}",
+            field("tool_use_id").unwrap_or_default()
+        ));
+    }
     if let Some(t) = &title {
         ev["title"] = Value::String(t.clone());
     }

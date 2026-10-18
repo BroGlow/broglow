@@ -141,12 +141,21 @@ fn codex_questions_interrupts_and_session_end_follow_the_lifecycle() {
     let home = temp_home();
     let id = "question";
     run_codex_hook(&home, &ev("SessionStart", id)).success();
+    run_codex_hook(
+        &home,
+        &json!({
+            "hook_event_name": "PreToolUse", "session_id": id,
+            "tool_name": "Bash", "tool_use_id": "shell",
+        })
+        .to_string(),
+    )
+    .success();
     for event in ["PreToolUse", "PostToolUse"] {
         run_codex_hook(
             &home,
             &json!({
                 "hook_event_name": event, "session_id": id,
-                "tool_name": "request_user_input",
+                "tool_name": "request_user_input", "tool_use_id": "question",
                 "tool_input": {"questions": [{"id": "choice", "question": "Which option?"}]},
             })
             .to_string(),
@@ -160,6 +169,20 @@ fn codex_questions_interrupts_and_session_end_follow_the_lifecycle() {
                 "active"
             }
         );
+        if event == "PreToolUse" {
+            for (tool, call) in [("Bash", "shell"), ("request_user_input", "older-question")] {
+                run_codex_hook(
+                    &home,
+                    &json!({
+                        "hook_event_name": "PostToolUse", "session_id": id,
+                        "tool_name": tool, "tool_use_id": call,
+                    })
+                    .to_string(),
+                )
+                .success();
+                assert_eq!(session(&read_state(&home), id)["status"], "needs_help");
+            }
+        }
     }
     run_codex_hook(&home, &ev("PermissionRequest", id)).success();
     run_codex_hook(&home, &ev("Interrupt", id)).success();

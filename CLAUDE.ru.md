@@ -269,7 +269,9 @@ Claude Code вызывает хук → `broglow hook` читает JSON соб�
   Хуки разрешений вызываются до проверки; автоматическая проверка не ждёт
   пользователя. Без метаданных проверяющего сохраняется поведение ручного
   подтверждения. `PreToolUse` для `request_user_input` тоже включает красный;
-  `PostToolUse`/`UserPromptSubmit` → `resumed`. `Interrupt` → `idle`,
+  `tool_use_id` не даёт чужому завершению убрать вопрос. Его завершение или
+  `UserPromptSubmit` возобновляет работу; остальные `PostToolUse` снимают ожидание
+  разрешения. `Interrupt` → `idle`,
   `SessionEnd` → `ended`, `Stop` → `idle` либо `ended` для одноразовых запусков
   `codex exec`. Для старых версий остаётся очистка по PID владельца.
   На macOS `session_meta.originator: Codex Desktop` исправляет сохранённый
