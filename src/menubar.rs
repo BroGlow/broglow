@@ -1,5 +1,3 @@
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-use std::path::Path;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
@@ -20,7 +18,9 @@ use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
 use crate::config;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::popover::{Popover, PopoverMsg};
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(any(test, not(any(target_os = "macos", target_os = "windows"))))]
+use crate::session::DisplaySession;
+#[cfg(any(test, not(any(target_os = "macos", target_os = "windows"))))]
 use crate::state::Status;
 use crate::state::{self, aggregate, read_display_state, Aggregate, HookState};
 #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -177,7 +177,9 @@ pub fn ensure_running() -> String {
 
 /// Session display name: the auto-namer's title when present, else a
 /// truncated session id. Char-based truncation — ids are ours, but keep the
-/// repo-wide rule of never byte-slicing.
+/// repo-wide rule of never byte-slicing. The popover's; the Linux menu takes
+/// its names from `session::load_all_sessions`.
+#[cfg(any(test, target_os = "macos", target_os = "windows"))]
 pub(crate) fn display_name(id: &str, s: &state::SessionStatus) -> String {
     s.name.clone().unwrap_or_else(|| {
         let prefix: String = id.chars().take(8).collect();
@@ -185,19 +187,51 @@ pub(crate) fn display_name(id: &str, s: &state::SessionStatus) -> String {
     })
 }
 
-/// Last path component of the session's project directory. Linux menu only;
-/// the popover takes the shared `session::project_labels`.
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-pub(crate) fn project_label(s: &state::SessionStatus) -> String {
-    s.project_path
-        .as_deref()
-        .map(|p| {
-            Path::new(p)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| p.to_string())
-        })
-        .unwrap_or_else(|| "unknown".to_string())
+/// One row of the Linux tray menu's session list.
+#[cfg(any(test, not(any(target_os = "macos", target_os = "windows"))))]
+enum MenuRow {
+    /// A disabled project heading (grouped by project only).
+    Heading(String),
+    /// A clickable row and the session it focuses.
+    Session { text: String, id: String },
+}
+
+/// The Linux menu's session rows from the shared order and labels
+/// (`session::load_all_sessions`), live sessions only. Grouped by project, a
+/// `📁 label` heading opens each project and the rows beneath are indented
+/// and drop the project from their text.
+#[cfg(any(test, not(any(target_os = "macos", target_os = "windows"))))]
+fn menu_rows(
+    sessions: &[DisplaySession],
+    group_by_project: bool,
+    show_names: bool,
+) -> Vec<MenuRow> {
+    let mut rows = Vec::new();
+    let mut current: Option<&str> = None;
+    for s in sessions.iter().filter(|s| s.status != Status::Done) {
+        let (prefix, badge) = match s.status {
+            Status::NeedsHelp => ("🔴", "needs help"),
+            Status::Active => ("🟢", "working"),
+            Status::Inactive => ("🟠", "paused"),
+            Status::Done => ("⚪", "done"),
+        };
+        let agent = crate::harness::agent(s.harness.as_deref()).text_prefix(show_names);
+        let text = if group_by_project {
+            if current != Some(s.project_path.as_str()) {
+                current = Some(&s.project_path);
+                rows.push(MenuRow::Heading(format!("📁 {}", s.project_name)));
+            }
+            let agent = agent.trim_end_matches([' ', '·']);
+            format!("  {prefix} {} ({badge}) — {agent}", s.name)
+        } else {
+            format!("{prefix} {} ({badge}) — {agent}{}", s.name, s.project_name)
+        };
+        rows.push(MenuRow::Session {
+            text,
+            id: s.session_id.clone(),
+        });
+    }
+    rows
 }
 
 struct MenuIds {
@@ -242,44 +276,27 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
     ))?;
     menu.append(&PredefinedMenuItem::separator())?;
 
-    let mut live: Vec<(&String, &state::SessionStatus)> = state
-        .sessions
-        .iter()
-        .filter(|(_, s)| s.status != Status::Done)
-        .collect();
-    live.sort_by_key(|(_, s)| match s.status {
-        Status::NeedsHelp => 0,
-        Status::Active => 1,
-        Status::Inactive => 2,
-        Status::Done => 3,
-    });
+    let cfg = config::read_config();
+    let mut sessions = crate::session::load_all_sessions(state, cfg.group_by_project);
+    // The menu shows live sessions only, so label over those: a done session
+    // the TUI would still list must not lengthen a live label here.
+    sessions.retain(|s| s.status != Status::Done);
+    crate::session::relabel(&mut sessions);
+    let rows = menu_rows(&sessions, cfg.group_by_project, cfg.show_agent_names);
 
     let mut session_ids = Vec::new();
-    let show_names = config::read_config().show_agent_names;
-    if live.is_empty() {
+    if rows.is_empty() {
         menu.append(&MenuItem::new("No live sessions", false, None))?;
-    } else {
-        for (id, s) in &live {
-            let name = display_name(id, s);
-            let project = project_label(s);
-            let badge = match s.status {
-                Status::NeedsHelp => "needs help",
-                Status::Active => "working",
-                Status::Inactive => "paused",
-                Status::Done => "done",
-            };
-            let prefix = match s.status {
-                Status::NeedsHelp => "🔴",
-                Status::Active => "🟢",
-                Status::Inactive => "🟠",
-                Status::Done => "⚪",
-            };
-            let agent = crate::harness::agent(s.harness.as_deref()).text_prefix(show_names);
-            let text = format!("{prefix} {name} ({badge}) — {agent}{project}");
-            // Clickable: focus the session's terminal window (best-effort).
-            let item = MenuItem::new(text, true, None);
-            menu.append(&item)?;
-            session_ids.push((item.id().clone(), (*id).clone()));
+    }
+    for row in rows {
+        match row {
+            MenuRow::Heading(text) => menu.append(&MenuItem::new(text, false, None))?,
+            MenuRow::Session { text, id } => {
+                // Clickable: focus the session's terminal window (best-effort).
+                let item = MenuItem::new(text, true, None);
+                menu.append(&item)?;
+                session_ids.push((item.id().clone(), id));
+            }
         }
     }
 
@@ -291,7 +308,7 @@ fn build_menu(state: &HookState) -> anyhow::Result<(Menu, MenuIds)> {
         quit: quit.id().clone(),
         sessions: session_ids,
     };
-    if config::read_config().show_dashboard_button {
+    if cfg.show_dashboard_button {
         menu.append(&open_broglow)?;
     }
     menu.append(&quit)?;
@@ -1068,5 +1085,71 @@ fn hide_console_window() {
         if !hwnd.is_null() {
             ShowWindow(hwnd, SW_HIDE);
         }
+    }
+}
+
+#[cfg(test)]
+mod menu_rows_tests {
+    use super::{menu_rows, MenuRow};
+    use crate::session::DisplaySession;
+    use crate::state::Status;
+
+    fn session(id: &str, status: Status, project: &str, harness: Option<&str>) -> DisplaySession {
+        DisplaySession {
+            session_id: id.into(),
+            name: format!("Task {id}"),
+            status,
+            project_name: if project.is_empty() {
+                crate::session::NO_PROJECT.into()
+            } else {
+                project.rsplit('/').next().unwrap().into()
+            },
+            project_path: project.into(),
+            last_updated: String::new(),
+            host: None,
+            harness: harness.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn menu_rows_group_under_project_headings_and_drop_done_sessions() {
+        // Already in the shared order: grouped by project, done inside its group.
+        let sessions = vec![
+            session("help", Status::NeedsHelp, "/a/recco", None),
+            session("review", Status::Active, "/a/recco", Some("codex")),
+            session("old", Status::Done, "/a/recco", None),
+            session("notes", Status::Inactive, "", Some("copilot")),
+        ];
+        let text = |row: &MenuRow| match row {
+            MenuRow::Heading(t) => t.clone(),
+            MenuRow::Session { text, .. } => text.clone(),
+        };
+        let grouped: Vec<String> = menu_rows(&sessions, true, true).iter().map(text).collect();
+        assert_eq!(
+            grouped,
+            [
+                "📁 recco",
+                "  🔴 Task help (needs help) — [cc] Claude",
+                "  🟢 Task review (working) — [cx] Codex",
+                "📁 No project",
+                "  🟠 Task notes (paused) — [co] Copilot",
+            ]
+        );
+        let tags: Vec<String> = menu_rows(&sessions, true, false).iter().map(text).collect();
+        assert_eq!(tags[1], "  🔴 Task help (needs help) — [cc]");
+        assert!(
+            matches!(&menu_rows(&sessions, true, true)[1], MenuRow::Session { id, .. } if id == "help")
+        );
+
+        let flat: Vec<String> = menu_rows(&sessions, false, true).iter().map(text).collect();
+        assert_eq!(
+            flat,
+            [
+                "🔴 Task help (needs help) — [cc] Claude · recco",
+                "🟢 Task review (working) — [cx] Codex · recco",
+                "🟠 Task notes (paused) — [co] Copilot · No project",
+            ]
+        );
+        assert!(menu_rows(&[], true, true).is_empty());
     }
 }
