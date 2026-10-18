@@ -740,7 +740,7 @@ fn copilot_event_verb(event_name: &str) -> Option<&'static str> {
 /// plugin's own best-effort exit handler.
 ///
 /// Note: the "spare a live second server" guard relies on `owner_pid`, which is
-/// only captured on unix (`terminal::capture_tty_owner`). On a platform that
+/// captured on unix and Windows (`terminal::capture`). On a platform that
 /// can't identify the owner PID, every same-harness session is treated as stale
 /// on reconnect — fine for the common single-instance case, but a concurrent
 /// second server's idle sessions would be swept (they self-heal on their next

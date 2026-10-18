@@ -76,11 +76,12 @@ pub struct TerminalInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tty: Option<String>,
     /// PID of the Claude Code process hosting the session, captured at hook
-    /// time (unix: the first ancestor that owns a real tty — see
-    /// `terminal::capture`). Lets the readers reap a session whose process
-    /// exited without a SessionEnd hook (window closed, crash, SIGKILL) instead
-    /// of leaving its status stuck. Absent where the process can't be
-    /// identified (older state files, non-unix platforms).
+    /// time (unix: the first ancestor that owns a real tty; Windows: the first
+    /// ancestor above the wrapper shells — see `terminal::capture`). Lets the
+    /// readers reap a session whose process exited without a SessionEnd hook
+    /// (window closed, crash, SIGKILL) instead of leaving its status stuck.
+    /// Absent where the process can't be identified (older state files, no
+    /// controlling tty on unix, other platforms).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owner_pid: Option<u32>,
     /// WT_SESSION (Windows Terminal tab GUID).
