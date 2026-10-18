@@ -320,6 +320,14 @@ thin:
   usage section stay empty regardless of any cached snapshot. Enabling it is what
   authorizes that work. The foreground `broglow usage` subcommand is the exception:
   running it is itself the opt-in for that one invocation, like `broglow led`.
+- **Project grouping is one order and one label rule** (`group_by_project`, set in the
+  popover's Settings view; off by default). `session::project_labels` and
+  `session::group_by_project` are the only implementations: the TUI and the Linux menu
+  take them through `load_all_sessions`, the popover's payload carries the label plus
+  `projectPath` and its JS applies the same keys (most urgent session, then that row's
+  recency, then path; "No project" last). Labels are computed over the sessions a
+  surface shows, so a hidden done session never changes a visible label. Never add a
+  per-surface sort or a basename-only label.
 - **Escape before shelling out.** The macOS notification path builds an AppleScript
   string — escape `\` before `"`.
 - Platform-specific code is `#[cfg(...)]`-gated in place (autostart in main.rs, console
@@ -380,7 +388,8 @@ one boundary the Rust suite (which feeds `broglow event` directly) can't cover.
 `exit-child.mjs` is a helper process, not a test, so the plugin's
 `process.on("exit")` shutdown path can be exercised for real.
 lamp-status.test.mjs loads `assets/popover.html` and covers its worker-driven
-lamp status and lamp controls.
+lamp status and lamp controls, the Settings view and the session list, including
+grouping by project.
 
 `.github/workflows/release.yaml` builds and packages release binaries per platform.
 CI also builds the pinned C3 PlatformIO environment and runs its host mock checks.

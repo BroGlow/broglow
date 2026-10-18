@@ -619,6 +619,18 @@ the name or a short tag (`cc` Claude, `cx` Codex, `oc` opencode, `co` Copilot), 
 names the host in its HOST column (**app** for the agent's desktop app). The Linux tray
 menu shows the tag instead of the icon.
 
+The project is the working directory the agent reported, shown by its folder name;
+when two shown folders share a name, parent folders are added (`arcadia/recco` and
+`arcadia-wt/recco`), and a session without a known directory says **No project**.
+Turn on **Settings → Appearance → Group by project** to list sessions under a heading
+per directory instead of under **Needs help**, **Working** and **Paused**: the full path
+shows on hover, each row names its status after the agent, projects with a session
+needing help come first, and **Clear paused** moves to the **By project** heading. This
+saves `group_by_project`, off by default. The TUI then sorts its rows the same way and
+brightens the project name on the first row of each project, and the Linux tray menu
+adds a 📁 heading per project. On Linux, where there is no Settings view, set
+`"group_by_project": true` in `~/.claude/broglow/config.json`.
+
 | Icon | Session state |
 | --- | --- |
 | ![Gray](../../../assets/icons/broglow-none.png) Gray | No live sessions |
