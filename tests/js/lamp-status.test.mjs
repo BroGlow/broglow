@@ -74,6 +74,32 @@ const lamp = (changes = {}) => ({
   ...changes,
 });
 
+test('a state push cannot replace Focus before its pointer click is delivered', () => {
+  const { context, element, listeners, windowListeners, click, commands, advance } = popoverPage();
+  const refresh = name => context.window.__setState({ aggregate: 'red', settings: {}, lamp: lamp(),
+    sessions: [{ id: 'codex-task', name, project: 'broglow', status: 'needs_help', lastUpdated: new Date().toISOString() }] });
+  refresh('Original title');
+  const focus = element('focus-codex-task');
+  focus.dataset = { cmd: 'focus', id: 'codex-task' };
+  focus.closest = selector => selector === '[data-cmd]' ? focus : null;
+  const down = () => listeners.pointerdown({ target: focus, button: 0, pointerId: 7 });
+  down();
+  const writes = element('groups').writes;
+  refresh('Updated while pressing Focus');
+  assert.equal(element('groups').writes, writes, 'Keep the actual pointer target attached until click');
+  listeners.pointerup({ pointerId: 7 });
+  assert.equal(element('groups').writes, writes, 'Pointerup precedes click dispatch');
+  click(focus.id);
+  assert.deepEqual(commands('focus'), [{ cmd: 'focus', id: 'codex-task' }]);
+  advance(0);
+  assert.match(element('groups').innerHTML, /Updated while pressing Focus/);
+  down(); refresh('After cancellation');
+  listeners.pointercancel({ pointerId: 7 }); advance(0);
+  assert.match(element('groups').innerHTML, /After cancellation/);
+  down(); refresh('After blur'); windowListeners.blur();
+  assert.match(element('groups').innerHTML, /After blur/, 'A hidden popover must not retain a stale pointer');
+});
+
 test('sessions dismiss without focusing, show failures, and return on fresh host activity', () => {
   const { context, element, click, commands } = popoverPage();
   const sessions = ['active', 'inactive', 'needs_help'].map((status, i) => ({

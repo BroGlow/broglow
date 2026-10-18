@@ -342,6 +342,10 @@ thin:
   recency, then path; "No project" last). Labels are computed over the sessions a
   surface shows, so a hidden done session never changes a visible label. Never add a
   per-surface sort or a basename-only label.
+- **Session controls survive clicks during updates.** The popover holds the sessions
+  subtree through pointerdown/pointerup/click, then applies the latest host state.
+  Replacing rows mid-gesture discards Focus and dismiss clicks. Cancel/blur/hide release
+  the hold so reopening shows fresh sessions.
 - **Escape before shelling out.** The macOS notification path builds an AppleScript
   string — escape `\` before `"`.
 - Platform-specific code is `#[cfg(...)]`-gated in place (autostart in main.rs, console

@@ -273,6 +273,13 @@ const YELLOW_OPTIONS = [
 let state = { aggregate: 'none', sessions: [], settings: { yellowMode: 'any_inactive' },
               lamp: { present: false, enabled: false, transport: 'usb', state: 'disabled' } };
 let view = 'sessions';
+let sessionPointer = null;
+
+function releaseSessionPointer() {
+  if (sessionPointer === null) return;
+  sessionPointer = null;
+  render();
+}
 
 function post(msg) { window.ipc.postMessage(JSON.stringify(msg)); }
 
@@ -688,6 +695,8 @@ function render() {
     const error = document.getElementById('settingserror');
     error.textContent = configActionError;
     error.hidden = !configActionError;
+  } else if (sessionPointer !== null && groupsEl.dataset.view === 'sessions') {
+    // Keep the pressed row attached until the browser delivers its click.
   } else if (live === 0) {
     groupsEl.innerHTML =
       `<div class="emptybox"><img src="${ICONS.none}" alt="">` +
@@ -794,6 +803,8 @@ document.addEventListener('input', ev => {
   }
 });
 document.addEventListener('pointerdown', ev => {
+  if (view === 'sessions' && ev.target.closest?.('[data-cmd]') &&
+      (ev.button === undefined || ev.button === 0)) sessionPointer = ev.pointerId;
   if (!isBrightnessSlider(ev.target) || !canEditBrightness(ev.target) || (ev.button !== undefined && ev.button !== 0)) return;
   stopBrightnessPreview();
   previewPointer = ev.pointerId;
@@ -803,10 +814,16 @@ document.addEventListener('pointerdown', ev => {
 for (const event of ['pointerup', 'pointercancel']) {
   document.addEventListener(event, ev => {
     if (previewPointer !== null && ev.pointerId === previewPointer) stopBrightnessPreview();
+    if (sessionPointer !== null && ev.pointerId === sessionPointer) {
+      // pointerup runs before click; apply the latest state after both events.
+      setTimeout(() => { if (sessionPointer === ev.pointerId) releaseSessionPointer(); }, 0);
+    }
   });
 }
-window.addEventListener('blur', stopBrightnessPreview);
-document.addEventListener('visibilitychange', () => { if (document.hidden) stopBrightnessPreview(); });
+window.addEventListener('blur', () => { stopBrightnessPreview(); releaseSessionPointer(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { stopBrightnessPreview(); releaseSessionPointer(); }
+});
 document.addEventListener('change', ev => {
   // The checkbox keeps its clicked value (pendingSettings) until the host
   // confirms the write; what the value drives (the footer button, the row
