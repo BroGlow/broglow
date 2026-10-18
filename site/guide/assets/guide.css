@@ -14,3 +14,20 @@
   font-size: .7rem;
   margin-block: .5em;
 }
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #f5f3ec;
+  --md-primary-bg-color: #1c1f1c;
+  --md-primary-bg-color--light: #5b645a;
+  --md-default-bg-color: #f5f3ec;
+  --md-default-fg-color: #1c1f1c;
+  --md-accent-fg-color: #c25b2a;
+  --md-typeset-a-color: #c25b2a;
+}
+.wiring-figure {
+  max-width: 470px;
+  margin-block: 1em;
+}
+.wiring-figure svg {
+  width: 100%;
+  height: auto;
+}

@@ -70,6 +70,7 @@ jobs:
           uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
             python site/check-translations.py
           node site/i18n.test.cjs
+          node site/theme.test.cjs
           node site/model-preview.test.cjs
           node site/docs-language.test.cjs
           node site/docs-copy.test.cjs

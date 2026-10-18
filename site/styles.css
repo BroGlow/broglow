@@ -11,6 +11,18 @@
   --red:#f09789;
   --radius:18px;
 }
+:root[data-theme="light"] {
+  color-scheme:light;
+  --bg:#f5f3ec;
+  --surface:#ebe8df;
+  --ink:#1c1f1c;
+  --muted:#5b645a;
+  --line:#d6d9cf;
+  --accent:#c25b2a;
+  --green:#2f7a2c;
+  --yellow:#8a6a00;
+  --red:#b23a2b;
+}
 * {
   box-sizing:border-box;
 }
@@ -101,8 +113,8 @@ figure,p,h1,h2,dl,dd {
   font-size:12px;
   line-height:1;
   letter-spacing:1px;
-  border:1px solid #737b6d;
-  color:#b8c0b0;
+  border:1px solid var(--line);
+  color:var(--muted);
   padding:5px 6px;
   font-weight:400;
 }
@@ -173,6 +185,7 @@ h1 .accent {
 }
 .hero-visual {
   background:#f3efe7;
+  border:1px solid var(--line);
   border-radius:var(--radius);
   overflow:hidden;
   align-self:stretch;
@@ -467,8 +480,8 @@ h2 {
   text-align:left;
 }
 .connection {
-  background:#222721;
-  border-block:1px solid #363d33;
+  background:var(--surface);
+  border-block:1px solid var(--line);
 }
 .connection-inner {
   display:grid;
@@ -498,7 +511,7 @@ h2 {
   grid-template-columns:150px 1fr;
   gap:20px;
   padding-bottom:22px;
-  border-bottom:1px solid #40483c;
+  border-bottom:1px solid var(--line);
 }
 .connection-facts div:last-child {
   padding:0;
@@ -523,6 +536,7 @@ h2 {
 }
 .assembly-visual {
   background:#f9fcfe;
+  border:1px solid var(--line);
   overflow:hidden;
   border-radius:var(--radius);
 }
@@ -570,6 +584,14 @@ h2 {
   margin-top:3px;
   max-width:390px;
 }
+.build-steps code {
+  font-size:13px;
+  color:var(--ink);
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:4px;
+  padding:1px 5px;
+}
 .build-links {
   display:flex;
   flex-wrap:wrap;
@@ -587,13 +609,13 @@ h2 {
 .secondary-link {
   color:var(--ink);
   font-size:14px;
-  border-bottom:1px solid #697361;
+  border-bottom:1px solid var(--line);
   padding-bottom:3px;
 }
 .build-copy .project-note {
   font-size:12px;
   line-height:1.7;
-  color:#98a191;
+  color:var(--muted);
   margin-top:24px;
   max-width:430px;
 }
@@ -620,7 +642,7 @@ h2 {
   font-size:13px;
 }
 .footer-links>span {
-  color:#929b8d;
+  color:var(--muted);
   margin-top:8px;
 }
 @media(min-width:1500px) {

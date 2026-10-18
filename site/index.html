@@ -9,6 +9,7 @@
   <title data-en="BroGlow DIY — your agent’s status at a glance">BroGlow DIY — статус агента с одного взгляда</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23181a19'/%3E%3Ccircle cx='16' cy='8' r='3' fill='%23f07c6b'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23e9c665'/%3E%3Ccircle cx='16' cy='24' r='3' fill='%239ccb8e'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
+  <script src="theme.js"></script>
   <script type="importmap">
     {"imports":{"three":"./vendor/three-0.183.0/three.module.min.js"}}
   </script>
@@ -23,6 +24,11 @@
         <a href="#build" data-en="Build yours">Собрать свою</a>
         <a href="docs/"><span data-en="Guide">Инструкция</span></a>
       </nav>
+      <select id="theme" class="language-picker" aria-label="Тема" data-en-aria-label="Theme">
+        <option value="auto" data-en="Auto">Как в системе</option>
+        <option value="light" data-en="Light">Светлая</option>
+        <option value="dark" data-en="Dark">Тёмная</option>
+      </select>
       <select id="language" class="language-picker" aria-label="Язык" data-en-aria-label="Language" hidden>
         <option value="ru" lang="ru" aria-label="Русский">RU</option>
         <option value="en" lang="en" aria-label="English">EN</option>
@@ -40,8 +46,8 @@
       </div>
       <figure class="hero-visual" id="view-in-space">
         <div class="model-stage" id="signals">
-          <img id="model-poster" src="assets/broglow.png?v=working-soft-light" width="1400" height="1000" alt="Рендер состояния Working: оранжевый маскот на тёмной башне, горит зелёный светодиод" data-en-alt="Working-state render: an orange mascot on a dark tower with the green LED lit" fetchpriority="high">
-          <model-viewer id="lamp-model" data-model-src="assets/broglow.glb" poster="assets/broglow.png?v=working-soft-light" alt="3D-модель нашей лампы. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Our lamp's 3D model. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="25deg 80deg 95%" shadow-intensity="0.8" exposure="0.85" interaction-prompt="none" loading="eager" ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" hidden>
+          <img id="model-poster" src="assets/broglow.png?v=magnetic" width="1400" height="1000" alt="Рендер состояния Working: оранжевый маскот на тёмной башне, горит зелёный светодиод" data-en-alt="Working-state render: an orange mascot on a dark tower with the green LED lit" fetchpriority="high">
+          <model-viewer id="lamp-model" data-model-src="assets/broglow.glb" poster="assets/broglow.png?v=magnetic" alt="3D-модель нашей лампы. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Our lamp's 3D model. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="25deg 80deg 95%" shadow-intensity="0.8" exposure="0.85" interaction-prompt="none" loading="eager" ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" hidden>
             <effect-composer render-mode="quality" msaa="2">
               <bloom-effect strength="0.2" radius="0.6" threshold="0.9"></bloom-effect>
               <color-grade-effect tonemapping="NEUTRAL"></color-grade-effect>
@@ -114,7 +120,7 @@
     <section class="build wrap" id="build" aria-labelledby="build-title">
       <figure class="assembly-visual">
         <div class="model-stage">
-          <model-viewer id="assembly-model" src="assets/assembly.glb" alt="Сборка в разнесённом виде: маскот, корпус, задняя крышка, держатель светодиодов и плата. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Exploded view: mascot, enclosure, rear cover, LED retainer and board. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="-35deg 65deg 105%" shadow-intensity="0.5" exposure="0.85" interaction-prompt="auto" loading="lazy" aria-describedby="assembly-help"></model-viewer>
+          <model-viewer id="assembly-model" src="assets/assembly.glb" alt="Сборка в разнесённом виде: маскот, магниты, светофор, задняя крышка, держатель светодиодов и плата. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Exploded view: mascot, magnets, traffic light, rear cover, LED retainer and board. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="-35deg 65deg 105%" shadow-intensity="0.5" exposure="0.85" interaction-prompt="auto" loading="lazy" aria-describedby="assembly-help"></model-viewer>
         </div>
         <figcaption>
           <p data-en="Explore the assembly">Рассмотрите сборку</p>
@@ -130,11 +136,11 @@
       </figure>
       <div class="build-copy">
         <h2 id="build-title"><span data-en="A weekend build.">Проект на выходные.</span><br><span data-en="A real device on your desk.">Настоящее устройство на столе.</span></h2>
-        <p data-en="An ESP32-C3 SuperMini board, three LEDs, and one resistor per LED. We recommend the removable mascot with four Ø3×2 mm N52 magnets. The 3D view shows the glued version; the magnetic mascot uses the same enclosure.">Плата ESP32-C3 SuperMini, три светодиода и по одному резистору на каждый. Рекомендуем съёмного маскота на четырёх магнитах Ø3×2 мм N52. В 3D-просмотре — клеевой вариант; магнитный маскот ставится в тот же корпус.</p>
+        <p data-en="An ESP32-C3 SuperMini board, three LEDs, one resistor per LED and a printed enclosure. The mascot holds on by magnets: two Ø3×2 mm N52 in the mascot, two in the traffic light. Pull it off, put it back, or swap in any mascot you like, any time.">Плата ESP32-C3 SuperMini, три светодиода, по одному резистору на каждый и напечатанный корпус. Маскот держится на магнитах: два Ø3×2 мм N52 в маскоте, два в светофоре. Снимайте его, ставьте обратно или меняйте на любого другого маскота — когда захотите.</p>
         <ol class="build-steps">
-          <li><span>01</span><div><strong data-en="Gather the parts">Подготовьте детали</strong><p><span data-en="An ESP32-C3 SuperMini board, three LEDs and resistors. The enclosure is optional; its print package is in the">Плата ESP32-C3 SuperMini, три светодиода и резисторы. Корпус — по желанию: комплект для печати есть в</span> <a href="docs/#parts" data-en="build guide">инструкции</a>.</p></div></li>
+          <li><span>01</span><div><strong data-en="Gather the parts">Подготовьте детали</strong><p><span data-en="An ESP32-C3 SuperMini board, three LEDs and resistors, four magnets and the print package from the">Плата ESP32-C3 SuperMini, три светодиода и резисторы, четыре магнита и комплект для печати из</span> <a href="docs/#parts" data-en="build guide">инструкции</a>.</p></div></li>
           <li><span>02</span><div><strong data-en="Wire and flash the board">Соберите и прошейте плату</strong><p data-en="Wire the LEDs and flash the firmware by following the build guide.">Подключите светодиоды и прошейте плату по пошаговой инструкции.</p></div></li>
-          <li><span>03</span><div><strong data-en="Install BroGlow">Установите BroGlow</strong><p><span data-en="Install the app and connect it to your coding agent:">Установите приложение и подключите его к своему агенту:</span> <a href="docs/installation/" data-en="installation guide">инструкция по установке</a>.</p></div></li>
+          <li><span>03</span><div><strong data-en="Install BroGlow">Установите BroGlow</strong><p><code>brew install broglow/tap/broglow</code>, <span data-en="then the required">затем обязательный</span> <code>broglow install</code>: <span data-en="it registers the hooks in your coding agent (Claude Code, Codex, opencode, Copilot CLI) and starts the menu bar app. Details:">он регистрирует хуки в вашем coding-агенте (Claude Code, Codex, opencode, Copilot CLI) и запускает приложение в строке меню. Подробнее:</span> <a href="docs/installation/" data-en="installation guide">инструкция по установке</a>.</p></div></li>
           <li><span>04</span><div><strong data-en="Connect your lamp">Подключите лампу</strong><p data-en="Plug one flashed lamp into your Mac by USB. BroGlow sets it up automatically, pairs it over Bluetooth and remembers it. To retry, use Lamps → Add lamp. On Windows, the lamp works over USB.">Подключите одну прошитую лампу к Mac по USB. BroGlow настроит её сам: выполнит сопряжение по Bluetooth и запомнит лампу. Повторить можно через Lamps → Add lamp. На Windows лампа работает по USB.</p></div></li>
         </ol>
         <div class="build-links" id="setup">
