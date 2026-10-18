@@ -35,9 +35,9 @@ GitHub Actions. Файлы STL и STEP распространяются толь
 [`scripts/third-party-notices.py`](../../../scripts/third-party-notices.py) из
 `Cargo.lock`, исходников крейтов и карты компоновки прошивки; упаковка запускает
 его сама. Сборки не подписаны сертификатом Developer ID и не нотаризованы Apple.
-На Linux приложение собирают из исходников. Homebrew-tap (`broglow/tap`) живёт
-в отдельном репозитории: после каждого опубликованного релиза обновите версию и
-контрольную сумму в его формуле; процесса публикации в crates.io нет.
+На Linux приложение собирают из исходников. Формулу Homebrew публикует в
+отдельный репозиторий `broglow/tap` [workflow Homebrew tap](#homebrew-tap);
+процесса публикации в crates.io нет.
 
 Готовые сборки для Linux не публикуются; о предупреждениях безопасности GTK 3
 для трея на Linux см. [CONTRIBUTING](../../../CONTRIBUTING.ru.md#development-setup).
@@ -233,6 +233,45 @@ uv run --frozen python scripts/package-macos.py
 Используйте `--release-tag vVERSION` только для чистой рабочей копии и
 соответствующего коммита с тегом; этот режим использует постоянное релизное
 имя файла и отказывается перезаписывать существующий архив.
+
+<a name="homebrew-tap"></a>
+
+## Homebrew-tap
+
+`brew install broglow/tap/broglow` устанавливает готовые бинарники релиза для
+Mac из отдельного репозитория GitHub `broglow/homebrew-tap`, где лежит только
+`Formula/broglow.rb`. Homebrew скачивает архивы без авторизации, поэтому tap
+полезен только после того, как этот репозиторий и его релизы станут публичными.
+
+[`scripts/homebrew-formula.py`](../../../scripts/homebrew-formula.py) формирует
+формулу из файлов `broglow-vVERSION-*-apple-darwin.tar.gz.sha256` релиза (архивы
+для Apple Silicon и Intel в блоках `on_macos`/`on_arm`/`on_intel`, `bin/broglow`,
+прошивка и руководства в `share/broglow`, и предупреждение, что `broglow install`
+нужно выполнить один раз и после каждого обновления). `tests/homebrew_formula.py`
+проверяет формирование в CI.
+
+Workflow **Homebrew tap** (`.github/workflows/homebrew-tap.yaml`) запускается
+только вручную: **Actions → Homebrew tap → Run workflow** с тегом релиза. Он
+скачивает контрольные суммы из этого релиза (достаточно черновика), формирует
+формулу, кладёт её в локальный tap на macOS-раннере для `brew style` и
+`brew audit --strict`, устанавливает и тестирует её, если репозиторий публичный,
+и загружает `broglow.rb` как артефакт `homebrew-formula`. С отмеченным
+**publish** он также отправляет `Formula/broglow.rb` в `broglow/homebrew-tap`;
+пока репозиторий приватный, публикация отклоняется.
+
+Перед первой публикацией:
+
+1. Создайте публичный репозиторий `broglow/homebrew-tap` (имя должно начинаться
+   с `homebrew-`).
+2. Добавьте здесь секрет репозитория `HOMEBREW_TAP_TOKEN`: fine-grained token с
+   правом **Contents: read and write** только на `homebrew-tap`.
+3. Опубликуйте релиз на GitHub, затем запустите workflow с отмеченным **publish**.
+
+Для локальной репетиции сформируйте формулу по архивам в `dist/` с
+`--url-base file:///путь/к/dist/`, скопируйте её в `brew tap-new broglow/tap`,
+выполните `brew style`, `brew audit --strict` и `brew install broglow/tap/broglow`,
+затем `brew uninstall broglow` и `brew untap broglow/tap`. Не запускайте
+`broglow install` из репетиционного бинарника на машине с рабочей установкой.
 
 <a name="publish-the-website"></a>
 

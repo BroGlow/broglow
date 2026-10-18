@@ -33,9 +33,9 @@ firmware's linked libraries.
 [`scripts/third-party-notices.py`](../../../scripts/third-party-notices.py)
 generates them from `Cargo.lock`, the crate sources and the firmware linker map;
 packaging runs it. Builds are not signed with a Developer ID certificate or notarized by Apple. Linux users build from
-source. The Homebrew tap (`broglow/tap`) lives in its own repository: update its
-formula's version and checksum after each published release; there is no
-crates.io publishing workflow.
+source. The Homebrew formula is published to the separate `broglow/tap`
+repository by the [Homebrew tap workflow](#homebrew-tap); there is no crates.io
+publishing workflow.
 
 No Linux binaries are published; for the Linux tray's GTK 3 advisories see
 [CONTRIBUTING](../../../CONTRIBUTING.md#development-setup).
@@ -212,6 +212,45 @@ It does not build, install, flash or publish anything itself. Local packages may
 use a dirty checkout; `BUILD.json` records that and hashes the build inputs.
 Use `--release-tag vVERSION` only for a clean, matching tagged commit; that mode
 uses the stable release filename and refuses to overwrite an existing archive.
+
+<a name="homebrew-tap"></a>
+
+## Homebrew tap
+
+`brew install broglow/tap/broglow` installs the prebuilt Mac binaries of a
+release from the `broglow/homebrew-tap` GitHub repository, which holds only
+`Formula/broglow.rb`. Homebrew downloads the archives anonymously, so the tap
+is useful only once this repository and its releases are public.
+
+[`scripts/homebrew-formula.py`](../../../scripts/homebrew-formula.py) renders the
+formula from the release's `broglow-vVERSION-*-apple-darwin.tar.gz.sha256` files
+(the Apple Silicon and Intel archives under `on_macos`/`on_arm`/`on_intel`,
+`bin/broglow`, firmware and manuals under `share/broglow`, and a caveat that
+`broglow install` must run once and after upgrades). `tests/homebrew_formula.py`
+checks the rendering in CI.
+
+The **Homebrew tap** workflow (`.github/workflows/homebrew-tap.yaml`) runs only
+by hand: **Actions → Homebrew tap → Run workflow** with the released tag. It
+downloads the checksums from that release (a draft is enough), renders the
+formula, stages it in a local tap on a macOS runner for `brew style` and
+`brew audit --strict`, installs and tests it when the repository is public, and
+uploads `broglow.rb` as the `homebrew-formula` artifact. With **publish**
+ticked it also pushes `Formula/broglow.rb` to `broglow/homebrew-tap`; it refuses
+to publish while the repository is private.
+
+Before the first publication:
+
+1. Create the public `broglow/homebrew-tap` repository (the name must start with
+   `homebrew-`).
+2. Add the `HOMEBREW_TAP_TOKEN` repository secret here: a fine-grained token with
+   **Contents: read and write** on `homebrew-tap` only.
+3. Publish the GitHub release, then run the workflow with **publish** ticked.
+
+To rehearse locally, render the formula against archives in `dist/` with
+`--url-base file:///path/to/dist/`, copy it into `brew tap-new broglow/tap`,
+run `brew style`, `brew audit --strict` and `brew install broglow/tap/broglow`,
+then `brew uninstall broglow` and `brew untap broglow/tap`. Do not run
+`broglow install` from a rehearsal binary on a machine with a working install.
 
 ## Publish the website
 
