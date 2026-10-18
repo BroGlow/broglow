@@ -264,12 +264,18 @@ Claude Code вызывает хук → `broglow hook` читает JSON соб�
 - **Codex не нужен плагин.** Codex (>= 0.144) сам вызывает хуки в формате
   Claude. Его адаптер регистрирует группы сопоставления `broglow codex-hook`
   в `$CODEX_HOME/hooks.json`, а встроенный обработчик преобразует события:
-  `PermissionRequest` → `needs_input` (у Codex нет `Notification`),
-  `PostToolUse`/`UserPromptSubmit` → `resumed` (убирает красный после
-  подтверждения), `Stop` → `idle` либо `ended` для одноразовых запусков
-  `codex exec`, определяемых по `session_meta` журнала. У Codex нет
-  `SessionEnd`, поэтому завершение интерактивных сессий определяет очистка по
-  PID владельца. Названия берутся из `session_index.jsonl` Codex на границах
+  `PermissionRequest` → `needs_input`, кроме случаев, когда соответствующий
+  `turn_context` журнала явно содержит `approvals_reviewer: auto_review`.
+  Хуки разрешений вызываются до проверки; автоматическая проверка не ждёт
+  пользователя. Без метаданных проверяющего сохраняется поведение ручного
+  подтверждения. `PreToolUse` для `request_user_input` тоже включает красный;
+  `PostToolUse`/`UserPromptSubmit` → `resumed`. `Interrupt` → `idle`,
+  `SessionEnd` → `ended`, `Stop` → `idle` либо `ended` для одноразовых запусков
+  `codex exec`. Для старых версий остаётся очистка по PID владельца.
+  На macOS `session_meta.originator: Codex Desktop` исправляет сохранённый
+  терминал даже во время активного хода: Focus открывает чат, а не унаследованный
+  терминал или IDE. Для CLI и расширений сохраняется захваченный хост.
+  Названия берутся из `session_index.jsonl` Codex на границах
   ходов; первый введённый запрос используется один раз как запасной вариант,
   без вызова LLM. Два правила для Codex: при слиянии hooks.json чужие группы
   сопоставления остаются *на своих местах* (доверие Codex зависит от хеша

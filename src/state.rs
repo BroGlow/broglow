@@ -53,7 +53,7 @@ pub struct SessionStatus {
 /// Identity of the terminal window / host app running a session, recorded at
 /// hook time (see `terminal::capture`). All fields are best-effort: whatever
 /// the hosting environment exposes.
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
 pub struct TerminalInfo {
     /// TERM_PROGRAM: "Apple_Terminal", "iTerm.app", "vscode", "ghostty", …
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -104,7 +104,7 @@ pub struct TerminalInfo {
 
 /// One entry of the captured ancestor process chain. The name is re-checked
 /// at focus time so a reused PID is never brought to the front.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Ancestor {
     pub pid: u32,
     pub name: String,

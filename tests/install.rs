@@ -329,6 +329,8 @@ fn install_registers_codex_hooks_and_uninstall_reverts_them() {
         "PreToolUse",
         "PostToolUse",
         "PermissionRequest",
+        "Interrupt",
+        "SessionEnd",
     ] {
         let groups = hooks["hooks"][event].as_array().unwrap_or_else(|| {
             panic!("{event} registered in codex hooks.json");

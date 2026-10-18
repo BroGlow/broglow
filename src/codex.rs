@@ -3,17 +3,17 @@
 //! Codex (>= 0.144) speaks a Claude-compatible hooks dialect: command hooks in
 //! `$CODEX_HOME/hooks.json` receive the same stdin JSON shape as Claude Code's
 //! (`hook_event_name`, `session_id`, `cwd`, `transcript_path`). The adapter
-//! registers `broglow codex-hook` for six events; that shim (hook.rs) maps
+//! registers `broglow codex-hook` for eight events; that shim (hook.rs) maps
 //! them onto the normalized harness verbs. This module holds everything else
 //! Codex-specific: where its home lives, the non-destructive hooks.json
 //! merge, thread names from `session_index.jsonl`, exec-vs-interactive from
 //! rollout metadata, and first-prompt extraction for fallback naming.
 //!
 //! Two Codex facts shape the adapter:
-//! - **No `Notification`/`SessionEnd` events.** `PermissionRequest` is its
-//!   waiting-on-approval signal (→ `needs_input`); session end is inferred
-//!   from the owner process dying (the shared reap path) or, for one-shot
-//!   `codex exec` runs, from `Stop` (→ `ended`, see [`rollout_is_exec`]).
+//! - **Permission requests can be automatically reviewed.** The current
+//!   rollout turn context distinguishes automatic review from human approval.
+//!   Older versions lack `Interrupt`/`SessionEnd`; process reaping and one-shot
+//!   `Stop` handling remain their backstops (see [`rollout_is_exec`]).
 //! - **Codex trusts hooks by content hash + position** (`[hooks.state]` in
 //!   its config.toml, keys like `hooks.json:<event>:<group>:<hook>`). New or
 //!   changed entries need a one-time `/hooks` approval inside Codex, and
@@ -46,16 +46,17 @@ fn hooks_json_path() -> Option<PathBuf> {
     codex_home().map(|h| h.join("hooks.json"))
 }
 
-/// Lifecycle events the adapter registers. Codex's dialect has no
-/// `Notification`/`SessionEnd`; `PostToolUse` re-greens after an approved
-/// tool finishes and `PermissionRequest` is the red signal.
-const HOOK_EVENTS: [&str; 6] = [
+/// Lifecycle events the adapter registers, including the newer
+/// `Interrupt`/`SessionEnd` signals.
+const HOOK_EVENTS: [&str; 8] = [
     "SessionStart",
     "UserPromptSubmit",
     "Stop",
     "PreToolUse",
     "PostToolUse",
     "PermissionRequest",
+    "Interrupt",
+    "SessionEnd",
 ];
 
 // ---------------------------------------------------------------------------
@@ -261,6 +262,47 @@ pub(crate) fn write_json_atomic(path: &Path, value: &Value) -> anyhow::Result<()
 // ---------------------------------------------------------------------------
 // Session naming
 // ---------------------------------------------------------------------------
+
+/// Hooks run before approval review, so a request need not involve the user.
+/// Only the matching turn's explicit reviewer can suppress the red signal;
+/// missing, unreadable or older rollout formats retain human-approval behavior.
+pub fn approval_is_automatic(transcript_path: &str, turn_id: Option<&str>) -> bool {
+    let Some(turn_id) = turn_id.filter(|id| !id.is_empty()) else {
+        return false;
+    };
+    let Ok(file) = File::open(transcript_path) else {
+        return false;
+    };
+    let mut automatic = false;
+    for line in BufReader::new(file).lines().map_while(Result::ok) {
+        if !line.contains("\"turn_context\"") {
+            continue;
+        }
+        let Ok(v) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
+        if v["type"] == "turn_context" {
+            automatic = v["payload"]["turn_id"].as_str() == Some(turn_id)
+                && v["payload"]["approvals_reviewer"] == "auto_review";
+        }
+    }
+    automatic
+}
+
+/// Desktop provenance is stronger than terminal variables inherited when the
+/// app was launched from a shell or IDE. `source: vscode` alone is ambiguous.
+#[cfg(target_os = "macos")]
+pub fn rollout_is_desktop(transcript_path: &str) -> bool {
+    let Ok(file) = File::open(transcript_path) else {
+        return false;
+    };
+    let mut line = String::new();
+    if BufReader::new(file).read_line(&mut line).is_err() {
+        return false;
+    }
+    serde_json::from_str::<Value>(&line)
+        .is_ok_and(|v| v["type"] == "session_meta" && v["payload"]["originator"] == "Codex Desktop")
+}
 
 /// Session id → thread name from Codex's `session_index.jsonl`. Codex titles
 /// threads itself, so these beat anything broglow could generate. The file

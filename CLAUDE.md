@@ -217,11 +217,17 @@ thin:
   already-running sessions need a restart to appear.
 - **Codex needs no plugin.** Codex (>= 0.144) fires Claude-dialect hooks itself, so its
   adapter registers `broglow codex-hook` matcher groups in `$CODEX_HOME/hooks.json` and
-  the shim maps events in-process: `PermissionRequest` → `needs_input` (Codex has no
-  `Notification`), `PostToolUse`/`UserPromptSubmit` → `resumed` (what clears the red after
-  an approval), `Stop` → `idle` — or `ended` for one-shot `codex exec` rollouts (detected
-  from the rollout's `session_meta`; Codex has no `SessionEnd`, so interactive quits are
-  left to the owner-pid reap). Titles come from Codex's own `session_index.jsonl` thread
+  the shim maps events in-process: `PermissionRequest` → `needs_input`, except when
+  the matching rollout `turn_context` explicitly names `approvals_reviewer: auto_review`.
+  Approval hooks run before review; an automatic review is not waiting for the user.
+  Missing reviewer metadata keeps the human-approval behavior. `PreToolUse` of
+  `request_user_input` also turns red; `PostToolUse`/`UserPromptSubmit` → `resumed`.
+  `Interrupt` → `idle`, `SessionEnd` → `ended`, and `Stop` → `idle` — or `ended` for
+  one-shot `codex exec` rollouts. Older versions retain the owner-pid reap backstop.
+  On macOS, `session_meta.originator: Codex Desktop` repairs captured terminal identity
+  even during an already-active turn, so Focus opens the chat rather than an inherited
+  terminal or IDE. CLI/extension sessions keep their captured host.
+  Titles come from Codex's own `session_index.jsonl` thread
   names at turn boundaries, with the first typed prompt as a one-time fallback — never an
   LLM call. Two Codex-side rules: its hooks.json merge must preserve foreign matcher
   groups *in place* (Codex trusts hooks by content hash + position; the user approves new

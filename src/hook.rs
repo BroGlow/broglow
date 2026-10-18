@@ -155,10 +155,13 @@ fn dismissed_session_returns_on_activity() {
         serde_json::from_str(&std::fs::read_to_string(state_file_path()).unwrap()).unwrap()
     };
     let event = |id, event| {
-        ingest_event(&serde_json::json!({
-            "harness": "codex", "session_id": id, "event": event,
-            "title": "Keep this conversation", "directory": "/project"
-        }))
+        ingest_event(
+            &serde_json::json!({
+                "harness": "codex", "session_id": id, "event": event,
+                "title": "Keep this conversation", "directory": "/project"
+            }),
+            None,
+        )
         .unwrap()
     };
     crate::state::clear_session("missing").unwrap();
@@ -443,7 +446,7 @@ pub fn run_event() -> anyhow::Result<()> {
     let mut input = String::new();
     let _ = std::io::stdin().read_to_string(&mut input);
     let v: Value = serde_json::from_str(&input).unwrap_or(Value::Null);
-    ingest_event(&v)
+    ingest_event(&v, None)
 }
 
 /// Apply one normalized harness event (see [`run_event`] for the shape).
@@ -451,7 +454,7 @@ pub fn run_event() -> anyhow::Result<()> {
 /// ([`run_codex_hook`], translating Claude-dialect payloads) and Copilot
 /// ([`run_copilot_hook`], translating per-event payloads) — which build the
 /// same shape.
-fn ingest_event(v: &Value) -> anyhow::Result<()> {
+fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyhow::Result<()> {
     let field = |k: &str| -> Option<String> {
         v.get(k)
             .and_then(|x| x.as_str())
@@ -509,6 +512,15 @@ fn ingest_event(v: &Value) -> anyhow::Result<()> {
     };
 
     update_state(|state| {
+        // A rollout can identify a desktop host after the first hook captured
+        // stale terminal variables. Repair it even on suppressed working events.
+        let mut terminal_changed = false;
+        if let (Some(terminal), Some(s)) = (&terminal, state.sessions.get_mut(&session_id)) {
+            if s.terminal.as_ref() != Some(terminal) {
+                s.terminal = Some(terminal.clone());
+                terminal_changed = true;
+            }
+        }
         let existing = state.sessions.get(&session_id);
 
         // `ended` for a session we never saw is a no-op: creating a fresh `Done`
@@ -526,7 +538,7 @@ fn ingest_event(v: &Value) -> anyhow::Result<()> {
         if event == "working" {
             if let Some(s) = existing {
                 if s.status == Status::NeedsHelp {
-                    return false;
+                    return terminal_changed;
                 }
             }
         }
@@ -541,7 +553,7 @@ fn ingest_event(v: &Value) -> anyhow::Result<()> {
         if matches!(event.as_str(), "working" | "resumed") && title.is_none() {
             if let Some(s) = existing {
                 if s.status == Status::Active {
-                    return false;
+                    return terminal_changed;
                 }
             }
         }
@@ -564,7 +576,10 @@ fn ingest_event(v: &Value) -> anyhow::Result<()> {
         // event), and carry it forward afterward so chatty events don't each
         // spawn a `ps`. The captured owner PID is what lets the reader reap a
         // harness session whose process exited without an `ended` event.
-        let terminal = match existing.and_then(|s| s.terminal.clone()) {
+        let terminal = match terminal
+            .clone()
+            .or_else(|| existing.and_then(|s| s.terminal.clone()))
+        {
             Some(t) => Some(t),
             None => Some(crate::terminal::capture()),
         };
@@ -593,14 +608,15 @@ fn ingest_event(v: &Value) -> anyhow::Result<()> {
 /// without a JS plugin.
 ///
 /// Mapping notes:
-/// - `PermissionRequest` is Codex's waiting-on-approval signal → `needs_input`
-///   (Codex has no `Notification`).
+/// - `PermissionRequest` → `needs_input` unless this turn explicitly uses
+///   automatic approval review; those requests do not wait for the user.
+/// - `PreToolUse` of `request_user_input` → `needs_input` until it completes.
 /// - `PostToolUse` → `resumed`: the first tool completion after an approval is
 ///   what clears the red; a plain `working` deliberately would not.
 /// - `UserPromptSubmit` → `resumed`: the user typing is also them dealing
 ///   with a pending request (e.g. rejecting the tool and redirecting).
 /// - `Stop` → `idle`, except for one-shot `codex exec` rollouts → `ended`
-///   (nobody resumes those; Codex has no `SessionEnd`).
+///   (nobody resumes those). `Interrupt` → `idle`; `SessionEnd` → `ended`.
 /// - Titles: Codex names its own threads (`session_index.jsonl`); the thread
 ///   name rides along as the event title. Unnamed sessions use the submitted
 ///   prompt immediately, with the rollout at `Stop` as a fallback for older hooks.
@@ -622,10 +638,21 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
     let cwd = field("cwd");
     let transcript_path = field("transcript_path").unwrap_or_default();
 
+    if hook_event == "PermissionRequest"
+        && crate::codex::approval_is_automatic(&transcript_path, field("turn_id").as_deref())
+    {
+        return Ok(());
+    }
+
     let exec = hook_event == "Stop"
         && !transcript_path.is_empty()
         && crate::codex::rollout_is_exec(&transcript_path);
-    let Some(event) = codex_event_verb(&hook_event, exec) else {
+    let event = if hook_event == "PreToolUse" && v["tool_name"] == "request_user_input" {
+        Some("needs_input")
+    } else {
+        codex_event_verb(&hook_event, exec)
+    };
+    let Some(event) = event else {
         return Ok(());
     };
 
@@ -649,7 +676,15 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
     if let Some(c) = &cwd {
         ev["directory"] = Value::String(c.clone());
     }
-    ingest_event(&ev)?;
+    #[cfg(target_os = "macos")]
+    let terminal =
+        crate::codex::rollout_is_desktop(&transcript_path).then(|| crate::state::TerminalInfo {
+            bundle_id: Some("com.openai.codex".into()),
+            ..Default::default()
+        });
+    #[cfg(not(target_os = "macos"))]
+    let terminal = None;
+    ingest_event(&ev, terminal)?;
 
     // Prompt hooks also work for ephemeral chats, which have no rollout.
     // Name once; later Codex titles still win through the title path above.
@@ -687,6 +722,8 @@ fn codex_event_verb(hook_event: &str, exec: bool) -> Option<&'static str> {
         "SessionStart" | "PreToolUse" => Some("working"),
         "UserPromptSubmit" | "PostToolUse" => Some("resumed"),
         "PermissionRequest" => Some("needs_input"),
+        "Interrupt" => Some("idle"),
+        "SessionEnd" => Some("ended"),
         "Stop" => Some(if exec { "ended" } else { "idle" }),
         _ => None,
     }
@@ -746,7 +783,7 @@ pub fn run_copilot_hook(event_name: &str) -> anyhow::Result<()> {
     if let Some(c) = &cwd {
         ev["directory"] = Value::String(c.clone());
     }
-    ingest_event(&ev)?;
+    ingest_event(&ev, None)?;
 
     // Fallback naming: the prompt rides in the payload itself, so the first
     // one we see names a still-unnamed session (a later prompt never renames).

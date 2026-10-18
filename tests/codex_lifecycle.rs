@@ -101,6 +101,113 @@ fn codex_lifecycle_maps_onto_normalized_statuses() {
 }
 
 #[test]
+fn automatic_approval_review_does_not_ask_the_user_for_help() {
+    let home = temp_home();
+    let id = "auto-review";
+    let rollout = home.path().join("rollout.jsonl");
+    let request = |turn_id: &str| {
+        run_codex_hook(
+            &home,
+            &json!({
+                "hook_event_name": "PermissionRequest", "session_id": id,
+                "transcript_path": rollout, "turn_id": turn_id,
+                "tool_name": "Bash", "tool_input": {"command": "true"},
+            })
+            .to_string(),
+        )
+        .success();
+    };
+    run_codex_hook(&home, &ev("SessionStart", id)).success();
+    std::fs::write(&rollout, concat!(
+        "{\"type\":\"turn_context\",\"payload\":{\"turn_id\":\"old\",\"approvals_reviewer\":\"user\"}}\n",
+        "{\"type\":\"turn_context\",\"payload\":{\"turn_id\":\"current\",\"approvals_reviewer\":\"auto_review\"}}\n",
+    )).unwrap();
+    request("current");
+    assert_eq!(session(&read_state(&home), id)["status"], "active");
+
+    // A stale or absent reviewer must never hide a possible human approval.
+    request("next");
+    assert_eq!(session(&read_state(&home), id)["status"], "needs_help");
+    request("current");
+    assert_eq!(session(&read_state(&home), id)["status"], "needs_help");
+    run_codex_hook(&home, &ev("PostToolUse", id)).success();
+    std::fs::write(&rollout, "{\"type\":\"turn_context\",\"payload\":{\"turn_id\":\"current\",\"approvals_reviewer\":\"user\"}}\n").unwrap();
+    request("current");
+    assert_eq!(session(&read_state(&home), id)["status"], "needs_help");
+}
+
+#[test]
+fn codex_questions_interrupts_and_session_end_follow_the_lifecycle() {
+    let home = temp_home();
+    let id = "question";
+    run_codex_hook(&home, &ev("SessionStart", id)).success();
+    for event in ["PreToolUse", "PostToolUse"] {
+        run_codex_hook(
+            &home,
+            &json!({
+                "hook_event_name": event, "session_id": id,
+                "tool_name": "request_user_input",
+                "tool_input": {"questions": [{"id": "choice", "question": "Which option?"}]},
+            })
+            .to_string(),
+        )
+        .success();
+        assert_eq!(
+            session(&read_state(&home), id)["status"],
+            if event == "PreToolUse" {
+                "needs_help"
+            } else {
+                "active"
+            }
+        );
+    }
+    run_codex_hook(&home, &ev("PermissionRequest", id)).success();
+    run_codex_hook(&home, &ev("Interrupt", id)).success();
+    assert_eq!(session(&read_state(&home), id)["status"], "inactive");
+    run_codex_hook(&home, &ev("SessionEnd", id)).success();
+    assert_eq!(session(&read_state(&home), id)["status"], "done");
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn desktop_rollout_repairs_stale_terminal_identity_before_focus() {
+    let home = temp_home();
+    let id = "00000000-0000-4000-8000-000000000001";
+    let rollout = home.path().join("desktop.jsonl");
+    std::fs::write(&rollout, "{\"type\":\"session_meta\",\"payload\":{\"source\":\"vscode\",\"originator\":\"Codex Desktop\"}}\n").unwrap();
+    run_codex_hook(&home, &ev("SessionStart", id)).success();
+    let mut state = read_state(&home);
+    state["sessions"][id]["terminal"] = json!({
+        "bundle_id": "com.microsoft.VSCode", "term_program": "Apple_Terminal",
+        "tty": "/dev/ttys007", "owner_pid": 99999999,
+    });
+    std::fs::write(state_path(&home), state.to_string()).unwrap();
+    // The VS Code extension shares source=vscode, but must keep its terminal.
+    std::fs::write(&rollout, "{\"type\":\"session_meta\",\"payload\":{\"source\":\"vscode\",\"originator\":\"codex_vscode\"}}\n").unwrap();
+    run_codex_hook(
+        &home,
+        &ev_with_transcript("PreToolUse", id, rollout.to_str().unwrap()),
+    )
+    .success();
+    assert_eq!(
+        session(&read_state(&home), id)["terminal"],
+        state["sessions"][id]["terminal"]
+    );
+    std::fs::write(&rollout, "{\"type\":\"session_meta\",\"payload\":{\"source\":\"vscode\",\"originator\":\"Codex Desktop\"}}\n").unwrap();
+    // Already-active event suppression must still let the host repair through.
+    run_codex_hook(
+        &home,
+        &ev_with_transcript("PreToolUse", id, rollout.to_str().unwrap()),
+    )
+    .success();
+    assert_eq!(
+        session(&read_state(&home), id)["terminal"],
+        json!({"bundle_id": "com.openai.codex"})
+    );
+    assert_eq!(session(&read_state(&home), id)["status"], "active");
+}
+
+#[test]
 fn unmapped_codex_events_touch_nothing() {
     let home = temp_home();
     let id = "019f-sub";

@@ -11,14 +11,19 @@ but Codex still needs your approval before running them.
    and `CODEX_HOME` as the app: either the app's bundled CLI (for example
    `/Applications/ChatGPT.app/Contents/Resources/codex`) or an installed `codex`
    command that uses the same `CODEX_HOME`.
-2. Enter `/hooks`. Review and trust the six BroGlow entries: `SessionStart`,
-   `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest` and `Stop`.
+2. Enter `/hooks`. Review and trust the eight BroGlow entries: `SessionStart`,
+   `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`,
+   `Interrupt` and `SessionEnd` (the last two require a recent Codex version).
    Each runs the full path to `broglow` followed by `codex-hook`, for example
    `"/path/to/broglow" codex-hook`. Leave other hooks unchanged. Changed hook
    definitions may need approval again.
 3. Send a prompt in a new local Codex task, in the CLI or desktop app.
    In BroGlow's session list, check that this task shows **Working** while it runs and
-   **Paused** after the response. A permission request shows **Needs help**. Other live
+   **Paused** after the response. A human approval request or blocking question shows
+   **Needs help**. Automatic approval review stays **Working** when the current turn's
+   reviewer is available in the transcript; without that metadata, permission requests
+   still show **Needs help**. Interrupting a turn pauses it; ending the session removes
+   it from live status. Other live
    sessions and the **Settings → Mixed sessions** choice also affect the lamp's color.
 
 <a name="codex-missing-hooks"></a>
@@ -48,6 +53,8 @@ remote tasks do not send events to the local BroGlow service.
 
 Click a local Codex session (TUI: **Enter**) to return to it. On macOS, desktop tasks
 open directly in Codex using their task link, also when the app is named ChatGPT.
+Desktop identity from the transcript takes priority over inherited terminal or IDE
+settings and repairs older captured hosts on the next hook event.
 CLI sessions focus their captured terminal; if no host can be focused, BroGlow tries
 the task link in the installed Codex app.
 
