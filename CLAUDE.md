@@ -118,7 +118,13 @@ grant or board operation: record those acceptance checks separately.
   USB-assisted `pair` requires exact INFO identity before PAIR and matches the
   service plus full six-byte base MAC in manufacturer data (`0xffff`). INFO runs before
   the worker pause unless USB mirroring holds the port, so a known board never pauses
-  the other lamps; PAIR and the BLE scan still pause. The tray checks
+  the other lamps. A new lamp is found by the running BLE worker without a pause: `pair`
+  writes `.ble-setup-request`, the worker's `discover` records service + `0xffff`
+  advertisements to `ble-sightings.json` only while asked, and exactly one fresh
+  exact match is saved; `supervise` then starts its task. No worker answer, no
+  sighting, disabled/USB mirroring or a lamp connected to this Mac (it stops
+  advertising) fall back to the pause and own scan under `radio_lock`. The automatic
+  `remember_usb` guard expects the enable state setup left (`paused`). The tray checks
   USB every five seconds and attempts setup once per new attachment; `usb_lamps`
   records verified boards so Disable/Forget survive restart. Retain exact identity
   checks, serial/worker locks, failure rollback and macOS consent.
