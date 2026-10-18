@@ -279,14 +279,21 @@ test('Settings toggles project grouping and keeps focus through the saved prefer
   const toggle = element('groupbyproject');
   assert.equal(toggle.checked, false, 'Off by default');
   toggle.focus();
+  const builds = element('groups').writes;
   for (const enabled of [true, false]) {
     toggle.checked = enabled;
     listeners.change({ target: toggle });
     assert.deepEqual(commands('set_group_by_project').at(-1), { cmd: 'set_group_by_project', enabled });
+    // A state push that still carries the old value (a hook event racing the
+    // config write) must not flip the control back before the host confirms.
+    refresh({ groupByProject: !enabled });
+    assert.equal(toggle.checked, enabled, 'Keeps the clicked value until the host confirms');
+    context.window.__configActionResult(null);
     refresh({ groupByProject: enabled });
     assert.equal(toggle.checked, enabled);
     assert.equal(context.document.activeElement, toggle, 'Keep keyboard focus through refresh');
   }
+  assert.equal(element('groups').writes, builds, 'State pushes sync values without rebuilding the controls');
   assert.equal(commands('set_agent_names').length, 0);
 });
 
