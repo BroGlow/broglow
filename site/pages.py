@@ -237,30 +237,49 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
     if config.repo_url:
         releases = config.repo_url + "/releases"
         source = config.repo_url + "/archive/HEAD.zip"
+        version = cargo_package()["version"]
+
+        def published(archive):
+            # Only the published site looks checksums up; tests and previews stay offline.
+            if not getattr(config, "site_url", None):
+                return None
+            return release_checksum(config.repo_url, version, archive)
+
+        mac_archives = {
+            f"broglow-v{version}-aarch64-apple-darwin.tar.gz": (
+                "Apple Silicon",
+                published(f"broglow-v{version}-aarch64-apple-darwin.tar.gz"),
+            ),
+            f"broglow-v{version}-x86_64-apple-darwin.tar.gz": (
+                "Intel",
+                published(f"broglow-v{version}-x86_64-apple-darwin.tar.gz"),
+            ),
+        }
         mac = (
-            f"[Приложение для Mac + прошивка C3 · релизы]({releases})"
+            f"[Приложение для Mac + прошивка C3 · релизы]({releases})\n\n"
+            "Выберите полный пакет для своего Mac и сверьте его SHA-256:\n\n"
             if ru
-            else f"[Mac app + C3 firmware · releases]({releases})"
+            else f"[Mac app + C3 firmware · releases]({releases})\n\n"
+            "Choose the complete bundle for your Mac and verify its SHA-256:\n\n"
         )
+        for archive, (chip, checksum) in mac_archives.items():
+            mac += f"`{archive}` ({chip})\n\n"
+            if checksum:
+                mac += f"```text\n{checksum}\n```\n\n"
+        if not all(checksum for _, checksum in mac_archives.values()):
+            mac += (
+                "SHA-256 пакетов появятся здесь после публикации релиза.\n\n"
+                if ru
+                else "The packages' SHA-256 appear here once the release is published.\n\n"
+            )
         mac += (
-            "\n\nВыберите полный пакет для своего Mac: `broglow-vVERSION-aarch64-apple-darwin.tar.gz` "
-            "для Apple Silicon или `broglow-vVERSION-x86_64-apple-darwin.tar.gz` для Intel, "
-            "и файл `.sha256` с тем же именем. Архивы Windows (`broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz`) не содержат прошивку и руководство. "
             f"Если полного пакета ещё нет, [скачайте исходники]({source}) и соберите их по [инструкции](hardware.md#build-from-source)."
             if ru
-            else "\n\nChoose the complete bundle for your Mac: `broglow-vVERSION-aarch64-apple-darwin.tar.gz` "
-            "for Apple Silicon or `broglow-vVERSION-x86_64-apple-darwin.tar.gz` for Intel, "
-            "plus its matching `.sha256` file. Windows archives (`broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz`) omit the firmware and manual. "
-            f"If no complete package is available yet, [download the source]({source}) and [build from source](hardware.md#build-from-source)."
+            else f"If no complete package is available yet, [download the source]({source}) and [build from source](hardware.md#build-from-source)."
         )
         guide = "printing.md"
-        archive = f"broglow-enclosure-magnetic-v{cargo_package()['version']}.zip"
-        # Only the published site looks the checksum up; tests and previews stay offline.
-        checksum = (
-            release_checksum(config.repo_url, cargo_package()["version"], archive)
-            if getattr(config, "site_url", None)
-            else None
-        )
+        archive = f"broglow-enclosure-magnetic-v{version}.zip"
+        checksum = published(archive)
         if ru:
             models = (
                 f"[Файлы корпуса для печати · релизы]({releases})\n\n"
@@ -303,8 +322,15 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
         if packages:
             package = max(packages, key=lambda path: path.stat().st_mtime_ns)
             label = "Локальный пакет Mac + C3" if ru else "Local Mac + C3 package"
-            checksum = "Контрольная сумма" if ru else "Checksum"
-            mac = f"[{label}]({prefix}dist/{package.name}){{ download }}\n\n[{checksum}]({prefix}dist/{package.name}.sha256){{ download }}"
+            checksum = checksum_line(
+                package.with_name(package.name + ".sha256").read_text(), package.name
+            )
+            if checksum is None:
+                raise ValueError(f"Not a sha256sum line: {package.name}.sha256")
+            mac = (
+                f"[{label}]({prefix}dist/{package.name}){{ download }}\n\n"
+                f"SHA-256:\n\n```text\n{checksum}\n```"
+            )
             mac += (
                 "\n\nПроверьте архитектуру и дату сборки в `BUILD.json` внутри пакета."
                 if ru

@@ -12,7 +12,7 @@ import pages
 from pages import SITE, on_config, on_page_content, on_page_markdown
 
 for locale in ("en", "ru"):
-    for name in ("index.md", "installation.md", "printing.md"):
+    for name in ("index.md", "alternatives.md", "printing.md"):
         source = (Path(__file__).parent / "guide" / locale / name).read_text()
         page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/{name}"))
         public = on_page_markdown(
@@ -21,15 +21,18 @@ for locale in ("en", "ru"):
             config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
         )
         assert "/dist/" not in public and "{ download }" not in public
-        if name == "installation.md":
+        if name == "alternatives.md":
+            version = pages.cargo_package()["version"]
             assert "https://github.com/example/lamp/releases" in public
             assert "https://github.com/example/lamp/archive/HEAD.zip" in public
-            assert "broglow-vVERSION-aarch64-apple-darwin.tar.gz" in public
-            assert "broglow-vVERSION-x86_64-apple-darwin.tar.gz" in public
+            assert f"broglow-v{version}-aarch64-apple-darwin.tar.gz" in public
+            assert f"broglow-v{version}-x86_64-apple-darwin.tar.gz" in public
+            # No release lookup without a site_url: the page says when checksums appear.
             assert (
-                ".sha256" in public
-                and "broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz" in public
+                "once the release is published" in public
+                or "после публикации" in public
             )
+            assert ".sha256" not in public
         else:
             version = pages.cargo_package()["version"]
             archive = f"broglow-enclosure-magnetic-v{version}.zip"
@@ -49,7 +52,7 @@ for locale in ("en", "ru"):
             local = on_page_markdown(
                 source, page=page, config=SimpleNamespace(repo_url=None)
             )
-            if name == "installation.md":
+            if name == "alternatives.md":
                 assert (
                     "hardware.md#build-from-source" in local and "/dist/" not in local
                 )
@@ -60,14 +63,18 @@ for locale in ("en", "ru"):
                 assert "/dist/" not in on_page_markdown(
                     source, page=page, config=SimpleNamespace(repo_url=None)
                 )
-                archive.with_name(archive.name + ".sha256").touch()
+                digest = "c" * 64
+                archive.with_name(archive.name + ".sha256").write_text(
+                    f"{digest}  {archive.name}\n"
+                )
                 local = on_page_markdown(
                     source, page=page, config=SimpleNamespace(repo_url=None)
                 )
-                assert (
-                    f"dist/{archive.name})" in local
-                    and f"dist/{archive.name}.sha256)" in local
-                )
+                prefix = "../" * (2 + (locale == "ru") + 1)
+                assert f"]({prefix}dist/{archive.name}){{ download }}" in local
+                # The checksum is shown inline, never offered as a second download.
+                assert f"```text\n{digest}  {archive.name}\n```" in local
+                assert ".sha256)" not in local
             else:
                 assert "{ download }" not in local
                 assert "printing.md#generate-from-source" in local

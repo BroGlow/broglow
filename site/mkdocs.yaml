@@ -56,6 +56,7 @@ plugins:
           nav_translations:
             Build: Сборка
             Install and connect: Установка и подключение
+            Alternative installations: Другие способы установки
             Codex: Codex
             Troubleshooting: Диагностика
             Reference: Справочники
@@ -68,6 +69,7 @@ plugins:
 nav:
   - Build: index.md
   - Install and connect: installation.md
+  - Alternative installations: alternatives.md
   - Codex: codex.md
   - Troubleshooting: troubleshooting.md
   - Reference:

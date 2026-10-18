@@ -45,7 +45,7 @@ BroGlow — отдельное, независимо поддерживаемо�
 
 ## Начните здесь
 
-- **Установка или обновление:** [руководство по установке](site/guide/ru/installation.md) или настройка с помощью агента: [запрос для агента](site/guide/ru/installation.md#agent-setup).
+- **Установка или обновление:** [руководство по установке](site/guide/ru/installation.md) (Homebrew), [другие способы установки](site/guide/ru/alternatives.md) (пакет для Mac, исходники, Windows, Linux) или настройка с помощью агента: [запрос для агента](site/guide/ru/installation.md#agent-setup).
 - **Подключение прошитой лампы:** [сопряжение](site/guide/ru/installation.md#pairing).
 - **Сборка и подключение лампы ESP32-C3:** [схема подключения](site/guide/ru/hardware.md#wiring-and-resistor-choice).
 - **Печать корпуса:** [печать и сборка](models/magnetic/GUIDE_ROUND3X2.md). Маскот держится на четырёх магнитах Ø3×2 мм N52 (два в маскоте, два в светофоре), и его можно заменить на любого другого.

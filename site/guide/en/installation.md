@@ -15,26 +15,16 @@ broglow install
 
 `broglow install` is a required step: it registers BroGlow's hooks in your coding
 agents (Claude Code always; Codex, opencode and GitHub Copilot CLI when they are
-installed), installs the menu-bar app and starts it at login. Prefer a downloaded
-package? Continue below; it ends with the same `broglow install`.
-
-<a name="installation"></a>
-
-## Download the Mac package
-
-The complete Mac package contains the app, the ESP32-C3 firmware and the operating
-guide. Apple Silicon builds have been tested on a real Mac; Intel builds have not yet
-been checked for installation and Bluetooth.
-
-<!-- mac-downloads -->
+installed), installs the menu-bar app and starts it at login. No Homebrew, or on
+Windows or Linux? See [Alternative installations](alternatives.md).
 
 <a name="agent-setup"></a>
 
 ## Set it up with your agent
 
-Unpack the package (keep the archive and its `.sha256` file next to it) or the source
-archive, open the folder in your agent (Codex, Claude Code or similar) and paste this
-request. Prefer manual setup? Follow the
+Open a folder in your agent (Codex, Claude Code or similar) and paste this request.
+If you use the [Mac package](alternatives.md#mac-package), unpack it first, keep the
+archive and its `.sha256` file next to it and open that folder. Prefer manual setup? Follow the
 [installation steps](hardware.md#install-or-update-the-mac-service).
 
 ```text
