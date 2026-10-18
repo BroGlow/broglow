@@ -4,7 +4,6 @@
 import argparse
 import importlib.metadata
 import importlib.util
-import hashlib
 import json
 from pathlib import Path
 import re
@@ -15,29 +14,44 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL = Path("models/broglow")
-CAD_FILES = (
-    "broglow.py",
-    "hand_joint.py",
-    "appearance.py",
-    "exploded.py",
-    "usb_coupon.py",
-    "check.py",
-    "dimensions.py",
-    "package_prints.py",
-    "requirements.txt",
-    "PRINT_GUIDE.en.md",
-    "PRINT_GUIDE.md",
-    "slicer-validation.json",
-)
 MAGNETIC = Path("models/magnetic")
-MAGNETIC_FILES = (
-    "magnetic.py",
-    "refined.py",
-    "round3x2.py",
-    "round3x2_exploded.py",
-    "GUIDE_ROUND3X2.en.md",
-    "GUIDE_ROUND3X2.md",
-    "slicer-validation.json",
+# Only build inputs and documented references; never copy old exports or private files.
+SOURCE_FILES = (
+    Path("LICENSE"),
+    Path("Cargo.toml"),
+    Path("scripts/package-enclosure.py"),
+    Path("scripts/package-macos.py"),
+    *(
+        MODEL / name
+        for name in (
+            "broglow.py",
+            "hand_joint.py",
+            "check.py",
+            "usb_coupon.py",
+            "requirements.txt",
+        )
+    ),
+    *(
+        MAGNETIC / name
+        for name in (
+            "magnetic.py",
+            "refined.py",
+            "round3x2.py",
+            "round3x2_exploded.py",
+            "appearance.py",
+            "exploded.py",
+            "GUIDE_ROUND3X2.en.md",
+            "GUIDE_ROUND3X2.md",
+            "slicer-validation.json",
+        )
+    ),
+)
+PARTS = (
+    "01_mascot_magnetic_orange",
+    "02_eye_black_x2",
+    "03_tower_magnetic_black",
+    "04_rear_cover_black",
+    "05_LED_retainer_black",
 )
 
 
@@ -49,36 +63,10 @@ def load(name, path):
 
 
 release = load("package_macos", ROOT / "scripts/package-macos.py")
-prints = load("package_prints", ROOT / MODEL / "package_prints.py")
 
 
-def source_files(variant="glued"):
-    """Only build inputs and documented references; never copy old exports or private files."""
-    if variant == "magnetic":
-        files = {
-            Path("LICENSE"),
-            Path("Cargo.toml"),
-            Path("scripts/package-enclosure.py"),
-            Path("scripts/package-macos.py"),
-            *(
-                MODEL / name
-                for name in (
-                    "broglow.py",
-                    "hand_joint.py",
-                    "check.py",
-                    "usb_coupon.py",
-                    "requirements.txt",
-                    "package_prints.py",
-                )
-            ),
-            *(MAGNETIC / name for name in MAGNETIC_FILES),
-        }
-    else:
-        files = {
-            Path("LICENSE"),
-            *(Path(name) for name in prints.REFERENCE_FILES),
-            *(MODEL / name for name in CAD_FILES),
-        }
+def source_files():
+    files = set(SOURCE_FILES)
     for path in files:
         source = ROOT / path
         release.require(
@@ -124,48 +112,25 @@ def identity(version, tag):
     return None, None  # Source archives carry no verifiable Git identity.
 
 
-def package_magnetic(source, output, version, inputs):
-    """Package only the five production parts; require reviewed STL hashes."""
+def package_magnetic(source, output, version):
+    """Package the five production parts and assembly views in one flat folder."""
     model = source / MAGNETIC
     slices = json.loads((model / "slicer-validation.json").read_text())
     report = json.loads((model / "validation.json").read_text())
     release.require(report["status"] == "passed", "Magnetic validation failed")
     names = [part["file"] for part in slices["parts"]]
-    expected = [
-        f"stl/{name}.stl"
-        for name in (
-            "01_mascot_magnetic_orange",
-            "02_eye_black_x2",
-            "03_tower_magnetic_black",
-            "04_rear_cover_black",
-            "05_LED_retainer_black",
-        )
-    ]
+    expected = [f"stl/{name}.stl" for name in PARTS]
     release.require(sorted(names) == sorted(expected), "Wrong magnetic print inventory")
     for part in slices["parts"]:
         release.require(
             release.sha256(model / part["file"]) == part["sha256"],
             f"Stale magnetic slicer evidence: {part['file']}",
         )
-    generated = [Path(name) for name in names]
-    generated += [Path("step") / path.with_suffix(".step").name for path in generated]
-    generated += [
-        Path(name)
-        for name in ("round3x2.step", "round3x2_exploded.step", "validation.json")
-    ]
-    # The print guide is self-contained; the build inputs allow regeneration too.
-    entries = {path.as_posix(): (source / path).read_bytes() for path in inputs}
-    entries.update({path.as_posix(): (model / path).read_bytes() for path in generated})
+    generated = [Path("stl") / f"{name}.stl" for name in PARTS]
+    generated += [Path("step") / f"{name}.step" for name in PARTS]
+    generated += [Path(name) for name in ("round3x2.step", "round3x2_exploded.step")]
+    entries = {path.name: (model / path).read_bytes() for path in generated}
     entries["BUILD.json"] = (source / "BUILD.json").read_bytes()
-    for language, guide in (("", "GUIDE_ROUND3X2.en.md"), (".ru", "GUIDE_ROUND3X2.md")):
-        entries[f"START_HERE{language}.md"] = (
-            f"# BroGlow — magnetic enclosure\n\n[Print and assemble / Печать и сборка](models/magnetic/{guide}).\n\n"
-            "STL: stl/ · STEP: step/ · 02: print two / печатать два.\n"
-        ).encode()
-    entries["SHA256SUMS"] = "".join(
-        f"{hashlib.sha256(data).hexdigest()}  {name}\n"
-        for name, data in sorted(entries.items())
-    ).encode()
     archive = output / f"broglow-enclosure-magnetic-v{version}.zip"
     with ZipFile(archive, "w", ZIP_DEFLATED) as zipped:
         for name, data in sorted(entries.items()):
@@ -178,7 +143,6 @@ def package_magnetic(source, output, version, inputs):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, default=ROOT / "dist/enclosure")
-    parser.add_argument("--variant", choices=("magnetic", "glued"), default="magnetic")
     parser.add_argument(
         "--release-tag",
         help="Require a clean matching release tag before and after generation.",
@@ -208,15 +172,13 @@ def main():
             f"Install pinned CAD requirements: {name}=={expected}, found {actual}",
         )
         toolchain[name] = actual
-    inputs = source_files(args.variant)
+    inputs = source_files()
     input_hashes = {path.as_posix(): release.sha256(ROOT / path) for path in inputs}
     output = args.output_dir.resolve()
-    source = prepare_source(
-        output / "magnetic-build" if args.variant == "magnetic" else output, inputs
-    )
+    source = prepare_source(output / "magnetic-build", inputs)
     provenance = {
         "version": version,
-        "variant": args.variant,
+        "variant": "magnetic",
         "source_commit": commit,
         "source_dirty": dirty,
         "release_tag": args.release_tag,
@@ -226,30 +188,13 @@ def main():
         "slicer_evidence": "Reviewed slicer-validation.json reused only after exact generated STL hash matching; no new slicing performed.",
     }
     (source / "BUILD.json").write_text(json.dumps(provenance, indent=2) + "\n")
-    model = source / MODEL
+    model = source / MAGNETIC
 
     def run(*args, cwd=source):
         subprocess.run([sys.executable, *map(str, args)], cwd=cwd, check=True)
 
-    if args.variant == "magnetic":
-        model = source / MAGNETIC
-        run(model / "round3x2.py", "--output-dir", model)
-        archive = package_magnetic(source, output, version, inputs)
-    else:
-        run(
-            "-c",
-            "import importlib; from build123d import export_step; import broglow; "
-            "broglow.export_all(); "
-            "[export_step(importlib.import_module(name).gen_step(), name+'.step') "
-            "for name in ('appearance', 'exploded', 'usb_coupon')]",
-            cwd=model,
-        )
-        run(model / "check.py")
-        run(model / "dimensions.py")
-        run(model / "package_prints.py", "--output-dir", output)
-        run(model / "package_prints.py", "--output-dir", output, "--check")
-        archive = output / f"broglow-enclosure-v{version}.zip"
-        shutil.copy2(output / "broglow-print-pack.zip", archive)
+    run(model / "round3x2.py", "--output-dir", model)
+    archive = package_magnetic(source, output, version)
     release.require(
         input_hashes
         == {path.as_posix(): release.sha256(ROOT / path) for path in inputs},

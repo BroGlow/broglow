@@ -109,8 +109,9 @@ other iOS browsers are unverified. WebXR requires HTTPS or loopback, and a phone
 cannot reach another device's localhost. Physical phone placement and size still
 need acceptance checks. See the [component's AR reference](https://modelviewer.dev/examples/augmentedreality/).
 
-The model depicts the glued release enclosure with illustrative
-electronics. Use the separate enclosure package for printing. Source hashes and
+The model depicts the magnetic enclosure from `models/magnetic/` with reference
+magnets and electronics (`appearance.py` for the hero, `exploded.py` for the
+explorer). Use the separate enclosure package for printing. Source hashes and
 bounds live in `assets/broglow-model.json`; regenerate both outputs rather than
 editing them. From a full checkout, run the export with the pinned CAD requirements:
 
@@ -137,6 +138,10 @@ to restore detection. `guide/assets/language.js` preserves page/section and uses
 `?lang=ru` / `?lang=en` when storage is blocked. Without JavaScript, guide links
 work in their URL's language and prompts can be copied manually.
 
+Both the landing and the guide follow the system color scheme and offer an
+auto/light/dark switch: the landing's `theme.js` stores the choice under
+localStorage key `broglow-theme` and sets `data-theme` before the first paint;
+the guide uses Material's three-way palette toggle with its own storage.
 Material provides navigation, local search and copy buttons; `copy.js` adds
 accessible success/failure feedback. Fonts are system fonts; no analytics or
 external font service is configured.
@@ -147,6 +152,7 @@ external font service is configured.
 uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
   python site/check-translations.py
 node site/i18n.test.cjs
+node site/theme.test.cjs
 node site/model-preview.test.cjs
 node site/docs-language.test.cjs
 node site/docs-copy.test.cjs
@@ -163,29 +169,27 @@ Keep the preview server running for the HTTP check.
 
 ## Local downloads and factual limits
 
-The recommended download is `broglow-enclosure-magnetic-vVERSION.zip`, with its
-`.sha256`; `printing.md` includes the magnetic guide. `printing-glued.md` preserves
-the older guide and its `broglow-enclosure-vVERSION.zip` download. The current
-interactive CAD illustrations depict the glued alternative. The magnetic design
-is shown in the STEP views included in its release package.
+The only enclosure download is `broglow-enclosure-magnetic-vVERSION.zip`, a flat
+folder of STL, STEP, two assembly views and `BUILD.json`; `printing.md` includes
+its guide from `models/magnetic/`.
 
 `pages.py` expands `<!-- mac-downloads -->` and `<!-- model-download -->`:
-local previews link to the newest complete Mac archive in `dist/` and enclosure
-archive `dist/enclosure/broglow-enclosure-magnetic-vVERSION.zip`, each with a sibling
-`.sha256`. Without archives, they offer source instructions. Public builds link
-to Releases and the source ZIP. GitHub's automatic source ZIP contains editable
+local previews link to the newest complete Mac archive in `dist/` (with its
+sibling `.sha256`) and to `dist/enclosure/broglow-enclosure-magnetic-vVERSION.zip`,
+whose checksum is shown inline from the sibling `.sha256`. Without archives, they
+offer source instructions. Public builds link to Releases and the source ZIP; the
+Pages build fetches the published archive's `.sha256` from the release for the
+current `Cargo.toml` version and shows it inline; before that release exists the
+page says the checksum appears after publication. Publishing a release restarts
+the Website workflow on the default branch so the checksum lands on the site. GitHub's automatic source ZIP contains editable
 source and instructions, without STL, STEP/STP or ready-to-print ZIPs; use the
 enclosure release asset or [generate it from source](guide/en/releasing.md).
 Previews neither rebuild nor copy archives; inspect a package's `BUILD.json` for
 its architecture, date and source.
 
-Print-guide STL links from `models/broglow/parts.json` and the four named STEP
-views route to the versioned enclosure release asset in public builds. Local
-builds use the enclosure archive above, or the generation instructions when it
-is absent. The original member path stays visible for use after extraction;
-Markdown links inside the extracted package remain relative. Unknown or missing
-source links still fail the build. Keep the manual and agent generation procedures
-in the [release runbook](guide/en/releasing.md) aligned with the release workflow.
+Unknown or missing source links in included guides fail the build. Keep the
+generation procedure in the [release runbook](guide/en/releasing.md) aligned
+with the release workflow.
 
 Use the [hardware manual](guide/en/hardware.md) for supported hardware and
 acceptance checks. Website tests and renders verify presentation, not physical
@@ -194,7 +198,7 @@ fit or delivery of agent events.
 Our asset sources:
 
 - `assets/broglow.png`: `site/assets/broglow.glb`, rendered in the default Working state with the pinned model-viewer/effects and hero camera.
-- `assets/assembly.glb`: separated assembly from `models/broglow/exploded.py`; source hashes and bounds are recorded in `assets/assembly-model.json`. Regenerate with `--exploded` when its CAD source changes.
+- `assets/assembly.glb`: separated assembly from `models/magnetic/exploded.py`; source hashes and bounds are recorded in `assets/assembly-model.json`. Regenerate with `--exploded` when its CAD source changes.
 - `guide/assets/favicon.svg`: our three-circle lamp artwork, also used by the landing favicon. Tray icons come from `assets/icons/` in the repository root.
 
 Follow the [media policy and photo checklist](guide/en/media.md). Keep render/photo

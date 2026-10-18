@@ -4,17 +4,16 @@
 
 [English](GUIDE_ROUND3X2.en.md) | [Русский](GUIDE_ROUND3X2.md)
 
-Download **broglow-enclosure-magnetic-vVERSION.zip** and its **.sha256** from the
-project's GitHub Releases. This is the recommended enclosure: the mascot detaches
-and can be reattached, and the traffic light works on its own. The glued design
-remains available separately as **broglow-enclosure-vVERSION.zip**.
+Download **broglow-enclosure-magnetic-vVERSION.zip** from the project's GitHub
+Releases; the website shows its SHA-256. The mascot holds on by
+magnets: pull it off, put it back, or swap in any mascot you like, any time.
 
 <a name="fit"></a>
 
 ## Magnets and fit
 
-Use **four axially magnetized Ø3×2 mm N52 neodymium magnets**: two in the hand,
-two in the tower. Pockets are **Ø3.05 × 2.30 mm** with a teardrop-shaped top, so
+Use **four axially magnetized Ø3×2 mm N52 neodymium magnets**: two in the mascot,
+two in the traffic light (tower). Pockets are **Ø3.05 × 2.30 mm** with a teardrop-shaped top, so
 they print without supports with the part on its side. The hand stays slim, and
 the tower has no external mounting platform.
 
@@ -28,7 +27,8 @@ with the mating surface and touch, with no gap.
 
 ## What to print
 
-The archive's **stl/** folder contains only these five parts to print:
+The archive has no subfolders: these five STL parts to print, the same parts as
+STEP, two assembly views and `BUILD.json`.
 
 | File | Quantity | Color |
 | --- | --- | --- |
@@ -38,17 +38,17 @@ The archive's **stl/** folder contains only these five parts to print:
 | 04_rear_cover_black.stl | 1 | Black |
 | 05_LED_retainer_black.stl | 1 | Black |
 
-Use all parts from the same package; the glued version's retainer does not fit.
-STLs are bed-oriented: **100% scale, no auto-orientation, no supports**.
+Use all parts from the same package. STLs are bed-oriented: **100% scale, no auto-orientation, no supports**.
 The eye file contains one eye: duplicate it in the slicer.
 Reference slicing profile (sliced and checked, not a print test): **A1 mini / PETG
 Basic / 0.4 mm nozzle / 0.20 mm layers / 4 walls / 15% infill / 5 top and bottom
 layers**. Set temperatures for your filament.
 
-The package has no sliced 3MF or G-code. STEP files in **step/** are the same parts
-in assembly coordinates; use STL for the supplied print orientations.
-**round3x2.step** and **round3x2_exploded.step** at the archive root show the
-assembly with reference magnets and electronics; they are not for printing.
+The package has no sliced 3MF or G-code. The STEP files are the same parts in
+assembly coordinates; use STL for the supplied print orientations.
+**round3x2.step** and **round3x2_exploded.step** show the assembly with reference
+magnets and electronics; they are not for printing. The LED retainer (05) is
+recommended: without it the LEDs sit by friction only and can be pushed inside.
 
 <a name="assembly"></a>
 
@@ -56,7 +56,7 @@ assembly with reference magnets and electronics; they are not for printing.
 
 You also need an ESP32-C3 SuperMini, three 5 mm LEDs, wiring, resistors, glue for
 the magnets and eyes, and **four DIN 7982 ST2.2 × 6.5 mm countersunk screws**
-(three for the cover, one for the retainer). Disconnect USB while assembling.
+(three for the cover, one for the retainer; skip that one without the retainer). Disconnect USB while assembling.
 Wire the LEDs as in the
 [hardware guide]({{ repo_url }}/blob/HEAD/site/guide/en/hardware.md#wiring-and-resistor-choice):
 red/yellow/green anodes through 330/330/220 Ω resistors to GPIO0/1/3, all cathodes
@@ -106,23 +106,15 @@ printer: dry-fit first.
 
 ## Generate from source
 
-Install [uv](https://docs.astral.sh/uv/). Run from the root of the full repository,
-GitHub's source ZIP or the extracted magnetic package. Reviewed on macOS 15 (Apple
+Install [uv](https://docs.astral.sh/uv/). Run from the root of the full repository
+or GitHub's source ZIP. Reviewed on macOS 15 (Apple
 Silicon) with Python 3.14; other platforms may produce different STL hashes and
 fail the slicing check below.
 
 ```bash
 uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-  python scripts/package-enclosure.py --variant magnetic
+  python scripts/package-enclosure.py
 ```
 
 Output: **dist/enclosure/broglow-enclosure-magnetic-vVERSION.zip** and its
 **.sha256**, built from an isolated copy of the source.
-
-To change dimensions, edit **models/magnetic/refined.py** and run the same command.
-After the geometry checks pass, packaging stops with **Stale magnetic slicer
-evidence** by design: the ZIP is only built from STLs that match the reviewed
-slicing results. Your regenerated parts are still in
-**dist/enclosure/magnetic-build/source/models/magnetic/** (**stl/**, **step/**,
-**validation.json**); slice and test-print them yourself. The full repository also
-supports **--variant glued** for the older enclosure.

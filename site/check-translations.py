@@ -57,13 +57,6 @@ pairs = [
 ]
 pairs.append(
     (
-        ROOT / "models/broglow/PRINT_GUIDE.en.md",
-        ROOT / "models/broglow/PRINT_GUIDE.md",
-    )
-)
-
-pairs.append(
-    (
         ROOT / "models/magnetic/GUIDE_ROUND3X2.en.md",
         ROOT / "models/magnetic/GUIDE_ROUND3X2.md",
     )

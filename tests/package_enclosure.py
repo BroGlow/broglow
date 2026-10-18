@@ -30,31 +30,17 @@ def rejected(action, message):
 with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
     package.ROOT = root = Path(folder).resolve() / "checkout"
     root.mkdir()
-    for path in {
-        Path("LICENSE"),
-        *(Path(name) for name in package.prints.REFERENCE_FILES),
-        *(package.MODEL / name for name in package.CAD_FILES),
-        *(package.MAGNETIC / name for name in package.MAGNETIC_FILES),
-    }:
+    for path in package.SOURCE_FILES:
         target = root / path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("source\n")
     model = root / package.MODEL
-    (model / "PRINT_GUIDE.en.md").write_text("[Dimensions](preview/dimensions.png)\n")
-    # A fresh checkout has no preview directory; staging creates it for dimensions.
     files = package.source_files()
-    # A clean magnetic release contains only the five production meshes, never coupons.
-    magnetic_inputs = package.source_files("magnetic")
-    magnetic_stage = package.prepare_source(root / "dist/magnetic", magnetic_inputs)
-    magnetic_model = magnetic_stage / package.MAGNETIC
+    # A clean release contains only the five production meshes, never coupons.
+    stage = package.prepare_source(root / "dist/magnetic", files)
+    magnetic_model = stage / package.MAGNETIC
     records = []
-    for name in (
-        "01_mascot_magnetic_orange",
-        "02_eye_black_x2",
-        "03_tower_magnetic_black",
-        "04_rear_cover_black",
-        "05_LED_retainer_black",
-    ):
+    for name in package.PARTS:
         path = magnetic_model / "stl" / f"{name}.stl"
         path.parent.mkdir(exist_ok=True)
         path.write_bytes(b"reviewed mesh")
@@ -74,31 +60,20 @@ with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
     (magnetic_model / "validation.json").write_text('{"status": "passed"}')
     for name in ("round3x2.step", "round3x2_exploded.step"):
         (magnetic_model / name).write_bytes(b"STEP")
-    (magnetic_stage / "BUILD.json").write_text("{}")
-    archive = package.package_magnetic(
-        magnetic_stage, root / "dist", "1.2.3", magnetic_inputs
-    )
+    (stage / "BUILD.json").write_text("{}")
+    archive = package.package_magnetic(stage, root / "dist", "1.2.3")
     with ZipFile(archive) as zipped:
-        assert len([n for n in zipped.namelist() if n.endswith(".stl")]) == 5
-        assert not any(
-            "coupon" in n and n.endswith((".stl", ".step")) for n in zipped.namelist()
-        )
-        assert "START_HERE.ru.md" in zipped.namelist()
-        for row in zipped.read("SHA256SUMS").decode().splitlines():
-            digest, name = row.split("  ", 1)
-            assert hashlib.sha256(zipped.read(name)).hexdigest() == digest
+        # One flat folder: print files, assembly views and provenance only.
+        assert sorted(zipped.namelist()) == sorted(
+            [f"{name}.stl" for name in package.PARTS]
+            + [f"{name}.step" for name in package.PARTS]
+            + ["round3x2.step", "round3x2_exploded.step", "BUILD.json"]
+        ), zipped.namelist()
     path.write_bytes(b"changed mesh")
     rejected(
-        lambda: package.package_magnetic(
-            magnetic_stage, root / "dist", "1.2.3", magnetic_inputs
-        ),
+        lambda: package.package_magnetic(stage, root / "dist", "1.2.3"),
         "Stale magnetic slicer evidence",
     )
-    stage = package.prepare_source(root / "dist/enclosure", files)
-    assert (stage / package.MODEL / "preview").is_dir()
-    (model / "preview").mkdir()
-    (model / "preview/review.png").write_bytes(b"review")
-    (model / "preview/dimensions.png").write_bytes(b"stale dimensions")
     (model / "private.py").write_text("private analysis")
     (model / "old.STL").write_bytes(b"stale geometry")
     (model / "validation.json").write_text("stale report")
@@ -106,13 +81,10 @@ with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
         (Path(__file__).resolve().parents[1] / ".gitignore").read_bytes()
     )
     assert package.source_files() == files
-    assert not any("preview" in path.parts for path in files)
     assert all(
-        path.name not in ("private.py", "old.STL", "validation.json", "dimensions.png")
-        for path in files
+        path.name not in ("private.py", "old.STL", "validation.json") for path in files
     )
     stage = package.prepare_source(root / "dist/enclosure", files)
-    assert not any((stage / package.MODEL / "preview").iterdir())
     assert not (stage / package.MODEL / "old.STL").exists()
     assert not (stage / package.MODEL / "private.py").exists()
     (stage / package.MODEL / "stale.step").write_bytes(b"old generated part")
@@ -179,10 +151,7 @@ with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
         "docs/reintroduced.md",
     ] + retired_media
     preserved = [
-        "models/broglow/parts.json",
-        "models/broglow/validation.json",
-        "models/broglow/slicer-validation.json",
-        "models/broglow/slicer-result.json",
+        "models/magnetic/slicer-validation.json",
         "site/assets/broglow-model.json",
         "site/vendor/bloom-provenance.json",
         "references/clawlight/ar-component-bounds.json",
@@ -266,5 +235,5 @@ with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
     (model / "broglow.py").symlink_to(model / "private.py")
     rejected(package.source_files, "unsafe source input")
 print(
-    "PASS: preview-free staging, release guards, folder ignores and forced-artifact rejection"
+    "PASS: flat magnetic package, release guards, folder ignores and forced-artifact rejection"
 )

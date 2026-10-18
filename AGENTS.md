@@ -26,7 +26,7 @@ as release assets with checksums. After generation, verify output paths with
 
 Keep the entire `models/broglow/preview/` directory ignored and untracked, including
 renders, dimension diagrams and render recipes. Keep selected app/site assets and
-reviewed validation data in Git. Generate release diagrams under `dist/enclosure/`.
+reviewed validation data in Git.
 
 For **enclosure generation, release packaging, distribution, or website publication**,
 follow [the release runbook](site/guide/en/releasing.md) and its manual/agent generation

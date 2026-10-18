@@ -10,7 +10,7 @@ These are maintainer instructions for a source checkout. The `site/` and
 `.github/` files referenced below are not included in prebuilt app packages.
 
 App/firmware releases and website deployment use separate GitHub Actions
-workflows. STL and STEP files ship only inside the enclosure ZIPs attached to
+workflows. STL and STEP files ship only inside the enclosure ZIP attached to
 the release; keep all generated files ignored and out of Git (see
 [CONTRIBUTING.md](../../../CONTRIBUTING.md)).
 
@@ -21,8 +21,7 @@ the release; keep all generated files ignored and out of Git (see
 | `broglow-vVERSION-aarch64-apple-darwin.tar.gz` | Apple Silicon app, C3 firmware and source, operating manual, licenses and checksums. |
 | `broglow-vVERSION-x86_64-apple-darwin.tar.gz` | The same bundle, with a native Intel Mac app. |
 | `broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz` | Windows graphical tray app and CLI in `broglow.exe`, with USB lamp support, license and third-party notices; no installer, BLE, firmware or manuals. |
-| `broglow-enclosure-magnetic-vVERSION.zip` | Recommended detachable enclosure: five production STL/STEP parts, assembly views, source, guide and reports; four Ø3×2 mm N52 magnets. |
-| `broglow-enclosure-vVERSION.zip` | Glued alternative: STL, STEP, CAD source, print guide and validation reports. |
+| `broglow-enclosure-magnetic-vVERSION.zip` | Enclosure print files in one flat folder: the five production parts 01–05 as STL (print orientation) and STEP, two assembly views and `BUILD.json`. The mascot attaches with four Ø3×2 mm N52 magnets (two in the mascot, two in the traffic light). |
 | Matching `.sha256` | Checksum of each archive, with its original filename. |
 
 Mac bundles also contain `BUILD.json`, an internal `SHA256SUMS`, flash offsets
@@ -34,7 +33,9 @@ firmware's linked libraries.
 [`scripts/third-party-notices.py`](../../../scripts/third-party-notices.py)
 generates them from `Cargo.lock`, the crate sources and the firmware linker map;
 packaging runs it. Builds are not signed with a Developer ID certificate or notarized by Apple. Linux users build from
-source; there is no Homebrew or crates.io publishing workflow.
+source. The Homebrew tap (`broglow/tap`) lives in its own repository: update its
+formula's version and checksum after each published release; there is no
+crates.io publishing workflow.
 
 No Linux binaries are published; for the Linux tray's GTK 3 advisories see
 [CONTRIBUTING](../../../CONTRIBUTING.md#development-setup).
@@ -108,14 +109,10 @@ The **Release** workflow runs in this order:
 
 1. The `source` job on Apple Silicon `macos-15` runs the packaging tests and
    checks the tag, version and clean source. It installs the pinned Python CAD
-   toolchain and generates both enclosure variants from the tag:
-    - **Magnetic**: the five production parts with their STL and STEP files and
-      the assembly views.
-    - **Glued**: every printable STL and the four STEP views, full CAD/mesh
-      checks and dimension images.
-
-    Both variants verify exact STL hashes against the reviewed slicer validation
-    results and produce a ZIP with its `.sha256`. The job then checks that the
+   toolchain and generates the enclosure from the tag: the five production
+   parts with their STL and STEP files and the assembly views. Exact STL hashes
+   are verified against the reviewed slicer validation results, and the ZIP is
+   produced with its `.sha256`. The job then checks that the
     web model export is current (`scripts/export-web-model.py --check`), and a
     final clean-source check prevents generated reports from changing tracked files.
 2. The reusable CI suite and the **Website** checks run next, without deploying
@@ -140,7 +137,8 @@ Before selecting **Publish release** in GitHub:
   currently covers Apple Silicon; a successful Intel build is not an Intel
   hardware test. Keep unverified platforms and first-release limitations visible.
 - Review the generated notes and choose the appropriate release/prerelease label.
-  Publishing the draft is the action that makes binary downloads public.
+  Publishing the draft is the action that makes binary downloads public; it also
+  reruns the **Website** workflow so the guide shows the enclosure archive's SHA-256.
 
 The operating manual's [acceptance checklist](hardware.md#physical-and-background-service-acceptance)
 separates builds, service delivery, physical LEDs and enclosure validation.
@@ -148,10 +146,9 @@ Never reflash a working board just to test the release workflow.
 
 ## Package locally without publishing
 
-Release CI packages both enclosure variants and attaches both ZIPs and checksums
-to the same draft release. Locally, each package is built separately.
-[`scripts/package-enclosure.py`](../../../scripts/package-enclosure.py) builds the
-magnetic variant by default. `--output-dir PATH` selects another output
+Release CI packages the enclosure and attaches the ZIP and checksum to the draft
+release. [`scripts/package-enclosure.py`](../../../scripts/package-enclosure.py)
+builds the same package locally. `--output-dir PATH` selects another output
 directory; keep it ignored. For a release rehearsal, use a clean checkout of the
 matching tag and add `--release-tag vVERSION`: this strict mode validates tag,
 version and clean source before generation.
@@ -165,51 +162,31 @@ bonding and source generation. Run:
 
 ```bash
 uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-  python scripts/package-enclosure.py --variant magnetic
+  python scripts/package-enclosure.py
 ```
 
 This produces `dist/enclosure/broglow-enclosure-magnetic-vVERSION.zip` and its
 `.sha256`, using `dist/enclosure/magnetic-build/source/` for isolated generation.
 Only production parts 01–05 are exported; no coupons or machine-specific
 3MF/G-code are included. The stored slicer validation results must match all
-five STL hashes.
+five STL hashes. The archive is flat: STL and STEP files, the two assembly
+views and `BUILD.json`, with no CAD source or guide inside; the guide lives on
+the website.
 
-<a name="package-glued-enclosure"></a>
-
-### Glued enclosure
-
-Pass `--variant glued` explicitly. For a glued-only local build (no `--release-tag`,
-not a release rehearsal), use the
-[manual generation procedure](../../../models/broglow/PRINT_GUIDE.en.md#generate-from-source)
-or the equivalent [agent prompt](../../../models/broglow/PRINT_GUIDE.en.md#agent-generation).
-Both run the packaging script on macOS 15 Apple Silicon with Python 3.14 and the
-pinned [`models/broglow/requirements.txt`](../../../models/broglow/requirements.txt);
-no board, PlatformIO or agent skill is needed. For a release rehearsal:
-
-```bash
-uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-  python scripts/package-enclosure.py --variant glued --release-tag vVERSION
-```
-
-The command generates geometry, dimensions and full mesh validation in the
-isolated `dist/enclosure/source/` tree, then reuses
-[`package_prints.py`](../../../models/broglow/package_prints.py) to verify the
-slicer validation results and package contents. It leaves reviewed source
-reports intact.
-
-`dist/enclosure/broglow-enclosure-vVERSION.zip` (a copy of
-`broglow-print-pack.zip`) and its `.sha256` are the glued release assets.
-`broglow-compact-STL.zip` and `broglow-USB-fit-test.zip` in the same directory
-are for local use; the **Release** workflow does not upload them.
+After a geometry change in `models/magnetic/refined.py`, the same command stops
+with **Stale magnetic slicer evidence** by design: the ZIP is only built from STLs
+that match the reviewed slicing results. The regenerated parts stay in
+`dist/enclosure/magnetic-build/source/models/magnetic/` (`stl/`, `step/`,
+`validation.json`); slice and test-print them before updating the evidence.
 
 Keep the entire `models/broglow/preview/` directory ignored and untracked, including
 renders, dimension diagrams and render recipes. Keep selected app/site assets and
-reviewed validation data in Git. Generate release diagrams under `dist/enclosure/`.
+reviewed validation data in Git.
 
 Ad hoc CAD inspection reports and revision-specific snapshot job files are not
 build inputs; keep them under ignored `dist/enclosure/`, outside Git. The build
-regenerates `parts.json` and `validation.json` in its isolated output tree.
-Keep the reviewed [`slicer-validation.json`](../../../models/broglow/slicer-validation.json):
+regenerates `validation.json` in its isolated output tree.
+Keep the reviewed [`slicer-validation.json`](../../../models/magnetic/slicer-validation.json):
 packaging checks its STL hashes because generating geometry does not rerun the
 external slicer.
 

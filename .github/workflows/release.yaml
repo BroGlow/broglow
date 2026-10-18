@@ -36,9 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-            python scripts/package-enclosure.py --variant magnetic --release-tag "$RELEASE_TAG"
-          uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-            python scripts/package-enclosure.py --variant glued --release-tag "$RELEASE_TAG"
+            python scripts/package-enclosure.py --release-tag "$RELEASE_TAG"
           uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
             python scripts/export-web-model.py --check
           test -z "$(git status --porcelain --untracked-files=normal)"
@@ -49,8 +47,6 @@ jobs:
           path: |
             dist/enclosure/broglow-enclosure-magnetic-${{ github.ref_name }}.zip
             dist/enclosure/broglow-enclosure-magnetic-${{ github.ref_name }}.zip.sha256
-            dist/enclosure/broglow-enclosure-${{ github.ref_name }}.zip
-            dist/enclosure/broglow-enclosure-${{ github.ref_name }}.zip.sha256
 
   check:
     needs:
@@ -169,8 +165,7 @@ jobs:
             "broglow-${RELEASE_TAG}-aarch64-apple-darwin.tar.gz" \
             "broglow-${RELEASE_TAG}-x86_64-apple-darwin.tar.gz" \
             "broglow-${RELEASE_TAG}-x86_64-pc-windows-msvc.tar.gz" \
-            "broglow-enclosure-magnetic-${RELEASE_TAG}.zip" \
-            "broglow-enclosure-${RELEASE_TAG}.zip"; do
+            "broglow-enclosure-magnetic-${RELEASE_TAG}.zip"; do
             test -s "$FILE"
             sha256sum --check "$FILE.sha256"
           done
@@ -204,7 +199,7 @@ jobs:
 
             The Windows archive contains the graphical system-tray app and CLI in broglow.exe, with USB lamp support, its license and third-party notices. In PowerShell, run `.\broglow.exe install` from its permanent folder to register hooks, enable startup at login and launch the tray app. Use `.\broglow.exe menubar` to launch the tray interface directly, or `.\broglow.exe` for the terminal dashboard. No installer, BLE support, firmware or manuals are included.
 
-            Recommended enclosure: broglow-enclosure-magnetic-${{ github.ref_name }}.zip, using four Ø3×2 mm N52 magnets for a removable mascot. The separate broglow-enclosure-${{ github.ref_name }}.zip preserves the glued alternative. Both contain STL, STEP, CAD source, print guides and validation reports, with matching checksums. Slice the STL files for your printer; machine-specific 3MF/G-code is not included. The magnetic package contains only production parts 01–05, with two copies of eye 02 required.
+            Enclosure: broglow-enclosure-magnetic-${{ github.ref_name }}.zip holds, in one folder, the five production parts 01–05 as STL (print orientation) and STEP, two assembly views and BUILD.json, with a matching checksum. Print two copies of eye 02. The mascot attaches with four Ø3×2 mm N52 magnets (two in the mascot, two in the traffic light) and can be swapped for any mascot. Slice the STL files for your printer; machine-specific 3MF/G-code is not included. Print settings and assembly steps are in the website guide.
 
             These assets passed automated checks; release builds do not establish fresh-machine permissions, physical lamp behavior or printed enclosure fit.
           generate_release_notes: true

@@ -3,14 +3,16 @@
 import argparse
 import base64
 from html import escape, unescape
-import json
 import mimetypes
 import posixpath
 import re
 import shutil
 import tomllib
+from functools import cache
+from urllib.error import HTTPError
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
+from urllib.request import urlopen
 
 from markdown.extensions import Extension
 from markdown.preprocessors import Preprocessor
@@ -22,10 +24,6 @@ REFERENCE_SOURCES = {
     "printing.md": (
         "models/magnetic/GUIDE_ROUND3X2.en.md",
         "models/magnetic/GUIDE_ROUND3X2.md",
-    ),
-    "printing-glued.md": (
-        "models/broglow/PRINT_GUIDE.en.md",
-        "models/broglow/PRINT_GUIDE.md",
     ),
 }
 SELF_CONTAINED_REFERENCES = {
@@ -41,18 +39,40 @@ GUIDE_ROUTES = {
 }
 
 
-def enclosure_package(variant="glued"):
-    pattern = (
-        "broglow-enclosure-magnetic-v*.zip"
-        if variant == "magnetic"
-        else "broglow-enclosure-v*.zip"
-    )
+def enclosure_package():
     packages = [
         path
-        for path in (SITE.parent / "dist/enclosure").glob(pattern)
+        for path in (SITE.parent / "dist/enclosure").glob(
+            "broglow-enclosure-magnetic-v*.zip"
+        )
         if path.with_name(path.name + ".sha256").is_file()
     ]
     return max(packages, key=lambda path: path.stat().st_mtime_ns, default=None)
+
+
+def checksum_line(text, archive):
+    """One `sha256sum` line for the archive, or None for anything else."""
+    text = text.strip()
+    return (
+        text if re.fullmatch(rf"[0-9a-f]{{64}}  {re.escape(archive)}", text) else None
+    )
+
+
+@cache
+def release_checksum(repo_url, version, archive):
+    """The published archive's SHA-256; None before the release exists."""
+    url = f"{repo_url}/releases/download/v{version}/{archive}.sha256"
+    try:
+        with urlopen(url, timeout=10) as response:
+            text = response.read().decode()
+    except HTTPError as error:
+        if error.code == 404:
+            return None
+        raise
+    line = checksum_line(text, archive)
+    if line is None:
+        raise ValueError(f"Unexpected checksum file at {url}: {text[:80]!r}")
+    return line
 
 
 class SectionAnchorPreprocessor(Preprocessor):
@@ -87,10 +107,13 @@ class SectionAnchors(Extension):
             )
 
 
+def cargo_package():
+    return tomllib.loads((SITE.parent / "Cargo.toml").read_text())["package"]
+
+
 def repository_url():
     """The planned public repository, set once in Cargo.toml."""
-    cargo = tomllib.loads((SITE.parent / "Cargo.toml").read_text())
-    return cargo["package"].get("repository", "").rstrip("/")
+    return cargo_package().get("repository", "").rstrip("/")
 
 
 def on_config(config, **kwargs):
@@ -113,15 +136,6 @@ def on_page_content(html, *, page, config, **kwargs):
         else SITE / "guide" / page.file.src_uri
     )
     current = ("ru/" if ru else "") + name.removesuffix(".md")
-    model = SITE.parent / "models/broglow"
-    generated = {
-        model / f"{name}.step"
-        for name in ("broglow", "appearance", "exploded", "usb_coupon")
-    }
-    generated.update(
-        model / part["file"]
-        for part in json.loads((model / "parts.json").read_text()).values()
-    )
     # The website's language menu preserves the section and saved preference.
     html = re.sub(
         r'<p><a href="[^"]*">English</a> \| <a href="[^"]*">Русский</a></p>\n?',
@@ -129,7 +143,7 @@ def on_page_content(html, *, page, config, **kwargs):
         html,
     )
 
-    def source_path(url, *, allow_generated=False):
+    def source_path(url):
         parsed = urlsplit(unescape(url))
         if not parsed.path or parsed.scheme or parsed.netloc:
             return None
@@ -138,9 +152,7 @@ def on_page_content(html, *, page, config, **kwargs):
         route = posixpath.normpath(posixpath.join(current, unquote(parsed.path)))
         if not path.exists() and route in GUIDE_ROUTES:
             return None
-        if not path.is_relative_to(SITE.parent) or not (
-            path.exists() or allow_generated and path in generated
-        ):
+        if not path.is_relative_to(SITE.parent) or not path.exists():
             raise ValueError(f"Missing or outside-repository manual reference: {url}")
         return path
 
@@ -152,36 +164,26 @@ def on_page_content(html, *, page, config, **kwargs):
             if f'id="{normalized[1:]}"' in html:
                 return f'<a href="{normalized}"{attributes}>{label}</a>'
         # Guides shipped outside the site link the published guide remotely; stay on-site here.
-        guide = (
-            f"{(config.repo_url or repository_url()).rstrip('/')}/blob/HEAD/site/guide/"
-        )
-        if unescape(url).startswith(guide):
-            page_path, _, fragment = unescape(url)[len(guide) :].partition("#")
-            if page_path.endswith(".md"):
-                target = page_path.removesuffix(".md").removeprefix("en/")
+        remote = f"{(config.repo_url or repository_url()).rstrip('/')}/blob/HEAD/"
+        if unescape(url).startswith(remote):
+            relative, _, fragment = unescape(url)[len(remote) :].partition("#")
+            target = None
+            if relative.startswith("site/guide/") and relative.endswith(".md"):
+                target = relative[len("site/guide/") :].removesuffix(".md")
+                target = target.removeprefix("en/")
+            for route, translations in REFERENCE_SOURCES.items():
+                if relative in translations:
+                    target = ("ru/" if relative == translations[1] else "") + route
+                    target = target.removesuffix(".md")
+            if target is not None:
                 target = posixpath.relpath(target, current) + "/"
                 if fragment:
                     target += "#" + quote(fragment)
                 return f'<a href="{escape(target, quote=True)}"{attributes}>{label}</a>'
-        path = source_path(url, allow_generated=True)
+        path = source_path(url)
         if path is None:
             return match[0]
         relative = path.relative_to(SITE.parent).as_posix()
-        if path in generated:
-            if config.repo_url:
-                version = tomllib.loads((SITE.parent / "Cargo.toml").read_text())[
-                    "package"
-                ]["version"]
-                target = f"{config.repo_url}/releases/download/v{version}/broglow-enclosure-v{version}.zip"
-            elif package := enclosure_package():
-                target = posixpath.relpath(package, SITE / "docs" / current)
-            else:
-                target = (
-                    posixpath.relpath(("ru/" if ru else "") + "releasing", current)
-                    + "/"
-                )
-            download = " download" if target.endswith(".zip") else ""
-            return f'<a href="{escape(target, quote=True)}"{attributes}{download}>{label}</a> (<code>{escape(relative)}</code>)'
         fragment = urlsplit(unescape(url)).fragment
         for route, translations in REFERENCE_SOURCES.items():
             if relative in translations:
@@ -224,7 +226,14 @@ def on_page_content(html, *, page, config, **kwargs):
 
 def on_page_markdown(markdown, *, page, config, **kwargs):
     """Offer complete Mac bundles, with a source route before the first release."""
+    if (
+        "<!-- mac-downloads -->" not in markdown
+        and "<!-- model-download -->" not in markdown
+    ):
+        return markdown
     ru = page.file.src_uri.startswith("ru/")
+    # Built pages live at docs/[ru/][PAGE/]index.html; downloads sit in the repository.
+    prefix = "../" * (2 + ru + (not page.file.src_uri.endswith("/index.md")))
     if config.repo_url:
         releases = config.repo_url + "/releases"
         source = config.repo_url + "/archive/HEAD.zip"
@@ -245,23 +254,45 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
             f"If no complete package is available yet, [download the source]({source}) and [build from source](hardware.md#build-from-source)."
         )
         guide = "printing.md"
-        models = (
-            f"[Комплект для печати корпуса · релизы]({releases})\n\n"
-            f"Рекомендуем [магнитный корпус]({guide}): `broglow-enclosure-magnetic-vVERSION.zip` и файл `.sha256` с тем же именем. "
-            "Клеевая альтернатива: `broglow-enclosure-vVERSION.zip` и файл `.sha256` с тем же именем; [инструкция](printing-glued.md). "
-            "Это отдельный комплект с исходниками CAD, STL, STEP и руководством; он не входит в пакет приложения. "
-            "Если релиз ещё не опубликован, "
-            f"[скачайте исходники]({source}) и [сгенерируйте комплект]({guide}#generate-from-source). "
-            "Автоматический ZIP исходников GitHub не содержит готовых STL, STEP или архивов печати."
-            if ru
-            else f"[Enclosure print package · releases]({releases})\n\n"
-            f"Recommended: [magnetic enclosure]({guide}), `broglow-enclosure-magnetic-vVERSION.zip` and its matching `.sha256`. "
-            "Glued alternative: `broglow-enclosure-vVERSION.zip` and its matching `.sha256`; [guide](printing-glued.md). "
-            "This separate package contains CAD source, STL, STEP and a print guide; it is not part of the app bundle. "
-            "Before the release is published, "
-            f"[download the source]({source}) and [generate the package]({guide}#generate-from-source). "
-            "GitHub's automatic source ZIP contains no ready-to-print STL, STEP or print archives."
+        archive = f"broglow-enclosure-magnetic-v{cargo_package()['version']}.zip"
+        # Only the published site looks the checksum up; tests and previews stay offline.
+        checksum = (
+            release_checksum(config.repo_url, cargo_package()["version"], archive)
+            if getattr(config, "site_url", None)
+            else None
         )
+        if ru:
+            models = (
+                f"[Файлы корпуса для печати · релизы]({releases})\n\n"
+                f"Скачайте `{archive}` из релиза. В архиве нет вложенных папок: пять деталей STL "
+                "в ориентации для печати, те же детали в STEP, два вида сборки и `BUILD.json`.\n\n"
+            )
+            models += (
+                f"SHA-256:\n\n```text\n{checksum}\n```\n\n"
+                if checksum
+                else "SHA-256 архива появится здесь после публикации релиза.\n\n"
+            )
+            models += (
+                f"Если релиз ещё не опубликован, [скачайте исходники]({source}) и "
+                f"[сгенерируйте комплект]({guide}#generate-from-source). Автоматический "
+                "ZIP исходников GitHub не содержит готовых STL и STEP."
+            )
+        else:
+            models = (
+                f"[Enclosure print files · releases]({releases})\n\n"
+                f"Download `{archive}` from the release. The archive has no subfolders: the five "
+                "STL parts in print orientation, the same parts as STEP, two assembly views and `BUILD.json`.\n\n"
+            )
+            models += (
+                f"SHA-256:\n\n```text\n{checksum}\n```\n\n"
+                if checksum
+                else "The archive's SHA-256 appears here once the release is published.\n\n"
+            )
+            models += (
+                f"Before the release is published, [download the source]({source}) and "
+                f"[generate the package]({guide}#generate-from-source). GitHub's automatic "
+                "source ZIP contains no ready-to-print STL or STEP."
+            )
 
     else:
         packages = [
@@ -271,7 +302,6 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
         ]
         if packages:
             package = max(packages, key=lambda path: path.stat().st_mtime_ns)
-            prefix = "../../../../" if ru else "../../../"
             label = "Локальный пакет Mac + C3" if ru else "Local Mac + C3 package"
             checksum = "Контрольная сумма" if ru else "Checksum"
             mac = f"[{label}]({prefix}dist/{package.name}){{ download }}\n\n[{checksum}]({prefix}dist/{package.name}.sha256){{ download }}"
@@ -288,41 +318,34 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
                 else "This source copy has no prebuilt package. [Build from source](hardware.md#build-from-source) "
                 "or obtain a complete Mac + C3 bundle and checksum from the project owner."
             )
-        print_package = enclosure_package("magnetic")
+        print_package = enclosure_package()
         if print_package:
-            prefix = "../../../" if ru else "../../"
-            label = (
-                "Рекомендуемый магнитный корпус и инструкция"
-                if ru
-                else "Recommended magnetic enclosure and guide"
+            label = "Файлы корпуса для печати" if ru else "Enclosure print files"
+            checksum = checksum_line(
+                print_package.with_name(print_package.name + ".sha256").read_text(),
+                print_package.name,
             )
-            checksum = "Контрольная сумма" if ru else "Checksum"
+            if checksum is None:
+                raise ValueError(f"Not a sha256sum line: {print_package.name}.sha256")
             models = (
                 f"[{label}]({prefix}dist/enclosure/{print_package.name}){{ download }}\n\n"
-                f"[{checksum}]({prefix}dist/enclosure/{print_package.name}.sha256){{ download }}"
+                f"SHA-256:\n\n```text\n{checksum}\n```\n\n"
             )
             models += (
-                "\n\nРаспакуйте архив и откройте `START_HERE.ru.md`, затем `models/magnetic/GUIDE_ROUND3X2.md`. "
-                "В комплекте — CAD, STL и настройки печати; приложение и прошивка скачиваются отдельно."
+                "В архиве нет вложенных папок: пять деталей STL в ориентации для печати, "
+                "те же детали в STEP, два вида сборки и `BUILD.json`."
                 if ru
-                else "\n\nExtract the archive and open `START_HERE.md`, then `models/magnetic/GUIDE_ROUND3X2.en.md`. "
-                "The package includes CAD, STL and print settings; download the app and firmware separately."
+                else "The archive has no subfolders: the five STL parts in print orientation, "
+                "the same parts as STEP, two assembly views and `BUILD.json`."
             )
         else:
             models = (
                 "В этой копии исходников нет архива корпуса. [Сгенерируйте комплект](printing.md#generate-from-source) "
-                "по `models/magnetic/GUIDE_ROUND3X2.md` в полных исходниках проекта "
-                "или скачайте комплект корпуса из релиза проекта."
+                "или скачайте его из релиза проекта."
                 if ru
                 else "This source copy has no enclosure archive. [Generate the package](printing.md#generate-from-source) "
-                "with `models/magnetic/GUIDE_ROUND3X2.en.md` in the full project source "
-                "or download the enclosure package from the project's release."
+                "or download it from the project's release."
             )
-        models += (
-            "\n\n[Магнитный корпус — рекомендуемый](printing.md). [Клеевая альтернатива](printing-glued.md)."
-            if ru
-            else "\n\n[Magnetic enclosure — recommended](printing.md). [Glued alternative](printing-glued.md)."
-        )
     return markdown.replace("<!-- mac-downloads -->", mac).replace(
         "<!-- model-download -->", models
     )
@@ -341,6 +364,7 @@ def not_found_page(home):
 <style>
 body {{ margin: 0; min-height: 100vh; display: grid; place-items: center; background: #111; color: #eee; font: 18px/1.5 system-ui, sans-serif; text-align: center; }}
 a {{ color: #ff8a3d; }}
+@media (prefers-color-scheme: light) {{ body {{ background: #f5f3ec; color: #1c1f1c; }} a {{ color: #c25b2a; }} }}
 </style>
 </head>
 <body>
@@ -375,7 +399,7 @@ def main():
         site_dir=str(output / "docs"),
     )
     build(config)
-    for name in ("index.html", "styles.css", "i18n.js", "model-preview.js"):
+    for name in ("index.html", "styles.css", "i18n.js", "theme.js", "model-preview.js"):
         shutil.copy2(SITE / name, output / name)
     shutil.copytree(SITE / "assets", output / "assets")
     shutil.copytree(SITE / "vendor", output / "vendor")

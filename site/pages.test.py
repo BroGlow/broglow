@@ -12,7 +12,7 @@ import pages
 from pages import SITE, on_config, on_page_content, on_page_markdown
 
 for locale in ("en", "ru"):
-    for name in ("index.md", "installation.md"):
+    for name in ("index.md", "installation.md", "printing.md"):
         source = (Path(__file__).parent / "guide" / locale / name).read_text()
         page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/{name}"))
         public = on_page_markdown(
@@ -31,20 +31,19 @@ for locale in ("en", "ru"):
                 and "broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz" in public
             )
         else:
+            version = pages.cargo_package()["version"]
+            archive = f"broglow-enclosure-magnetic-v{version}.zip"
             assert "https://github.com/example/lamp/releases" in public
+            # Tests never set site_url, so no release lookup happens; the page says
+            # where the checksum will appear instead of offering a .sha256 download.
             assert (
-                "broglow-enclosure-magnetic-vVERSION.zip" in public
-                and ".sha256" in public
+                "once the release is published" in public
+                or "после публикации релиза" in public
             )
-            assert "(printing.md)" in public
+            assert ".sha256" not in public
             assert "https://github.com/example/lamp/archive/HEAD.zip" in public
-            assert "broglow-print-pack.zip" not in public
             assert "printing.md#generate-from-source" in public
-            assert "STL, STEP" in public
-            assert (
-                "source with CAD and STL" not in public
-                and "исходники с CAD и STL" not in public
-            )
+            assert "glued" not in public.lower() and "START_HERE" not in public
         with TemporaryDirectory() as temporary:
             pages.SITE = Path(temporary) / "site"
             local = on_page_markdown(
@@ -70,15 +69,8 @@ for locale in ("en", "ru"):
                     and f"dist/{archive.name}.sha256)" in local
                 )
             else:
-                assert (
-                    "broglow-print-pack.zip" not in local
-                    and "{ download }" not in local
-                )
-                guide = (
-                    "GUIDE_ROUND3X2.md" if locale == "ru" else "GUIDE_ROUND3X2.en.md"
-                )
-                start = "START_HERE.ru.md" if locale == "ru" else "START_HERE.md"
-                assert f"models/magnetic/{guide}" in local and "(printing.md)" in local
+                assert "{ download }" not in local
+                assert "printing.md#generate-from-source" in local
                 dist = Path(temporary) / "dist/enclosure"
                 dist.mkdir(parents=True)
                 archive = dist / "broglow-enclosure-magnetic-v1.0.0.zip"
@@ -86,64 +78,51 @@ for locale in ("en", "ru"):
                 assert "{ download }" not in on_page_markdown(
                     source, page=page, config=SimpleNamespace(repo_url=None)
                 )
-                archive.with_name(archive.name + ".sha256").touch()
+                digest = "0" * 64
+                archive.with_name(archive.name + ".sha256").write_text(
+                    f"{digest}  {archive.name}\n"
+                )
                 local = on_page_markdown(
                     source, page=page, config=SimpleNamespace(repo_url=None)
                 )
-                prefix = "../../../" if locale == "ru" else "../../"
+                prefix = "../" * (2 + (locale == "ru") + (name != "index.md"))
                 assert (
                     f"]({prefix}dist/enclosure/{archive.name}){{ download }}" in local
-                )
-                assert (
-                    f"]({prefix}dist/enclosure/{archive.name}.sha256){{ download }}"
-                    in local
-                )
-                assert start in local and f"models/magnetic/{guide}" in local
+                ), local
+                # The checksum is shown inline, never offered as a second download.
+                assert f"```text\n{digest}  {archive.name}\n```" in local
+                assert ".sha256)" not in local
         pages.SITE = SITE
 
 print(
-    "PASS: separate Mac/enclosure downloads and source fallback in both languages, including clean checkouts"
+    "PASS: separate Mac/enclosure downloads, inline checksums and source fallback in both languages"
 )
 
-# Known generated files resolve without CAD outputs; other missing links still fail.
+# Checksum lines are accepted only in sha256sum format for the named archive.
+assert pages.checksum_line(f"{'a' * 64}  x.zip\n", "x.zip") == f"{'a' * 64}  x.zip"
+assert pages.checksum_line(f"{'a' * 64}  other.zip\n", "x.zip") is None
+assert pages.checksum_line("<html>not found</html>", "x.zip") is None
+untouched = "<!-- nothing to expand -->\n"
+assert (
+    on_page_markdown(
+        untouched,
+        page=SimpleNamespace(file=SimpleNamespace(src_uri="en/codex.md")),
+        config=SimpleNamespace(repo_url="https://x", site_url="https://x/docs/"),
+    )
+    == untouched
+), "Pages without download markers never look up releases"
+print("PASS: checksum lines are validated; pages without markers skip lookups")
+
+# Missing references still fail; references inside the repository resolve.
 with TemporaryDirectory() as temporary:
     root = Path(temporary).resolve()
     pages.SITE = root / "site"
     model = root / "models/broglow"
     model.mkdir(parents=True)
-    (model / "parts.json").write_bytes(
-        (SITE.parent / "models/broglow/parts.json").read_bytes()
-    )
     (model / "broglow.py").touch()
     (root / "Cargo.toml").write_text('[package]\nversion = "1.2.3"\n')
     for locale in ("en", "ru"):
-        page = SimpleNamespace(
-            file=SimpleNamespace(src_uri=f"{locale}/printing-glued.md")
-        )
-        for generated in (
-            "stl/01_mascot_orange.stl",
-            "stl/coupons/01_USB_base_coupon.stl",
-            "broglow.step",
-            "appearance.step",
-            "exploded.step",
-            "usb_coupon.step",
-        ):
-            assert not (model / generated).exists()
-            sample = f'<a href="{generated}">Part</a>'
-            local = on_page_content(
-                sample, page=page, config=SimpleNamespace(repo_url=None)
-            )
-            assert 'href="../releasing/"' in local and generated in local
-            public = on_page_content(
-                sample,
-                page=page,
-                config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
-            )
-            assert (
-                'href="https://github.com/example/lamp/releases/download/v1.2.3/broglow-enclosure-v1.2.3.zip"'
-                in public
-            )
-            assert generated in public and "/blob/" not in public
+        page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/printing.md"))
         for invalid in (
             "missing.md",
             "missing.png",
@@ -165,7 +144,7 @@ with TemporaryDirectory() as temporary:
                         f"Accepted missing or outside-repository link: {invalid}"
                     )
         public = on_page_content(
-            '<a href="broglow.py">Source</a>',
+            '<a href="../broglow/broglow.py">Source</a>',
             page=page,
             config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
         )
@@ -173,26 +152,8 @@ with TemporaryDirectory() as temporary:
             'href="https://github.com/example/lamp/blob/HEAD/models/broglow/broglow.py"'
             in public
         )
-    dist = root / "dist/enclosure"
-    dist.mkdir(parents=True)
-    archive = dist / "broglow-enclosure-v1.2.3.zip"
-    archive.touch()
-    archive.with_name(archive.name + ".sha256").touch()
-    for locale in ("en", "ru"):
-        page = SimpleNamespace(
-            file=SimpleNamespace(src_uri=f"{locale}/printing-glued.md")
-        )
-        local = on_page_content(
-            '<a href="broglow.step">Assembly</a>',
-            page=page,
-            config=SimpleNamespace(repo_url=None),
-        )
-        prefix = "../../../../" if locale == "ru" else "../../../"
-        assert f'href="{prefix}dist/enclosure/{archive.name}" download' in local
     pages.SITE = SITE
-print(
-    "PASS: missing generated CAD routes to enclosure assets or generation instructions; other missing references fail"
-)
+print("PASS: missing or outside-repository references fail; repository files resolve")
 
 config = on_config(load_config(str(SITE / "mkdocs.yaml")))
 # GitHub-readable named anchors become native heading IDs after snippet expansion.
@@ -322,6 +283,15 @@ html = on_page_content(
     config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
 )
 assert 'href="../hardware/#usb-assisted-setup"' in html, html
+# The shipped hardware manual links the print guide by its repository path.
+page = SimpleNamespace(file=SimpleNamespace(src_uri="en/hardware.md"))
+html = on_page_content(
+    '<a href="https://github.com/example/lamp/blob/HEAD/models/magnetic/GUIDE_ROUND3X2.en.md#fit">x</a>'
+    '<a href="https://github.com/example/lamp/blob/HEAD/models/magnetic/GUIDE_ROUND3X2.md">y</a>',
+    page=page,
+    config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
+)
+assert 'href="../printing/#fit"' in html and 'href="../ru/printing/"' in html, html
 print("PASS: remote guide links map to site routes")
 
 # The root 404 page links home and both guides with absolute URLs.

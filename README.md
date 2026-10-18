@@ -18,8 +18,8 @@ Maintained by **Suren Khorenyan**. Copyright notices are in [LICENSE](LICENSE).
 BroGlow is a separate, independently maintained application based on
 [ClawLight](https://github.com/clawlight/clawlight-cli). It substantially reworks
 and extends the original with macOS Bluetooth lamp control, improved Codex
-desktop integration, per-lamp setup and brightness controls, a customizable
-printable enclosure, and a bilingual interactive assembly guide.
+desktop integration, per-lamp setup and brightness controls, a printable
+enclosure with a swappable magnetic mascot, and a bilingual interactive assembly guide.
 
 | What's better | What you gain |
 | --- | --- |
@@ -30,7 +30,7 @@ printable enclosure, and a bilingual interactive assembly guide.
 | **Setup from the app** | Connect the correct lamp through guided USB-assisted setup. |
 | **Clear connection status** | Know whether each lamp is receiving updates or needs attention. |
 | **Remembered, named lamps** | Keep home and office lamps configured and easy to recognize. |
-| **Print and customize the enclosure** | Choose the appearance and adapt the design to your preferences. |
+| **Print the enclosure, swap the mascot** | The mascot holds on by magnets: attach any mascot you like and change it anytime. |
 | **Identify a lamp** | Flash the selected lamp to confirm which one you're controlling. |
 | **Interactive assembly guide** | Rotate and zoom the separated parts to understand how they fit together. |
 
@@ -43,7 +43,7 @@ The lamp still needs power and is designed for DIY assembly.
 - **Install or update:** [installation guide](site/guide/en/installation.md), or let your coding agent do it: [agent setup](site/guide/en/installation.md#agent-setup).
 - **Connect a flashed lamp:** [pair once](site/guide/en/installation.md#pairing).
 - **Build and wire the ESP32-C3 lamp:** [wiring guide](site/guide/en/hardware.md#wiring-and-resistor-choice).
-- **Print the optional enclosure:** [recommended magnetic enclosure](models/magnetic/GUIDE_ROUND3X2.en.md), with a removable mascot and four Ø3×2 mm N52 magnets. [Glued alternative](models/broglow/PRINT_GUIDE.en.md).
+- **Print the enclosure:** [printing and assembly](models/magnetic/GUIDE_ROUND3X2.en.md). The mascot holds on by four Ø3×2 mm N52 magnets (two in the mascot, two in the traffic light) and can be swapped for any mascot.
 - **Something not working:** [troubleshooting](site/guide/en/troubleshooting.md).
 
 For a new or unflashed C3, follow the [flashing and backup instructions](site/guide/en/hardware.md#flash-and-recover-usb-upload).
@@ -59,7 +59,15 @@ for other machines. The enclosure is a separate download on the same release.
 
 ## Install
 
-Download the full Mac package for your architecture and its matching `.sha256`
+On macOS, the quickest route is Homebrew, followed by the required `broglow install`,
+which registers the hooks in your coding agents, installs the app and starts it at login:
+
+```bash
+brew install broglow/tap/broglow
+broglow install
+```
+
+Alternatively, download the full Mac package for your architecture and its matching `.sha256`
 file from [Releases](https://github.com/broglow/broglow/releases/latest). Follow the
 [checksum and installation steps](site/guide/en/hardware.md#install-a-prebuilt-package).
 Builds are not signed with a Developer ID or notarized by Apple; the manual describes

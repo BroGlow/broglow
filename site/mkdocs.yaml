@@ -9,8 +9,6 @@ hooks:
 watch:
   - ../models/magnetic/GUIDE_ROUND3X2.en.md
   - ../models/magnetic/GUIDE_ROUND3X2.md
-  - ../models/broglow/PRINT_GUIDE.md
-  - ../models/broglow/PRINT_GUIDE.en.md
 theme:
   name: material
   custom_dir: overrides
@@ -64,7 +62,6 @@ plugins:
             Maintainers: Для разработчиков
             Hardware reference: Техническое руководство
             Printing and assembly: Печать и сборка
-            Glued enclosure alternative: Клеевой корпус — альтернатива
             Firmware reference: Справочник прошивки
             Release and publication: Выпуск и публикация
             Images and photos: Изображения и фотографии
@@ -76,7 +73,6 @@ nav:
   - Reference:
       - Hardware reference: hardware.md
       - Printing and assembly: printing.md
-      - Glued enclosure alternative: printing-glued.md
       - Firmware reference: firmware.md
   - Maintainers:
       - Release and publication: releasing.md
