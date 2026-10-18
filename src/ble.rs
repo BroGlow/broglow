@@ -768,7 +768,11 @@ mod mac {
         );
         let _lock = radio_lock()?;
         runtime()?.block_on(async {
-            let keep = || crate::led::same_target(cfg, &config::read_config());
+            let keep = || {
+                let current = config::read_config();
+                // With no lamp left to drive, stop scanning instead of idling.
+                crate::led::same_target(cfg, &current) && !current.ble_ids().is_empty()
+            };
             crate::led::publish_status(cfg, "searching", "Initializing Bluetooth");
             let adapter = adapter(&keep).await?;
             // The saved lamps this worker drives now, re-read while it runs.
