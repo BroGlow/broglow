@@ -30,6 +30,9 @@ pub struct App {
     pub truecolor: bool,
     /// Name each session's agent beside its tag (mirrors `config.json`).
     pub show_agent_names: bool,
+    /// Rows come in project groups (mirrors `config.json`); the renderer
+    /// brightens the project name on the first row of each group.
+    pub group_by_project: bool,
     pub led_transport: config::LedTransport,
     pub led_selected_count: usize,
     /// Cached worker result; UI refresh never initializes Bluetooth.
@@ -65,6 +68,7 @@ impl App {
             lamp_details_scroll: 0,
             led_enabled: cfg.led_enabled,
             show_agent_names: cfg.show_agent_names,
+            group_by_project: cfg.group_by_project,
             led_transport: cfg.led_transport,
             led_selected_count: cfg.ble_ids().len(),
             led_status: led::connection_status(),
@@ -169,9 +173,11 @@ impl App {
 
     pub fn reload_data(&mut self) {
         let hook_state = read_display_state();
-        // Follows the popover's Settings toggle on the next refresh.
-        let group_by_project = config::read_config().group_by_project;
-        let sessions = load_all_sessions(&hook_state, group_by_project);
+        // Follows the popover's Settings toggles on the next refresh.
+        let cfg = config::read_config();
+        self.group_by_project = cfg.group_by_project;
+        self.show_agent_names = cfg.show_agent_names;
+        let sessions = load_all_sessions(&hook_state, cfg.group_by_project);
 
         // Check for needs_help transitions and notify
         for session in &sessions {
@@ -187,9 +193,6 @@ impl App {
             .iter()
             .map(|s| (s.session_id.clone(), s.status.clone()))
             .collect();
-
-        // Follows the popover's Settings toggle on the next refresh.
-        self.show_agent_names = config::read_config().show_agent_names;
 
         // Preserve selection if possible
         let selected = self.table_state.selected().unwrap_or(0);
@@ -374,6 +377,7 @@ mod tests {
             lamp_details_scroll: 0,
             led_enabled: true,
             show_agent_names: true,
+            group_by_project: false,
             led_transport: config::LedTransport::Ble,
             led_selected_count: 2,
             led_status: led::ConnectionStatus {
@@ -526,6 +530,76 @@ mod tests {
         assert!(
             bare.contains(" cc ") && !bare.contains("Claude"),
             "{bare:?}"
+        );
+    }
+
+    #[test]
+    fn grouped_rows_brighten_the_project_on_the_first_row_of_each_run() {
+        let session = |id: &str, project: &str| DisplaySession {
+            session_id: id.into(),
+            name: format!("Task {id}"),
+            status: Status::Active,
+            project_name: project.into(),
+            project_path: format!("/work/{project}"),
+            last_updated: String::new(),
+            host: None,
+            harness: None,
+        };
+        let mut app = app();
+        app.sessions = vec![
+            session("a", "recco"),
+            session("b", "recco"),
+            session("c", "broglow"),
+        ];
+        let project_fg = |app: &mut App, id: &str| {
+            let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+            terminal.draw(|frame| ui::render(frame, app)).unwrap();
+            let buffer = terminal.backend().buffer();
+            let project = &app
+                .sessions
+                .iter()
+                .find(|s| s.session_id == id)
+                .unwrap()
+                .project_name;
+            (0..24)
+                .find_map(|y| {
+                    let line: String = (0..80).map(|x| buffer[(x, y)].symbol()).collect();
+                    let x = line
+                        .contains(&format!("Task {id}"))
+                        .then(|| line.find(project.as_str()))??;
+                    Some(buffer[(x as u16, y)].fg)
+                })
+                .unwrap()
+        };
+        let bright = ratatui::style::Color::Rgb(0xe8, 0xea, 0xf0);
+        let dim = ratatui::style::Color::Rgb(0x5c, 0x63, 0x70);
+        // Off: every project label is dim, whatever the order.
+        assert_eq!(project_fg(&mut app, "a"), dim);
+        assert_eq!(project_fg(&mut app, "b"), dim);
+        assert_eq!(project_fg(&mut app, "c"), dim);
+        app.group_by_project = true;
+        assert_eq!(
+            project_fg(&mut app, "a"),
+            bright,
+            "first row of /work/recco"
+        );
+        assert_eq!(
+            project_fg(&mut app, "b"),
+            dim,
+            "second row of the same project"
+        );
+        assert_eq!(
+            project_fg(&mut app, "c"),
+            bright,
+            "first row of /work/broglow"
+        );
+        // Scrolled so the group's first row is off screen: the first visible
+        // row names the group instead.
+        app.table_state = TableState::default().with_offset(1).with_selected(Some(1));
+        assert_eq!(
+            project_fg(&mut app, "b"),
+            bright,
+            "first visible row of /work/recco"
         );
     }
 

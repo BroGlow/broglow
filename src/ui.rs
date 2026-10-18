@@ -310,6 +310,21 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
             };
 
             let dim = Style::default().fg(DIM);
+            // Grouped by project: the first row of each project run carries
+            // the bright label, the rest stay dim, so runs read as groups
+            // while every row (incl. the selected one) still names its
+            // project and row indexing is untouched. The first visible row
+            // counts as a start too, so a scrolled-off group still names
+            // itself at the top of the screen.
+            let starts_group = app.group_by_project
+                && (i == 0
+                    || i == app.table_state.offset()
+                    || app.sessions[i - 1].project_path != s.project_path);
+            let project_style = if starts_group {
+                Style::default().fg(WHITE)
+            } else {
+                dim
+            };
             let (agent, host) = &labels[i];
             let mut row = Row::new(vec![
                 Cell::from(Line::from(vec![
@@ -318,7 +333,7 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
                 ])),
                 Cell::from(Span::styled(s.name.clone(), name_style)),
                 Cell::from(Span::styled(agent.clone(), Style::default().fg(BADGE_FG))),
-                Cell::from(Span::styled(s.project_name.clone(), dim)),
+                Cell::from(Span::styled(s.project_name.clone(), project_style)),
                 Cell::from(Span::styled(host.clone(), dim)),
                 Cell::from(
                     Line::from(Span::styled(format_relative_time(&s.last_updated), dim))
