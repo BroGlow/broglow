@@ -563,16 +563,20 @@ mod mac {
         }
     }
 
+    /// `paused`: setup disabled lamp control itself, rather than the running
+    /// worker finding the lamp. Any other change to the selection wins over
+    /// automatic setup.
     fn remember_usb(
         latest: &mut Config,
         original: &Config,
+        paused: bool,
         identity: String,
         id: String,
         automatic: bool,
     ) -> Result<()> {
         if automatic {
             anyhow::ensure!(
-                !latest.led_enabled
+                latest.led_enabled == (original.led_enabled && !paused)
                     && latest.led_transport == original.led_transport
                     && latest.led_port == original.led_port
                     && latest.ble_ids() == original.ble_ids(),
@@ -679,6 +683,75 @@ mod mac {
         automatic && cfg.usb_lamps.contains_key(&usb_key(identity))
     }
 
+    const SETUP_SCAN: Duration = Duration::from_secs(8);
+    /// The worker writes sightings every second while asked; silence means it
+    /// is not scanning.
+    const WORKER_REPLY: Duration = Duration::from_secs(3);
+
+    /// A running BLE worker can look for the lamp, unless the lamp is connected
+    /// to this Mac: a connected lamp stops advertising until it disconnects.
+    fn worker_can_find(
+        cfg: &Config,
+        identity: &[u8; 6],
+        status: &crate::led::ConnectionStatus,
+    ) -> bool {
+        let connected = cfg.usb_lamps.get(&usb_key(identity)).is_some_and(|id| {
+            status.devices.iter().any(|device| {
+                &device.id == id && matches!(device.state.as_str(), "connected" | "connecting")
+            })
+        });
+        cfg.led_enabled
+            && cfg.led_transport == LedTransport::Ble
+            && !cfg.ble_ids().is_empty()
+            && !connected
+    }
+
+    /// Distinct lamps that advertised exactly this identity at or after `since`.
+    fn fresh_matches(sightings: &Sightings, identity: &[u8; 6], since: u64) -> Vec<String> {
+        sightings
+            .lamps
+            .iter()
+            .filter(|(_, (seen, at))| seen.as_slice() == identity && *at >= since)
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
+    /// Opens the pairing window while the running worker watches for the lamp.
+    /// `None`: no scanning worker answered, or it did not see the lamp.
+    fn find_with_worker(
+        serial: &mut dyn serialport::SerialPort,
+        identity: &[u8; 6],
+    ) -> Result<Option<String>> {
+        let request = setup_request_path();
+        std::fs::write(&request, now_ms().to_string())?;
+        let found = (|| {
+            anyhow::ensure!(
+                usb_identity(serial, b"PAIR\n")? == *identity,
+                "USB lamp identity changed between INFO and PAIR; selection was not saved"
+            );
+            let sent = now_ms();
+            let started = StdInstant::now();
+            loop {
+                std::thread::sleep(POLL);
+                let sightings: Sightings = std::fs::read(sightings_path())
+                    .ok()
+                    .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+                    .unwrap_or_default();
+                if sightings.updated_ms < sent && started.elapsed() >= WORKER_REPLY {
+                    return Ok(None);
+                }
+                if started.elapsed() >= SETUP_SCAN {
+                    let mut matching = fresh_matches(&sightings, identity, sent);
+                    anyhow::ensure!(matching.len() <= 1,
+                        "Expected exactly one BLE advertisement matching the USB lamp, found {}; check Bluetooth and current firmware", matching.len());
+                    return Ok(matching.pop());
+                }
+            }
+        })();
+        let _ = std::fs::remove_file(request);
+        found
+    }
+
     pub(super) fn pair(port_override: Option<String>, automatic: bool) -> Result<()> {
         let ports = if port_override.is_some() {
             Vec::new()
@@ -700,7 +773,7 @@ mod mac {
         // BLE mirroring never touches the cable, so INFO runs before the pause:
         // replugging a known lamp then leaves every connected lamp alone.
         let current = read_setup_config()?;
-        let usb = if info_before_pause(&current) {
+        let mut usb = if info_before_pause(&current) {
             let (serial, identity) = open_usb(&path)?;
             if already_set_up(automatic, &current, &identity) {
                 return Ok(());
@@ -709,6 +782,28 @@ mod mac {
         } else {
             None
         };
+        // A running BLE worker looks for the new lamp itself, so the connected
+        // lamps stay connected; it then starts the new lamp's own task.
+        if let Some((serial, identity)) = &mut usb {
+            if worker_can_find(&current, identity, &crate::led::connection_status()) {
+                println!("Verified BroGlow firmware on {path}; opening its pairing window.");
+                if let Some(id) = find_with_worker(serial.as_mut(), identity)? {
+                    config::update_config(|latest| {
+                        remember_usb(
+                            latest,
+                            &current,
+                            false,
+                            usb_key(identity),
+                            id.clone(),
+                            automatic,
+                        )
+                    })?;
+                    println!("Remembered lamp {id}. The tray service is connecting; approve any macOS pairing request for this lamp.");
+                    return Ok(());
+                }
+                println!("The lamp worker did not see this lamp; pausing lamp control to scan.");
+            }
+        }
         let (original_bytes, original, paused) = {
             let _config_lock = config::acquire_config_lock()?;
             let original_bytes = match std::fs::read(config::config_file_path()) {
@@ -756,7 +851,7 @@ mod mac {
                 let adapter = adapter(&keep).await?;
                 let found = async {
                     start(&adapter, &keep).await?;
-                    wait(async { sleep(Duration::from_secs(8)).await; Ok(()) }, &keep).await?;
+                    wait(async { sleep(SETUP_SCAN).await; Ok(()) }, &keep).await?;
                     let mut matching = Vec::new();
                     for p in adapter.peripherals().await? {
                         if p.properties().await?.is_some_and(|props| identity_matches(&props, &identity)) {
@@ -771,7 +866,14 @@ mod mac {
                 found
             })?;
             config::update_config(|latest| {
-                remember_usb(latest, &original, usb_key(&identity), id.clone(), automatic)
+                remember_usb(
+                    latest,
+                    &original,
+                    true,
+                    usb_key(&identity),
+                    id.clone(),
+                    automatic,
+                )
             })?;
             println!("Remembered lamp {id}. The tray service will connect automatically; approve any macOS pairing request for this lamp.");
             Ok(true)
@@ -1620,6 +1722,7 @@ mod mac {
             remember_usb(
                 &mut latest,
                 &original,
+                true,
                 "001122334455".into(),
                 "existing".into(),
                 true,
@@ -1633,6 +1736,7 @@ mod mac {
             remember_usb(
                 &mut latest,
                 &original,
+                true,
                 "aabbccddeeff".into(),
                 "new".into(),
                 true,
@@ -1648,6 +1752,7 @@ mod mac {
             assert!(remember_usb(
                 &mut latest,
                 &original,
+                true,
                 "another".into(),
                 "third".into(),
                 true
@@ -1659,6 +1764,7 @@ mod mac {
             remember_usb(
                 &mut disabled,
                 &original,
+                true,
                 "001122334455".into(),
                 "existing".into(),
                 false,
@@ -1666,6 +1772,156 @@ mod mac {
             .unwrap();
             assert!(disabled.led_enabled);
             assert_eq!(disabled.led_transport, LedTransport::Ble);
+        }
+
+        #[test]
+        fn worker_shares_sightings_only_while_setup_asks() {
+            // Same HOME isolation as the preview test.
+            let Some(test_home) = std::env::var_os("BROGLOW_SIGHTINGS_TEST_HOME") else {
+                let home = tempfile::TempDir::new().unwrap();
+                let result = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args([
+                        "--exact",
+                        "ble::mac::tests::worker_shares_sightings_only_while_setup_asks",
+                    ])
+                    .env("HOME", home.path())
+                    .env("BROGLOW_SIGHTINGS_TEST_HOME", home.path())
+                    .output()
+                    .unwrap();
+                assert!(
+                    result.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&result.stdout)
+                );
+                return;
+            };
+            assert!(sightings_path().starts_with(test_home));
+            std::fs::create_dir_all(sightings_path().parent().unwrap()).unwrap();
+            let identity = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55];
+            let mut log = SightingLog::default();
+            assert!(!log.active());
+            log.flush();
+            assert!(!sightings_path().exists(), "no request, no file");
+
+            let sent = now_ms();
+            std::fs::write(setup_request_path(), sent.to_string()).unwrap();
+            log.checked = None;
+            assert!(log.active());
+            log.record("new".into(), &identity);
+            log.flush();
+            let read: Sightings =
+                serde_json::from_slice(&std::fs::read(sightings_path()).unwrap()).unwrap();
+            assert!(read.updated_ms >= sent);
+            assert_eq!(fresh_matches(&read, &identity, sent), ["new"]);
+
+            std::fs::remove_file(setup_request_path()).unwrap();
+            log.checked = None;
+            assert!(!log.active());
+            assert!(
+                !sightings_path().exists(),
+                "a finished request leaves nothing"
+            );
+            std::fs::write(setup_request_path(), "0").unwrap();
+            log.checked = None;
+            assert!(!log.active(), "a stale request is ignored");
+        }
+
+        #[test]
+        fn running_worker_finds_a_new_usb_lamp_without_a_pause() {
+            let identity = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55];
+            let saved = "11111111-2222-3333-4444-555555555555";
+            let mut cfg = Config {
+                led_enabled: true,
+                led_transport: LedTransport::Ble,
+                ble_peripherals: vec![saved.into()],
+                ..Config::default()
+            };
+            let status = |state: &str| crate::led::ConnectionStatus {
+                state: state.into(),
+                detail: String::new(),
+                devices: vec![crate::led::DeviceStatus::new(saved, state, "")],
+            };
+            // Only a running BLE worker can look; otherwise setup pauses and scans.
+            assert!(worker_can_find(&cfg, &identity, &status("connected")));
+            for change in [
+                |cfg: &mut Config| cfg.led_enabled = false,
+                |cfg: &mut Config| cfg.led_transport = LedTransport::Usb,
+                |cfg: &mut Config| cfg.ble_peripherals.clear(),
+            ] {
+                let mut other = cfg.clone();
+                change(&mut other);
+                assert!(!worker_can_find(&other, &identity, &status("connected")));
+            }
+            // Re-adding a lamp connected to this Mac needs it disconnected first.
+            cfg.usb_lamps.insert(usb_key(&identity), saved.into());
+            assert!(!worker_can_find(&cfg, &identity, &status("connected")));
+            assert!(!worker_can_find(&cfg, &identity, &status("connecting")));
+            assert!(worker_can_find(&cfg, &identity, &status("searching")));
+
+            // Exact identity, seen after PAIR; every distinct ID counts.
+            let mut sightings = Sightings::default();
+            let sight = |sightings: &mut Sightings, id: &str, bytes: &[u8], at| {
+                sightings.lamps.insert(id.into(), (bytes.to_vec(), at));
+            };
+            sight(&mut sightings, "stale", &identity, 99);
+            sight(&mut sightings, "other", &[0xaa; 6], 100);
+            sight(
+                &mut sightings,
+                "longer",
+                &[&identity[..], &[0]].concat(),
+                100,
+            );
+            sight(&mut sightings, "prefix", &identity[..5], 100);
+            assert!(fresh_matches(&sightings, &identity, 100).is_empty());
+            sight(&mut sightings, "new", &identity, 100);
+            assert_eq!(fresh_matches(&sightings, &identity, 100), ["new"]);
+            sight(&mut sightings, "twin", &identity, 101);
+            assert_eq!(fresh_matches(&sightings, &identity, 100), ["new", "twin"]);
+            assert!(fresh_request(1_000, 1_000));
+            assert!(!fresh_request(1_000, 1_000 + SETUP_REQUEST_TTL_MS));
+            assert!(!fresh_request(1_001, 1_000));
+
+            // No pause: automatic setup expects lamp control still enabled.
+            let original = Config {
+                usb_lamps: Default::default(),
+                ..cfg.clone()
+            };
+            let mut latest = original.clone();
+            remember_usb(
+                &mut latest,
+                &original,
+                false,
+                "aa".into(),
+                "new".into(),
+                true,
+            )
+            .unwrap();
+            assert!(latest.led_enabled);
+            assert_eq!(latest.ble_ids(), [saved, "new"]);
+            let mut disabled = original.clone();
+            disabled.led_enabled = false;
+            let before = serde_json::to_value(&disabled).unwrap();
+            assert!(remember_usb(
+                &mut disabled,
+                &original,
+                false,
+                "aa".into(),
+                "new".into(),
+                true
+            )
+            .is_err());
+            assert_eq!(serde_json::to_value(&disabled).unwrap(), before);
+            // After a pause, someone else re-enabling lamps also wins.
+            let mut enabled = original.clone();
+            assert!(remember_usb(
+                &mut enabled,
+                &original,
+                true,
+                "aa".into(),
+                "new".into(),
+                true
+            )
+            .is_err());
         }
 
         #[test]
