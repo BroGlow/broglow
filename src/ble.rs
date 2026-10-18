@@ -771,50 +771,93 @@ mod mac {
             let keep = || crate::led::same_target(cfg, &config::read_config());
             crate::led::publish_status(cfg, "searching", "Initializing Bluetooth");
             let adapter = adapter(&keep).await?;
-            let statuses = RefCell::new(
-                ids.iter()
-                    .map(|id| {
-                        crate::led::DeviceStatus::new(
-                            id,
-                            "searching",
-                            "Waiting for a fresh advertisement",
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-            );
+            // The saved lamps this worker drives now, re-read while it runs.
+            let targets = RefCell::new(Vec::<String>::new());
+            let statuses = RefCell::new(Vec::<crate::led::DeviceStatus>::new());
             let update = |id: &str, state: &str, detail: &str| {
                 let mut devices = statuses.borrow_mut();
+                // A forgotten lamp's last words must not bring its row back.
                 if let Some(device) = devices.iter_mut().find(|d| d.id == id) {
                     *device = crate::led::DeviceStatus::new(id, state, detail);
+                    crate::led::publish_ble_status(cfg, devices.clone());
                 }
-                crate::led::publish_ble_status(cfg, devices.clone());
+            };
+            let refresh = || {
+                let ids = config::read_config().ble_ids();
+                if *targets.borrow() != ids {
+                    let mut devices = statuses.borrow_mut();
+                    let previous = std::mem::take(&mut *devices);
+                    *devices = ids
+                        .iter()
+                        .map(|id| {
+                            previous
+                                .iter()
+                                .find(|d| &d.id == id)
+                                .cloned()
+                                .unwrap_or_else(|| {
+                                    crate::led::DeviceStatus::new(
+                                        id,
+                                        "searching",
+                                        "Waiting for a fresh advertisement",
+                                    )
+                                })
+                        })
+                        .collect();
+                    crate::led::publish_ble_status(cfg, devices.clone());
+                    *targets.borrow_mut() = ids.clone();
+                }
+                ids
             };
             let (advertisements, _) = broadcast::channel(ids.len().max(8) * 2);
             let scan_error = RefCell::new(None);
             // All futures share one adapter/runtime. A missing lamp or a pairing
             // prompt cannot delay another lamp's writes or heartbeat.
-            let mut tasks = Vec::new();
-            for id in &ids {
-                tasks.push(
-                    lamp_loop(id, &advertisements, &scan_error, &keep, &update).boxed_local(),
-                );
-            }
-            tasks.push(discover(&adapter, &ids, &advertisements, &scan_error, &keep).boxed_local());
-            run_all(tasks).await;
+            let (keep, targets, advertisements, scan_error, update) =
+                (&keep, &targets, &advertisements, &scan_error, &update);
+            let lamp = |id: String| {
+                async move {
+                    let keep = || keep() && targets.borrow().contains(&id);
+                    lamp_loop(&id, advertisements, scan_error, &keep, update).await;
+                }
+                .boxed_local()
+            };
+            tokio::join!(
+                discover(&adapter, targets, advertisements, scan_error, keep),
+                supervise(refresh, lamp, keep),
+            );
             Ok(())
         })
     }
 
     type Advertisements = broadcast::Sender<(String, Peripheral)>;
 
-    async fn run_all(tasks: Vec<LocalBoxFuture<'_, ()>>) {
-        let mut pending: FuturesUnordered<_> = tasks.into_iter().collect();
-        while pending.next().await.is_some() {}
+    /// Runs one task per saved lamp, starting tasks for newly saved lamps.
+    /// A forgotten lamp's task stops itself; the others keep their connections.
+    async fn supervise<'a>(
+        refresh: impl Fn() -> Vec<String>,
+        lamp: impl Fn(String) -> LocalBoxFuture<'a, ()>,
+        keep: &impl Fn() -> bool,
+    ) {
+        let mut running = Vec::new();
+        let mut tasks = FuturesUnordered::new();
+        while keep() {
+            for id in refresh() {
+                if !running.contains(&id) {
+                    running.push(id.clone());
+                    tasks.push(lamp(id.clone()).map(move |()| id));
+                }
+            }
+            tokio::select! {
+                Some(id) = tasks.next() => running.retain(|running| running != &id),
+                _ = sleep(POLL) => {}
+            }
+        }
+        while tasks.next().await.is_some() {}
     }
 
     async fn discover(
         adapter: &Adapter,
-        ids: &[String],
+        ids: &RefCell<Vec<String>>,
         advertisements: &Advertisements,
         scan_error: &RefCell<Option<String>>,
         keep: &impl Fn() -> bool,
@@ -829,7 +872,7 @@ mod mac {
                         event = events.next() => match event {
                             Some(CentralEvent::ServicesAdvertisement { id, services }) => {
                                 let candidate = id.to_string();
-                                if selected_advertisement(&candidate, &services, ids) {
+                                if selected_advertisement(&candidate, &services, &ids.borrow()) {
                                     if let Ok(peripheral) = adapter.peripheral(&id).await {
                                         let _ = advertisements.send((candidate, peripheral));
                                     }
@@ -1322,9 +1365,12 @@ mod mac {
                     PREVIEW_CHANGED.notify_waiters();
                 };
                 tasks.push(control.boxed_local());
-                timeout(Duration::from_secs(4), run_all(tasks))
-                    .await
-                    .unwrap();
+                timeout(
+                    Duration::from_secs(4),
+                    futures_util::future::join_all(tasks),
+                )
+                .await
+                .unwrap();
                 for lamp in 0..2 {
                     let events = events.borrow();
                     assert_eq!(
@@ -1532,10 +1578,9 @@ mod mac {
                     .unwrap();
                     cleaned.set(cleaned.get() + 1);
                 };
-                timeout(
-                    Duration::from_secs(4),
-                    run_all(vec![missing.boxed_local(), nearby.boxed_local()]),
-                )
+                timeout(Duration::from_secs(4), async {
+                    tokio::join!(missing, nearby)
+                })
                 .await
                 .expect("both lamp tasks stop promptly");
                 assert_eq!(cleaned.get(), 2);
@@ -1545,6 +1590,48 @@ mod mac {
                 assert!(writes[0].2 < HEARTBEAT);
                 assert_eq!((writes[1].0, writes[1].1), (b'G', false));
                 assert!(writes[1].2 >= HEARTBEAT);
+            });
+        }
+
+        #[test]
+        fn saved_lamp_changes_start_and_stop_only_that_lamps_task() {
+            runtime().unwrap().block_on(async {
+                let saved = RefCell::new(vec!["home".to_string(), "work".to_string()]);
+                let started = RefCell::new(Vec::new());
+                let stopped = RefCell::new(Vec::new());
+                let active = Cell::new(true);
+                let keep = || active.get();
+                let (saved, started, stopped) = (&saved, &started, &stopped);
+                let lamp = |id: String| {
+                    started.borrow_mut().push(id.clone());
+                    async move {
+                        while keep() && saved.borrow().contains(&id) {
+                            sleep(POLL).await;
+                        }
+                        stopped.borrow_mut().push(id);
+                    }
+                    .boxed_local()
+                };
+                let script = async {
+                    sleep(POLL * 2).await;
+                    assert_eq!(*started.borrow(), ["home", "work"]);
+                    saved.borrow_mut().retain(|id| id != "work");
+                    sleep(POLL * 3).await;
+                    assert_eq!(*stopped.borrow(), ["work"]);
+                    saved.borrow_mut().push("desk".into());
+                    sleep(POLL * 3).await;
+                    assert_eq!(*started.borrow(), ["home", "work", "desk"]);
+                    assert_eq!(*stopped.borrow(), ["work"]);
+                    active.set(false);
+                };
+                timeout(Duration::from_secs(5), async {
+                    tokio::join!(supervise(|| saved.borrow().clone(), lamp, &keep), script)
+                })
+                .await
+                .expect("supervisor stops once the worker is cancelled");
+                let mut stopped = stopped.borrow().clone();
+                stopped.sort();
+                assert_eq!(stopped, ["desk", "home", "work"]);
             });
         }
 
