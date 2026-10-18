@@ -1,0 +1,113 @@
+name: Homebrew tap
+
+# Renders Formula/broglow.rb for a released tag from the release's Mac archive
+# checksums, checks it, and (only on request) publishes it to the separate
+# broglow/homebrew-tap repository. Publishing needs the HOMEBREW_TAP_TOKEN secret:
+# a fine-grained token with Contents: read and write on that repository.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Released tag, for example v1.0.0
+        required: true
+        type: string
+      publish:
+        description: Push the formula to broglow/homebrew-tap
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  formula:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - name: Download the release checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "$TAG" --dir dist --pattern 'broglow-*-apple-darwin.tar.gz.sha256'
+          ls dist
+      - name: Render the formula
+        env:
+          TAG: ${{ inputs.tag }}
+        run: python scripts/homebrew-formula.py --version "${TAG#v}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: homebrew-formula
+          if-no-files-found: error
+          path: dist/homebrew/broglow.rb
+
+  check:
+    needs:
+      - formula
+    runs-on: macos-15
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: homebrew-formula
+      # Homebrew only evaluates formulae inside a tap, so stage it in a local one.
+      - name: Check the formula in a local tap
+        run: |
+          set -euo pipefail
+          brew tap-new --no-git broglow/tap
+          cp broglow.rb "$(brew --repository broglow/tap)/Formula/broglow.rb"
+          brew style broglow/tap/broglow
+          brew audit --strict broglow/tap/broglow
+      # Archives of a private repository cannot be fetched anonymously.
+      - name: Install from the release and run the formula test
+        if: ${{ !github.event.repository.private }}
+        run: |
+          set -euo pipefail
+          brew install broglow/tap/broglow
+          brew test broglow/tap/broglow
+          "$(brew --prefix)/bin/broglow" --version
+
+  publish:
+    if: ${{ inputs.publish }}
+    needs:
+      - check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse to publish while the repository is private
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "$(gh api "repos/$GITHUB_REPOSITORY" --jq .private)" != false ]; then
+            echo "The repository is private: brew could not download its release archives." >&2
+            exit 1
+          fi
+      - uses: actions/download-artifact@v8
+        with:
+          name: homebrew-formula
+      - uses: actions/checkout@v7
+        with:
+          repository: broglow/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+      - name: Commit and push the formula
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p tap/Formula
+          cp broglow.rb tap/Formula/broglow.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/broglow.rb
+          git diff --cached --quiet && { echo "Formula unchanged."; exit 0; }
+          git commit -m "broglow $TAG"
+          git push

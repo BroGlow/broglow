@@ -754,9 +754,16 @@ the USB behavior; automatic Bluetooth setup is macOS-only.
 
 Setup first reads `INFO` at **115200 baud**; a board already in `usb_lamps` ends
 automatic setup there, so replugging a saved lamp leaves the other lamps connected.
-Otherwise BroGlow pauses lamp control and waits up to **eight seconds** for the worker
-to stop, sends `PAIR`, releases the serial port and scans for **eight seconds**. While
-lamps are mirrored over USB, the worker holds the port, so the pause comes before
+While Bluetooth lamps are enabled, a new lamp is found without a pause: BroGlow sends
+`PAIR` and, for **eight seconds**, the running lamp worker reports BroGlow
+advertisements (`ble-sightings.json`, written only while setup asks). Exactly one
+advertisement seen after `PAIR` with the same six-byte identity is saved, and the
+worker connects it while the other lamps stay connected. If the worker does not answer
+within **three seconds** or sees no matching lamp, and always when lamps are disabled,
+mirrored over USB or the lamp is connected to this Mac (a connected lamp stops
+advertising), BroGlow pauses lamp control and waits up to **eight seconds** for the
+worker to stop, sends `PAIR`, releases the serial port and scans for **eight seconds**.
+While lamps are mirrored over USB, the worker holds the port, so the pause comes before
 `INFO`. A busy port causes an error; BroGlow does
 not take it over. On failure, the previous lamp settings return while unrelated
 settings changed in the meantime are kept. Closing the popover does not stop setup or

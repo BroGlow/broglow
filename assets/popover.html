@@ -334,11 +334,16 @@ function lampState(status) {
 let pendingForgetId = null, pendingRenameId = null, pendingIdentifyId = null, configActionError = '';
 const lampNameDrafts = new Map();
 function lampActionPending() { return pendingForgetId !== null || pendingRenameId !== null || pendingIdentifyId !== null; }
+// Settings checkboxes the user just clicked, keyed by the settings field:
+// shown as clicked until the host reports the config write, so a state push
+// that races the write (every hook event pushes one) can't flip them back.
+let pendingSettings = {};
 window.__configActionResult = error => {
   if (!error && pendingRenameId !== null) lampNameDrafts.delete(pendingRenameId);
   pendingForgetId = null;
   pendingRenameId = null;
   pendingIdentifyId = null;
+  pendingSettings = {};
   configActionError = error || '';
   render();
 };
@@ -640,12 +645,12 @@ function render() {
         `<div class="lampdetail" id="lampdetail"></div></details>`;
     }
   } else if (view === 'settings') {
-    // Rebuilding the view drops focus; keep keyboard users on their control.
-    const focused = ['showdashboard', 'showagentnames', 'groupbyproject', 'trackusage',
-      ...YELLOW_OPTIONS.map(o => `yellow-${o.value}`)].includes(document.activeElement?.id)
-      ? document.activeElement.id : '';
+    // Build the controls once; later state pushes only sync their values.
+    // Every hook write and lamp heartbeat pushes state, and replacing this
+    // subtree each time destroyed the control under the pointer — clicks
+    // landed on nothing while sessions were busy — and dropped focus.
     const mode = (state.settings && state.settings.yellowMode) || 'any_inactive';
-    groupsEl.innerHTML =
+    if (groupsEl.dataset.view !== 'settings') groupsEl.innerHTML =
       `<div class="grplabel">Appearance</div>` +
       `<label class="optrow" for="showdashboard">` +
       `<input type="checkbox" id="showdashboard" aria-describedby="dashboardhint">` +
@@ -674,13 +679,12 @@ function render() {
       `<input type="checkbox" id="trackusage" aria-describedby="usagehint">` +
       `<span class="sinfo"><span class="sname">Track usage</span>` +
       `<span class="smeta setdesc" id="usagehint">5-hour and weekly limits, and today's tokens.</span></span></label>`;
-    const dashboardToggle = document.getElementById('showdashboard');
-    dashboardToggle.checked = state.settings?.showDashboardButton === true;
-    document.getElementById('showagentnames').checked = state.settings?.showAgentNames !== false;
-    document.getElementById('groupbyproject').checked = state.settings?.groupByProject === true;
+    const setting = (key, saved) => key in pendingSettings ? pendingSettings[key] : saved;
+    document.getElementById('showdashboard').checked = setting('showDashboardButton', state.settings?.showDashboardButton === true);
+    document.getElementById('showagentnames').checked = setting('showAgentNames', state.settings?.showAgentNames !== false);
+    document.getElementById('groupbyproject').checked = setting('groupByProject', state.settings?.groupByProject === true);
     document.getElementById(`yellow-${mode}`).checked = true;
     document.getElementById('trackusage').checked = state.settings?.usageEnabled === true;
-    if (focused) document.getElementById(focused).focus();
     const error = document.getElementById('settingserror');
     error.textContent = configActionError;
     error.hidden = !configActionError;
@@ -804,22 +808,20 @@ for (const event of ['pointerup', 'pointercancel']) {
 window.addEventListener('blur', stopBrightnessPreview);
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopBrightnessPreview(); });
 document.addEventListener('change', ev => {
-  if (ev.target.id === 'showdashboard') {
+  // The checkbox keeps its clicked value (pendingSettings) until the host
+  // confirms the write; what the value drives (the footer button, the row
+  // meta, the list order) follows the saved state the host pushes back.
+  const toggles = {
+    showdashboard: ['showDashboardButton', 'set_dashboard_button'],
+    showagentnames: ['showAgentNames', 'set_agent_names'],
+    groupbyproject: ['groupByProject', 'set_group_by_project'],
+  };
+  if (ev.target.id in toggles) {
+    const [key, cmd] = toggles[ev.target.id];
     configActionError = '';
     document.getElementById('settingserror').hidden = true;
-    post({ cmd: 'set_dashboard_button', enabled: ev.target.checked });
-    return;
-  }
-  if (ev.target.id === 'showagentnames') {
-    configActionError = '';
-    document.getElementById('settingserror').hidden = true;
-    post({ cmd: 'set_agent_names', enabled: ev.target.checked });
-    return;
-  }
-  if (ev.target.id === 'groupbyproject') {
-    configActionError = '';
-    document.getElementById('settingserror').hidden = true;
-    post({ cmd: 'set_group_by_project', enabled: ev.target.checked });
+    pendingSettings[key] = ev.target.checked;
+    post({ cmd, enabled: ev.target.checked });
     return;
   }
   // Update optimistically; the host confirms with a fresh __setState after
