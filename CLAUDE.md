@@ -108,6 +108,8 @@ grant or board operation: record those acceptance checks separately.
 - **ble.rs** — USB-assisted setup, discovery/selection and the macOS BLE worker: service-filtered
   scan, independent connections to every saved nearby lamp, acknowledged writes,
   heartbeat and reconnect. An absent lamp must not block another lamp's updates.
+  The worker follows saved-lamp edits itself (one task per lamp): `same_target` and
+  `status_for` must not compare the lamp list, or Forget reconnects every lamp.
   USB-assisted `pair` requires exact INFO identity before PAIR and matches the
   service plus full six-byte base MAC in manufacturer data (`0xffff`). The tray checks
   USB every five seconds and attempts setup once per new attachment; `usb_lamps`

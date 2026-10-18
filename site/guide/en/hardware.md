@@ -812,9 +812,10 @@ broglow ble remove <ID_TO_FORGET>
 
 Forget works while the lamp is absent or disabled. It saves the settings before removing
 the row and keeps the list intact if saving fails. It disconnects only that lamp; the
-other lamps stay connected. It stops reconnecting but erases no bonds on either side. Removing the last ID disables Bluetooth. `broglow ble off` keeps
-the IDs, and `broglow ble usb` keeps them while switching to USB. To add a forgotten
-lamp again, use USB setup or its scanned ID.
+other lamps stay connected. It stops reconnecting but erases no bonds on either side.
+Removing the last ID disables Bluetooth. `broglow ble off` keeps the IDs, and
+`broglow ble usb` keeps them while switching to USB. To add a forgotten lamp again, use
+USB setup or its scanned ID.
 
 ### Replace a Mac or recover mismatched bonds
 
