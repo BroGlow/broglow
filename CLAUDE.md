@@ -119,7 +119,9 @@ grant or board operation: record those acceptance checks separately.
 - **notification.rs** — desktop notifications (macOS `osascript`; else `notify-rust`).
 - **spawn.rs** — Windows-only detached/windowless child-process flags (no-op elsewhere).
 - **terminal.rs** — click-to-focus: `capture` records which terminal window/app hosts a
-  session (env vars + process-tree walk, stored per session in `state.json`); `focus`
+  session (env vars + process-tree walk, stored per session in `state.json`), plus the
+  hosting agent's `owner_pid` for the dead-process reap (the tty owner on unix, the first
+  ancestor above the wrapper shells on Windows); `focus`
   raises that window later (AppleScript tab match by tty on macOS, ancestor-window
   `SetForegroundWindow` on Windows, xdotool on Linux); a Claude desktop session opens
   by its own `CLAUDE_CODE_HOST_SESSION_ID` via `claude://code/continue`. Used by the
