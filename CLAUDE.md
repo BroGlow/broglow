@@ -93,6 +93,11 @@ grant or board operation: record those acceptance checks separately.
   plus the 24h staleness backstop), and `Aggregate` (Red/Yellow/Green/None) health rollup.
 - **session.rs** — turns hook state into the TUI's `DisplaySession`s: display names,
   sort order and the five most recent finished sessions. Every name comes from the hooks.
+  Also the one home of project labelling and grouping shared by every surface:
+  `project_labels` (the folder name, extended with parent folders only where two shown
+  folders share a name; `NO_PROJECT` for an unknown directory) and `group_by_project`
+  (the order behind the `group_by_project` setting: projects by their most urgent
+  session, then recency, then path; "No project" last).
 - **config.rs** — `~/.claude/broglow/config.json` (LED opt-in, `led_transport`
   defaulting to USB, optional `led_port`, remembered `ble_peripherals`, `yellow_mode`,
   `show_agent_names`, on by default, and `group_by_project`, off by default).

@@ -1,13 +1,20 @@
-use std::path::Path;
+use std::collections::HashMap;
 
 use crate::state::{HookState, Status};
+
+/// Shown wherever a session's working directory is unknown.
+pub const NO_PROJECT: &str = "No project";
 
 #[derive(Debug, Clone)]
 pub struct DisplaySession {
     pub session_id: String,
     pub name: String,
     pub status: Status,
+    /// The project label from [`project_labels`]: the folder name, with
+    /// parent folders added only where two shown sessions' folders share a
+    /// name; [`NO_PROJECT`] when the path is unknown.
     pub project_name: String,
+    /// The working directory the hook recorded; empty when unknown.
     pub project_path: String,
     pub last_updated: String,
     /// Where the session runs ("Claude app", "Ghostty"), when known.
@@ -17,11 +24,126 @@ pub struct DisplaySession {
     pub harness: Option<String>,
 }
 
-fn project_short_name(project_path: &str) -> String {
-    Path::new(project_path)
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| project_path.to_string())
+/// Path components, ignoring empty ones (a trailing or doubled separator)
+/// and accepting either separator so Windows paths label like unix ones.
+fn components(path: &str) -> Vec<&str> {
+    path.split(['/', '\\']).filter(|c| !c.is_empty()).collect()
+}
+
+/// The last `depth` components joined with `/`; the path itself when it has
+/// no components (`/`).
+fn suffix(path: &str, parts: &[&str], depth: usize) -> String {
+    if parts.is_empty() {
+        path.to_string()
+    } else {
+        parts[parts.len() - depth.min(parts.len())..].join("/")
+    }
+}
+
+/// Display labels for project paths: the folder name, extended with parent
+/// folders only as far as needed to tell same-named folders apart
+/// (`arcadia/recco` vs `arcadia-wt/recco`, deeper if the parents match too).
+/// Two paths whose components are identical (`/a/x` and `/a/x/`) fall back to
+/// the path itself. Compute it over the paths a surface actually shows, so a
+/// hidden session never lengthens a visible label.
+pub fn project_labels<'a>(paths: impl IntoIterator<Item = &'a str>) -> HashMap<String, String> {
+    let mut paths: Vec<&str> = paths.into_iter().collect();
+    paths.sort_unstable();
+    paths.dedup();
+    let parts: Vec<Vec<&str>> = paths.iter().map(|p| components(p)).collect();
+    let mut depth = vec![1usize; paths.len()];
+    loop {
+        let labels: Vec<String> = (0..paths.len())
+            .map(|i| suffix(paths[i], &parts[i], depth[i]))
+            .collect();
+        let mut by_label: HashMap<&str, Vec<usize>> = HashMap::new();
+        for (i, label) in labels.iter().enumerate() {
+            by_label.entry(label).or_default().push(i);
+        }
+        let clashing: Vec<usize> = by_label
+            .values()
+            .filter(|group| group.len() > 1)
+            .flatten()
+            .copied()
+            .collect();
+        let growable: Vec<usize> = clashing
+            .iter()
+            .copied()
+            .filter(|&i| depth[i] < parts[i].len())
+            .collect();
+        if growable.is_empty() {
+            let mut out: HashMap<String, String> = paths
+                .iter()
+                .zip(labels)
+                .map(|(p, label)| (p.to_string(), label))
+                .collect();
+            // Still identical at full depth: nothing shorter than the path
+            // itself tells them apart.
+            for i in clashing {
+                out.insert(paths[i].to_string(), paths[i].to_string());
+            }
+            return out;
+        }
+        for i in growable {
+            depth[i] += 1;
+        }
+    }
+}
+
+fn status_rank(status: &Status) -> u8 {
+    match status {
+        Status::NeedsHelp => 0,
+        Status::Active => 1,
+        Status::Inactive => 2,
+        Status::Done => 3,
+    }
+}
+
+/// Reorder a status-sorted list into project groups: groups ranked by their
+/// most urgent session, then that session's recency (newest first), then the
+/// path for a stable order; sessions without a known directory last. The
+/// stable sort keeps the status-then-recency order inside each group. The
+/// popover's JS applies the same keys.
+pub fn group_by_project(sessions: &mut [DisplaySession]) {
+    let mut best: HashMap<&str, (u8, &str)> = HashMap::new();
+    for s in sessions.iter() {
+        let key = (status_rank(&s.status), s.last_updated.as_str());
+        let entry = best.entry(&s.project_path).or_insert(key);
+        if (key.0, std::cmp::Reverse(key.1)) < (entry.0, std::cmp::Reverse(entry.1)) {
+            *entry = key;
+        }
+    }
+    let best: HashMap<String, (u8, String)> = best
+        .into_iter()
+        .map(|(path, (rank, at))| (path.to_string(), (rank, at.to_string())))
+        .collect();
+    sessions.sort_by_cached_key(|s| {
+        let (rank, at) = &best[&s.project_path];
+        (
+            s.project_path.is_empty(),
+            *rank,
+            std::cmp::Reverse(at.clone()),
+            s.project_path.clone(),
+        )
+    });
+}
+
+/// Give every row the label [`project_labels`] computes over exactly these
+/// rows (so a surface that hides some rows relabels the rest), or
+/// [`NO_PROJECT`].
+pub fn relabel(sessions: &mut [DisplaySession]) {
+    let labels = project_labels(
+        sessions
+            .iter()
+            .map(|s| s.project_path.as_str())
+            .filter(|p| !p.is_empty()),
+    );
+    for s in sessions {
+        s.project_name = labels
+            .get(&s.project_path)
+            .cloned()
+            .unwrap_or_else(|| NO_PROJECT.to_string());
+    }
 }
 
 pub(crate) fn truncate(s: &str, max: usize) -> String {
@@ -44,16 +166,15 @@ fn char_prefix(s: &str, n: usize) -> String {
 }
 
 /// Every session in the hook state, as the TUI shows it. Names come from the
-/// hooks (Claude's own titles, harness titles, or the auto-namer).
-pub fn load_all_sessions(hook_state: &HookState) -> Vec<DisplaySession> {
+/// hooks (Claude's own titles, harness titles, or the auto-namer). With
+/// `group_by_project` the rows come in project groups (see
+/// [`group_by_project`]); otherwise needs-help first, then working, paused
+/// and done, newest first within each.
+pub fn load_all_sessions(hook_state: &HookState, grouped: bool) -> Vec<DisplaySession> {
     let mut result: Vec<DisplaySession> = hook_state
         .sessions
         .iter()
         .map(|(session_id, session_status)| {
-            let project_path = session_status
-                .project_path
-                .clone()
-                .unwrap_or_else(|| "unknown".to_string());
             let name = session_status
                 .name
                 .clone()
@@ -62,8 +183,8 @@ pub fn load_all_sessions(hook_state: &HookState) -> Vec<DisplaySession> {
                 session_id: session_id.clone(),
                 name,
                 status: session_status.status.clone(),
-                project_name: project_short_name(&project_path),
-                project_path,
+                project_name: String::new(),
+                project_path: session_status.project_path.clone().unwrap_or_default(),
                 last_updated: session_status.last_updated.clone(),
                 host: crate::terminal::host(
                     session_status.harness.as_deref(),
@@ -76,14 +197,8 @@ pub fn load_all_sessions(hook_state: &HookState) -> Vec<DisplaySession> {
 
     // Sort: needs_help first, then active, then done; within each by recency
     result.sort_by(|a, b| {
-        let order = |s: &Status| match s {
-            Status::NeedsHelp => 0,
-            Status::Active => 1,
-            Status::Inactive => 2,
-            Status::Done => 3,
-        };
-        order(&a.status)
-            .cmp(&order(&b.status))
+        status_rank(&a.status)
+            .cmp(&status_rank(&b.status))
             .then(b.last_updated.cmp(&a.last_updated))
     });
 
@@ -98,6 +213,13 @@ pub fn load_all_sessions(hook_state: &HookState) -> Vec<DisplaySession> {
         }
     });
 
+    // Labels over the rows that survived the cap, so a dropped done session
+    // never forces a longer label on a visible one.
+    relabel(&mut result);
+
+    if grouped {
+        group_by_project(&mut result);
+    }
     result
 }
 
@@ -152,10 +274,206 @@ mod tests {
             .sessions
             .insert("cc_1".to_string(), session("Fix bug", None));
 
-        let sessions = super::load_all_sessions(&hook_state);
+        let sessions = super::load_all_sessions(&hook_state, false);
         let oc = sessions.iter().find(|s| s.session_id == "ses_oc").unwrap();
         let cc = sessions.iter().find(|s| s.session_id == "cc_1").unwrap();
         assert_eq!(oc.harness.as_deref(), Some("opencode"));
         assert_eq!(cc.harness, None, "claude sessions carry no harness tag");
+    }
+
+    #[test]
+    fn project_labels_grow_only_until_same_named_folders_differ() {
+        let labels = super::project_labels([
+            "/Users/x/Documents/broglow",
+            "/Users/x/arcadia/recco",
+            "/Users/x/arcadia-wt/recco/",
+            "C:\\Users\\x\\repo",
+            "/",
+        ]);
+        assert_eq!(labels["/Users/x/Documents/broglow"], "broglow");
+        assert_eq!(labels["/Users/x/arcadia/recco"], "arcadia/recco");
+        assert_eq!(labels["/Users/x/arcadia-wt/recco/"], "arcadia-wt/recco");
+        assert_eq!(labels["C:\\Users\\x\\repo"], "repo");
+        assert_eq!(labels["/"], "/");
+
+        // Parents match too: keep climbing until something differs.
+        let labels = super::project_labels(["/w1/proj/repo", "/w2/proj/repo"]);
+        assert_eq!(labels["/w1/proj/repo"], "w1/proj/repo");
+        assert_eq!(labels["/w2/proj/repo"], "w2/proj/repo");
+
+        // Identical components: only the path itself tells them apart.
+        let labels = super::project_labels(["/a/x", "/a/x/"]);
+        assert_eq!(labels["/a/x"], "/a/x");
+        assert_eq!(labels["/a/x/"], "/a/x/");
+        assert!(super::project_labels([]).is_empty());
+    }
+
+    fn fixture() -> crate::state::HookState {
+        use crate::state::{HookState, SessionStatus, Status};
+        let session = |status: Status, at: &str, path: Option<&str>| SessionStatus {
+            status,
+            last_updated: at.to_string(),
+            project_path: path.map(str::to_string),
+            notification_type: None,
+            name: None,
+            terminal: None,
+            harness: None,
+        };
+        let mut state = HookState::default();
+        let mut add = |id: &str, s: SessionStatus| state.sessions.insert(id.into(), s);
+        add(
+            "help",
+            session(Status::NeedsHelp, "2026-01-01T10:03:00Z", Some("/a/recco")),
+        );
+        add(
+            "review",
+            session(Status::Active, "2026-01-01T10:05:00Z", Some("/a/recco")),
+        );
+        add(
+            "grouping",
+            session(Status::Active, "2026-01-01T10:06:00Z", Some("/d/broglow")),
+        );
+        add(
+            "focus",
+            session(Status::Inactive, "2026-01-01T09:49:00Z", Some("/d/broglow")),
+        );
+        add(
+            "deploy",
+            session(Status::Inactive, "2026-01-01T09:24:00Z", Some("/b/recco")),
+        );
+        add(
+            "done",
+            session(Status::Done, "2026-01-01T09:00:00Z", Some("/b/recco")),
+        );
+        add(
+            "notes",
+            session(Status::Inactive, "2026-01-01T08:00:00Z", None),
+        );
+        state
+    }
+
+    #[test]
+    fn ungrouped_order_is_status_then_recency_with_shared_labels() {
+        let sessions = super::load_all_sessions(&fixture(), false);
+        let ids: Vec<&str> = sessions.iter().map(|s| s.session_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            ["help", "grouping", "review", "focus", "deploy", "notes", "done"]
+        );
+        let by_id = |id: &str| sessions.iter().find(|s| s.session_id == id).unwrap();
+        assert_eq!(by_id("help").project_name, "a/recco");
+        assert_eq!(by_id("deploy").project_name, "b/recco");
+        assert_eq!(by_id("grouping").project_name, "broglow");
+        assert_eq!(by_id("notes").project_name, super::NO_PROJECT);
+        assert_eq!(by_id("notes").project_path, "");
+    }
+
+    #[test]
+    fn grouped_order_ranks_projects_by_urgency_then_recency_with_no_project_last() {
+        let sessions = super::load_all_sessions(&fixture(), true);
+        let ids: Vec<&str> = sessions.iter().map(|s| s.session_id.as_str()).collect();
+        // /a/recco (needs help) → /d/broglow (working, 10:06) → /b/recco
+        // (paused; its done row stays inside the group) → no project.
+        assert_eq!(
+            ids,
+            ["help", "review", "grouping", "focus", "deploy", "done", "notes"]
+        );
+    }
+
+    #[test]
+    fn grouped_order_puts_the_fresher_of_two_equally_urgent_projects_first() {
+        use crate::state::{HookState, SessionStatus, Status};
+        let session = |path: &str, at: &str| SessionStatus {
+            status: Status::Active,
+            last_updated: at.to_string(),
+            project_path: Some(path.to_string()),
+            notification_type: None,
+            name: None,
+            terminal: None,
+            harness: None,
+        };
+        let mut state = HookState::default();
+        // Path order (/a before /z) is the opposite of recency, so only the
+        // recency key can put /z first.
+        state
+            .sessions
+            .insert("a".into(), session("/a", "2026-01-01T10:00:00Z"));
+        state
+            .sessions
+            .insert("z".into(), session("/z", "2026-01-01T11:00:00Z"));
+        let paths: Vec<String> = super::load_all_sessions(&state, true)
+            .into_iter()
+            .map(|s| s.project_path)
+            .collect();
+        assert_eq!(paths, ["/z", "/a"]);
+    }
+
+    #[test]
+    fn labels_ignore_done_sessions_dropped_by_the_cap() {
+        use crate::state::{HookState, SessionStatus, Status};
+        let session = |status: Status, at: &str, path: &str| SessionStatus {
+            status,
+            last_updated: at.to_string(),
+            project_path: Some(path.to_string()),
+            notification_type: None,
+            name: None,
+            terminal: None,
+            harness: None,
+        };
+        let mut state = HookState::default();
+        state.sessions.insert(
+            "live".into(),
+            session(Status::Active, "2026-01-01T12:00:00Z", "/y/repo"),
+        );
+        // Five newer done rows survive the cap; the sixth, older one at a
+        // same-named folder is dropped and must not lengthen the live label.
+        for i in 0..5 {
+            state.sessions.insert(
+                format!("done{i}"),
+                session(Status::Done, "2026-01-01T11:00:00Z", "/d/other"),
+            );
+        }
+        state.sessions.insert(
+            "stale".into(),
+            session(Status::Done, "2026-01-01T01:00:00Z", "/x/repo"),
+        );
+        let sessions = super::load_all_sessions(&state, false);
+        assert!(sessions.iter().all(|s| s.session_id != "stale"));
+        let live = sessions.iter().find(|s| s.session_id == "live").unwrap();
+        assert_eq!(live.project_name, "repo");
+    }
+
+    #[test]
+    fn relabel_recomputes_over_the_rows_given() {
+        let mut sessions = super::load_all_sessions(&fixture(), false);
+        assert_eq!(sessions[0].project_name, "a/recco", "help row");
+        sessions.retain(|s| s.project_path != "/b/recco");
+        super::relabel(&mut sessions);
+        assert_eq!(sessions[0].project_name, "recco");
+        let notes = sessions.iter().find(|s| s.session_id == "notes").unwrap();
+        assert_eq!(notes.project_name, super::NO_PROJECT);
+    }
+
+    #[test]
+    fn grouped_order_breaks_recency_ties_by_path() {
+        use crate::state::{HookState, SessionStatus, Status};
+        let session = |path: &str| SessionStatus {
+            status: Status::Active,
+            last_updated: "2026-01-01T10:00:00Z".to_string(),
+            project_path: Some(path.to_string()),
+            notification_type: None,
+            name: None,
+            terminal: None,
+            harness: None,
+        };
+        let mut state = HookState::default();
+        state.sessions.insert("z".into(), session("/z"));
+        state.sessions.insert("m".into(), session("/m"));
+        state.sessions.insert("a".into(), session("/a"));
+        let paths: Vec<String> = super::load_all_sessions(&state, true)
+            .into_iter()
+            .map(|s| s.project_path)
+            .collect();
+        assert_eq!(paths, ["/a", "/m", "/z"]);
     }
 }

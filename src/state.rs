@@ -386,7 +386,7 @@ mod tests {
                     title
                 );
                 assert_eq!(
-                    crate::session::load_all_sessions(&refreshed)
+                    crate::session::load_all_sessions(&refreshed, false)
                         .iter()
                         .find(|s| s.session_id == id)
                         .unwrap()

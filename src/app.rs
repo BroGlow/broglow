@@ -45,7 +45,8 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         let hook_state = read_display_state();
-        let sessions = load_all_sessions(&hook_state);
+        let cfg = config::read_config();
+        let sessions = load_all_sessions(&hook_state, cfg.group_by_project);
         let previous_statuses: HashMap<String, Status> = sessions
             .iter()
             .map(|s| (s.session_id.clone(), s.status.clone()))
@@ -56,7 +57,6 @@ impl App {
             table_state.select(Some(0));
         }
 
-        let cfg = config::read_config();
         Self {
             sessions,
             table_state,
@@ -169,7 +169,9 @@ impl App {
 
     pub fn reload_data(&mut self) {
         let hook_state = read_display_state();
-        let sessions = load_all_sessions(&hook_state);
+        // Follows the popover's Settings toggle on the next refresh.
+        let group_by_project = config::read_config().group_by_project;
+        let sessions = load_all_sessions(&hook_state, group_by_project);
 
         // Check for needs_help transitions and notify
         for session in &sessions {
