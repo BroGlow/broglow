@@ -259,11 +259,12 @@ fn drive(
     }
 }
 
-/// Target changes cancel the old transport before opening the new one.
+/// Target changes cancel the old transport before opening the new one. The
+/// BLE worker follows saved-lamp changes itself, so adding or forgetting one
+/// lamp never reconnects the others.
 pub(crate) fn same_target(expected: &config::Config, current: &config::Config) -> bool {
     current.led_enabled
         && expected.led_transport == current.led_transport
-        && expected.ble_ids() == current.ble_ids()
         && expected.led_port == current.led_port
 }
 
@@ -299,8 +300,6 @@ struct StatusRecord {
     status: ConnectionStatus,
     updated: u64,
     transport: config::LedTransport,
-    #[serde(default)]
-    peripherals: Vec<String>,
     port: Option<String>,
 }
 
@@ -364,7 +363,6 @@ fn publish(cfg: &config::Config, status: ConnectionStatus) {
         status,
         updated: now_secs(),
         transport: cfg.led_transport,
-        peripherals: cfg.ble_ids(),
         port: cfg.led_port.clone(),
     };
     let path = status_path();
@@ -389,28 +387,40 @@ pub fn connection_status() -> ConnectionStatus {
 }
 
 fn status_for(cfg: &config::Config, record: Option<StatusRecord>, now: u64) -> ConnectionStatus {
-    if let Some(mut record) = record {
+    if let Some(record) = record {
         let ttl = if record.status.state == "connected" {
             6
         } else {
             15
         };
         if record.transport == cfg.led_transport
-            && record.peripherals == cfg.ble_ids()
             && record.port == cfg.led_port
             && now >= record.updated
             && now - record.updated <= ttl
         {
             if cfg.led_transport == config::LedTransport::Ble && !record.status.devices.is_empty() {
+                // The worker follows lamp list edits without restarting: show the
+                // saved lamps, keeping the others' rows across a Forget or Add.
+                let mut devices: Vec<_> = cfg
+                    .ble_ids()
+                    .iter()
+                    .map(|id| {
+                        let found = record.status.devices.iter().find(|d| &d.id == id);
+                        found.cloned().unwrap_or_else(|| DeviceStatus {
+                            updated: record.updated,
+                            ..DeviceStatus::new(id, "searching", "Waiting for the lamp worker")
+                        })
+                    })
+                    .collect();
                 // Another healthy lamp must never keep a stalled lamp marked connected.
-                for device in &mut record.status.devices {
+                for device in &mut devices {
                     let ttl = if device.state == "connected" { 6 } else { 15 };
                     if now < device.updated || now - device.updated > ttl {
                         device.state = "unavailable".into();
                         device.detail = "No recent update from this lamp".into();
                     }
                 }
-                return summarize_devices(record.status.devices);
+                return summarize_devices(devices);
             }
             return record.status;
         }
@@ -443,15 +453,27 @@ mod transport_tests {
             status: summarize_devices(devices),
             updated: 107,
             transport: cfg.led_transport,
-            peripherals: cfg.ble_ids(),
             port: None,
         };
         let json = serde_json::to_value(&record).unwrap();
-        let record = serde_json::from_value(json).unwrap();
+        let record = serde_json::from_value(json.clone()).unwrap();
         let status = status_for(&cfg, Some(record), 107);
         assert_eq!(status.state, "connected");
         assert_eq!(status.detail, "1/2 lamps connected");
         assert_eq!(status.devices[0].state, "unavailable");
+        assert_eq!(status.devices[1].state, "connected");
+
+        // Forget/Add: rows follow the saved list before the worker's next write.
+        let record: StatusRecord = serde_json::from_value(json).unwrap();
+        let forgot = config::Config {
+            ble_peripherals: vec!["work".into(), "desk".into()],
+            ..cfg
+        };
+        let status = status_for(&forgot, Some(record), 107);
+        assert_eq!(status.detail, "1/2 lamps connected");
+        assert_eq!(status.devices[0].id, "desk");
+        assert_eq!(status.devices[0].state, "searching");
+        assert_eq!(status.devices[1].id, "work");
         assert_eq!(status.devices[1].state, "connected");
     }
 
@@ -466,10 +488,15 @@ mod transport_tests {
             },
             updated: 100,
             transport: config::LedTransport::Usb,
-            peripherals: Vec::new(),
             port: None,
         };
         assert_eq!(status_for(&cfg, Some(record()), 102).state, "connected");
+        // Saved Bluetooth lamps don't matter to the USB worker.
+        let forgot = config::Config {
+            ble_peripherals: vec!["home".into()],
+            ..cfg.clone()
+        };
+        assert_eq!(status_for(&forgot, Some(record()), 102).state, "connected");
         assert_eq!(status_for(&cfg, Some(record()), 107).state, "unavailable");
         assert_eq!(status_for(&cfg, Some(record()), 99).state, "unavailable");
         let next = config::Config {
@@ -504,7 +531,7 @@ mod transport_tests {
         assert!(!same_target(&cfg, &next));
         next = cfg.clone();
         next.ble_peripherals = vec!["other".into()];
-        assert!(!same_target(&cfg, &next));
+        assert!(same_target(&cfg, &next), "a lamp change keeps the worker");
         next = cfg.clone();
         next.led_port = Some("other".into());
         assert!(!same_target(&cfg, &next));
