@@ -14,7 +14,8 @@ but Codex still needs your approval before running them.
 2. Enter `/hooks`. Review and trust the eight BroGlow entries: `SessionStart`,
    `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`,
    `Interrupt` and `SessionEnd` (the last two require a recent Codex version).
-   Each runs the full path to `broglow` followed by `codex-hook`, for example
+   Each is labeled **BroGlow: update session status** and runs the full path to
+   `broglow` followed by `codex-hook`, for example
    `"/path/to/broglow" codex-hook`. Leave other hooks unchanged. Changed hook
    definitions may need approval again.
 3. Send a prompt in a new local Codex task, in the CLI or desktop app.

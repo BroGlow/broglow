@@ -86,6 +86,7 @@ pub fn install_hooks() -> anyhow::Result<()> {
         "hooks": [{
             "type": "command",
             "command": format!("\"{}\" codex-hook", exe.display()),
+            "statusMessage": "BroGlow: update session status",
         }]
     });
 

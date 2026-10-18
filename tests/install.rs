@@ -340,6 +340,14 @@ fn install_registers_codex_hooks_and_uninstall_reverts_them() {
             .filter_map(|g| g["hooks"][0]["command"].as_str())
             .find(|c| c.ends_with("\" codex-hook"));
         assert!(ours.is_some(), "{event} has a broglow codex-hook group");
+        let group = groups
+            .iter()
+            .find(|g| g["hooks"][0]["command"].as_str() == ours)
+            .unwrap();
+        assert_eq!(
+            group["hooks"][0]["statusMessage"],
+            "BroGlow: update session status"
+        );
     }
     // The user's hook kept its position at index 0.
     assert_eq!(

@@ -14,7 +14,8 @@
 2. Введите `/hooks`. Проверьте и разрешите восемь записей BroGlow: `SessionStart`,
    `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`,
    `Interrupt` и `SessionEnd` (для последних двух нужна свежая версия Codex).
-   Каждая запускает `broglow` по полному пути с аргументом `codex-hook`, например
+   Каждая подписана **BroGlow: update session status** и запускает `broglow`
+   по полному пути с аргументом `codex-hook`, например
    `"/path/to/broglow" codex-hook`. Остальные хуки оставьте без изменений. После
    изменения хуков разрешение может потребоваться снова.
 3. Отправьте запрос в новой локальной задаче Codex — в CLI или приложении.
