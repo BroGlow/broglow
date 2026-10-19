@@ -22,10 +22,10 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           version: '0.12.17'
-      # tests/package_macos.py generates third-party notices with cargo.
+      # tests/test_package_macos.py generates third-party notices with cargo.
       - uses: dtolnay/rust-toolchain@stable
       - run: uv sync --frozen
-      - run: uv run --frozen python tests/package_macos.py
+      - run: uv run --frozen --group test pytest tests/test_package_macos.py
       - name: Check release version and source
         env:
           RELEASE_TAG: ${{ github.ref_name }}

@@ -198,7 +198,7 @@ release from the `broglow/homebrew-tap` GitHub repository, which holds only
 formula from the release's `broglow-vVERSION-*-apple-darwin.tar.gz.sha256` files
 (the Apple Silicon and Intel archives under `on_macos`/`on_arm`/`on_intel`,
 `bin/broglow`, firmware and manuals under `share/broglow`, and a caveat that
-`broglow install` must run once and after upgrades). `tests/homebrew_formula.py`
+`broglow install` must run once and after upgrades). `tests/test_homebrew_formula.py`
 checks the rendering in CI.
 
 The **Homebrew tap** workflow (`.github/workflows/homebrew-tap.yaml`) runs only

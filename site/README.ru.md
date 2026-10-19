@@ -178,7 +178,7 @@ node site/theme.test.cjs
 node site/model-preview.test.cjs
 node site/docs-language.test.cjs
 node site/docs-copy.test.cjs
-uv run --frozen --only-group docs python site/pages.test.py
+uv run --frozen --only-group test pytest site/test_pages.py
 uv run --frozen --only-group docs mkdocs build --strict -f site/mkdocs.yaml
 uv run --no-project --python 3.14 python site/check-links.py
 uv run --no-project --python 3.14 python site/check-links.py --base-url http://127.0.0.1:8080/site/

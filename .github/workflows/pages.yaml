@@ -89,7 +89,7 @@ jobs:
           node site/model-preview.test.cjs
           node site/docs-language.test.cjs
           node site/docs-copy.test.cjs
-          uv run --frozen --only-group docs python site/pages.test.py
+          uv run --frozen --only-group test pytest site/test_pages.py
           uv run --no-project --python 3.14 python scripts/export-web-model.py --check
           uv run --no-project --python 3.14 python scripts/export-web-model.py --exploded --check
       - name: Build and check the complete website

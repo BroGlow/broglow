@@ -39,8 +39,8 @@ uv sync --frozen --group dev
 uv run --frozen --group dev prek install
 ```
 
-The development group in `pyproject.toml` pins Black, clang-format and prek;
-the `docs` and `cad` groups pin the website and CAD toolchains, and `uv.lock`
+The `dev` group in `pyproject.toml` includes the `test` group and pins Black,
+clang-format and prek. The `docs` and `cad` groups pin the website and CAD toolchains, and `uv.lock`
 fixes their transitive dependencies. Hooks use the native
 [`prek.toml`](prek.toml) configuration.
 
@@ -76,23 +76,28 @@ cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
 uv run --frozen --group dev black --check --diff .
 uv run --frozen --group dev clang-format --dry-run --Werror firmware/esp32-c3-supermini/src/*.cpp firmware/esp32-c3-supermini/tests/*.cpp
-uv run --frozen python firmware/esp32-c3-supermini/tests/check.py
-uv run --frozen python -m unittest discover -s tests -p 'test_flash.py'
+uv run --frozen --group test pytest
 uv run --frozen flash --build-only
 uv run --frozen python scripts/check-generated-artifacts.py
 ```
 
-The firmware host test (`tests/check.py`) compiles the firmware logic with the
-system `c++`, so it needs a C++17 compiler. Rust tests include end-to-end checks
+Python tests use pytest functions, explicit fixtures and parametrized cases in
+`test_*.py` modules. The `test` group pins pytest and includes the docs dependencies
+needed by the website tests. The command above discovers all Python tests; pass a
+test path to run a focused suite.
+
+The firmware host test (`firmware/esp32-c3-supermini/tests/test_firmware.py`)
+compiles the firmware logic with the system `c++`, so it needs a C++17 compiler.
+Rust tests include end-to-end checks
 of the compiled binary. For agent-integration, popover or lamp-status changes,
 also run `node --test tests/js/*.test.mjs` after `cargo build --locked`; it needs
 Node.js 24, as in CI, which runs that suite on Linux. See
 [test coverage and platform limits](CLAUDE.md#ci) for details.
 
 The [CI workflow](.github/workflows/ci.yaml) has the complete firmware, packaging
-and platform checks. For packaging, icon or firmware build changes, also run the
-matching steps of its `firmware` job: `tests/package_macos.py`,
-`assets/icons/render.py --check` and the `led-test` PlatformIO build.
+and platform checks. For icon or firmware build changes, also run the matching
+steps of its `firmware` job: `assets/icons/render.py --check` and the `led-test` PlatformIO build.
+Packaging and Homebrew formula tests are included in the pytest suite.
 
 For a local app update and live service checks, follow the
 [source installation procedure](site/guide/en/hardware.md#install-or-update-the-mac-service).

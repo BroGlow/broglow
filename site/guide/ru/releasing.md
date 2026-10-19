@@ -217,7 +217,7 @@ Mac из отдельного репозитория GitHub `broglow/homebrew-ta
 формулу из файлов `broglow-vVERSION-*-apple-darwin.tar.gz.sha256` релиза (архивы
 для Apple Silicon и Intel в блоках `on_macos`/`on_arm`/`on_intel`, `bin/broglow`,
 прошивка и руководства в `share/broglow`, и предупреждение, что `broglow install`
-нужно выполнить один раз и после каждого обновления). `tests/homebrew_formula.py`
+нужно выполнить один раз и после каждого обновления). `tests/test_homebrew_formula.py`
 проверяет формирование в CI.
 
 Workflow **Homebrew tap** (`.github/workflows/homebrew-tap.yaml`) запускается

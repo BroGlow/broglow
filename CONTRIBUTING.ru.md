@@ -44,7 +44,7 @@ uv sync --frozen --group dev
 uv run --frozen --group dev prek install
 ```
 
-Группа зависимостей `dev` в `pyproject.toml` фиксирует версии Black, clang-format и prek,
+Группа зависимостей `dev` в `pyproject.toml` включает группу `test` и фиксирует версии Black, clang-format и prek,
 группы `docs` и `cad` — инструменты сайта и CAD, а `uv.lock` — их транзитивные
 зависимости. Хуки используют нативную конфигурацию
 [`prek.toml`](prek.toml).
@@ -87,14 +87,19 @@ cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
 uv run --frozen --group dev black --check --diff .
 uv run --frozen --group dev clang-format --dry-run --Werror firmware/esp32-c3-supermini/src/*.cpp firmware/esp32-c3-supermini/tests/*.cpp
-uv run --frozen python firmware/esp32-c3-supermini/tests/check.py
-uv run --frozen python -m unittest discover -s tests -p 'test_flash.py'
+uv run --frozen --group test pytest
 uv run --frozen flash --build-only
 uv run --frozen python scripts/check-generated-artifacts.py
 ```
 
-Хостовый тест прошивки (`tests/check.py`) компилирует логику прошивки системным
-`c++`, поэтому нужен компилятор с поддержкой C++17. Тесты Rust включают сквозные
+Python-тесты используют функции pytest, явные фикстуры и параметризованные случаи
+в модулях `test_*.py`. Группа `test` фиксирует pytest и включает зависимости docs,
+нужные тестам сайта. Команда выше находит все
+Python-тесты; для отдельного набора передайте путь к тесту.
+
+Хостовый тест прошивки (`firmware/esp32-c3-supermini/tests/test_firmware.py`)
+компилирует логику прошивки системным `c++`, поэтому нужен компилятор с поддержкой C++17.
+Тесты Rust включают сквозные
 проверки собранного исполняемого файла. При изменении интеграций агентов, popover
 или статуса ламп также запускайте `node --test tests/js/*.test.mjs` после
 `cargo build --locked`; нужен Node.js 24, как в CI, где этот набор выполняется
@@ -102,9 +107,9 @@ uv run --frozen python scripts/check-generated-artifacts.py
 [покрытия тестами и ограничений платформ](CLAUDE.ru.md#ci).
 
 [Workflow CI](.github/workflows/ci.yaml) содержит полный набор проверок прошивки,
-упаковки и платформ. При изменениях упаковки, иконок или сборки прошивки также
-запускайте соответствующие шаги его задания `firmware`: `tests/package_macos.py`,
-`assets/icons/render.py --check` и сборку PlatformIO `led-test`.
+упаковки и платформ. При изменениях иконок или сборки прошивки также запускайте
+соответствующие шаги его задания `firmware`: `assets/icons/render.py --check` и
+сборку PlatformIO `led-test`. Тесты упаковки и формулы Homebrew входят в набор pytest.
 
 Для локального обновления приложения и проверки работающей службы следуйте
 [процедуре установки из исходников](site/guide/ru/hardware.md#install-or-update-the-mac-service).

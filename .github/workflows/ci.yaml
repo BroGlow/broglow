@@ -49,10 +49,7 @@ jobs:
       - run: uv sync --frozen --group dev
       - name: Firmware formatting (Google)
         run: uv run --frozen --group dev clang-format --dry-run --Werror firmware/esp32-c3-supermini/src/*.cpp firmware/esp32-c3-supermini/tests/*.cpp
-      - run: uv run --frozen python -m unittest discover -s tests -p 'test_flash.py'
-      - run: uv run --frozen python firmware/esp32-c3-supermini/tests/check.py
-      - run: uv run --frozen python tests/package_macos.py
-      - run: uv run --frozen python tests/homebrew_formula.py
+      - run: uv run --frozen --group test pytest tests firmware/esp32-c3-supermini/tests
       - run: uv run --frozen python scripts/check-generated-artifacts.py
       - run: uv run --frozen python assets/icons/render.py --check
       - run: uv run --frozen flash --build-only
