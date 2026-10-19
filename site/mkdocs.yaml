@@ -58,6 +58,7 @@ plugins:
             Install and connect: Установка и подключение
             Alternative installations: Другие способы установки
             Coding agents: Coding-агенты
+            Sessions: Сессии
             Troubleshooting: Диагностика
             Reference: Справочники
             Maintainers: Для разработчиков
@@ -71,6 +72,7 @@ nav:
   - Install and connect: installation.md
   - Alternative installations: alternatives.md
   - Coding agents: agents.md
+  - Sessions: sessions.md
   - Troubleshooting: troubleshooting.md
   - Reference:
       - Hardware reference: hardware.md

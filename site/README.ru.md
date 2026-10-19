@@ -20,6 +20,7 @@
 | Установка через Homebrew, PATH и Bluetooth | `guide/en/installation.md` | `guide/ru/installation.md` |
 | Пакет для Mac, сборка из исходников, Windows и Linux | `guide/en/alternatives.md` | `guide/ru/alternatives.md` |
 | Coding-агенты (Claude Code, Codex, opencode, Copilot) | `guide/en/agents.md` | `guide/ru/agents.md` |
+| Сессии: возврат, названия, скрытие | `guide/en/sessions.md` | `guide/ru/sessions.md` |
 | Решение проблем и запрос агенту | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
 | Справочник по оборудованию | `guide/en/hardware.md` | `guide/ru/hardware.md` |
 | Прошивка, релизы, изображения, проектирование корпуса | `guide/en/NAME.md` | `guide/ru/NAME.md` |

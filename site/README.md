@@ -16,6 +16,7 @@ Edit Markdown sources; never edit or commit generated HTML.
 | Homebrew installation, PATH and Bluetooth | `guide/en/installation.md` | `guide/ru/installation.md` |
 | Mac package, source builds, Windows and Linux | `guide/en/alternatives.md` | `guide/ru/alternatives.md` |
 | Coding agents (Claude Code, Codex, opencode, Copilot) | `guide/en/agents.md` | `guide/ru/agents.md` |
+| Sessions: return, names, dismiss | `guide/en/sessions.md` | `guide/ru/sessions.md` |
 | Troubleshooting and agent prompt | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
 | Hardware reference | `guide/en/hardware.md` | `guide/ru/hardware.md` |
 | Firmware, releases, images, enclosure design | `guide/en/NAME.md` | `guide/ru/NAME.md` |
