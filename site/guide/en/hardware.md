@@ -686,7 +686,7 @@ launch on an unconfigured Mac can install the hooks and login startup.
 Codex setup for users is in [Connect Codex]({{ repo_url }}/blob/HEAD/site/guide/en/agents.md#codex-setup). When an agent sets
 up BroGlow, these rules apply:
 
-- Installing BroGlow adds six `codex-hook` entries to `$CODEX_HOME/hooks.json`
+- Installing BroGlow adds `codex-hook` entries to `$CODEX_HOME/hooks.json`
   (normally `~/.codex/hooks.json`). The user must review and trust them in Codex
   `/hooks`; never fabricate trust hashes or bypass trust.
 - Never write Codex `config.toml`. Keep other hooks in place and in their order.
@@ -907,17 +907,14 @@ Click **Save** or press Enter in the name field: **Saving…** is followed by a 
 focus. Editing again clears the confirmation. A failed save shows an error and keeps
 your draft for retrying.
 Names can have up to **40 Unicode characters**. On the next active Bluetooth
-connection, matching firmware also saves the name on the lamp: `Home` becomes
+connection, the name is also saved on the lamp: `Home` becomes
 `BroGlow Home` in Bluetooth settings and survives a power cycle. The Bluetooth
 name uses at most **21 UTF-8 bytes** of the label, keeping whole characters;
 BroGlow retains the full label on the Mac. An empty name restores `Lamp 1`, `Lamp 2`
 and so on in BroGlow and the factory `BroGlow C3 …` Bluetooth name. Names can be
-saved while a lamp is absent or disabled and are sent when it reconnects.
-macOS may keep a cached Bluetooth name until reconnection; an immediate Settings
-refresh has not been verified. Pairing keys and device IDs stay the same.
-Older firmware keeps the Mac label and lamp control working; **Connection details**
-reports that Bluetooth naming needs a firmware update. Updating the app does not
-flash the board; follow the [backup and flash procedure](#flash-and-recover-usb-upload).
+saved while a lamp is absent or disabled and are sent when it reconnects. macOS may
+show the cached Bluetooth name until reconnection. Pairing keys and device IDs stay
+the same.
 From the command line: `broglow ble rename <SAVED_ID> "Office"` (`""` clears the name).
 **Troubleshooting** shows service and setup details; Back or Escape returns to the
 sessions. In the TUI, `d` toggles details, arrows or `j`/`k` scroll and Escape returns.
@@ -926,10 +923,7 @@ sessions. In the TUI, `d` toggles details, arrows or `j`/`k` scroll and Escape r
 **red → yellow → green** one LED at a time at **100%**, **100 ms per LED**, **three
 times** (**0.9 seconds** in total), then restores the latest status and the saved
 brightness, even if that is 0%. It does not enable a lamp or save settings. A lamp that
-is absent, paused or has stale status cannot be identified. Identify needs matching
-firmware: older firmware acknowledges the write but silently ignores it. Updating the
-app does not flash the board; to update it, follow the backup and flash procedure for
-the identified board.
+is absent, paused or has stale status cannot be identified.
 
 | Status | Meaning and action |
 | --- | --- |
@@ -941,8 +935,7 @@ the identified board.
 | `unavailable` | The worker's status is missing or stale; check the installed service |
 
 The green connection dot needs an accepted write; an advertisement or USB presence is
-not enough. `1/2` is normal when one lamp is elsewhere. An acknowledged write does not
-prove that the LEDs light.
+not enough.
 
 Red wins whenever any session needs help. **Settings → Mixed sessions** decides mixed
 states: **Yellow when any session is idle** (`any_inactive`, the default) or **Green
@@ -953,18 +946,15 @@ reconnect.
 Each lamp receives the current status when it connects, whenever the status changes,
 and every **two seconds**. Reconnecting never replays an old queued color. Disabling
 tries to send `N`, then disconnects and stops scans and retries. If `N` was not
-delivered, confirmed disconnection immediately starts the **three-second** status
-fade. If the link stays up without updates, the lamp holds for **five seconds** and
-fades for **five seconds**, reaching black at **ten seconds**.
+delivered, the lamp [fades out](#pairing-feedback-and-diagnostics-without-external-leds).
 `N` cannot tell a disabled Mac from an absent one, so a disconnected bonded lamp
 eventually resumes its waiting pulse.
-Disabling therefore does not guarantee that the lamp stays dark.
 
 ### Brightness control
 
 In **Lamps**, expand a lamp and set **Light brightness: 0–100%**. **All lamps** sets
 every saved lamp, clears per-lamp overrides and becomes the default for new lamps.
-The default is 100%; an existing shared level is kept. The Mac stores `led_brightness`
+The default is 100%. The Mac stores `led_brightness`
 and optional per-ID `lamp_brightness` values in `~/.claude/broglow/config.json`. An
 absent lamp receives its saved value when it reconnects.
 
@@ -994,10 +984,8 @@ startup indications use 100%. Brightness, preview and Identify do not extend the
 **ten-second** status deadline, and brightness changes do not restart patterns. A
 disconnect, lost authentication or stale status cancels preview and Identify.
 
-BroGlow needs matching firmware with writable status and brightness characteristics;
-it rejects firmware without them. USB serial control does not send brightness, and
-switching from Bluetooth to USB keeps the level in RAM. Power-cycle the board to return
-to 100%; the next Bluetooth connection restores the Mac's saved setting.
+USB serial control does not send brightness: the board keeps its last level until a
+power cycle returns it to 100%.
 
 ### Preserve or return to USB
 
@@ -1024,23 +1012,8 @@ connected, the board ignores serial color commands; read-only diagnostics still 
 ## BLE contract and firmware behavior
 
 Bluetooth uses acknowledged encrypted writes and resends the status every **two
-seconds**. A confirmed disconnect starts a **three-second** fade immediately. If
-the link remains connected without valid updates, the watchdog holds for **five
-seconds** and fades for **five seconds**, clearing the status and reaching black
-at **ten seconds**. Recovery needs a fresh valid
-status and shows it at the configured brightness without a connection flash.
-A connected Bluetooth client controls the
-LEDs; serial colors work only while Bluetooth is disconnected. Firmware updates go over
-USB. UUIDs, payloads, security and diagnostics are defined in the
-[firmware reference](firmware.md#ble-contract-and-firmware-behavior).
-
-### GATT cache after a firmware upgrade
-
-The firmware requests Service Changed so that macOS sees new characteristics without
-erasing bonds. If brightness is missing after an upgrade, reconnect and check the
-capabilities before resetting bonds. Review the
-[SDK implementation](firmware.md#gatt-cache-after-a-firmware-upgrade) when changing the
-pinned toolchain.
+seconds**. Firmware updates go over USB. UUIDs, payloads, security and diagnostics
+are defined in the [firmware reference](firmware.md#ble-contract-and-firmware-behavior).
 
 ## Troubleshooting and service recovery
 
@@ -1054,12 +1027,12 @@ pinned toolchain.
 | Pairing or write rejected | Hold BOOT three seconds after a normal startup, pair within 60 seconds and approve the macOS prompt promptly (about 30 seconds observed). Then try [bond recovery](#replace-a-mac-or-recover-mismatched-bonds). |
 | BOOT stops advertising | Release BOOT, press RESET and wait for a normal startup before holding BOOT for pairing. |
 | `1/2` connected | Normal while one lamp is elsewhere. |
-| Missing characteristic, or brightness needs an update | Confirm the board identity and capabilities; update the identified C3 with the documented flash procedure. |
+| Missing characteristic | The saved device does not run BroGlow firmware; [flash it](#flash-and-recover-usb-upload) or add the correct scanned ID. |
 | Connected, but dark or wrong color | Check for 0% brightness, live sessions and **Settings → Mixed sessions**; disable Bluetooth and run the [wiring check](#check-the-wiring-before-connecting-broglow). An acknowledged write is not electrical proof. |
 | Faint LED, or one color dark | Disconnect power; check polarity, GPIO, resistor, contacts and the shared GND. Use the [standalone test](#standalone-led-test-firmware); its logic readback cannot prove voltage, current or board damage. |
-| No local Codex sessions | Trust the six BroGlow hooks in Codex `/hooks` and send a new prompt in a local task. If Codex was installed after BroGlow, run `broglow install` again ([Codex setup]({{ repo_url }}/blob/HEAD/site/guide/en/agents.md#codex-missing-hooks)). |
+| No local Codex sessions | Trust the BroGlow hooks in Codex `/hooks` and send a new prompt in a local task. If Codex was installed after BroGlow, run `broglow install` again ([Codex setup]({{ repo_url }}/blob/HEAD/site/guide/en/agents.md#codex-missing-hooks)). |
 | Serial colors ignored | Disconnect Bluetooth. |
-| Light fades while the Mac sleeps | A confirmed disconnect starts a three-second fade; if the link stays up without updates, the lamp holds for five seconds then fades for five seconds. After wake, a fresh status restores the latest color at the configured brightness. |
+| Light fades while the Mac sleeps | Expected; after wake, a fresh status restores the latest color. |
 | `unavailable`, or no tray icon | Check launchd and the logs and recover the existing service; never start a second tray. |
 
 Restart without reinstalling the hooks:
