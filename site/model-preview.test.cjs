@@ -40,7 +40,7 @@ function page(defined = false, href = 'https://example.com/broglow/', qrFailure 
     };
   }
   const ids = ['lamp-model', 'model-poster', 'model-load', 'model-reset', 'model-loading', 'model-error', 'model-help',
-    'model-space', 'view-model', 'view-photo', 'ar-dialog', 'ar-close', 'ar-qr', 'ar-link', 'ar-local', 'ar-qr-error',
+    'model-space', 'view-toggle', 'view-model', 'view-photo', 'ar-dialog', 'ar-close', 'ar-qr', 'ar-link', 'ar-local', 'ar-qr-error',
     'assembly-model', 'assembly-loading', 'assembly-error', 'assembly-retry', 'assembly-reset'];
   const nodes = Object.fromEntries(ids.map(id => [id, element()]));
   const assemblyTag = html.match(/<model-viewer id="assembly-model"[^>]+>/)[0];
@@ -308,7 +308,7 @@ assert.equal(n['lamp-model'].cameraOrbit, initialOrbit);
 assert.equal(n['lamp-model'].reset, true);
 assert.equal(camera.focused, true, 'Reset returns keyboard control to the model');
 // The photo view shows the selected signal on the real lamp; 3D resumes where it left off.
-assert.equal(n['view-photo'].hidden, false, 'The photo view is offered once the model loads');
+assert.equal(n['view-toggle'].hidden, false, 'The view toggle appears once the model loads');
 n['view-photo'].emit('click');
 assert.equal(n['model-poster'].hidden, false);
 assert.equal(n['model-poster'].src, photos.working);
@@ -327,7 +327,7 @@ select('off', 'click');
 n['lamp-model'].emit('error');
 assert.equal(n['model-poster'].hidden, false, 'Model/WebGL failure restores the image');
 assert.equal(n['model-poster'].src, photos.off, 'The fallback photo matches the selected signal');
-assert.equal(n['view-photo'].hidden, true, 'No view toggle without a model');
+assert.equal(n['view-toggle'].hidden, true, 'No view toggle without a model');
 assert.equal(n['lamp-model'].hidden, true);
 assert.equal(n['model-load'].disabled, false);
 assert.equal(n['model-help'].hidden, true);

@@ -94,8 +94,10 @@
           </fieldset>
           <p class="priority-note" data-en="Red always takes priority. When some sessions are working and others are paused, you choose which color wins in BroGlow settings; by default, any paused session turns the lamp yellow.">Красный всегда важнее. Когда одни сессии работают, а другие на паузе, что показывать — решаете вы в настройках BroGlow; по умолчанию любая сессия на паузе включает жёлтый.</p>
           <div class="model-tools">
-            <button id="view-model" type="button" class="model-button" aria-pressed="true" hidden>3D</button>
-            <button id="view-photo" type="button" class="model-button" aria-pressed="false" data-en="Photo" hidden>Фото</button>
+            <div id="view-toggle" class="view-toggle" role="group" aria-label="Вид" data-en-aria-label="View" hidden>
+              <button id="view-model" type="button" class="model-button" aria-pressed="true">3D</button>
+              <button id="view-photo" type="button" class="model-button" aria-pressed="false" data-en="Photo">Фото</button>
+            </div>
             <button id="model-load" type="button" class="model-button" data-viewer-src="vendor/model-viewer-with-effects.js" data-en="Retry 3D" hidden>Загрузить 3D снова</button>
             <button id="model-space" type="button" class="model-button" aria-haspopup="dialog" aria-controls="ar-dialog" data-en="View in your space" hidden>Примерить у себя</button>
             <button id="model-reset" type="button" class="model-button" data-en="Reset view" hidden>Сбросить вид</button>

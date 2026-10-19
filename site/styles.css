@@ -291,9 +291,26 @@ model-viewer[hidden],.model-stage img[hidden],.model-tools button[hidden] {
 .model-button:hover {
   background:#e8eee7;
 }
-.model-button[aria-pressed="true"] {
-  background:#dfe6de;
-  border-color:#27332b;
+.view-toggle {
+  display:inline-flex;
+  margin-right:8px;
+  border:1px solid #788579;
+  border-radius:6px;
+  overflow:hidden;
+}
+.view-toggle[hidden] {
+  display:none;
+}
+.view-toggle .model-button {
+  border:0;
+  border-radius:0;
+}
+.view-toggle .model-button+.model-button {
+  border-left:1px solid #788579;
+}
+.view-toggle .model-button[aria-pressed="true"] {
+  background:#27332b;
+  color:#f9fcfe;
 }
 .model-button:disabled {
   opacity:.6;
