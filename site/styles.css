@@ -742,6 +742,10 @@ h2 {
   font-size:13px;
   margin-top:14px;
 }
+.footer p a {
+  text-decoration:underline;
+  text-underline-offset:3px;
+}
 .footer-links {
   display:flex;
   align-items:flex-end;
