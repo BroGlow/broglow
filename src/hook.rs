@@ -227,12 +227,6 @@ fn dismissed_session_returns_on_activity() {
     );
 }
 
-/// A desktop-hosted session whose stored identity predates capturing the
-/// desktop app's session ID.
-fn host_id_missing(t: &crate::state::TerminalInfo) -> bool {
-    t.host_session_id.is_none() && std::env::var_os("CLAUDE_CODE_HOST_SESSION_ID").is_some()
-}
-
 /// `broglow hook`: read one hook event as JSON on stdin and update
 /// `state.json`.
 pub fn run() -> anyhow::Result<()> {
@@ -317,10 +311,7 @@ pub fn run() -> anyhow::Result<()> {
         // unless it brings the session's first title.
         if hook_event == "PreToolUse" && question.is_none() {
             if let Some(s) = state.sessions.get(&session_id) {
-                if s.status == Status::Active
-                    && (claude_title.is_none() || s.name.is_some())
-                    && !s.terminal.as_ref().is_some_and(host_id_missing)
-                {
+                if s.status == Status::Active && (claude_title.is_none() || s.name.is_some()) {
                     return false;
                 }
             }
@@ -351,10 +342,9 @@ pub fn run() -> anyhow::Result<()> {
         // Where the session runs, for click-to-focus. Captured on SessionStart
         // (a resumed session may live in a new window) and backfilled for
         // sessions first seen mid-flight; otherwise carried over unchanged so
-        // routine updates skip the capture's `ps` spawn. Entries recorded
-        // before the desktop session ID was captured are refreshed once.
+        // routine updates skip the capture's `ps` spawn.
         let terminal = match existing.and_then(|s| s.terminal.clone()) {
-            Some(t) if hook_event != "SessionStart" && !host_id_missing(&t) => Some(t),
+            Some(t) if hook_event != "SessionStart" => Some(t),
             _ => Some(crate::terminal::capture()),
         };
 
