@@ -51,31 +51,6 @@ Python 3.14** (`macos-15` in release CI). Other platforms may produce different
 STL bytes and fail the hash check; accept new hashes only after real slicing
 checks on that platform.
 
-## Before the first public release
-
-1. Do this before the first `git push`. Check that `package.repository` in
-   `Cargo.toml` names the public repository (the docs link to it), add it as a
-   remote and verify with `git remote -v`:
-
-    ```bash
-    git remote add YOUR_REMOTE {{ repo_url }}
-    git remote -v
-    ```
-
-2. Use only [our own media](media.md) and include the MIT `LICENSE` and
-   dependency notices.
-3. Pushing a branch publishes its full history. Review retired assets in older
-   commits before making history public; `.gitattributes` archive exclusions do
-   not rewrite history. Use a reviewed source snapshot or a separately planned
-   history cleanup as needed. Old `v0.*` tags stay local unless pushed by name.
-4. Commit the intended app, firmware, docs and workflow changes. Check
-   `git status --short`; release packaging rejects a dirty checkout. Include the
-   accepted enclosure source, instructions and reviewed slicer validation results
-   (`slicer-validation.json`) in the release commit; generate print packages from
-   that source, leaving them ignored.
-5. Complete the checks below. A new machine still needs the normal macOS
-   approval and a real local agent task to validate hook delivery.
-
 ## Build a draft release
 
 The prepared version in `Cargo.toml` and `Cargo.lock` is **1.0.0**. The release
@@ -85,7 +60,7 @@ Check both the source and website using the commands in
 [site/README.md](../../README.md#check-changes).
 
 After reviewing the commit and destination, tag and push explicitly. Replace
-`YOUR_REMOTE` with the remote added above:
+`YOUR_REMOTE` with the GitHub remote's name (`git remote -v`):
 
 ```bash
 git tag v1.0.0
@@ -135,7 +110,7 @@ Before selecting **Publish release** in GitHub:
   user settings from every artifact.
 - State which machines and lamp behavior were actually tested. Local acceptance
   currently covers Apple Silicon; a successful Intel build is not an Intel
-  hardware test. Keep unverified platforms and first-release limitations visible.
+  hardware test. Keep unverified platforms visible.
 - Review the generated notes and choose the appropriate release/prerelease label.
   Publishing the draft is the action that makes binary downloads public; it also
   reruns the **Website** workflow so the guide shows the enclosure archive's SHA-256.
@@ -219,8 +194,7 @@ uses the stable release filename and refuses to overwrite an existing archive.
 
 `brew install broglow/tap/broglow` installs the prebuilt Mac binaries of a
 release from the `broglow/homebrew-tap` GitHub repository, which holds only
-`Formula/broglow.rb`. Homebrew downloads the archives anonymously, so the tap
-is useful only once this repository and its releases are public.
+`Formula/broglow.rb`.
 
 [`scripts/homebrew-formula.py`](../../../scripts/homebrew-formula.py) renders the
 formula from the release's `broglow-vVERSION-*-apple-darwin.tar.gz.sha256` files
@@ -233,18 +207,12 @@ The **Homebrew tap** workflow (`.github/workflows/homebrew-tap.yaml`) runs only
 by hand: **Actions → Homebrew tap → Run workflow** with the released tag. It
 downloads the checksums from that release (a draft is enough), renders the
 formula, stages it in a local tap on a macOS runner for `brew style` and
-`brew audit --strict`, installs and tests it when the repository is public, and
-uploads `broglow.rb` as the `homebrew-formula` artifact. With **publish**
-ticked it also pushes `Formula/broglow.rb` to `broglow/homebrew-tap`; it refuses
-to publish while the repository is private.
-
-Before the first publication:
-
-1. Create the public `broglow/homebrew-tap` repository (the name must start with
-   `homebrew-`).
-2. Add the `HOMEBREW_TAP_TOKEN` repository secret here: a fine-grained token with
-   **Contents: read and write** on `homebrew-tap` only.
-3. Publish the GitHub release, then run the workflow with **publish** ticked.
+`brew audit --strict`, installs and tests it, and uploads `broglow.rb` as the
+`homebrew-formula` artifact. With **publish** ticked it also pushes
+`Formula/broglow.rb` to `broglow/homebrew-tap` using the `HOMEBREW_TAP_TOKEN`
+repository secret (a fine-grained token with **Contents: read and write** on
+`homebrew-tap` only). Publish the GitHub release first, then run the workflow
+with **publish** ticked.
 
 To rehearse locally, render the formula against archives in `dist/` with
 `--url-base file:///path/to/dist/`, copy it into `brew tap-new broglow/tap`,
@@ -259,10 +227,9 @@ the post-deployment check below.
 
 After deployment, open the live English and Russian guides and follow a release
 download through to its checksum. Download links point to this repository's
-Releases; until the release is published, the guide offers a source build
-instead; check that the links work after publication. The guide includes a separate enclosure
+Releases; check that the links work after publication. The guide includes a separate enclosure
 download, and the landing labels the product image as a render.
 
 Local checks cannot prove GitHub permissions, hosted-runner success, live Pages
-delivery or installation on another Mac. Verify those during the first draft
-release and deployment; the preparation itself publishes nothing.
+delivery or installation on another Mac. Verify those after each release
+and deployment.

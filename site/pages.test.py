@@ -27,10 +27,10 @@ for locale in ("en", "ru"):
             assert "https://github.com/example/lamp/archive/HEAD.zip" in public
             assert f"broglow-v{version}-aarch64-apple-darwin.tar.gz" in public
             assert f"broglow-v{version}-x86_64-apple-darwin.tar.gz" in public
-            # No release lookup without a site_url: the page says when checksums appear.
+            # No release lookup without a site_url: the page points to the release page.
             assert (
-                "once the release is published" in public
-                or "после публикации" in public
+                "published next to it on the release page" in public
+                or "на странице релиза" in public
             )
             assert ".sha256)" not in public, "No checksum download link"
         else:
@@ -38,10 +38,10 @@ for locale in ("en", "ru"):
             archive = f"broglow-enclosure-magnetic-v{version}.zip"
             assert "https://github.com/example/lamp/releases" in public
             # Tests never set site_url, so no release lookup happens; the page says
-            # where the checksum will appear instead of offering a .sha256 download.
+            # where the checksum is published instead of offering a .sha256 download.
             assert (
-                "once the release is published" in public
-                or "после публикации релиза" in public
+                "published next to it on the release page" in public
+                or "на странице релиза" in public
             )
             assert ".sha256" not in public
             assert "https://github.com/example/lamp/archive/HEAD.zip" in public

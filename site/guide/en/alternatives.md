@@ -14,8 +14,8 @@ and, on macOS, installs the menu-bar app and starts it at login.
 ## Mac package
 
 The complete Mac package contains the app, the ESP32-C3 firmware and the operating
-guide. Apple Silicon builds have been tested on a real Mac; Intel builds have not yet
-been checked for installation and Bluetooth.
+guide. Apple Silicon builds have been tested on a real Mac; Intel builds are unverified
+for installation and Bluetooth.
 
 <!-- mac-downloads -->
 

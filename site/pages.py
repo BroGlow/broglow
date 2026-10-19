@@ -112,7 +112,7 @@ def cargo_package():
 
 
 def repository_url():
-    """The planned public repository, set once in Cargo.toml."""
+    """The public repository, set once in Cargo.toml."""
     return cargo_package().get("repository", "").rstrip("/")
 
 
@@ -225,7 +225,7 @@ def on_page_content(html, *, page, config, **kwargs):
 
 
 def on_page_markdown(markdown, *, page, config, **kwargs):
-    """Offer complete Mac bundles, with a source route before the first release."""
+    """Offer the Mac bundles and the enclosure archive from Releases."""
     if (
         "<!-- mac-downloads -->" not in markdown
         and "<!-- model-download -->" not in markdown
@@ -268,14 +268,14 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
                 mac += f"```text\n{checksum}\n```\n\n"
         if not all(checksum for _, checksum in mac_archives.values()):
             mac += (
-                "SHA-256 пакетов появятся здесь после публикации релиза.\n\n"
+                "SHA-256 каждого пакета опубликован рядом с ним на странице релиза.\n\n"
                 if ru
-                else "The packages' SHA-256 appear here once the release is published.\n\n"
+                else "Each package's SHA-256 is published next to it on the release page.\n\n"
             )
         mac += (
-            f"Если полного пакета ещё нет, [скачайте исходники]({source}) и соберите их по [инструкции](hardware.md#build-from-source)."
+            f"Чтобы собрать приложение самостоятельно, [скачайте исходники]({source}) и соберите их по [инструкции](hardware.md#build-from-source)."
             if ru
-            else f"If no complete package is available yet, [download the source]({source}) and [build from source](hardware.md#build-from-source)."
+            else f"To build the app yourself, [download the source]({source}) and [build from source](hardware.md#build-from-source)."
         )
         guide = "printing.md"
         archive = f"broglow-enclosure-magnetic-v{version}.zip"
@@ -289,11 +289,11 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
             models += (
                 f"SHA-256:\n\n```text\n{checksum}\n```\n\n"
                 if checksum
-                else "SHA-256 архива появится здесь после публикации релиза.\n\n"
+                else "SHA-256 архива опубликован рядом с ним на странице релиза.\n\n"
             )
             models += (
-                f"Если релиз ещё не опубликован, [скачайте исходники]({source}) и "
-                f"[сгенерируйте комплект]({guide}#generate-from-source). Автоматический "
+                f"Чтобы сгенерировать комплект самостоятельно, [скачайте исходники]({source}) и "
+                f"[выполните генерацию]({guide}#generate-from-source). Автоматический "
                 "ZIP исходников GitHub не содержит готовых STL и STEP."
             )
         else:
@@ -305,11 +305,11 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
             models += (
                 f"SHA-256:\n\n```text\n{checksum}\n```\n\n"
                 if checksum
-                else "The archive's SHA-256 appears here once the release is published.\n\n"
+                else "The archive's SHA-256 is published next to it on the release page.\n\n"
             )
             models += (
-                f"Before the release is published, [download the source]({source}) and "
-                f"[generate the package]({guide}#generate-from-source). GitHub's automatic "
+                f"To generate the package yourself, [download the source]({source}) and "
+                f"[generate it from source]({guide}#generate-from-source). GitHub's automatic "
                 "source ZIP contains no ready-to-print STL or STEP."
             )
 

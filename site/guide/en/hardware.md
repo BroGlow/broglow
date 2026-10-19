@@ -1059,7 +1059,7 @@ are diagnostics, not a visual check of the LEDs.
 | LEDs | Check all colors and brightness on each assembly. |
 | Multiple lamps | Isolation tests pass; simultaneous operation of two physical boards is unverified. |
 | Intel Mac, Windows, Linux | CI and build targets only; no physical Bluetooth or fresh-install claim. Bluetooth lamps are macOS-only. |
-| Distribution | Local package and site checks run before publication; public downloads, the website and Gatekeeper on a fresh Mac need release acceptance. |
+| Distribution | Local package and site checks run before each publication; verify public downloads, the website and Gatekeeper on a fresh Mac after each release. |
 | Enclosure | Fit requirements and assembly checks are in the [print guide]({{ repo_url }}/blob/HEAD/models/magnetic/GUIDE_ROUND3X2.en.md); the magnet pocket depth and holding force still need physical confirmation. The print package holds STL, STEP, two assembly views and `BUILD.json`. |
 
 ### Physical and background-service acceptance

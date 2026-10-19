@@ -4,8 +4,8 @@ title: Images and photos
 
 # Project images and photos
 
-Use only our own media: CAD renders, screenshots, diagrams and, once taken,
-photos of the build. Keep third-party theme and library license notices intact.
+Use only our own media: CAD renders, screenshots, diagrams and photos of the
+build. Keep third-party theme and library license notices intact.
 
 Renders and the website's interactive 3D/AR preview come from the release
 enclosure CAD with illustrative electronics. Label renders as renders; they do
@@ -72,6 +72,5 @@ website README.
 ## Before making the repository public
 
 Publish reviewed current assets. Retired files (`RETIRED_MEDIA` in
-`scripts/check-generated-artifacts.py`) remain in old commits: remove them from
-history or confirm they may be published before the first public push. Rebuild
+`scripts/check-generated-artifacts.py`) must not return to the tree. Rebuild
 app packages so embedded icons and manuals match the current source.

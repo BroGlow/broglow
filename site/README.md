@@ -181,8 +181,8 @@ sibling `.sha256`) and to `dist/enclosure/broglow-enclosure-magnetic-vVERSION.zi
 whose checksum is shown inline from the sibling `.sha256`. Without archives, they
 offer source instructions. Public builds link to Releases and the source ZIP; the
 Pages build fetches the published archive's `.sha256` from the release for the
-current `Cargo.toml` version and shows it inline; before that release exists the
-page says the checksum appears after publication. Publishing a release restarts
+current `Cargo.toml` version and shows it inline; when the
+checksum cannot be fetched the page points to the release page instead. Publishing a release restarts
 the Website workflow on the default branch so the checksum lands on the site. GitHub's automatic source ZIP contains editable
 source and instructions, without STL, STEP/STP or ready-to-print ZIPs; use the
 enclosure release asset or [generate it from source](guide/en/releasing.md).
