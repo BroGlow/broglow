@@ -736,7 +736,7 @@ launchctl kickstart -k "gui/$(id -u)/io.github.broglow.menubar"
 
 ## Подключение локальных сессий Codex
 
-Настройка Codex для пользователя описана в разделе [Подключение Codex]({{ repo_url }}/blob/HEAD/site/guide/ru/codex.md#codex-setup).
+Настройка Codex для пользователя описана в разделе [Подключение Codex]({{ repo_url }}/blob/HEAD/site/guide/ru/agents.md#codex-setup).
 Агент, настраивающий BroGlow, соблюдает такие правила:
 
 - Установка BroGlow добавляет шесть записей `codex-hook` в `$CODEX_HOME/hooks.json`
@@ -745,7 +745,7 @@ launchctl kickstart -k "gui/$(id -u)/io.github.broglow.menubar"
 - Никогда не записывайте `config.toml` Codex. Посторонние хуки оставляйте на месте
   и в прежнем порядке.
 - Если Codex установлен после BroGlow, снова выполните `broglow install`
-  ([нет записей BroGlow]({{ repo_url }}/blob/HEAD/site/guide/ru/codex.md#codex-missing-hooks)).
+  ([нет записей BroGlow]({{ repo_url }}/blob/HEAD/site/guide/ru/agents.md#codex-missing-hooks)).
 - `broglow ble status` и ручные тестовые события не доказывают, что хуки Codex
   работают. Это доказывает только реальная локальная задача Codex, которая в списке
   сессий BroGlow показывает **Working**, а затем **Paused**.
@@ -1119,7 +1119,7 @@ Bluetooth использует подтверждённые зашифрован
 | Нет характеристики или нужно обновление для яркости | Проверьте идентификатор и возможности платы; обновите определённую C3 по описанной процедуре записи прошивки. |
 | Подключена, но не горит или не тот цвет | Проверьте яркость 0%, текущие сессии и **Settings → Mixed sessions**; отключите Bluetooth и выполните [проверку подключения](#check-the-wiring-before-connecting-broglow). Подтверждённая запись не доказывает исправность цепи. |
 | Светодиод тусклый или один цвет не горит | Отключите питание; проверьте полярность, GPIO, резистор, контакты и общую GND. Используйте [отдельный тест](#standalone-led-test-firmware); чтение логического уровня не доказывает напряжение, ток или повреждение платы. |
-| Нет локальных сессий Codex | Разрешите шесть хуков BroGlow в Codex `/hooks` и отправьте новый запрос в локальной задаче. Если Codex установлен после BroGlow, снова выполните `broglow install` ([настройка Codex]({{ repo_url }}/blob/HEAD/site/guide/ru/codex.md#codex-missing-hooks)). |
+| Нет локальных сессий Codex | Разрешите шесть хуков BroGlow в Codex `/hooks` и отправьте новый запрос в локальной задаче. Если Codex установлен после BroGlow, снова выполните `broglow install` ([настройка Codex]({{ repo_url }}/blob/HEAD/site/guide/ru/agents.md#codex-missing-hooks)). |
 | Команды цвета через последовательный порт игнорируются | Отключите Bluetooth. |
 | Лампа гаснет, когда Mac спит | Сработал десятисекундный тайм-аут; после пробуждения Mac переподключится и снова отправит статус. |
 | `unavailable` или нет значка | Проверьте launchd и журналы и восстановите существующую службу; никогда не запускайте вторую. |

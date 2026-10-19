@@ -113,7 +113,7 @@ untouched = "<!-- nothing to expand -->\n"
 assert (
     on_page_markdown(
         untouched,
-        page=SimpleNamespace(file=SimpleNamespace(src_uri="en/codex.md")),
+        page=SimpleNamespace(file=SimpleNamespace(src_uri="en/agents.md")),
         config=SimpleNamespace(repo_url="https://x", site_url="https://x/docs/"),
     )
     == untouched

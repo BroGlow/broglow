@@ -678,7 +678,7 @@ launch on an unconfigured Mac can install the hooks and login startup.
 
 ## Connect local Codex sessions
 
-Codex setup for users is in [Connect Codex]({{ repo_url }}/blob/HEAD/site/guide/en/codex.md#codex-setup). When an agent sets
+Codex setup for users is in [Connect Codex]({{ repo_url }}/blob/HEAD/site/guide/en/agents.md#codex-setup). When an agent sets
 up BroGlow, these rules apply:
 
 - Installing BroGlow adds six `codex-hook` entries to `$CODEX_HOME/hooks.json`
@@ -686,7 +686,7 @@ up BroGlow, these rules apply:
   `/hooks`; never fabricate trust hashes or bypass trust.
 - Never write Codex `config.toml`. Keep other hooks in place and in their order.
 - If Codex was installed after BroGlow, run `broglow install` again
-  ([missing hooks]({{ repo_url }}/blob/HEAD/site/guide/en/codex.md#codex-missing-hooks)).
+  ([missing hooks]({{ repo_url }}/blob/HEAD/site/guide/en/agents.md#codex-missing-hooks)).
 - `broglow ble status` and manual test events do not prove that Codex hooks work.
   Only a real local Codex task that shows **Working**, then **Paused** in BroGlow's
   session list does.
@@ -1013,7 +1013,7 @@ pinned toolchain.
 | Missing characteristic, or brightness needs an update | Confirm the board identity and capabilities; update the identified C3 with the documented flash procedure. |
 | Connected, but dark or wrong color | Check for 0% brightness, live sessions and **Settings → Mixed sessions**; disable Bluetooth and run the [wiring check](#check-the-wiring-before-connecting-broglow). An acknowledged write is not electrical proof. |
 | Faint LED, or one color dark | Disconnect power; check polarity, GPIO, resistor, contacts and the shared GND. Use the [standalone test](#standalone-led-test-firmware); its logic readback cannot prove voltage, current or board damage. |
-| No local Codex sessions | Trust the six BroGlow hooks in Codex `/hooks` and send a new prompt in a local task. If Codex was installed after BroGlow, run `broglow install` again ([Codex setup]({{ repo_url }}/blob/HEAD/site/guide/en/codex.md#codex-missing-hooks)). |
+| No local Codex sessions | Trust the six BroGlow hooks in Codex `/hooks` and send a new prompt in a local task. If Codex was installed after BroGlow, run `broglow install` again ([Codex setup]({{ repo_url }}/blob/HEAD/site/guide/en/agents.md#codex-missing-hooks)). |
 | Serial colors ignored | Disconnect Bluetooth. |
 | Light clears while the Mac sleeps | The ten-second timeout cleared it; after wake the Mac reconnects and resends. |
 | `unavailable`, or no tray icon | Check launchd and the logs and recover the existing service; never start a second tray. |

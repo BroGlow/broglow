@@ -57,7 +57,7 @@ plugins:
             Build: Сборка
             Install and connect: Установка и подключение
             Alternative installations: Другие способы установки
-            Codex: Codex
+            Coding agents: Coding-агенты
             Troubleshooting: Диагностика
             Reference: Справочники
             Maintainers: Для разработчиков
@@ -70,7 +70,7 @@ nav:
   - Build: index.md
   - Install and connect: installation.md
   - Alternative installations: alternatives.md
-  - Codex: codex.md
+  - Coding agents: agents.md
   - Troubleshooting: troubleshooting.md
   - Reference:
       - Hardware reference: hardware.md

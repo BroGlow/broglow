@@ -128,13 +128,14 @@ opens the optional terminal dashboard once `~/.cargo/bin` is on
 ## Connect your coding agents
 
 Installation always registers Claude Code hooks and adds hooks for other agents
-it detects; already-running sessions may need a restart.
+it detects; already-running sessions may need a restart. Details per agent:
+[Connect your coding agents](site/guide/en/agents.md).
 
 | Agent | Setup note |
 | --- | --- |
 | Claude Code | Hooks in `~/.claude/settings.json`. |
 | opencode | Installed plugin; restart running sessions. |
-| Codex | Codex >= 0.144; approve hooks via `/hooks`. [Connect Codex](site/guide/en/codex.md#codex-setup). |
+| Codex | Codex >= 0.144; approve hooks via `/hooks`. [Connect Codex](site/guide/en/agents.md#codex-setup). |
 | GitHub Copilot CLI | Installed hooks; restart sessions open during installation. |
 
 Cloud tasks and ordinary ChatGPT conversations do not trigger this Mac's local hooks.

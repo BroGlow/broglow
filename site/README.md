@@ -15,7 +15,7 @@ Edit Markdown sources; never edit or commit generated HTML.
 | Parts, models and wiring | `guide/en/index.md` | `guide/ru/index.md` |
 | Homebrew installation, PATH and Bluetooth | `guide/en/installation.md` | `guide/ru/installation.md` |
 | Mac package, source builds, Windows and Linux | `guide/en/alternatives.md` | `guide/ru/alternatives.md` |
-| Codex integration | `guide/en/codex.md` | `guide/ru/codex.md` |
+| Coding agents (Claude Code, Codex, opencode, Copilot) | `guide/en/agents.md` | `guide/ru/agents.md` |
 | Troubleshooting and agent prompt | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
 | Hardware reference | `guide/en/hardware.md` | `guide/ru/hardware.md` |
 | Firmware, releases, images, enclosure design | `guide/en/NAME.md` | `guide/ru/NAME.md` |

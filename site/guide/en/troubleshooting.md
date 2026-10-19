@@ -9,7 +9,7 @@ see the [troubleshooting table](hardware.md#troubleshooting-and-service-recovery
 
 Without live sessions, there is no steady session light; startup, pairing, unpaired-blink
 or waiting indications can still appear. Start a new local task in a supported agent.
-For Codex, follow the [Codex setup steps](codex.md) and check that the task appears in BroGlow.
+For Codex, follow the [Codex setup steps](agents.md#codex-setup) and check that the task appears in BroGlow.
 A question Codex asks in text ends the turn as **Paused**; only a permission request
 shows **Needs help** (red).
 
@@ -40,7 +40,7 @@ Want a hand? Paste this prompt into Claude Code or Codex on this Mac.
 My BroGlow lamp stays dark. Help me find out why.
 Follow {{ repo_url }}/blob/HEAD/site/guide/en/troubleshooting.md and
 {{ repo_url }}/blob/HEAD/site/guide/en/hardware.md#troubleshooting-and-service-recovery
-(for Codex also {{ repo_url }}/blob/HEAD/site/guide/en/codex.md).
+(for Codex also {{ repo_url }}/blob/HEAD/site/guide/en/agents.md#codex-setup).
 Check in order: a live local agent session appears in BroGlow; the menu-bar service runs
 (`broglow ble status`); Bluetooth is on and allowed for BroGlow; lamp updates are enabled;
 the intended lamp is Connected with brightness above 0%.

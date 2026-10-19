@@ -1,8 +1,50 @@
 <a href="../../">Back to the project</a>
 
+<a name="agents"></a>
+
+# Connect your coding agents
+
+`broglow install` registers hooks for Claude Code and for every other supported agent
+it finds on this computer. Only Codex asks you to confirm them. The proof that an
+agent is connected is a status change in BroGlow's session list, not a lit lamp.
+
+| Agent | What `broglow install` does | What you do |
+| --- | --- | --- |
+| Claude Code | Adds hooks to `~/.claude/settings.json`. | Nothing; new sessions report at once. |
+| Codex | Adds hooks to `$CODEX_HOME/hooks.json`. | [Trust them in `/hooks`](#codex-setup). |
+| opencode | Installs the plugin `~/.config/opencode/plugins/broglow.js`. | Restart running sessions. |
+| GitHub Copilot CLI | Writes `~/.copilot/hooks/broglow.json`. | Restart sessions open during installation. |
+
+Only tasks running on this computer are tracked: cloud or remote tasks and ordinary
+ChatGPT chats never reach the local BroGlow service. Each agent's status mapping is in
+the [hardware reference](hardware.md#connect-local-codex-sessions).
+
+<a name="claude-code"></a>
+
+## Claude Code
+
+Nothing to configure. Sessions in the terminal and in the Claude desktop app report
+their status from the next prompt on; clicking a session in BroGlow brings its
+terminal window or desktop conversation to the front.
+
+<a name="opencode"></a>
+
+## opencode
+
+opencode loads plugins at startup, so sessions that were already running when you
+installed BroGlow appear only after you restart them. If you install opencode later,
+run `broglow install` again to add the plugin.
+
+<a name="copilot"></a>
+
+## GitHub Copilot CLI
+
+Copilot reads its hooks when a session starts, so restart any session that was open
+during installation. If you install Copilot later, run `broglow install` again.
+
 <a name="codex-setup"></a>
 
-# Connect Codex
+## Codex
 
 Installing BroGlow adds hooks to `$CODEX_HOME/hooks.json` (default `~/.codex/hooks.json`),
 but Codex still needs your approval before running them.
@@ -29,7 +71,7 @@ but Codex still needs your approval before running them.
 
 <a name="codex-missing-hooks"></a>
 
-## If the BroGlow entries are missing
+### If the BroGlow entries are missing
 
 BroGlow adds the Codex hooks only if Codex was already installed when BroGlow was set up.
 If you installed Codex later, run `broglow install` again, then reopen `/hooks`.
@@ -39,18 +81,18 @@ Codex's `config.toml` yourself. BroGlow never edits that file.
 
 <a name="codex-no-session"></a>
 
-## If no session appears
+### If no session appears
 
 Existing sidebar tasks need a new prompt. If no session appears, finish active work,
 restart Codex and try again. A connected lamp does not prove that the hooks work; only
 a status change in BroGlow's session list does.
 
-This setup covers tasks running on this computer. Ordinary ChatGPT chats and cloud or
-remote tasks do not send events to the local BroGlow service.
+Ordinary ChatGPT chats and cloud or remote tasks do not send events to the local
+BroGlow service.
 
 <a name="codex-open-session"></a>
 
-## Return to a session
+### Return to a session
 
 Click a local Codex session (TUI: **Enter**) to return to it. On macOS, desktop tasks
 open directly in Codex using their task link, also when the app is named ChatGPT.
@@ -61,7 +103,7 @@ the task link in the installed Codex app.
 
 <a name="codex-session-names"></a>
 
-## Session names
+### Session names
 
 Until Codex saves a title, BroGlow names a session after the first ~50 characters of
 its first prompt. This also works for temporary side chats without a transcript.
@@ -74,7 +116,7 @@ stay the same. Hover over a session name to see its full saved title.
 
 <a name="codex-dismiss"></a>
 
-## Dismiss a session
+### Dismiss a session
 
 Use **×** beside a session (TUI: **x**) to dismiss it from BroGlow's list and lamp
 status. The Codex conversation stays intact. It reappears when Codex sends a new hook

@@ -9,7 +9,7 @@
 
 Без живых сессий постоянный свет статуса выключен; сигналы запуска, сопряжения, мигание
 без сопряжения и сигнал ожидания при этом возможны. Откройте новую локальную задачу
-в поддерживаемом агенте. Для Codex выполните [шаги настройки Codex](codex.md) и проверьте,
+в поддерживаемом агенте. Для Codex выполните [шаги настройки Codex](agents.md#codex-setup) и проверьте,
 что задача появилась в BroGlow. Если Codex задаёт вопрос текстом, ход заканчивается
 статусом **Paused**; **Needs help** (красный) появляется только при запросе разрешения.
 
@@ -41,7 +41,7 @@
 Моя лампа BroGlow не светится. Помоги выяснить почему.
 Следуй {{ repo_url }}/blob/HEAD/site/guide/ru/troubleshooting.md и
 {{ repo_url }}/blob/HEAD/site/guide/ru/hardware.md#troubleshooting-and-service-recovery
-(для Codex также {{ repo_url }}/blob/HEAD/site/guide/ru/codex.md).
+(для Codex также {{ repo_url }}/blob/HEAD/site/guide/ru/agents.md).
 Проверь по порядку: живая локальная сессия агента видна в BroGlow; служба в строке меню
 работает (`broglow ble status`); Bluetooth включён и разрешён для BroGlow; обновления лампы
 включены; нужная лампа в состоянии Connected, яркость выше 0%.
