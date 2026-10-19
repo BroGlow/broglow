@@ -276,6 +276,116 @@ fn unmapped_codex_events_touch_nothing() {
 }
 
 #[test]
+fn codex_transient_background_runs_do_not_become_paused_chats() {
+    let home = temp_home();
+    run_codex_hook(&home, &ev("SessionStart", "real-chat")).success();
+    let original = read_state(&home);
+    for transcript in [Value::Null, json!("")] {
+        for event in [
+            "SessionStart",
+            "UserPromptSubmit",
+            "PreToolUse",
+            "PostToolUse",
+            "Stop",
+        ] {
+            run_codex_hook(
+                &home,
+                &json!({
+                    "hook_event_name": event, "session_id": "background",
+                    "transcript_path": transcript,
+                    "prompt": "This is an app-generated request for a suggested next task.",
+                })
+                .to_string(),
+            )
+            .success();
+            assert_eq!(read_state(&home), original, "{event}: {transcript}");
+        }
+    }
+    // A row left by an older BroGlow is removed on its next real hook.
+    command(&home)
+        .arg("event")
+        .write_stdin(
+            json!({"harness": "codex", "event": "idle", "session_id": "background"}).to_string(),
+        )
+        .assert()
+        .success();
+    run_codex_hook(
+        &home,
+        &json!({"hook_event_name": "Stop", "session_id": "background", "transcript_path": null})
+            .to_string(),
+    )
+    .success();
+    assert_eq!(read_state(&home), original);
+    // Subagent lifecycle events refer to the parent id and must not remove it.
+    run_codex_hook(&home, &json!({"hook_event_name": "SubagentStop", "session_id": "real-chat", "transcript_path": null}).to_string()).success();
+    assert_eq!(read_state(&home), original);
+}
+
+#[test]
+fn codex_internal_rollouts_do_not_become_paused_chats() {
+    let home = temp_home();
+    run_codex_hook(&home, &ev("SessionStart", "real-chat")).success();
+    let original = read_state(&home);
+    let rollout = home.path().join("internal.jsonl");
+    for metadata in [
+        json!({"source": {"subagent": {"other": "guardian"}}, "thread_source": "guardian_review"}),
+        json!({"source": {"subagent": {"thread_spawn": {"parent_thread_id": "real-chat", "depth": 1}}}}),
+        json!({"source": "vscode", "thread_source": "subagent"}),
+    ] {
+        std::fs::write(
+            &rollout,
+            json!({"type": "session_meta", "payload": metadata}).to_string(),
+        )
+        .unwrap();
+        for event in [
+            "SessionStart",
+            "UserPromptSubmit",
+            "PreToolUse",
+            "PostToolUse",
+            "Stop",
+        ] {
+            run_codex_hook(
+                &home,
+                &ev_with_transcript(event, "internal", rollout.to_str().unwrap()),
+            )
+            .success();
+            assert_eq!(read_state(&home), original, "{event}: {metadata}");
+        }
+    }
+}
+
+#[test]
+fn codex_saved_chats_keep_working_when_metadata_is_incomplete_or_unfamiliar() {
+    let home = temp_home();
+    let rollout = home.path().join("saved.jsonl");
+    for metadata in [
+        json!({"source": "cli"}),
+        json!({"source": "vscode", "thread_source": "user"}),
+        json!({"source": "vscode", "thread_source": "agent_created_thread"}),
+        json!({"source": "vscode", "thread_source": "future_source"}),
+        Value::Null,
+    ] {
+        std::fs::write(
+            &rollout,
+            json!({"type": "session_meta", "payload": metadata}).to_string(),
+        )
+        .unwrap();
+        run_codex_hook(
+            &home,
+            &ev_with_transcript("SessionStart", "saved", rollout.to_str().unwrap()),
+        )
+        .success();
+        assert_eq!(session(&read_state(&home), "saved")["status"], "active");
+        run_codex_hook(
+            &home,
+            &ev_with_transcript("Stop", "saved", rollout.to_str().unwrap()),
+        )
+        .success();
+        assert_eq!(session(&read_state(&home), "saved")["status"], "inactive");
+    }
+}
+
+#[test]
 fn exec_rollouts_end_on_stop_interactive_ones_idle() {
     let home = temp_home();
     let sessions_dir = codex_home(&home).join("sessions").join("2026/07/20");
@@ -309,29 +419,27 @@ fn exec_rollouts_end_on_stop_interactive_ones_idle() {
 }
 
 #[test]
-fn prompt_names_sessions_before_stop_without_a_transcript() {
+fn prompt_names_sessions_before_stop_when_the_rollout_is_not_ready() {
     let home = temp_home();
     let prompt = format!("  \n Explain\t{}\nplease  ", "🦀日本語 ".repeat(12));
     let expected =
         "Explain 🦀日本語 🦀日本語 🦀日本語 🦀日本語 🦀日本語 🦀日本語 🦀日本語 🦀日本語...";
 
-    // Both ephemeral sessions and sessions whose rollout is not available yet.
+    // A not-yet-readable path does not make a saved session a background job.
     for (id, transcript) in [
-        ("ephemeral", Value::Null),
-        ("normal", json!("/missing/rollout.jsonl")),
+        ("legacy", None),
+        ("normal", Some(json!("/missing/rollout.jsonl"))),
     ] {
         let submit = |prompt: Value| {
-            run_codex_hook(
-                &home,
-                &json!({
-                    "hook_event_name": "UserPromptSubmit",
-                    "session_id": id,
-                    "transcript_path": transcript,
-                    "prompt": prompt,
-                })
-                .to_string(),
-            )
-            .success();
+            let mut payload = json!({
+                "hook_event_name": "UserPromptSubmit",
+                "session_id": id,
+                "prompt": prompt,
+            });
+            if let Some(transcript) = &transcript {
+                payload["transcript_path"] = transcript.clone();
+            }
+            run_codex_hook(&home, &payload.to_string()).success();
         };
         run_codex_hook(&home, &ev("SessionStart", id)).success();
         for blank in [Value::Null, json!(42), json!(" \n\t ")] {

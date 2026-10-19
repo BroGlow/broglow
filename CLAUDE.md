@@ -234,6 +234,11 @@ thin:
   other `PostToolUse` events resume permission waits. `request_user_input_async`
   returns as soon as the question is displayed, so it stays red through tool
   completion and `Stop` until `UserPromptSubmit`, `Interrupt` or `SessionEnd`.
+  Hooks with an explicit null/empty `transcript_path` are unsaved runs and are
+  ignored, as are rollouts with `source.subagent` or `thread_source` equal to
+  `subagent`/`guardian_review`. A subsequent hook removes any old Codex row for
+  that run. An omitted path or unreadable/unknown metadata stays compatible;
+  saved scheduled tasks and agent-created top-level chats remain monitored.
   `Interrupt` → `idle`, `SessionEnd` → `ended`, and `Stop` → `idle` — or `ended` for
   one-shot `codex exec` rollouts. Older Codex versions retain the owner-pid reap backstop.
   On macOS, `session_meta.originator: Codex Desktop` repairs captured terminal identity

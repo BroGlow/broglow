@@ -294,15 +294,32 @@ pub fn approval_is_automatic(transcript_path: &str, turn_id: Option<&str>) -> bo
 /// app was launched from a shell or IDE. `source: vscode` alone is ambiguous.
 #[cfg(target_os = "macos")]
 pub fn rollout_is_desktop(transcript_path: &str) -> bool {
-    let Ok(file) = File::open(transcript_path) else {
-        return false;
-    };
-    let mut line = String::new();
-    if BufReader::new(file).read_line(&mut line).is_err() {
-        return false;
+    rollout_metadata(transcript_path).is_some_and(|v| v["originator"] == "Codex Desktop")
+}
+
+/// Unsaved app jobs have no transcript to reopen. Internal agents and approval
+/// reviewers can have rollouts, but belong to their parent chat's status.
+/// An omitted path or unreadable metadata is inconclusive on older Codex builds.
+pub fn hook_is_background(v: &Value) -> bool {
+    match v.get("transcript_path") {
+        Some(Value::Null) => true,
+        Some(Value::String(path)) if path.is_empty() => true,
+        Some(Value::String(path)) => rollout_metadata(path).is_some_and(|meta| {
+            meta["source"].get("subagent").is_some()
+                || matches!(
+                    meta["thread_source"].as_str(),
+                    Some("subagent" | "guardian_review")
+                )
+        }),
+        _ => false,
     }
-    serde_json::from_str::<Value>(&line)
-        .is_ok_and(|v| v["type"] == "session_meta" && v["payload"]["originator"] == "Codex Desktop")
+}
+
+fn rollout_metadata(transcript_path: &str) -> Option<Value> {
+    let file = File::open(transcript_path).ok()?;
+    let line = BufReader::new(file).lines().next()?.ok()?;
+    let mut v: Value = serde_json::from_str(&line).ok()?;
+    (v["type"] == "session_meta").then(|| v["payload"].take())
 }
 
 /// Session id → thread name from Codex's `session_index.jsonl`. Codex titles

@@ -50,6 +50,11 @@ next prompt on.
    pauses it; ending the session removes it from live status. Other live sessions and
    the **Settings → Mixed sessions** choice also affect the lamp's color.
 
+Unsaved background jobs and internal subagents or approval reviewers do not appear
+as separate chats or affect the lamp. Saved scheduled chats remain monitored.
+Dismiss any paused background entries left by an older BroGlow once; dismissing
+a BroGlow row does not delete the Codex chat.
+
 <a name="codex-missing-hooks"></a>
 
 ### If the BroGlow entries are missing

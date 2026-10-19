@@ -281,7 +281,13 @@ Claude Code вызывает хук → `broglow hook` читает JSON соб�
   `UserPromptSubmit` возобновляет работу; остальные `PostToolUse` снимают ожидание
   разрешения. `request_user_input_async` возвращается сразу после показа вопроса,
   поэтому красный сохраняется после завершения инструмента и `Stop` до
-  `UserPromptSubmit`, `Interrupt` или `SessionEnd`. `Interrupt` → `idle`,
+  `UserPromptSubmit`, `Interrupt` или `SessionEnd`.
+  Хуки с явно null/пустым `transcript_path` относятся к несохранённым запускам и
+  игнорируются, как и журналы с `source.subagent` или `thread_source`, равным
+  `subagent`/`guardian_review`. Следующий хук удаляет старую строку Codex такого
+  запуска. Отсутствующее поле пути и нечитаемые/неизвестные метаданные сохраняют
+  совместимость; сохранённые задачи по расписанию и самостоятельные чаты,
+  созданные агентом, продолжают отслеживаться. `Interrupt` → `idle`,
   `SessionEnd` → `ended`, `Stop` → `idle` либо `ended` для одноразовых запусков
   `codex exec`. Для старых версий Codex остаётся очистка по PID владельца.
   На macOS `session_meta.originator: Codex Desktop` исправляет сохранённый

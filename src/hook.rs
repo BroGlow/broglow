@@ -653,6 +653,25 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
     let cwd = field("cwd");
     let transcript_path = field("transcript_path").unwrap_or_default();
 
+    if codex_event_verb(&hook_event, false).is_none() {
+        return Ok(());
+    }
+    if crate::codex::hook_is_background(&v) {
+        // Remove a row left by an older adapter without touching other agents.
+        return update_state(|state| {
+            if state
+                .sessions
+                .get(&session_id)
+                .is_some_and(|s| s.harness.as_deref() == Some("codex"))
+            {
+                state.sessions.remove(&session_id);
+                true
+            } else {
+                false
+            }
+        });
+    }
+
     if hook_event == "PermissionRequest"
         && crate::codex::approval_is_automatic(&transcript_path, field("turn_id").as_deref())
     {
@@ -713,7 +732,7 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
     let terminal = None;
     ingest_event(&ev, terminal)?;
 
-    // Prompt hooks also work for ephemeral chats, which have no rollout.
+    // Prompt hooks can name a saved chat before its rollout is readable.
     // Name once; later Codex titles still win through the title path above.
     if title.is_none() {
         let prompt = match hook_event.as_str() {
