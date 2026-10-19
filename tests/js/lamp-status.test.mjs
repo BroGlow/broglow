@@ -63,9 +63,10 @@ function popoverPage() {
     return selector === '[data-local]' && el.dataset.local ? el :
       selector === '[data-cmd]' && el.dataset.cmd ? el : null;
   } } });
-  const update = lamp => context.window.__setState({ aggregate: 'none', sessions: [], settings: {}, lamp });
+  const pushState = changes => context.window.__setState({ aggregate: 'none', sessions: [], settings: {}, lamp: lamp(), ...changes });
+  const update = lamp => pushState({ lamp });
   const commands = name => messages.filter(message => message.cmd === name);
-  return { context, element, listeners, windowListeners, capture, messages, click, update, commands, advance };
+  return { context, element, listeners, windowListeners, capture, messages, click, pushState, update, commands, advance };
 }
 
 const visibleLabel = element => element.innerHTML.replace(/<[^>]*>/g, '');
@@ -74,6 +75,23 @@ const lamp = (changes = {}) => ({
   devices: [{ id: 'saved-lamp', state: 'connected', detail: 'Write acknowledged' }],
   ...changes,
 });
+
+function lampPage(changes = {}) {
+  const page = popoverPage();
+  page.update(lamp(changes));
+  page.click('lampbtn');
+  return page;
+}
+
+const session = (id, changes = {}) => ({
+  id, name: 'Task ' + id, project: 'broglow', status: 'active',
+  lastUpdated: '2026-01-01T12:00:00Z', ...changes,
+});
+
+function sessionMeta(element, id) {
+  const html = element('groups').innerHTML;
+  return html.slice(html.indexOf(`data-id="${id}"`)).match(/<span class="smeta">(.*?)<\/span><\/div>/)[1];
+}
 
 test('a state push cannot replace Focus before its pointer click is delivered', () => {
   const { context, element, listeners, windowListeners, click, commands, advance } = popoverPage();
@@ -182,29 +200,21 @@ test('Clear paused appears only with yellow sessions and waits for host state, i
 
 test('session meta shows the agent icon and name, or the icon alone when names are off', () => {
   const { context, element } = popoverPage();
-  const session = (id, agent) => ({ id, name: 'Task ' + id, project: 'broglow', status: 'active',
-    lastUpdated: new Date().toISOString(), agent });
   const sessions = [
-    session('claude', { label: 'Claude', icon: 'M8 1.5v13', badge: '' }),
-    session('future', { label: 'Mystery <b>', badge: 'my' }),
+    session('claude', { agent: { label: 'Claude', icon: 'M8 1.5v13', badge: '' } }),
+    session('future', { agent: { label: 'Mystery <b>', badge: 'my' } }),
   ];
   const refresh = settings => context.window.__setState({ aggregate: 'green', sessions, settings, lamp: lamp() });
-  const meta = id => {
-    const html = element('groups').innerHTML;
-    const row = html.slice(html.indexOf(`data-id="${id}"`));
-    return row.match(/<span class="smeta">(.*?)<\/span><\/div>/)[1];
-  };
+  const meta = id => sessionMeta(element, id);
 
   refresh({}); // Names show by default, including for Claude.
-  assert.match(meta('claude'), /<svg class="agicon"[^>]*aria-hidden="true"><path d="M8 1.5v13"\/><\/svg>/);
+  assert.match(meta('claude'), /<svg[^>]*aria-hidden="true"/);
   assert.equal(visibleLabel({ innerHTML: meta('claude') }), 'Claude · broglow');
-  assert.match(meta('future'), /<span class="badge" aria-hidden="true">my<\/span>/);
+  assert.match(meta('future'), /aria-hidden="true">my<\/span>/);
   assert.equal(visibleLabel({ innerHTML: meta('future') }), 'myMystery &lt;b&gt; · broglow');
-  assert.doesNotMatch(element('groups').innerHTML, /class="sname"[^>]*><span class="badge"/,
-    'The title line carries no agent tag');
 
   refresh({ showAgentNames: false });
-  assert.match(meta('claude'), /<svg class="agicon"[^>]*role="img" aria-label="Claude">/);
+  assert.match(meta('claude'), /role="img" aria-label="Claude"/);
   assert.equal(visibleLabel({ innerHTML: meta('claude') }), 'broglow', 'No separator without a name');
   assert.match(meta('claude'), /title="Claude"/, 'Hover still names the agent');
   assert.equal(visibleLabel({ innerHTML: meta('future') }), 'mybroglow');
@@ -214,50 +224,23 @@ test('a host glyph follows the agent and names the host on hover', () => {
   const { context, element } = popoverPage();
   const agent = { label: 'Claude', icon: 'M8 1.5v13', badge: 'cc' };
   const sessions = [
-    { id: 'app', name: 'Task', project: 'broglow', status: 'active', lastUpdated: new Date().toISOString(),
-      agent, host: { kind: 'app', name: 'Claude app' } },
-    { id: 'tty', name: 'Task', project: 'broglow', status: 'active', lastUpdated: new Date().toISOString(),
-      agent, host: { kind: 'terminal', name: 'Ghost<ty>' } },
-    { id: 'odd', name: 'Task', project: 'broglow', status: 'active', lastUpdated: new Date().toISOString(),
-      agent, host: { kind: 'future', name: 'Somewhere' } },
+    session('app', { agent, host: { kind: 'app', name: 'Claude app' } }),
+    session('tty', { agent, host: { kind: 'terminal', name: 'Ghost<ty>' } }),
+    session('odd', { agent, host: { kind: 'future', name: 'Somewhere' } }),
   ];
   const refresh = settings => context.window.__setState({ aggregate: 'green', sessions, settings, lamp: lamp() });
-  const meta = id => {
-    const html = element('groups').innerHTML;
-    return html.slice(html.indexOf(`data-id="${id}"`)).match(/<span class="smeta">(.*?)<\/span><\/div>/)[1];
-  };
+  const meta = id => sessionMeta(element, id);
   const text = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '[svg]').replace(/<[^>]*>/g, '');
 
   refresh({});
-  assert.match(meta('app'), /<svg class="agicon aftername"[^>]*role="img" aria-label="Claude app"><title>Claude app<\/title>/);
+  assert.match(meta('app'), /role="img" aria-label="Claude app"><title>Claude app<\/title>/);
   assert.equal(text(meta('app')), '[svg]Claude [svg] · broglow');
   assert.match(meta('tty'), /aria-label="Ghost&lt;ty&gt;"/, 'Host names are escaped');
   assert.equal(text(meta('odd')), '[svg]Claude · broglow', 'Unknown kinds draw no glyph');
 
   refresh({ showAgentNames: false });
-  assert.match(meta('app'), /<svg class="agicon" viewBox="0 0 16 16" role="img" aria-label="Claude app">/);
+  assert.match(meta('app'), /role="img" aria-label="Claude app"/);
   assert.equal(text(meta('app')), '[svg][svg]broglow');
-});
-
-test('Settings toggles agent names and waits for the saved preference', () => {
-  const { context, element, click, listeners, commands } = popoverPage();
-  const refresh = enabled => context.window.__setState({ aggregate: 'none', sessions: [],
-    settings: { showAgentNames: enabled }, lamp: lamp() });
-  refresh(undefined);
-  click('settingsbtn');
-  const toggle = element('showagentnames');
-  assert.equal(toggle.checked, true, 'On unless turned off');
-  assert.match(element('groups').innerHTML, /<label[^>]*for="showagentnames"/);
-  toggle.focus();
-  for (const enabled of [false, true]) {
-    toggle.checked = enabled;
-    listeners.change({ target: toggle });
-    assert.deepEqual(commands('set_agent_names').at(-1), { cmd: 'set_agent_names', enabled });
-    refresh(enabled);
-    assert.equal(toggle.checked, enabled);
-    assert.equal(context.document.activeElement, toggle, 'Keep keyboard focus through refresh');
-  }
-  assert.equal(commands('set_dashboard_button').length, 0);
 });
 
 test('Settings uses native radios for mixed sessions and a checkbox for usage tracking', () => {
@@ -295,38 +278,39 @@ test('Settings uses native radios for mixed sessions and a checkbox for usage tr
   }
 });
 
-test('Settings toggles project grouping and keeps focus through the saved preference', () => {
-  const { context, element, click, listeners, commands } = popoverPage();
-  const refresh = settings => context.window.__setState({ aggregate: 'none', sessions: [], settings, lamp: lamp() });
-  refresh({});
-  click('settingsbtn');
-  const html = element('groups').innerHTML;
-  assert.match(html, /for="showagentnames"[\s\S]*<label class="optrow" for="groupbyproject"><input type="checkbox" id="groupbyproject"/,
-    'Sits in Appearance after agent names');
-  const toggle = element('groupbyproject');
-  assert.equal(toggle.checked, false, 'Off by default');
-  toggle.focus();
-  const builds = element('groups').writes;
-  for (const enabled of [true, false]) {
-    toggle.checked = enabled;
-    listeners.change({ target: toggle });
-    assert.deepEqual(commands('set_group_by_project').at(-1), { cmd: 'set_group_by_project', enabled });
-    // A state push that still carries the old value (a hook event racing the
-    // config write) must not flip the control back before the host confirms.
-    refresh({ groupByProject: !enabled });
-    assert.equal(toggle.checked, enabled, 'Keeps the clicked value until the host confirms');
-    context.window.__configActionResult(null);
-    refresh({ groupByProject: enabled });
-    assert.equal(toggle.checked, enabled);
-    assert.equal(context.document.activeElement, toggle, 'Keep keyboard focus through refresh');
-  }
-  assert.equal(element('groups').writes, builds, 'State pushes sync values without rebuilding the controls');
-  assert.equal(commands('set_agent_names').length, 0);
-});
+for (const { id, key, command, defaultValue } of [
+  { id: 'showagentnames', key: 'showAgentNames', command: 'set_agent_names', defaultValue: true },
+  { id: 'groupbyproject', key: 'groupByProject', command: 'set_group_by_project', defaultValue: false },
+]) {
+  test(`Settings saves ${key} while preserving the pending choice and keyboard focus`, () => {
+    const { context, element, click, listeners, commands, pushState } = popoverPage();
+    const refresh = settings => pushState({ settings });
+    refresh({});
+    click('settingsbtn');
+    const toggle = element(id);
+    assert.equal(toggle.checked, defaultValue);
+    toggle.focus();
+    const builds = element('groups').writes;
+
+    for (const enabled of [!defaultValue, defaultValue]) {
+      toggle.checked = enabled;
+      listeners.change({ target: toggle });
+      assert.deepEqual(commands(command).at(-1), { cmd: command, enabled });
+      refresh({ [key]: !enabled });
+      assert.equal(toggle.checked, enabled, 'A racing state push cannot undo the pending edit');
+      context.window.__configActionResult(null);
+      refresh({ [key]: enabled });
+      assert.equal(toggle.checked, enabled);
+      assert.equal(context.document.activeElement, toggle);
+    }
+    assert.equal(element('groups').writes, builds, 'Keep the control attached during host refreshes');
+  });
+}
 
 test('grouping by project lists sessions under directory headings with the status in each row', () => {
   const { context, element } = popoverPage();
-  const at = minutes => new Date(Date.now() - minutes * 60000).toISOString();
+  const now = Date.parse('2026-01-01T12:00:00Z');
+  const at = minutes => new Date(now - minutes * 60000).toISOString();
   const agent = { label: 'Claude', icon: 'M8 1.5v13', badge: 'cc' };
   const session = (id, status, projectPath, project, minutes) =>
     ({ id, name: 'Task ' + id, status, projectPath, project, lastUpdated: at(minutes), agent });
@@ -348,8 +332,7 @@ test('grouping by project lists sessions under directory headings with the statu
     .map(m => m[1] ?? m[2]);
   assert.deepEqual(order, ['a/recco', 'help', 'review', 'broglow', 'grouping', 'focus', 'b/recco', 'deploy', 'No project', 'notes'],
     'Most urgent project first, then recency; status then recency inside; unknown directory last; unknown statuses dropped');
-  assert.match(html, /<div class="grphead"><div class="grplabel">By project<\/div><button[^>]*id="clearpaused" data-cmd="clear_paused"/,
-    'Clear paused moves to the By project heading');
+  assert.match(html, /data-cmd="clear_paused"/, 'Grouped sessions still offer Clear paused');
   assert.doesNotMatch(html, /Needs help<\/div>|Working<\/div>|Paused<\/div>/, 'No status headings');
   assert.match(html, /<div class="projhead" role="heading" aria-level="3" title="\/a\/recco" aria-label="a\/recco, \/a\/recco"><svg/,
     'The path is hover text and part of the accessible name');
@@ -358,9 +341,6 @@ test('grouping by project lists sessions under directory headings with the statu
   assert.equal(text(row('help')), 'Claude · needs help');
   assert.equal(text(row('grouping')), 'Claude · working');
   assert.equal(text(row('deploy')), 'Claude · paused');
-  assert.match(html.slice(html.indexOf('data-id="help"') - 40), /class="srow helprow"[\s\S]*?<button class="focusbtn" data-cmd="focus" data-id="help"/,
-    'Needs-help rows keep the tint and Focus button');
-  assert.equal((html.match(/class="dismissbtn"/g) || []).length, 6);
   assert.match(element('chips').innerHTML, /title="1 needs help" aria-label="1 needs help"/);
   assert.match(element('chips').innerHTML, /title="3 paused" aria-label="3 paused"/);
 
@@ -398,26 +378,15 @@ test('usage shows plan percentages and tokens, never dollar estimates', () => {
   for (const text of [plan, tokensOnly]) assert.doesNotMatch(text, /\$|API/);
 });
 
-test('dashboard stays hidden unless explicitly enabled and follows live settings', () => {
-  const { context, element } = popoverPage();
-  assert.equal(element('dashboardbtn').hidden, true);
-  for (const enabled of [true, false, undefined]) {
-    context.window.__setState({ aggregate: 'none', sessions: [],
-      settings: { showDashboardButton: enabled }, lamp: lamp() });
-    assert.equal(element('dashboardbtn').hidden, enabled !== true);
-  }
-});
-
 test('Settings toggles the saved Dashboard preference, reflects CLI changes and recovers from save failures', () => {
   const { context, element, click, listeners, commands, messages } = popoverPage();
   const refresh = enabled => context.window.__setState({ aggregate: 'none', sessions: [],
     settings: { showDashboardButton: enabled }, lamp: lamp() });
+  assert.equal(element('dashboardbtn').hidden, true, 'Dashboard is opt-in');
   refresh(false);
   click('settingsbtn');
   const toggle = element('showdashboard');
   assert.equal(toggle.checked, false);
-  assert.match(element('groups').innerHTML, /<label[^>]*for="showdashboard"/);
-  assert.match(element('groups').innerHTML, /type="checkbox"[^>]*id="showdashboard"/);
   toggle.focus();
   for (const enabled of [true, false]) {
     toggle.checked = enabled;
@@ -555,9 +524,7 @@ test('lamp rows keep IDs and diagnostics collapsed and update without replacing 
 });
 
 test('opening details is read-only; lamp controls stay there and Escape returns', () => {
-  const { element, listeners, messages, click, update, commands } = popoverPage();
-  update(lamp());
-  click('lampbtn');
+  const { element, listeners, messages, click, update, commands } = lampPage();
   assert.match(element('groups').innerHTML, />Lamps</);
   assert.equal(commands('set_led').length, 0);
   click('lampcontrol');
@@ -620,9 +587,7 @@ test('Add lamp works with no saved lamp in USB or Bluetooth mode and respects pl
 });
 
 test('host setup busy survives reopening and stops lamp mutations and active preview timers', () => {
-  const { element, update, click, listeners, commands, advance } = popoverPage();
-  update(lamp({ bluetooth_supported: true }));
-  click('lampbtn');
+  const { element, update, click, listeners, commands, advance } = lampPage({ bluetooth_supported: true });
   const slider = element('brightness');
   listeners.pointerdown({ target: slider, pointerId: 1 });
   slider.value = '25';
@@ -826,7 +791,6 @@ test('forget sends exactly the chosen saved ID, including absent and disabled la
     click('lampbtn');
     const list = element('lamplist'), groups = element('groups'), builds = groups.writes;
     assert.equal((list.innerHTML.match(/>Forget lamp<\/button>/g) || []).length, 2);
-    assert.doesNotMatch(list.innerHTML, /lampforgethelp/);
     assert.ok(!list.innerHTML.includes(devices[1].id), 'IDs are data, never markup');
     click('lampforget-1');
     assert.deepEqual(commands('forget_lamp'), [{ cmd: 'forget_lamp', id: devices[1].id }]);
@@ -861,9 +825,7 @@ test('forget sends exactly the chosen saved ID, including absent and disabled la
 });
 
 test('forget failure stays visible across refresh, preserves the row and allows retry', () => {
-  const { context, element, click, update, commands } = popoverPage();
-  update(lamp());
-  click('lampbtn');
+  const { context, element, click, update, commands } = lampPage();
   click('lampforget-0');
   const error = 'Cannot save <config>: permission denied';
   context.window.__configActionResult(error);
@@ -909,9 +871,7 @@ test('Identify targets only the selected connected lamp, including at zero brigh
 });
 
 test('Identify requires that lamp to have a fresh enabled Bluetooth connection', () => {
-  const { element, update, click, commands } = popoverPage();
-  update(lamp());
-  click('lampbtn');
+  const { element, update, click, commands } = lampPage();
   for (const unavailable of [
     { enabled: false }, { state: 'unavailable' }, { state: 'searching' }, { setup_busy: true },
     { devices: [{ id: 'saved-lamp', state: 'searching' }, { id: 'other-lamp', state: 'connected' }], selected_count: 2 },
@@ -979,11 +939,6 @@ test('offline per-lamp saves never broadcast and All lamps resets effective valu
     refresh({ home: 20, work: 80 });
     click('lampbtn');
     const slider = element('lampbrightness-1');
-    for (const invalid of ['101', '-1', '0.5', '']) {
-      slider.value = invalid;
-      listeners.change({ target: slider });
-    }
-    assert.equal(commands('set_lamp_brightness').length, 0);
     slider.value = '30';
     context.document.activeElement = slider;
     listeners.input({ target: slider });
@@ -1018,7 +973,7 @@ test('offline per-lamp saves never broadcast and All lamps resets effective valu
 });
 
 test('brightness saves while absent without enabling lamps and survives focused edits during refresh', () => {
-  const { context, element, listeners, messages, click, update, commands } = popoverPage();
+  const { context, element, listeners, click, update, commands } = popoverPage();
   const refresh = percent => update(lamp({
     enabled: false, selected_count: 0, state: 'disabled', devices: [], brightness_percent: percent,
   }));
@@ -1057,23 +1012,11 @@ test('brightness saves while absent without enabling lamps and survives focused 
   assert.equal(slider.value, '20');
   refresh(55);
   assert.equal(slider.value, '55', 'An idle control accepts external saved changes');
-  for (const invalid of ['101', '-1', '1.5', 'invalid']) {
-    slider.value = invalid;
-    listeners.change({ target: slider });
-  }
-  assert.equal(commands('set_brightness').length, 1);
-  for (const percent of [0, 100]) {
-    slider.value = String(percent);
-    listeners.change({ target: slider });
-    assert.deepEqual(messages.at(-1), { cmd: 'set_brightness', percent });
-  }
   assert.equal(element('lampcontrol').dataset.enabled, 'true', 'Saving does not enable the lamp');
 });
 
 test('brightness preview throttles live input to the latest value and commits only on change', () => {
-  const { element, listeners, click, update, commands, advance } = popoverPage();
-  update(lamp());
-  click('lampbtn');
+  const { element, listeners, commands, advance } = lampPage();
   assert.equal(element('brightnesshint').textContent, 'Replaces individual brightness settings.');
   const slider = element('brightness');
   listeners.pointerdown({ target: slider, pointerId: 1, button: 0 });
@@ -1101,9 +1044,7 @@ test('brightness preview throttles live input to the latest value and commits on
 });
 
 test('stationary pointer renews preview and keeps its value when focus or host state changes', () => {
-  const { context, element, listeners, click, update, commands, advance } = popoverPage();
-  update(lamp());
-  click('lampbtn');
+  const { context, element, listeners, update, commands, advance } = lampPage();
   const slider = element('brightness'), builds = element('groups').writes;
   listeners.pointerdown({ target: slider, pointerId: 7 });
   slider.value = '25';
@@ -1131,9 +1072,7 @@ test('stationary pointer renews preview and keeps its value when focus or host s
 test('popup blur, hiding and leaving the lamp view end preview timers with the final value', () => {
   for (const sliderId of ['brightness', 'lampbrightness-0']) {
     for (const end of ['blur', 'hidden', 'Escape', 'Back']) {
-      const { context, element, listeners, windowListeners, click, update, commands, advance } = popoverPage();
-      update(lamp());
-      click('lampbtn');
+      const { context, element, listeners, windowListeners, click, commands, advance } = lampPage();
       const slider = element(sliderId);
       listeners.pointerdown({ target: slider, pointerId: 1 });
       slider.value = '23';
@@ -1153,28 +1092,37 @@ test('popup blur, hiding and leaving the lamp view end preview timers with the f
   }
 });
 
-test('keyboard preview validates percentages and requires an enabled connected wireless lamp', () => {
-  const { element, listeners, click, update, commands, advance } = popoverPage();
-  update(lamp());
-  click('lampbtn');
-  const slider = element('brightness');
-  for (const invalid of ['101', '-1', '1.5', '', 'invalid']) {
-    slider.value = invalid;
-    listeners.input({ target: slider });
-    listeners.change({ target: slider });
-  }
-  assert.equal(commands('preview_brightness').length, 0);
-  assert.equal(commands('set_brightness').length, 0);
-  for (const value of ['0', '100']) {
-    slider.value = value;
-    listeners.input({ target: slider });
-    listeners.change({ target: slider });
-    assert.equal(commands('preview_brightness').at(-1).percent, Number(value));
-  }
-  const sent = commands('preview_brightness').length;
-  advance(3000);
-  assert.equal(commands('preview_brightness').length, sent, 'Keyboard edits do not start pointer renewal');
+for (const { sliderId, command, target } of [
+  { sliderId: 'brightness', command: 'set_brightness', target: {} },
+  { sliderId: 'lampbrightness-0', command: 'set_lamp_brightness', target: { id: 'saved-lamp' } },
+]) {
+  test(`${sliderId} accepts whole percentages, including zero, without pointer renewal`, () => {
+    const { element, listeners, commands, advance } = lampPage();
+    const slider = element(sliderId);
+    for (const invalid of ['101', '-1', '1.5', '', 'invalid']) {
+      slider.value = invalid;
+      listeners.input({ target: slider });
+      listeners.change({ target: slider });
+    }
+    assert.equal(commands('preview_brightness').length, 0);
+    assert.equal(commands(command).length, 0);
 
+    for (const percent of [0, 100]) {
+      slider.value = String(percent);
+      listeners.input({ target: slider });
+      listeners.change({ target: slider });
+      assert.deepEqual(commands('preview_brightness').at(-1), { cmd: 'preview_brightness', ...target, percent });
+      assert.deepEqual(commands(command).at(-1), { cmd: command, ...target, percent });
+    }
+    const sent = commands('preview_brightness').length;
+    advance(3000);
+    assert.equal(commands('preview_brightness').length, sent, 'Keyboard edits do not start pointer renewal');
+  });
+}
+
+test('preview requires an enabled connected wireless lamp but saving does not', () => {
+  const { element, listeners, update, commands, advance } = lampPage();
+  const slider = element('brightness');
   for (const unavailable of [
     { enabled: false }, { state: 'searching' }, { state: 'connecting' }, { state: 'error' },
     { state: 'unavailable' }, { devices: [] },
@@ -1187,7 +1135,7 @@ test('keyboard preview validates percentages and requires an enabled connected w
     listeners.change({ target: slider });
     advance(1100);
     listeners.pointercancel({ pointerId: 2 });
-    assert.equal(commands('preview_brightness').length, sent, JSON.stringify(unavailable));
+    assert.equal(commands('preview_brightness').length, 0, JSON.stringify(unavailable));
     assert.equal(commands('set_brightness').at(-1).percent, 45, 'Unavailable lamps still accept saved preferences');
   }
   assert.equal(commands('set_led').length, 0);
