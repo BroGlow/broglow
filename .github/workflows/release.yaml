@@ -4,7 +4,7 @@ on:
   push:
     tags:
       - "v*"
-      # The inherited v0.* tags belong to the pre-BroGlow history.
+      # Releases start at v1.0.0; v0.* tags never publish.
       - "!v0.*"
 
 permissions:
