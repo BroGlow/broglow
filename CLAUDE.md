@@ -233,7 +233,7 @@ thin:
   from clearing the question. Matching completion or `UserPromptSubmit` resumes it;
   other `PostToolUse` events resume permission waits.
   `Interrupt` → `idle`, `SessionEnd` → `ended`, and `Stop` → `idle` — or `ended` for
-  one-shot `codex exec` rollouts. Older versions retain the owner-pid reap backstop.
+  one-shot `codex exec` rollouts. Older Codex versions retain the owner-pid reap backstop.
   On macOS, `session_meta.originator: Codex Desktop` repairs captured terminal identity
   even during an already-active turn, so Focus opens the chat rather than an inherited
   terminal or IDE. CLI/extension sessions keep their captured host.
