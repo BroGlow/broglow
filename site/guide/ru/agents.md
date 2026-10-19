@@ -12,7 +12,7 @@ BroGlow, а не горящая лампа.
 | Агент | Что делает `broglow install` | Что делаете вы |
 | --- | --- | --- |
 | Claude Code | Добавляет хуки в `~/.claude/settings.json`. | Ничего; новые сессии видны сразу. |
-| Codex | Добавляет хуки в `$CODEX_HOME/hooks.json`. | [Разрешите их в `/hooks`](#codex-setup). |
+| Codex | Добавляет хуки в `$CODEX_HOME/hooks.json` (по умолчанию `~/.codex`). | [Разрешите их в `/hooks`](#codex-setup). |
 | opencode | Устанавливает плагин `~/.config/opencode/plugins/broglow.js`. | Перезапустите работающие сессии. |
 | GitHub Copilot CLI | Записывает `~/.copilot/hooks/broglow.json`. | Перезапустите сессии, открытые во время установки. |
 
@@ -32,8 +32,6 @@ BroGlow, а не горящая лампа.
 <a name="codex-setup"></a>
 
 ## Codex
-
-По умолчанию хуки лежат в `~/.codex/hooks.json`.
 
 1. Откройте Codex CLI (0.144 или новее) в терминале. Для задач в приложении запускайте
    его от того же пользователя и с тем же `CODEX_HOME`, что и приложение, например

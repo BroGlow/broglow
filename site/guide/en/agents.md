@@ -11,7 +11,7 @@ agent is connected is a status change in BroGlow's session list, not a lit lamp.
 | Agent | What `broglow install` does | What you do |
 | --- | --- | --- |
 | Claude Code | Adds hooks to `~/.claude/settings.json`. | Nothing; new sessions report at once. |
-| Codex | Adds hooks to `$CODEX_HOME/hooks.json`. | [Trust them in `/hooks`](#codex-setup). |
+| Codex | Adds hooks to `$CODEX_HOME/hooks.json` (default `~/.codex`). | [Trust them in `/hooks`](#codex-setup). |
 | opencode | Installs the plugin `~/.config/opencode/plugins/broglow.js`. | Restart running sessions. |
 | GitHub Copilot CLI | Writes `~/.copilot/hooks/broglow.json`. | Restart sessions open during installation. |
 
@@ -30,8 +30,6 @@ next prompt on.
 <a name="codex-setup"></a>
 
 ## Codex
-
-By default the hooks are in `~/.codex/hooks.json`.
 
 1. Open Codex CLI (0.144 or later) in a terminal. For desktop tasks, run it as the same
    user with the same `CODEX_HOME` as the app, for example the bundled
