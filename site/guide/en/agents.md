@@ -24,8 +24,7 @@ the [hardware reference](hardware.md#connect-local-codex-sessions).
 ## Claude Code
 
 Nothing to configure. Sessions in the terminal and in the Claude desktop app report
-their status from the next prompt on; clicking a session in BroGlow brings its
-terminal window or desktop conversation to the front.
+their status from the next prompt on.
 
 <a name="codex-setup"></a>
 
@@ -75,42 +74,6 @@ a status change in BroGlow's session list does.
 Ordinary ChatGPT chats and cloud or remote tasks do not send events to the local
 BroGlow service.
 
-<a name="codex-open-session"></a>
-
-### Return to a session
-
-Click a local Codex session (TUI: **Enter**) to return to it. On macOS, desktop tasks
-open directly in Codex using their task link, also when the app is named ChatGPT.
-Desktop identity from the transcript takes priority over inherited terminal or IDE
-settings and repairs older captured hosts on the next hook event.
-CLI sessions focus their captured terminal; if no host can be focused, BroGlow tries
-the task link in the installed Codex app.
-
-<a name="codex-session-names"></a>
-
-### Session names
-
-Until Codex saves a title, BroGlow names a session after the first ~50 characters of
-its first prompt. This also works for temporary side chats without a transcript.
-Later prompts do not change that name. Before any prompt, the session shows as
-`Session <id>`.
-
-While the BroGlow list is open, a title that Codex generates or that you rename appears
-within five seconds. No new prompt is needed; the session's status and activity time
-stay the same. Hover over a session name to see its full saved title.
-
-<a name="codex-dismiss"></a>
-
-### Dismiss a session
-
-Use **×** beside a session (TUI: **x**) to dismiss it from BroGlow's list and lamp
-status. The Codex conversation stays intact. It reappears when Codex sends a new hook
-event, for example on your next prompt.
-
-In the menu-bar popover, **Clear paused** beside the Paused heading dismisses all
-yellow sessions at once. Green working sessions and red sessions that need help stay
-in the list.
-
 <a name="opencode"></a>
 
 ## opencode
@@ -125,3 +88,35 @@ run `broglow install` again to add the plugin.
 
 Copilot reads its hooks when a session starts, so restart any session that was open
 during installation. If you install Copilot later, run `broglow install` again.
+
+<a name="open-session"></a>
+
+## Return to a session
+
+Click a session in BroGlow (TUI: **Enter**) to bring it to the front: the terminal
+window or tab that hosts it, the conversation in the Claude desktop app, or a Codex
+desktop task through its task link (also when the app is named ChatGPT). If no host
+can be focused, a Codex session falls back to its task link in the installed Codex app.
+
+<a name="session-names"></a>
+
+## Session names
+
+BroGlow shows the title the agent itself keeps: Claude Code's saved title (the desktop
+app's automatic one or `/rename`), Codex's thread name, opencode's session title.
+Until there is one, a session is named after the first ~50 characters of its first
+prompt (Copilot sessions always are); a Claude Code session without a title gets a
+short generated one at the end of its first turn. Before any prompt, a session shows
+as `Session <id>`. A new or renamed title appears within five seconds while the list
+is open, without changing the session's status or activity time; hover over a name to
+see the full title.
+
+<a name="dismiss"></a>
+
+## Dismiss a session
+
+Use **×** beside a session (TUI: **x**) to hide it from BroGlow's list and lamp status.
+The conversation stays intact in its agent, and the session reappears on its next hook
+event, for example your next prompt. In the menu-bar popover, **Clear paused** beside
+the Paused heading dismisses all yellow sessions at once; green working sessions and
+red sessions that need help stay in the list.
