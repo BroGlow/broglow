@@ -37,7 +37,7 @@ source. The Homebrew formula is published to the separate `broglow/tap`
 repository by the [Homebrew tap workflow](#homebrew-tap); there is no crates.io
 publishing workflow.
 
-No Linux binaries are published; for the Linux tray's GTK 3 advisories see
+For the Linux tray's GTK 3 advisories, see
 [CONTRIBUTING](../../../CONTRIBUTING.md#development-setup).
 
 ## Python version
@@ -74,10 +74,9 @@ If the check fails (dirty tree or version mismatch), delete the local tag with
 when it changes the site, docs, models or `Cargo.toml`, deploys the website
 automatically.
 
-Push only this tag, by name. Every pushed `v*` tag other than the ignored `v0.*`
-ones starts the **Release** workflow, and the inherited `v0.*` tags belong to the
-pre-BroGlow history, so never use `git push --tags`. For the next release, bump `version` in `Cargo.toml` and
-`Cargo.lock`, commit, then create and push only that version's tag:
+Push only this tag, by name; never use `git push --tags`. Pushing a `v*` tag
+starts the **Release** workflow. For the next release, bump `version` in
+`Cargo.toml` and `Cargo.lock`, commit, then create and push its tag:
 `git push YOUR_REMOTE vX.Y.Z`.
 
 The **Release** workflow runs in this order:
@@ -112,18 +111,17 @@ Before selecting **Publish release** in GitHub:
   currently covers Apple Silicon; a successful Intel build is not an Intel
   hardware test. Keep unverified platforms visible.
 - Review the generated notes and choose the appropriate release/prerelease label.
-  Publishing the draft is the action that makes binary downloads public; it also
-  reruns the **Website** workflow so the guide shows the enclosure archive's SHA-256.
+  Publishing the draft makes the downloads public and reruns the **Website**
+  workflow so the guide shows the enclosure archive's SHA-256.
 
-Before publishing, check the draft on real hardware: service start and login,
-Bluetooth consent, pairing and reconnect, all LED colors and brightness,
-stale-status blanking within ten seconds, and enclosure fit. Never reflash a working board just to test the release workflow.
+Also check on real hardware: reconnect, all LED colors and brightness,
+stale-status blanking within ten seconds and enclosure fit. Never reflash a
+working board just to test the release workflow.
 
 ## Package locally without publishing
 
-Release CI packages the enclosure and attaches the ZIP and checksum to the draft
-release. [`scripts/package-enclosure.py`](../../../scripts/package-enclosure.py)
-builds the same package locally. `--output-dir PATH` selects another output
+[`scripts/package-enclosure.py`](../../../scripts/package-enclosure.py) builds
+the release enclosure package. `--output-dir PATH` selects another output
 directory; keep it ignored. For a release rehearsal, use a clean checkout of the
 matching tag and add `--release-tag vVERSION`: this strict mode validates tag,
 version and clean source before generation.
@@ -142,9 +140,8 @@ uv run --frozen --only-group cad python scripts/package-enclosure.py
 This produces `dist/enclosure/broglow-models-vVERSION.zip` and its
 `.sha256`, using `dist/enclosure/magnetic-build/source/` for isolated generation.
 Only production parts 01–05 are exported; no coupons or machine-specific
-3MF/G-code are included. The stored slicer validation results must match all
-five STL hashes. The archive holds `stl/`, `step/` and `BUILD.json`, with no CAD source or guide inside; the guide lives on
-the website.
+3MF/G-code are included. The archive has no CAD source or guide; the guide lives
+on the website.
 
 After a geometry change in `models/magnetic/refined.py`, the same command stops
 with **Stale magnetic slicer evidence** by design: the ZIP is only built from STLs
@@ -163,10 +160,8 @@ Keep the reviewed [`slicer-validation.json`](../../../models/magnetic/slicer-val
 packaging checks its STL hashes because generating geometry does not rerun the
 external slicer.
 
-A slicer hash mismatch is a failed build: investigate the pinned toolchain and
-obtain real slicer validation for changed meshes before updating the reviewed
-results. Geometry checks do not replace slicing, and neither proves physical
-print fit.
+On a hash mismatch, investigate the pinned toolchain first. Geometry checks do
+not replace slicing, and neither proves print fit.
 
 <a name="package-mac-app"></a>
 
@@ -224,9 +219,9 @@ Follow [the website runbook](../../README.md#publish-to-github-pages), then do
 the post-deployment check below.
 
 After deployment, open the live English and Russian guides and follow a release
-download through to its checksum. Download links point to this repository's
-Releases; check that the links work after publication. The guide includes a separate enclosure
-download, and the landing opens with the product photo before the 3D view loads.
+download from this repository's Releases through to its checksum. The guide
+includes a separate enclosure download, and the landing opens with the product
+photo before the 3D view loads.
 
 Local checks cannot prove GitHub permissions, hosted-runner success, live Pages
 delivery or installation on another Mac. Verify those after each release
