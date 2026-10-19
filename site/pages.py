@@ -42,9 +42,7 @@ GUIDE_ROUTES = {
 def enclosure_package():
     packages = [
         path
-        for path in (SITE.parent / "dist/enclosure").glob(
-            "broglow-enclosure-magnetic-v*.zip"
-        )
+        for path in (SITE.parent / "dist/enclosure").glob("broglow-models-v*.zip")
         if path.with_name(path.name + ".sha256").is_file()
     ]
     return max(packages, key=lambda path: path.stat().st_mtime_ns, default=None)
@@ -298,13 +296,13 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
             else f"To build the app yourself, [download the source]({source}) and [build from source](hardware.md#build-from-source)."
         )
         guide = "printing.md"
-        archive = f"broglow-enclosure-magnetic-v{version}.zip"
+        archive = f"broglow-models-v{version}.zip"
         checksum = published(archive)
         if ru:
             models = (
                 f"[Файлы корпуса для печати · релизы]({releases})\n\n"
-                f"Скачайте `{archive}` из релиза. В архиве нет вложенных папок: пять деталей STL "
-                "в ориентации для печати, те же детали в STEP и `BUILD.json`.\n\n"
+                f"Скачайте `{archive}` из релиза. В архиве папка `stl/` с пятью деталями "
+                "в ориентации для печати, папка `step/` с теми же деталями и `BUILD.json`.\n\n"
             )
             models += (
                 f"SHA-256:\n\n```text\n{checksum}\n```\n\n"
@@ -319,8 +317,8 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
         else:
             models = (
                 f"[Enclosure print files · releases]({releases})\n\n"
-                f"Download `{archive}` from the release. The archive has no subfolders: the five "
-                "STL parts in print orientation, the same parts as STEP and `BUILD.json`.\n\n"
+                f"Download `{archive}` from the release. The archive has `stl/` with the five "
+                "parts in print orientation, `step/` with the same parts, and `BUILD.json`.\n\n"
             )
             models += (
                 f"SHA-256:\n\n```text\n{checksum}\n```\n\n"
@@ -378,11 +376,11 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
                 f"SHA-256:\n\n```text\n{checksum}\n```\n\n"
             )
             models += (
-                "В архиве нет вложенных папок: пять деталей STL в ориентации для печати, "
-                "те же детали в STEP и `BUILD.json`."
+                "В архиве папка `stl/` с пятью деталями в ориентации для печати, "
+                "папка `step/` с теми же деталями и `BUILD.json`."
                 if ru
-                else "The archive has no subfolders: the five STL parts in print orientation, "
-                "the same parts as STEP and `BUILD.json`."
+                else "The archive has `stl/` with the five parts in print orientation, "
+                "`step/` with the same parts, and `BUILD.json`."
             )
         else:
             models = (

@@ -112,7 +112,7 @@ def identity(version, tag):
 
 
 def package_magnetic(source, output, version):
-    """Package the five production parts in one flat folder."""
+    """Package the five production parts as stl/ and step/ folders."""
     model = source / MAGNETIC
     slices = json.loads((model / "slicer-validation.json").read_text())
     report = json.loads((model / "validation.json").read_text())
@@ -127,9 +127,9 @@ def package_magnetic(source, output, version):
         )
     generated = [Path("stl") / f"{name}.stl" for name in PARTS]
     generated += [Path("step") / f"{name}.step" for name in PARTS]
-    entries = {path.name: (model / path).read_bytes() for path in generated}
+    entries = {path.as_posix(): (model / path).read_bytes() for path in generated}
     entries["BUILD.json"] = (source / "BUILD.json").read_bytes()
-    archive = output / f"broglow-enclosure-magnetic-v{version}.zip"
+    archive = output / f"broglow-models-v{version}.zip"
     with ZipFile(archive, "w", ZIP_DEFLATED) as zipped:
         for name, data in sorted(entries.items()):
             zipped.writestr(name, data)

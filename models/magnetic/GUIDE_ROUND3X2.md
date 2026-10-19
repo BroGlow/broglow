@@ -4,7 +4,7 @@
 
 [English](GUIDE_ROUND3X2.en.md) | [Русский](GUIDE_ROUND3X2.md)
 
-Скачайте **broglow-enclosure-magnetic-vVERSION.zip** из раздела Releases проекта
+Скачайте **broglow-models-vVERSION.zip** из раздела Releases проекта
 на GitHub; его SHA-256 показан на сайте. Маскот держится на
 магнитах: снимайте его, ставьте обратно или меняйте на любого другого маскота —
 когда захотите.
@@ -28,8 +28,8 @@
 
 ## Что печатать
 
-В архиве нет вложенных папок: эти пять STL-деталей для печати, те же детали в STEP
-и `BUILD.json`.
+В архиве две папки: `stl/` с этими пятью деталями для печати и `step/` с теми же
+деталями в STEP, а также `BUILD.json`.
 
 | Файл | Количество | Цвет |
 | --- | --- | --- |
@@ -119,5 +119,5 @@ uv run --no-project --python 3.14 --with-requirements models/broglow/requirement
   python scripts/package-enclosure.py
 ```
 
-Результат: **dist/enclosure/broglow-enclosure-magnetic-vVERSION.zip** и его
+Результат: **dist/enclosure/broglow-models-vVERSION.zip** и его
 **.sha256**; сборка идёт в изолированной копии исходников.

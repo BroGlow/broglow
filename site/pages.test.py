@@ -35,7 +35,7 @@ for locale in ("en", "ru"):
             assert ".sha256)" not in public, "No checksum download link"
         else:
             version = pages.cargo_package()["version"]
-            archive = f"broglow-enclosure-magnetic-v{version}.zip"
+            archive = f"broglow-models-v{version}.zip"
             assert "https://github.com/example/lamp/releases" in public
             # Tests never set site_url, so no release lookup happens; the page says
             # where the checksum is published instead of offering a .sha256 download.
@@ -80,7 +80,7 @@ for locale in ("en", "ru"):
                 assert "printing.md#generate-from-source" in local
                 dist = Path(temporary) / "dist/enclosure"
                 dist.mkdir(parents=True)
-                archive = dist / "broglow-enclosure-magnetic-v1.0.0.zip"
+                archive = dist / "broglow-models-v1.0.0.zip"
                 archive.touch()
                 assert "{ download }" not in on_page_markdown(
                     source, page=page, config=SimpleNamespace(repo_url=None)

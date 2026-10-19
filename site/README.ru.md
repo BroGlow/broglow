@@ -195,13 +195,13 @@ uv run --no-project --python 3.14 python site/check-links.py --base-url http://1
 
 ## Локальные скачивания и границы подтверждённых фактов
 
-Единственный архив корпуса — `broglow-enclosure-magnetic-vVERSION.zip`: плоская
-папка со STL, STEP и `BUILD.json`; `printing.md` включает
+Единственный архив корпуса — `broglow-models-vVERSION.zip`: папки
+`stl/` и `step/` и `BUILD.json`; `printing.md` включает
 его инструкцию из `models/magnetic/`.
 
 `pages.py` раскрывает `<!-- mac-downloads -->` и `<!-- model-download -->`:
 локальный просмотр ссылается на новейший полный архив Mac в `dist/` (с соседним
-`.sha256`) и на `dist/enclosure/broglow-enclosure-magnetic-vVERSION.zip`, чья
+`.sha256`) и на `dist/enclosure/broglow-models-vVERSION.zip`, чья
 контрольная сумма показана прямо на странице из соседнего `.sha256`. Без архивов
 предлагаются инструкции для исходников. Публичная сборка ссылается на Releases и
 ZIP исходников; сборка Pages запрашивает `.sha256` опубликованного архива из релиза

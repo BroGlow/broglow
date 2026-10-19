@@ -23,7 +23,7 @@ GitHub Actions. Файлы STL и STEP распространяются толь
 | `broglow-vVERSION-aarch64-apple-darwin.tar.gz` | Приложение для Apple Silicon, прошивка C3 и её исходники, руководство, лицензии и контрольные суммы. |
 | `broglow-vVERSION-x86_64-apple-darwin.tar.gz` | Такой же пакет с нативным приложением для Mac на Intel. |
 | `broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz` | Графическое приложение в трее и CLI для Windows в `broglow.exe`, с поддержкой лампы по USB, лицензией и уведомлениями о сторонних компонентах; без установщика, BLE, прошивки и руководств. |
-| `broglow-enclosure-magnetic-vVERSION.zip` | Файлы корпуса для печати в одной плоской папке: пять рабочих деталей 01–05 в STL (ориентация печати) и STEP, а также `BUILD.json`. Маскот держится на четырёх магнитах Ø3×2 мм N52 (два в маскоте, два в светофоре). |
+| `broglow-models-vVERSION.zip` | Файлы корпуса для печати: пять рабочих деталей 01–05 в `stl/` (ориентация печати) и `step/`, а также `BUILD.json`. Маскот держится на четырёх магнитах Ø3×2 мм N52 (два в маскоте, два в светофоре). |
 | Соответствующий `.sha256` | Контрольная сумма каждого архива с его исходным именем. |
 
 Пакеты Mac также содержат `BUILD.json`, внутренний `SHA256SUMS`, адреса записи
@@ -154,11 +154,11 @@ uv run --no-project --python 3.14 --with-requirements models/broglow/requirement
   python scripts/package-enclosure.py
 ```
 
-Результат — `dist/enclosure/broglow-enclosure-magnetic-vVERSION.zip` и его
+Результат — `dist/enclosure/broglow-models-vVERSION.zip` и его
 `.sha256`; изолированная генерация выполняется в `dist/enclosure/magnetic-build/source/`.
 Экспортируются только рабочие детали 01–05; купонов и нарезанных под принтер
 3MF/G-code нет. Хеши всех пяти STL должны совпадать с сохранёнными результатами
-проверки в слайсере. Архив плоский: файлы STL и STEP и
+проверки в слайсере. В архиве папки `stl/`, `step/` и
 `BUILD.json`, без исходников CAD и инструкции внутри; инструкция живёт на сайте.
 
 После изменения геометрии в `models/magnetic/refined.py` та же команда намеренно

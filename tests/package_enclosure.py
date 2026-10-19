@@ -61,10 +61,11 @@ with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
     (stage / "BUILD.json").write_text("{}")
     archive = package.package_magnetic(stage, root / "dist", "1.2.3")
     with ZipFile(archive) as zipped:
-        # One flat folder: print files and provenance only.
+        # stl/ and step/ print files plus provenance only.
+        assert archive.name == "broglow-models-v1.2.3.zip", archive
         assert sorted(zipped.namelist()) == sorted(
-            [f"{name}.stl" for name in package.PARTS]
-            + [f"{name}.step" for name in package.PARTS]
+            [f"stl/{name}.stl" for name in package.PARTS]
+            + [f"step/{name}.step" for name in package.PARTS]
             + ["BUILD.json"]
         ), zipped.namelist()
     path.write_bytes(b"changed mesh")
@@ -233,5 +234,5 @@ with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
     (model / "broglow.py").symlink_to(model / "private.py")
     rejected(package.source_files, "unsafe source input")
 print(
-    "PASS: flat magnetic package, release guards, folder ignores and forced-artifact rejection"
+    "PASS: stl/step models package, release guards, folder ignores and forced-artifact rejection"
 )

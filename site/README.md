@@ -171,13 +171,13 @@ Keep the preview server running for the HTTP check.
 
 ## Local downloads and factual limits
 
-The only enclosure download is `broglow-enclosure-magnetic-vVERSION.zip`, a flat
-folder of STL, STEP and `BUILD.json`; `printing.md` includes
+The only enclosure download is `broglow-models-vVERSION.zip`, with
+`stl/` and `step/` folders and `BUILD.json`; `printing.md` includes
 its guide from `models/magnetic/`.
 
 `pages.py` expands `<!-- mac-downloads -->` and `<!-- model-download -->`:
 local previews link to the newest complete Mac archive in `dist/` (with its
-sibling `.sha256`) and to `dist/enclosure/broglow-enclosure-magnetic-vVERSION.zip`,
+sibling `.sha256`) and to `dist/enclosure/broglow-models-vVERSION.zip`,
 whose checksum is shown inline from the sibling `.sha256`. Without archives, they
 offer source instructions. Public builds link to Releases and the source ZIP; the
 Pages build fetches the published archive's `.sha256` from the release for the

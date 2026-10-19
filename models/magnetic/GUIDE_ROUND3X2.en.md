@@ -4,7 +4,7 @@
 
 [English](GUIDE_ROUND3X2.en.md) | [Русский](GUIDE_ROUND3X2.md)
 
-Download **broglow-enclosure-magnetic-vVERSION.zip** from the project's GitHub
+Download **broglow-models-vVERSION.zip** from the project's GitHub
 Releases; the website shows its SHA-256. The mascot holds on by
 magnets: pull it off, put it back, or swap in any mascot you like, any time.
 
@@ -27,8 +27,8 @@ with the mating surface and touch, with no gap.
 
 ## What to print
 
-The archive has no subfolders: these five STL parts to print, the same parts as
-STEP and `BUILD.json`.
+The archive has two folders, `stl/` with these five parts to print and `step/`
+with the same parts as STEP, plus `BUILD.json`.
 
 | File | Quantity | Color |
 | --- | --- | --- |
@@ -117,5 +117,5 @@ uv run --no-project --python 3.14 --with-requirements models/broglow/requirement
   python scripts/package-enclosure.py
 ```
 
-Output: **dist/enclosure/broglow-enclosure-magnetic-vVERSION.zip** and its
+Output: **dist/enclosure/broglow-models-vVERSION.zip** and its
 **.sha256**, built from an isolated copy of the source.
