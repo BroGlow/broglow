@@ -43,7 +43,7 @@ can be pushed inside.
 
 You also need an ESP32-C3 SuperMini, three 5 mm LEDs, wiring, resistors, glue for
 the magnets and eyes, and **four DIN 7982 ST2.2 × 6.5 mm countersunk screws**
-(three for the cover, one for the retainer). Disconnect USB while assembling.
+(three for the cover, one for the recommended retainer). Disconnect USB while assembling.
 Wire the LEDs as in the
 [hardware guide]({{ repo_url }}/blob/HEAD/site/guide/en/hardware.md#wiring-and-resistor-choice):
 red/yellow/green anodes through 330/330/220 Ω resistors to GPIO0/1/3, all cathodes
