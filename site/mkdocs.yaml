@@ -60,6 +60,7 @@ plugins:
             Coding agents: Coding-агенты
             Sessions: Сессии
             Troubleshooting: Диагностика
+            Why BroGlow: Почему BroGlow
             Reference: Справочники
             Maintainers: Для разработчиков
             Hardware reference: Техническое руководство
@@ -74,6 +75,7 @@ nav:
   - Coding agents: agents.md
   - Sessions: sessions.md
   - Troubleshooting: troubleshooting.md
+  - Why BroGlow: why.md
   - Reference:
       - Hardware reference: hardware.md
       - Printing and assembly: printing.md
