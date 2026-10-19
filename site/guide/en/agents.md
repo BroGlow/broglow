@@ -27,21 +27,6 @@ Nothing to configure. Sessions in the terminal and in the Claude desktop app rep
 their status from the next prompt on; clicking a session in BroGlow brings its
 terminal window or desktop conversation to the front.
 
-<a name="opencode"></a>
-
-## opencode
-
-opencode loads plugins at startup, so sessions that were already running when you
-installed BroGlow appear only after you restart them. If you install opencode later,
-run `broglow install` again to add the plugin.
-
-<a name="copilot"></a>
-
-## GitHub Copilot CLI
-
-Copilot reads its hooks when a session starts, so restart any session that was open
-during installation. If you install Copilot later, run `broglow install` again.
-
 <a name="codex-setup"></a>
 
 ## Codex
@@ -125,3 +110,18 @@ event, for example on your next prompt.
 In the menu-bar popover, **Clear paused** beside the Paused heading dismisses all
 yellow sessions at once. Green working sessions and red sessions that need help stay
 in the list.
+
+<a name="opencode"></a>
+
+## opencode
+
+opencode loads plugins at startup, so sessions that were already running when you
+installed BroGlow appear only after you restart them. If you install opencode later,
+run `broglow install` again to add the plugin.
+
+<a name="copilot"></a>
+
+## GitHub Copilot CLI
+
+Copilot reads its hooks when a session starts, so restart any session that was open
+during installation. If you install Copilot later, run `broglow install` again.
