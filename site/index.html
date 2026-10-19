@@ -55,8 +55,8 @@
       </div>
       <figure class="hero-visual" id="view-in-space">
         <div class="model-stage" id="signals">
-          <img id="model-poster" src="assets/broglow.jpg" width="1400" height="1000" alt="Лампа BroGlow на столе: оранжевый маскот держится магнитами за чёрный светофор, светодиоды выключены" data-en-alt="BroGlow on a desk: the orange mascot holds on to the black traffic light by its magnets, LEDs off" fetchpriority="high">
-          <model-viewer id="lamp-model" data-model-src="assets/broglow.glb" poster="assets/broglow.jpg" alt="3D-модель нашей лампы. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Our lamp's 3D model. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="25deg 80deg 95%" shadow-intensity="0.8" exposure="0.85" interaction-prompt="none" loading="eager" ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" hidden>
+          <img id="model-poster" src="assets/broglow.jpg" width="1400" height="1000" alt="Фотография лампы: оранжевый маскот держится магнитами за чёрный светофор, на котором горит выбранный сигнал" data-en-alt="Photo of the lamp: the orange mascot holds on to the black traffic light by its magnets, showing the selected signal" fetchpriority="high">
+          <model-viewer id="lamp-model" data-model-src="assets/broglow.glb" alt="3D-модель нашей лампы. Стрелки вращают, Page Up и Page Down меняют масштаб." data-en-alt="Our lamp's 3D model. Arrow keys rotate; Page Up and Page Down zoom." camera-controls touch-action="pan-y" camera-orbit="25deg 80deg 95%" shadow-intensity="0.8" exposure="0.85" interaction-prompt="none" loading="eager" ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" hidden>
             <effect-composer render-mode="quality" msaa="2">
               <bloom-effect strength="0.2" radius="0.6" threshold="0.9"></bloom-effect>
               <color-grade-effect tonemapping="NEUTRAL"></color-grade-effect>
@@ -66,22 +66,22 @@
         </div>
         <figcaption>
           <fieldset class="signal-demo" aria-controls="lamp-model">
-            <legend data-en="Pick a signal to light it on the model">Выберите сигнал — он загорится на модели</legend>
+            <legend data-en="Pick a signal to light it on the lamp">Выберите сигнал — он загорится на лампе</legend>
             <div class="signal-options">
               <label class="signal-option green">
-                <input type="radio" name="signal" value="working" checked>
+                <input type="radio" name="signal" value="working" data-photo="assets/photos/signal-green.jpg" checked>
                 <span class="signal-dot" aria-hidden="true"></span><span data-en="Working">Working</span>
               </label>
               <label class="signal-option yellow">
-                <input type="radio" name="signal" value="idle">
+                <input type="radio" name="signal" value="idle" data-photo="assets/photos/signal-yellow.jpg">
                 <span class="signal-dot" aria-hidden="true"></span><span data-en="Paused">Paused</span>
               </label>
               <label class="signal-option red">
-                <input type="radio" name="signal" value="needs-you">
+                <input type="radio" name="signal" value="needs-you" data-photo="assets/photos/signal-red.jpg">
                 <span class="signal-dot" aria-hidden="true"></span><span data-en="Needs help">Needs help</span>
               </label>
               <label class="signal-option off">
-                <input type="radio" name="signal" value="off">
+                <input type="radio" name="signal" value="off" data-photo="assets/broglow.jpg">
                 <span class="signal-dot" aria-hidden="true"></span><span data-en="Off">Выключено</span>
               </label>
             </div>
@@ -94,12 +94,14 @@
           </fieldset>
           <p class="priority-note" data-en="Red always takes priority. When some sessions are working and others are paused, you choose which color wins in BroGlow settings; by default, any paused session turns the lamp yellow.">Красный всегда важнее. Когда одни сессии работают, а другие на паузе, что показывать — решаете вы в настройках BroGlow; по умолчанию любая сессия на паузе включает жёлтый.</p>
           <div class="model-tools">
+            <button id="view-model" type="button" class="model-button" aria-pressed="true" hidden>3D</button>
+            <button id="view-photo" type="button" class="model-button" aria-pressed="false" data-en="Photo" hidden>Фото</button>
             <button id="model-load" type="button" class="model-button" data-viewer-src="vendor/model-viewer-with-effects.js" data-en="Retry 3D" hidden>Загрузить 3D снова</button>
             <button id="model-space" type="button" class="model-button" aria-haspopup="dialog" aria-controls="ar-dialog" data-en="View in your space" hidden>Примерить у себя</button>
             <button id="model-reset" type="button" class="model-button" data-en="Reset view" hidden>Сбросить вид</button>
           </div>
           <p id="model-loading" role="status" data-en="Loading 3D…" hidden>Загружаем 3D…</p>
-          <p id="model-error" role="status" data-en="3D could not load. This still image does not show the selected signal; try again." hidden>Не удалось загрузить 3D. На статичном изображении выбранный сигнал не отображается; попробуйте снова.</p>
+          <p id="model-error" role="status" data-en="3D could not load; the photo shows the selected signal. Try again." hidden>Не удалось загрузить 3D; выбранный сигнал показан на фотографии. Попробуйте снова.</p>
           <p id="model-help" data-en="Drag or use arrow keys to rotate. Pinch, scroll, or use Page Up / Page Down to zoom." hidden>Перетаскивайте модель или используйте стрелки, чтобы вращать. Масштаб — жестом, прокруткой или Page Up / Page Down.</p>
           <p class="model-ar-note" data-en="For real-size AR, open in Safari on iPhone/iPad or a supported Android browser." >Для AR в натуральную величину откройте в Safari на iPhone/iPad или поддерживаемом браузере Android.</p>
         </figcaption>

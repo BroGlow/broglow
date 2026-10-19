@@ -261,6 +261,9 @@ model-viewer {
   height:100%;
   background:transparent;
 }
+#lamp-model[data-view="photo"] {
+  visibility:hidden;
+}
 model-viewer[hidden],.model-stage img[hidden],.model-tools button[hidden] {
   display:none;
 }
@@ -283,6 +286,10 @@ model-viewer[hidden],.model-stage img[hidden],.model-tools button[hidden] {
 }
 .model-button:hover {
   background:#e8eee7;
+}
+.model-button[aria-pressed="true"] {
+  background:#dfe6de;
+  border-color:#27332b;
 }
 .model-button:disabled {
   opacity:.6;

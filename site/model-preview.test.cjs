@@ -11,6 +11,8 @@ const gltf = JSON.parse(glb.subarray(20, 20 + glb.readUInt32LE(12)));
 const html = readFileSync(`${__dirname}/index.html`, 'utf8');
 const initialOrbit = html.match(/camera-orbit="([^"]+)"/)[1];
 const lensIndices = { working: 4, idle: 5, 'needs-you': 6 };
+const photos = Object.fromEntries([...Object.keys(lensIndices), 'off'].map(value =>
+  [value, html.match(new RegExp(`value="${value}" data-photo="([^"]+)"`))[1]]));
 for (const [number, index] of [4, 5, 6].entries()) {
   const node = gltf.nodes.find(node => node.name === `REFERENCE_ONLY_LED_${number}`);
   assert.equal(gltf.meshes[node.mesh].primitives[0].material, index, 'Keep preview material indices aligned with the exported lenses');
@@ -38,14 +40,14 @@ function page(defined = false, href = 'https://example.com/broglow/', qrFailure 
     };
   }
   const ids = ['lamp-model', 'model-poster', 'model-load', 'model-reset', 'model-loading', 'model-error', 'model-help',
-    'model-space', 'ar-dialog', 'ar-close', 'ar-qr', 'ar-link', 'ar-local', 'ar-qr-error',
+    'model-space', 'view-model', 'view-photo', 'ar-dialog', 'ar-close', 'ar-qr', 'ar-link', 'ar-local', 'ar-qr-error',
     'assembly-model', 'assembly-loading', 'assembly-error', 'assembly-retry', 'assembly-reset'];
   const nodes = Object.fromEntries(ids.map(id => [id, element()]));
   const assemblyTag = html.match(/<model-viewer id="assembly-model"[^>]+>/)[0];
   nodes['assembly-model'].getAttribute = name => assemblyTag.match(new RegExp(`${name}="([^"]+)"`))?.[1];
   const signals = element();
   const radios = [...Object.keys(lensIndices), 'off'].map((value, index) => ({
-    ...element(), value, name: 'signal', checked: index === 0,
+    ...element(), value, name: 'signal', checked: index === 0, dataset: { photo: photos[value] },
     matches: selector => selector === 'input[name="signal"]',
   }));
   signals.querySelector = selector => {
@@ -274,7 +276,7 @@ moduleRetry.scripts[1].emit('load');
 moduleRetry.nodes['lamp-model'].emit('load');
 assertSignal(moduleRetry.nodes['lamp-model'], 'needs-you');
 
-const { nodes: n, scripts, camera, define } = page();
+const { nodes: n, scripts, camera, define, select } = page();
 assert.equal(scripts.length, 1, 'Startup loads the viewer without explicit activation');
 assert.equal(n['lamp-model'].src, undefined, 'Model download waits for the viewer module');
 assert.equal(n['model-poster'].hidden, false);
@@ -305,8 +307,27 @@ n['model-reset'].emit('click');
 assert.equal(n['lamp-model'].cameraOrbit, initialOrbit);
 assert.equal(n['lamp-model'].reset, true);
 assert.equal(camera.focused, true, 'Reset returns keyboard control to the model');
+// The photo view shows the selected signal on the real lamp; 3D resumes where it left off.
+assert.equal(n['view-photo'].hidden, false, 'The photo view is offered once the model loads');
+n['view-photo'].emit('click');
+assert.equal(n['model-poster'].hidden, false);
+assert.equal(n['model-poster'].src, photos.working);
+assert.equal(n['lamp-model'].dataset.view, 'photo', 'The viewer stays laid out, only hidden from view');
+assert.equal(n['lamp-model'].hidden, false);
+assert.equal(n['model-reset'].hidden, true, 'Camera controls hide with the model');
+assert.equal(n['view-photo'].ariaPressed, 'true');
+select('idle', 'click');
+assert.equal(n['model-poster'].src, photos.idle, 'Picking a signal swaps the photo');
+n['view-model'].emit('click');
+assert.equal(n['model-poster'].hidden, true);
+assert.equal(n['lamp-model'].dataset.view, 'model');
+assert.equal(n['view-model'].ariaPressed, 'true');
+assertSignal(n['lamp-model'], 'idle');
+select('off', 'click');
 n['lamp-model'].emit('error');
 assert.equal(n['model-poster'].hidden, false, 'Model/WebGL failure restores the image');
+assert.equal(n['model-poster'].src, photos.off, 'The fallback photo matches the selected signal');
+assert.equal(n['view-photo'].hidden, true, 'No view toggle without a model');
 assert.equal(n['lamp-model'].hidden, true);
 assert.equal(n['model-load'].disabled, false);
 assert.equal(n['model-help'].hidden, true);

@@ -11,6 +11,8 @@ import { PointLight } from "three";
   const error = document.querySelector("#model-error");
   const help = document.querySelector("#model-help");
   const space = document.querySelector("#model-space");
+  const viewModel = document.querySelector("#view-model");
+  const viewPhoto = document.querySelector("#view-photo");
   const dialog = document.querySelector("#ar-dialog");
   const qr = document.querySelector("#ar-qr");
   const link = document.querySelector("#ar-link");
@@ -97,6 +99,21 @@ import { PointLight } from "three";
     updateSignal();
   }
 
+  function showPhoto() {
+    poster.src = signals.querySelector("input:checked").dataset.photo;
+  }
+
+  function setView(photo) {
+    viewPhoto.ariaPressed = String(photo);
+    viewModel.ariaPressed = String(!photo);
+    // Keep the viewer laid out: display:none would zero its size and break the camera framing.
+    viewer.dataset.view = photo ? "photo" : "model";
+    poster.hidden = !photo;
+    reset.hidden = help.hidden = photo;
+    if (photo) showPhoto();
+    else updateSignal();
+  }
+
   function focusModel() {
     // model-viewer 4.3.1 keeps its keyboard camera target inside the open shadow DOM.
     viewer.shadowRoot?.querySelector('[role="img"][tabindex="0"]')?.focus();
@@ -107,6 +124,8 @@ import { PointLight } from "three";
     viewer.hidden = true;
     viewer.removeAttribute("src");
     poster.hidden = false;
+    showPhoto();
+    viewModel.hidden = viewPhoto.hidden = true;
     load.hidden = false;
     load.disabled = false;
     loading.hidden = true;
@@ -129,12 +148,12 @@ import { PointLight } from "three";
   });
   viewer.addEventListener("load", () => {
     initializePreview();
-    poster.hidden = true;
-    load.hidden = true;
-    loading.hidden = true;
-    reset.hidden = false;
-    help.hidden = false;
+    load.hidden = loading.hidden = true;
+    viewModel.hidden = viewPhoto.hidden = false;
+    setView(false);
   });
+  viewPhoto.addEventListener("click", () => setView(true));
+  viewModel.addEventListener("click", () => setView(false));
   reset.addEventListener("click", () => {
     viewer.cameraOrbit = initialOrbit;
     viewer.cameraTarget = "auto auto auto";
@@ -170,6 +189,7 @@ import { PointLight } from "three";
     if (!event.target.matches('input[name="signal"]')) return;
     loadModel();
     updateSignal();
+    if (!poster.hidden) showPhoto();
   });
   space.addEventListener("click", () => {
     const url = new URL(location.href);
