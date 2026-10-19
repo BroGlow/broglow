@@ -100,6 +100,9 @@ brew install broglow/tap/broglow
 broglow install
 ```
 
+Чтобы установить конкретный релиз, используйте `broglow/tap/broglow@ВЕРСИЯ`, например
+`brew install broglow/tap/broglow@1.0.0`; brew подскажет, как поставить его первым в `PATH`.
+
 Либо скачайте полный пакет для архитектуры вашего Mac и соответствующий файл
 `.sha256` в разделе [Releases](https://github.com/broglow/broglow/releases/latest).
 Следуйте [инструкции по проверке контрольной суммы и установке](site/guide/ru/hardware.md#install-a-prebuilt-package).

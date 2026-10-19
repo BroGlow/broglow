@@ -201,11 +201,12 @@ uv run --frozen python scripts/package-macos.py
 ## Homebrew-tap
 
 `brew install broglow/tap/broglow` устанавливает готовые бинарники релиза для
-Mac из отдельного репозитория GitHub `broglow/homebrew-tap`, где лежит только
-`Formula/broglow.rb`.
+Mac из отдельного репозитория GitHub `broglow/homebrew-tap`. `Formula/broglow.rb`
+следует за последним релизом; `Formula/broglow@VERSION.rb` сохраняет каждый релиз
+доступным как keg-only альтернативу (`brew install broglow/tap/broglow@1.0.0`).
 
 [`scripts/homebrew-formula.py`](scripts/homebrew-formula.py) формирует
-формулу из файлов `broglow-vVERSION-*-apple-darwin.tar.gz.sha256` релиза (архивы
+обе формулы из файлов `broglow-vVERSION-*-apple-darwin.tar.gz.sha256` релиза (архивы
 для Apple Silicon и Intel в блоках `on_macos`/`on_arm`/`on_intel`, `bin/broglow`,
 прошивка и руководства в `share/broglow`, и предупреждение, что `broglow install`
 нужно выполнить один раз и после каждого обновления). `tests/test_homebrew_formula.py`
@@ -214,10 +215,10 @@ Mac из отдельного репозитория GitHub `broglow/homebrew-ta
 Workflow **Homebrew tap** (`.github/workflows/homebrew-tap.yaml`) запускается
 при публикации релиза или вручную: **Actions → Homebrew tap → Run workflow** с
 тегом релиза. Он скачивает контрольные суммы из этого релиза, формирует
-формулу, кладёт её в локальный tap на macOS-раннере для `brew style` и
-`brew audit --strict`, устанавливает и тестирует её и загружает `broglow.rb` как
+обе формулы, кладёт их в локальный tap на macOS-раннере для `brew style` и
+`brew audit --strict`, устанавливает и тестирует их и загружает как
 артефакт `homebrew-formula`. Для опубликованного релиза, а вручную — с отмеченным
-**publish**, он затем отправляет `Formula/broglow.rb` в `broglow/homebrew-tap`,
+**publish**, он затем отправляет их в `Formula/` репозитория `broglow/homebrew-tap`,
 используя секрет репозитория `HOMEBREW_TAP_TOKEN` (fine-grained token с правом
 **Contents: read and write** только на `homebrew-tap`). Обновите токен до
 истечения его срока.

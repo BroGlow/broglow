@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Render the Homebrew formula for a release from its Mac archive checksums.
+"""Render the Homebrew formulae for a release from its Mac archive checksums.
 
-The formula installs the prebuilt Mac binaries of one release; the Homebrew tap
-workflow publishes it to the separate tap repository as Formula/broglow.rb.
+Each formula installs the prebuilt Mac binaries of one release. The Homebrew tap
+workflow publishes them to the separate tap repository: Formula/broglow.rb follows
+the latest release, and Formula/broglow@VERSION.rb keeps that release installable.
 """
 
 import argparse
@@ -13,11 +14,11 @@ import tomllib
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = {"arm": "aarch64-apple-darwin", "intel": "x86_64-apple-darwin"}
 FORMULA = """\
-class Broglow < Formula
+class {class_name} < Formula
   desc "Desk traffic light and menu bar monitor for local coding-agent sessions"
   homepage "{homepage}"
   license "MIT"
-
+{keg_only}
   depends_on :macos
 
   on_macos do
@@ -63,12 +64,16 @@ def checksum(path, archive):
     return match[1]
 
 
-def render(version, checksums, homepage, url_base):
+def render(version, checksums, homepage, url_base, *, versioned=False):
+    """The latest-release formula, or with versioned the pinned broglow@VERSION."""
     digests = {}
     for key, target in TARGETS.items():
         archive = f"broglow-v{version}-{target}.tar.gz"
         digests[key] = checksum(checksums / f"{archive}.sha256", archive)
     return FORMULA.format(
+        # Homebrew's class name for broglow@1.0.1 is BroglowAT101.
+        class_name=f"BroglowAT{version.replace('.', '')}" if versioned else "Broglow",
+        keg_only="\n  keg_only :versioned_formula\n" if versioned else "",
         homepage=homepage,
         version=version,
         url_base=url_base,
@@ -92,15 +97,18 @@ def main():
         "--url-base",
         help="Archive location; defaults to the release's download URL.",
     )
-    parser.add_argument(
-        "--output", type=Path, default=ROOT / "dist/homebrew/broglow.rb"
-    )
+    parser.add_argument("--output-dir", type=Path, default=ROOT / "dist/homebrew")
     args = parser.parse_args()
     url_base = args.url_base or f"{repository}/releases/download/v{args.version}/"
-    text = render(args.version, args.checksums, repository, url_base)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(text)
-    print(f"Formula: {args.output}")
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    for name, versioned in (("broglow", False), (f"broglow@{args.version}", True)):
+        path = args.output_dir / f"{name}.rb"
+        path.write_text(
+            render(
+                args.version, args.checksums, repository, url_base, versioned=versioned
+            )
+        )
+        print(f"Formula: {path}")
 
 
 if __name__ == "__main__":

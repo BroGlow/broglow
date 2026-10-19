@@ -52,3 +52,17 @@ def test_formula_rejects_a_checksum_for_another_archive(checksums: Path) -> None
 
     with pytest.raises(SystemExit, match="Not a sha256sum line for broglow"):
         formula.render(VERSION, checksums, REPOSITORY, URL_BASE)
+
+
+def test_versioned_formula_is_a_keg_only_alternate(checksums: Path) -> None:
+    latest = formula.render(VERSION, checksums, REPOSITORY, URL_BASE)
+    pinned = formula.render(VERSION, checksums, REPOSITORY, URL_BASE, versioned=True)
+
+    assert latest.startswith("class Broglow < Formula")
+    assert "keg_only" not in latest
+    assert pinned.startswith("class BroglowAT123 < Formula")
+    assert "keg_only :versioned_formula" in pinned
+    assert (
+        pinned.split("keg_only :versioned_formula\n\n")[1]
+        == latest.split('license "MIT"\n\n')[1]
+    )

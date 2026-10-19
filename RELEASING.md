@@ -184,11 +184,12 @@ uses the stable release filename and refuses to overwrite an existing archive.
 ## Homebrew tap
 
 `brew install broglow/tap/broglow` installs the prebuilt Mac binaries of a
-release from the `broglow/homebrew-tap` GitHub repository, which holds only
-`Formula/broglow.rb`.
+release from the `broglow/homebrew-tap` GitHub repository. `Formula/broglow.rb`
+follows the latest release; `Formula/broglow@VERSION.rb` keeps each release
+installable as a keg-only alternate (`brew install broglow/tap/broglow@1.0.0`).
 
-[`scripts/homebrew-formula.py`](scripts/homebrew-formula.py) renders the
-formula from the release's `broglow-vVERSION-*-apple-darwin.tar.gz.sha256` files
+[`scripts/homebrew-formula.py`](scripts/homebrew-formula.py) renders both
+formulae from the release's `broglow-vVERSION-*-apple-darwin.tar.gz.sha256` files
 (the Apple Silicon and Intel archives under `on_macos`/`on_arm`/`on_intel`,
 `bin/broglow`, firmware and manuals under `share/broglow`, and a caveat that
 `broglow install` must run once and after upgrades). `tests/test_homebrew_formula.py`
@@ -196,11 +197,11 @@ checks the rendering in CI.
 
 The **Homebrew tap** workflow (`.github/workflows/homebrew-tap.yaml`) runs when
 a release is published, or by hand: **Actions → Homebrew tap → Run workflow**
-with a released tag. It downloads the checksums from that release, renders the
-formula, stages it in a local tap on a macOS runner for `brew style` and
-`brew audit --strict`, installs and tests it, and uploads `broglow.rb` as the
+with a released tag. It downloads the checksums from that release, renders both
+formulae, stages them in a local tap on a macOS runner for `brew style` and
+`brew audit --strict`, installs and tests them, and uploads them as the
 `homebrew-formula` artifact. For a published release, or by hand with **publish**
-ticked, it then pushes `Formula/broglow.rb` to `broglow/homebrew-tap` using the
+ticked, it then pushes them to `broglow/homebrew-tap`'s `Formula/` using the
 `HOMEBREW_TAP_TOKEN` repository secret (a fine-grained token with
 **Contents: read and write** on `homebrew-tap` only). Renew the token before it
 expires.

@@ -1,8 +1,9 @@
 name: Homebrew tap
 
-# Renders Formula/broglow.rb for a released tag from the release's Mac archive
-# checksums, checks it, and publishes it to the separate broglow/homebrew-tap
-# repository when a release is published (or by hand with publish ticked).
+# Renders Formula/broglow.rb (latest) and Formula/broglow@VERSION.rb (pinned) for a
+# released tag from the release's Mac archive checksums, checks them, and publishes
+# them to the separate broglow/homebrew-tap repository when a release is published
+# (or by hand with publish ticked).
 # Publishing needs the HOMEBREW_TAP_TOKEN secret: a fine-grained token with
 # Contents: read and write on that repository.
 
@@ -51,7 +52,7 @@ jobs:
         with:
           name: homebrew-formula
           if-no-files-found: error
-          path: dist/homebrew/broglow.rb
+          path: dist/homebrew/*.rb
 
   check:
     needs:
@@ -66,17 +67,19 @@ jobs:
         run: |
           set -euo pipefail
           brew tap-new --no-git broglow/tap
-          cp broglow.rb "$(brew --repository broglow/tap)/Formula/broglow.rb"
-          brew style broglow/tap/broglow
-          brew audit --strict broglow/tap/broglow
+          cp ./*.rb "$(brew --repository broglow/tap)/Formula/"
+          brew style broglow/tap/broglow "broglow/tap/broglow@${TAG#v}"
+          brew audit --strict broglow/tap/broglow "broglow/tap/broglow@${TAG#v}"
       # Archives of a private repository cannot be fetched anonymously.
       - name: Install from the release and run the formula test
         if: ${{ !github.event.repository.private }}
         run: |
           set -euo pipefail
-          brew install broglow/tap/broglow
-          brew test broglow/tap/broglow
+          PINNED="broglow/tap/broglow@${TAG#v}"
+          brew install broglow/tap/broglow "$PINNED"
+          brew test broglow/tap/broglow "$PINNED"
           "$(brew --prefix)/bin/broglow" --version
+          "$(brew --prefix "broglow@${TAG#v}")/bin/broglow" --version
 
   publish:
     if: ${{ inputs.publish || github.event_name == 'release' }}
@@ -105,11 +108,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p tap/Formula
-          cp broglow.rb tap/Formula/broglow.rb
+          cp ./*.rb tap/Formula/
           cd tap
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Formula/broglow.rb
-          git diff --cached --quiet && { echo "Formula unchanged."; exit 0; }
+          git add Formula
+          git diff --cached --quiet && { echo "Formulae unchanged."; exit 0; }
           git commit -m "broglow $TAG"
           git push
