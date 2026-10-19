@@ -124,7 +124,7 @@ def on_config(config, **kwargs):
     return config
 
 
-def on_page_content(html, *, page, config, **kwargs):
+def reference_content(html, page, config):
     """Keep reference-page repository links and icons valid on the website."""
     name = page.file.src_uri.rsplit("/", 1)[-1]
     if name not in REFERENCE_SOURCES and name not in SELF_CONTAINED_REFERENCES:
@@ -222,6 +222,26 @@ def on_page_content(html, *, page, config, **kwargs):
 
     html = re.sub(r'<a href="([^"]+)"([^>]*)>(.*?)</a>', link, html, flags=re.DOTALL)
     return re.sub(r'(<img\b[^>]*\bsrc=")([^"]+)("[^>]*>)', icon, html)
+
+
+def on_page_content(html, *, page, config, **kwargs):
+    """Serve the photos guides reference by repository URL from this site."""
+    html = reference_content(html, page, config)
+    raw = f"{(config.repo_url or repository_url()).rstrip('/')}/raw/HEAD/"
+
+    def photo(match):
+        before, url, after = match.groups()
+        if not unescape(url).startswith(raw):
+            return match[0]
+        path = (SITE.parent / unquote(unescape(url)[len(raw) :])).resolve()
+        if not path.is_relative_to(SITE / "assets") or not path.is_file():
+            raise ValueError(f"Missing site asset: {url}")
+        # Shipped manuals keep the repository URL; built pages use their own copy.
+        depth = page.url.count("/") + 1
+        target = "../" * depth + path.relative_to(SITE).as_posix()
+        return f"{before}{escape(target, quote=True)}{after}"
+
+    return re.sub(r'(<img\b[^>]*\bsrc=")([^"]+)("[^>]*>)', photo, html)
 
 
 def on_page_markdown(markdown, *, page, config, **kwargs):

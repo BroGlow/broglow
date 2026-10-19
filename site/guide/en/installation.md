@@ -26,6 +26,20 @@ To open the Mac app, press **⌘ Space**, search **BroGlow** and press Return. I
 traffic-light icon in the menu bar opens the session controls; the app starts at login.
 In Terminal, `broglow` opens the dashboard.
 
+<a name="colors"></a>
+
+## What the colors mean
+
+The lamp mirrors all your local sessions at once: **green** while an agent is
+working, **yellow** when a session has finished its turn and waits for you, **red**
+when an agent asks a question or needs a permission. The popover marks each session
+with the same colors; **Settings → Mixed sessions** decides between green and yellow
+when sessions disagree.
+
+![Green: an agent is working]({{ repo_url }}/raw/HEAD/site/assets/photos/state-green.jpg)
+![Yellow: a session waits for you]({{ repo_url }}/raw/HEAD/site/assets/photos/state-yellow.jpg)
+![Red: an agent needs your answer]({{ repo_url }}/raw/HEAD/site/assets/photos/state-red.jpg)
+
 <a name="pairing"></a>
 
 ## Pair once, then place it on your desk

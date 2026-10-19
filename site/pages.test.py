@@ -230,6 +230,22 @@ public = on_page_content(
 assert 'href="../' not in local and "firmware/esp32-c3-supermini" in local
 assert "https://github.com/example/lamp/tree/HEAD/firmware/esp32-c3-supermini" in public
 assert "data:image/png;base64," in local and 'href="#camera-2026"' in public
+# Photos referenced by repository URL come from the site's own assets, at any depth.
+photo = '<img src="{}/raw/HEAD/site/assets/photos/state-green.jpg" alt="Green">'
+for url, expected in (
+    ("", "../"),
+    ("installation/", "../../"),
+    ("ru/hardware/", "../../../"),
+):
+    page = SimpleNamespace(file=SimpleNamespace(src_uri="en/installation.md"), url=url)
+    assert (
+        on_page_content(
+            photo.format("https://github.com/example/lamp"),
+            page=page,
+            config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
+        )
+        == f'<img src="{expected}assets/photos/state-green.jpg" alt="Green">'
+    )
 for locale in ("en", "ru"):
     page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/hardware.md"))
     sample = (

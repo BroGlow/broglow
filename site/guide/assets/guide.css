@@ -31,3 +31,11 @@
   width: 100%;
   height: auto;
 }
+.md-typeset img[src*="assets/photos/"] {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 8px;
+}
+.md-typeset img[src*="assets/photos/state-"] {
+  width: 31%;
+}
