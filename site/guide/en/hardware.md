@@ -712,7 +712,7 @@ after recovering from a denied permission.
 [signing and TCC](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements),
 [designated requirements](https://developer.apple.com/library/archive/technotes/tn2206/).
 
-## Pair and remember the home and office lamps
+## Pair and remember lamps
 
 Lamps advertise as `BroGlow C3` plus a four-digit hexadecimal board suffix. The Mac
 saves each lamp's CoreBluetooth UUID. A lamp accepts one Mac at a time; one Mac can

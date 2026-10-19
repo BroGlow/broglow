@@ -772,9 +772,9 @@ Bluetooth**. Установленный пакет приложения соде
 [подпись и TCC](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements),
 [designated requirements](https://developer.apple.com/library/archive/technotes/tn2206/).
 
-<a name="pair-and-remember-the-home-and-office-lamps"></a>
+<a name="pair-and-remember-lamps"></a>
 
-## Сопряжение и сохранение домашней и офисной ламп
+## Сопряжение и сохранение ламп
 
 Лампы видны по Bluetooth как `BroGlow C3` с четырёхзначным шестнадцатеричным
 суффиксом платы. Mac сохраняет UUID CoreBluetooth каждой лампы. Лампа одновременно
