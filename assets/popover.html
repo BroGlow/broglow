@@ -130,6 +130,7 @@ body.win .optrow { border-radius: 5px; padding: 9px 12px; }
 .optrow:hover { background: rgba(255,255,255,.08); }
 body.win .optrow:hover { background: rgba(255,255,255,.06); }
 .setdesc { white-space: normal; line-height: 1.35; }
+#usblampsettings .sname { white-space: normal; }
 .optrow input { margin-top: 2px; accent-color: #3577f6; }
 body.win .optrow input { accent-color: #4cc2ff; }
 
@@ -693,6 +694,11 @@ function render() {
         `<input type="radio" name="yellowmode" id="yellow-${o.value}" value="${o.value}">` +
         `<span class="sinfo"><span class="sname">${o.title}</span></span></label>`
       ).join('') + `</div>` +
+      `<div id="usblampsettings"><div class="grplabel">Lamps</div>` +
+      `<label class="optrow" for="autoaddforgottenusb">` +
+      `<input type="checkbox" id="autoaddforgottenusb" aria-describedby="autoaddforgottenusbhint">` +
+      `<span class="sinfo"><span class="sname">Automatically add forgotten lamps over USB</span>` +
+      `<span class="smeta setdesc" id="autoaddforgottenusbhint">Unplug a forgotten lamp for at least five seconds, then reconnect it to add it again. Turn this off if you connect lamps only for power.</span></span></label></div>` +
       `<div class="grplabel">Usage tracking</div>` +
       // Opt-in: turning it on lets BroGlow read local agent transcripts and
       // Claude's usage endpoint — hence the off default.
@@ -704,6 +710,8 @@ function render() {
     document.getElementById('showdashboard').checked = setting('showDashboardButton', state.settings?.showDashboardButton === true);
     document.getElementById('showagentnames').checked = setting('showAgentNames', state.settings?.showAgentNames !== false);
     document.getElementById('groupbyproject').checked = setting('groupByProject', state.settings?.groupByProject === true);
+    document.getElementById('usblampsettings').hidden = !state.lamp?.bluetooth_supported;
+    document.getElementById('autoaddforgottenusb').checked = setting('autoAddForgottenUsb', state.settings?.autoAddForgottenUsb !== false);
     document.getElementById(`yellow-${mode}`).checked = true;
     document.getElementById('trackusage').checked = state.settings?.usageEnabled === true;
     const error = document.getElementById('settingserror');
@@ -852,6 +860,7 @@ document.addEventListener('change', ev => {
     showdashboard: ['showDashboardButton', 'set_dashboard_button'],
     showagentnames: ['showAgentNames', 'set_agent_names'],
     groupbyproject: ['groupByProject', 'set_group_by_project'],
+    autoaddforgottenusb: ['autoAddForgottenUsb', 'set_auto_add_forgotten_usb'],
   };
   if (ev.target.id in toggles) {
     const [key, cmd] = toggles[ev.target.id];

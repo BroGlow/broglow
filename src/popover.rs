@@ -89,6 +89,10 @@ pub enum PopoverMsg {
     SetGroupByProject {
         enabled: bool,
     },
+    /// Add forgotten lamps when their USB cable is reconnected (macOS only).
+    SetAutoAddForgottenUsb {
+        enabled: bool,
+    },
     /// The Settings view's usage-tracking toggle.
     SetUsage {
         enabled: bool,
@@ -207,6 +211,8 @@ struct SettingsPayload {
     show_agent_names: bool,
     #[serde(rename = "groupByProject")]
     group_by_project: bool,
+    #[serde(rename = "autoAddForgottenUsb")]
+    auto_add_forgotten_usb: bool,
     #[serde(rename = "yellowMode")]
     yellow_mode: YellowMode,
     /// Whether usage tracking is opted into; drives the Settings selection and
@@ -629,6 +635,7 @@ fn build_payload(state: &HookState, setup_busy: bool) -> String {
             show_dashboard_button: cfg.show_dashboard_button,
             show_agent_names: cfg.show_agent_names,
             group_by_project: cfg.group_by_project,
+            auto_add_forgotten_usb: cfg.auto_add_forgotten_usb,
             yellow_mode: cfg.yellow_mode,
             usage_enabled: cfg.usage_enabled,
         },

@@ -1,6 +1,13 @@
 //! USB-assisted BLE setup. One LED worker drives every remembered nearby lamp.
 use crate::config::{self, read_config_strict as read_setup_config, Config, LedTransport};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SetupMode {
+    Manual,
+    Automatic,
+    UsbReplug,
+}
+
 #[derive(clap::Subcommand)]
 pub enum BleCommand {
     /// Discover lamps for 8 seconds (disable the lamp first).
@@ -10,9 +17,12 @@ pub enum BleCommand {
         /// Explicit USB serial path; otherwise require exactly one ESP32 303a:1001.
         #[arg(long)]
         port: Option<String>,
-        /// Add only a previously unknown USB lamp; used by the desktop watcher.
+        /// Add a new USB lamp without overriding saved preferences.
         #[arg(long, hide = true)]
         automatic: bool,
+        /// The watcher observed this attachment after its initial USB snapshot.
+        #[arg(long, hide = true, requires = "automatic")]
+        usb_replug: bool,
     },
     /// Add a remembered CoreBluetooth ID and enable all saved BLE lamps.
     Add { id: String },
@@ -50,7 +60,20 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
     }
     match command {
         BleCommand::Scan => return scan(&read_setup_config()?),
-        BleCommand::Pair { port, automatic } => return pair(port, automatic),
+        BleCommand::Pair {
+            port,
+            automatic,
+            usb_replug,
+        } => {
+            let mode = if usb_replug {
+                SetupMode::UsbReplug
+            } else if automatic {
+                SetupMode::Automatic
+            } else {
+                SetupMode::Manual
+            };
+            return pair(port, mode);
+        }
         BleCommand::List => {
             let cfg = read_setup_config()?;
             let status = crate::led::connection_status();
@@ -154,7 +177,7 @@ pub fn command(command: BleCommand) -> anyhow::Result<()> {
 
 /// Use the installed identity and keep setup/rollback alive if the tray quits.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-pub(crate) fn pair_from_app(automatic: bool) -> anyhow::Result<()> {
+pub(crate) fn pair_from_app(mode: SetupMode) -> anyhow::Result<()> {
     #[cfg(target_os = "macos")]
     {
         use std::os::unix::process::CommandExt;
@@ -165,8 +188,11 @@ pub(crate) fn pair_from_app(automatic: bool) -> anyhow::Result<()> {
         // A file, not a pipe: closing the tray must not break the child's rollback.
         let mut command = std::process::Command::new(crate::mac_bundle_executable()?);
         command.args(["ble", "pair"]);
-        if automatic {
+        if mode != SetupMode::Manual {
             command.arg("--automatic");
+        }
+        if mode == SetupMode::UsbReplug {
+            command.arg("--usb-replug");
         }
         let result = command
             .process_group(0)
@@ -186,7 +212,7 @@ pub(crate) fn pair_from_app(automatic: bool) -> anyhow::Result<()> {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = automatic;
+        let _ = mode;
         anyhow::bail!("Bluetooth setup is supported on macOS only")
     }
 }
@@ -206,7 +232,7 @@ fn scan(_: &Config) -> anyhow::Result<()> {
     anyhow::bail!("BLE control is supported on macOS only")
 }
 #[cfg(not(target_os = "macos"))]
-fn pair(_: Option<String>, _: bool) -> anyhow::Result<()> {
+fn pair(_: Option<String>, _: SetupMode) -> anyhow::Result<()> {
     anyhow::bail!("BLE pairing is supported on macOS only")
 }
 #[cfg(not(target_os = "macos"))]
@@ -529,38 +555,51 @@ mod mac {
     #[derive(Default)]
     pub(crate) struct UsbAutoPair {
         attempted: std::collections::BTreeSet<String>,
+        attached: Option<std::collections::BTreeSet<String>>,
     }
 
     impl UsbAutoPair {
-        pub(crate) fn poll(&mut self) -> bool {
+        pub(crate) fn poll(&mut self) -> Option<SetupMode> {
             let (Ok(ports), Ok(cfg)) = (serialport::available_ports(), read_setup_config()) else {
-                return false; // An enumeration error is not an unplug event.
+                return None; // An enumeration error is not an unplug event.
             };
             self.observe(&ports, &cfg)
         }
 
-        fn observe(&mut self, ports: &[serialport::SerialPortInfo], cfg: &Config) -> bool {
+        fn observe(
+            &mut self,
+            ports: &[serialport::SerialPortInfo],
+            cfg: &Config,
+        ) -> Option<SetupMode> {
             let attachment = |port: &serialport::SerialPortInfo| {
-                format!("{}:{:?}", port.port_name, port.port_type)
+                // macOS exposes tty/cu twins for one physical attachment.
+                let path = port.port_name.replacen("/dev/tty.", "/dev/cu.", 1);
+                format!("{path}:{:?}", port.port_type)
             };
             let attached: std::collections::BTreeSet<_> = ports.iter().map(attachment).collect();
             self.attempted.retain(|key| attached.contains(key));
+            let previous = self.attached.replace(attached);
             let Ok(path) = pair_port(None, ports) else {
-                return false; // Require one unambiguous native USB candidate.
+                return None; // Require one unambiguous native USB candidate.
             };
             let port = ports.iter().find(|port| port.port_name == path).unwrap();
             if !self.attempted.insert(attachment(port)) {
-                return false;
+                return None;
             }
+            let mode = if previous.is_some_and(|ports| !ports.contains(&attachment(port))) {
+                SetupMode::UsbReplug
+            } else {
+                SetupMode::Automatic
+            };
             if let serialport::SerialPortType::UsbPort(usb) = &port.port_type {
                 if let Some(serial) = &usb.serial_number {
                     let identity = serial.replace(':', "").to_ascii_lowercase();
-                    if cfg.usb_lamps.contains_key(&identity) {
-                        return false;
+                    if already_set_up(mode, cfg, &identity) {
+                        return None;
                     }
                 }
             }
-            true // INFO, never the USB descriptor, authorizes PAIR.
+            Some(mode) // INFO, never the USB descriptor, authorizes PAIR.
         }
     }
 
@@ -573,9 +612,9 @@ mod mac {
         paused: bool,
         identity: String,
         id: String,
-        automatic: bool,
+        mode: SetupMode,
     ) -> Result<()> {
-        if automatic {
+        if mode != SetupMode::Manual {
             anyhow::ensure!(
                 latest.led_enabled == (original.led_enabled && !paused)
                     && latest.led_transport == original.led_transport
@@ -583,9 +622,13 @@ mod mac {
                     && latest.ble_ids() == original.ble_ids(),
                 "Lamp selection changed during automatic setup; retry Add lamp"
             );
+            anyhow::ensure!(
+                !already_set_up(mode, latest, &identity),
+                "USB lamp preference changed during automatic setup; retry Add lamp"
+            );
         }
         latest.usb_lamps.insert(identity, id.clone());
-        if automatic && latest.ble_ids().contains(&id) {
+        if mode != SetupMode::Manual && latest.ble_ids().contains(&id) {
             // A lamp added before USB tracking existed keeps its chosen transport
             // and enabled state; discovering its USB identity is not an opt-in.
             latest.led_enabled = original.led_enabled;
@@ -679,9 +722,14 @@ mod mac {
         identity.iter().map(|byte| format!("{byte:02x}")).collect()
     }
 
-    /// The tray never re-runs setup for a verified board; Add lamp always may.
-    fn already_set_up(automatic: bool, cfg: &Config, identity: &[u8; 6]) -> bool {
-        automatic && cfg.usb_lamps.contains_key(&usb_key(identity))
+    /// Only a detected replug can re-add a forgotten board, when opted in.
+    fn already_set_up(mode: SetupMode, cfg: &Config, identity: &str) -> bool {
+        mode != SetupMode::Manual
+            && cfg.usb_lamps.get(identity).is_some_and(|id| {
+                mode != SetupMode::UsbReplug
+                    || !cfg.auto_add_forgotten_usb
+                    || cfg.ble_ids().contains(id)
+            })
     }
 
     const SETUP_SCAN: Duration = Duration::from_secs(8);
@@ -753,7 +801,7 @@ mod mac {
         found
     }
 
-    pub(super) fn pair(port_override: Option<String>, automatic: bool) -> Result<()> {
+    pub(super) fn pair(port_override: Option<String>, mode: SetupMode) -> Result<()> {
         let ports = if port_override.is_some() {
             Vec::new()
         } else {
@@ -776,7 +824,7 @@ mod mac {
         let current = read_setup_config()?;
         let mut usb = if info_before_pause(&current) {
             let (serial, identity) = open_usb(&path)?;
-            if already_set_up(automatic, &current, &identity) {
+            if already_set_up(mode, &current, &usb_key(&identity)) {
                 return Ok(());
             }
             Some((serial, identity))
@@ -790,14 +838,7 @@ mod mac {
                 println!("Verified BroGlow firmware on {path}; opening its pairing window.");
                 if let Some(id) = find_with_worker(serial.as_mut(), identity)? {
                     config::update_config(|latest| {
-                        remember_usb(
-                            latest,
-                            &current,
-                            false,
-                            usb_key(identity),
-                            id.clone(),
-                            automatic,
-                        )
+                        remember_usb(latest, &current, false, usb_key(identity), id.clone(), mode)
                     })?;
                     println!("Remembered lamp {id}. The tray service is connecting; approve any macOS pairing request for this lamp.");
                     return Ok(());
@@ -838,7 +879,7 @@ mod mac {
                 Some(usb) => usb,
                 None => open_usb(&path)?,
             };
-            if already_set_up(automatic, &original, &identity) {
+            if already_set_up(mode, &original, &usb_key(&identity)) {
                 return Ok(false);
             }
             println!("Verified BroGlow firmware on {path}; opening its pairing window.");
@@ -873,7 +914,7 @@ mod mac {
                     true,
                     usb_key(&identity),
                     id.clone(),
-                    automatic,
+                    mode,
                 )
             })?;
             println!("Remembered lamp {id}. The tray service will connect automatically; approve any macOS pairing request for this lamp.");
@@ -1773,40 +1814,154 @@ mod mac {
             assert_eq!(std::fs::read(path).unwrap(), configured);
         }
 
-        #[test]
-        fn automatic_usb_setup_runs_once_per_attachment_and_respects_saved_lamps() {
-            let port = |path: &str, serial: &str| serialport::SerialPortInfo {
+        fn usb_port(path: &str, serial: Option<&str>) -> serialport::SerialPortInfo {
+            serialport::SerialPortInfo {
                 port_name: path.into(),
                 port_type: serialport::SerialPortType::UsbPort(serialport::UsbPortInfo {
                     vid: 0x303a,
                     pid: 0x1001,
-                    serial_number: Some(serial.into()),
+                    serial_number: serial.map(Into::into),
                     manufacturer: None,
                     product: None,
                 }),
-            };
-            let lamp = port("/dev/cu.lamp", "00:11:22:33:44:55");
-            let twin = port("/dev/tty.lamp", "00:11:22:33:44:55");
-            let other = port("/dev/cu.other", "AA:BB:CC:DD:EE:FF");
-            let mut watch = UsbAutoPair::default();
-            let cfg = Config::default();
-            assert!(!watch.observe(&[], &cfg));
-            assert!(!watch.observe(&[lamp.clone(), other.clone()], &cfg));
-            assert!(watch.observe(&[lamp.clone(), twin.clone()], &cfg));
-            // Success, failure, or Forget while still attached cannot loop setup.
-            assert!(!watch.observe(std::slice::from_ref(&lamp), &cfg));
-            assert!(!watch.observe(&[], &cfg));
-            assert!(watch.observe(std::slice::from_ref(&lamp), &cfg));
-            // A different physical board at the same path is a new attachment.
-            assert!(watch.observe(&[port("/dev/cu.lamp", "AA:BB:CC:DD:EE:FF")], &cfg));
+            }
+        }
 
-            let mut cfg = cfg;
+        #[test]
+        fn automatic_usb_setup_runs_once_per_attachment_and_respects_saved_lamps() {
+            let lamp = usb_port("/dev/cu.lamp", Some("00:11:22:33:44:55"));
+            let twin = usb_port("/dev/tty.lamp", Some("00:11:22:33:44:55"));
+            let other = usb_port("/dev/cu.other", Some("AA:BB:CC:DD:EE:FF"));
+            let mut watch = UsbAutoPair::default();
+            let mut cfg = Config::default();
+            assert_eq!(watch.observe(&[], &cfg), None);
+            assert_eq!(watch.observe(&[lamp.clone(), other.clone()], &cfg), None);
+            assert_eq!(
+                watch.observe(&[lamp.clone(), twin.clone()], &cfg),
+                Some(SetupMode::Automatic)
+            );
+            // Success, failure, or Forget while still attached cannot loop setup.
             cfg.usb_lamps.insert("001122334455".into(), "saved".into());
-            // Remembered, disabled and forgotten boards stay opted out, even
-            // after restarting the app. Replug still detects a genuinely new lamp.
+            assert_eq!(watch.observe(std::slice::from_ref(&lamp), &cfg), None);
+            assert_eq!(watch.observe(&[], &cfg), None);
+            assert_eq!(
+                watch.observe(std::slice::from_ref(&lamp), &cfg),
+                Some(SetupMode::UsbReplug)
+            );
+            assert_eq!(watch.observe(std::slice::from_ref(&lamp), &cfg), None);
+            // A different physical board at the same path is a new attachment.
+            assert_eq!(
+                watch.observe(&[usb_port("/dev/cu.lamp", Some("AA:BB:CC:DD:EE:FF"))], &cfg),
+                Some(SetupMode::UsbReplug)
+            );
+
+            // Restart while attached never re-adds a forgotten lamp, even if
+            // another attached board initially makes the selection ambiguous.
             let mut restarted = UsbAutoPair::default();
-            assert!(!restarted.observe(&[lamp, twin], &cfg));
-            assert!(restarted.observe(&[other], &cfg));
+            assert_eq!(restarted.observe(&[lamp.clone(), other], &cfg), None);
+            assert_eq!(restarted.observe(&[lamp.clone(), twin], &cfg), None);
+            for enabled in [false, true] {
+                cfg.ble_peripherals = vec!["saved".into()];
+                cfg.led_enabled = enabled;
+                assert_eq!(restarted.observe(&[], &cfg), None);
+                assert_eq!(restarted.observe(std::slice::from_ref(&lamp), &cfg), None);
+            }
+        }
+
+        #[test]
+        fn forgotten_usb_replug_respects_the_toggle_and_manual_add() {
+            let identity = "001122334455";
+            let mut cfg = Config::default();
+            cfg.usb_lamps.insert(identity.into(), "forgotten".into());
+            for enabled in [false, true] {
+                cfg.auto_add_forgotten_usb = enabled;
+                let lamp = usb_port("/dev/cu.lamp", Some("00:11:22:33:44:55"));
+                let mut watch = UsbAutoPair::default();
+                assert_eq!(watch.observe(std::slice::from_ref(&lamp), &cfg), None);
+                assert_eq!(watch.observe(&[], &cfg), None);
+                assert_eq!(
+                    watch.observe(std::slice::from_ref(&lamp), &cfg),
+                    enabled.then_some(SetupMode::UsbReplug)
+                );
+                assert_eq!(watch.observe(std::slice::from_ref(&lamp), &cfg), None);
+                // Changing the setting while still attached is not a replug.
+                cfg.auto_add_forgotten_usb = !enabled;
+                assert_eq!(watch.observe(std::slice::from_ref(&lamp), &cfg), None);
+                cfg.auto_add_forgotten_usb = enabled;
+                assert!(already_set_up(SetupMode::Automatic, &cfg, identity));
+                assert_eq!(
+                    already_set_up(SetupMode::UsbReplug, &cfg, identity),
+                    !enabled
+                );
+                assert!(!already_set_up(SetupMode::Manual, &cfg, identity));
+                assert!(!already_set_up(SetupMode::UsbReplug, &cfg, "new"));
+            }
+            // Without a USB serial descriptor, INFO must enforce the same rule.
+            let lamp = usb_port("/dev/cu.lamp", None);
+            let mut watch = UsbAutoPair::default();
+            assert_eq!(
+                watch.observe(std::slice::from_ref(&lamp), &cfg),
+                Some(SetupMode::Automatic)
+            );
+            assert!(already_set_up(SetupMode::Automatic, &cfg, identity));
+        }
+
+        #[test]
+        fn usb_port_twins_are_one_attachment() {
+            let cu = usb_port("/dev/cu.lamp", Some("00:11:22:33:44:55"));
+            let tty = usb_port("/dev/tty.lamp", Some("00:11:22:33:44:55"));
+            let cfg = Config {
+                usb_lamps: [("001122334455".into(), "forgotten".into())].into(),
+                ..Config::default()
+            };
+            let mut watch = UsbAutoPair::default();
+            assert_eq!(watch.observe(std::slice::from_ref(&tty), &cfg), None);
+            assert_eq!(watch.observe(&[cu.clone(), tty.clone()], &cfg), None);
+            assert_eq!(watch.observe(std::slice::from_ref(&cu), &cfg), None);
+            assert_eq!(watch.observe(&[], &cfg), None);
+            assert_eq!(watch.observe(&[cu, tty], &cfg), Some(SetupMode::UsbReplug));
+        }
+
+        #[test]
+        fn forgotten_usb_setup_rechecks_preference_before_saving() {
+            let original = Config {
+                usb_lamps: [("001122334455".into(), "forgotten".into())].into(),
+                ..Config::default()
+            };
+            for enabled in [false, true] {
+                let mut latest = original.clone();
+                latest.auto_add_forgotten_usb = enabled;
+                latest.extra.insert("keep".into(), 42.into());
+                let before = serde_json::to_value(&latest).unwrap();
+                let result = remember_usb(
+                    &mut latest,
+                    &original,
+                    false,
+                    "001122334455".into(),
+                    "forgotten".into(),
+                    SetupMode::UsbReplug,
+                );
+                assert_eq!(result.is_ok(), enabled);
+                if enabled {
+                    assert_eq!(latest.ble_ids(), ["forgotten"]);
+                    assert!(latest.led_enabled);
+                    assert_eq!(latest.led_transport, LedTransport::Ble);
+                    assert_eq!(latest.extra["keep"], 42);
+                } else {
+                    assert_eq!(serde_json::to_value(&latest).unwrap(), before);
+                    remember_usb(
+                        &mut latest,
+                        &original,
+                        false,
+                        "001122334455".into(),
+                        "forgotten".into(),
+                        SetupMode::Manual,
+                    )
+                    .unwrap();
+                    assert_eq!(latest.ble_ids(), ["forgotten"]);
+                    assert!(!latest.auto_add_forgotten_usb);
+                }
+            }
         }
 
         #[test]
@@ -1821,9 +1976,21 @@ mod mac {
             // board ends automatic setup before any lamp is paused.
             assert!(info_before_pause(&cfg));
             cfg.usb_lamps.insert(usb_key(&identity), "saved".into());
-            assert!(already_set_up(true, &cfg, &identity));
-            assert!(!already_set_up(false, &cfg, &identity));
-            assert!(!already_set_up(true, &cfg, &[0xaa; 6]));
+            assert!(already_set_up(
+                SetupMode::Automatic,
+                &cfg,
+                &usb_key(&identity)
+            ));
+            assert!(!already_set_up(
+                SetupMode::Manual,
+                &cfg,
+                &usb_key(&identity)
+            ));
+            assert!(!already_set_up(
+                SetupMode::Automatic,
+                &cfg,
+                &usb_key(&[0xaa; 6])
+            ));
             // The USB worker owns the serial port until it is paused.
             cfg.led_transport = LedTransport::Usb;
             assert!(!info_before_pause(&cfg));
@@ -1848,7 +2015,7 @@ mod mac {
                 true,
                 "001122334455".into(),
                 "existing".into(),
-                true,
+                SetupMode::Automatic,
             )
             .unwrap();
             assert!(!latest.led_enabled);
@@ -1862,7 +2029,7 @@ mod mac {
                 true,
                 "aabbccddeeff".into(),
                 "new".into(),
-                true,
+                SetupMode::Automatic,
             )
             .unwrap();
             assert!(latest.led_enabled);
@@ -1878,7 +2045,7 @@ mod mac {
                 true,
                 "another".into(),
                 "third".into(),
-                true
+                SetupMode::Automatic
             )
             .is_err());
             assert_eq!(serde_json::to_value(&latest).unwrap(), changed);
@@ -1890,7 +2057,7 @@ mod mac {
                 true,
                 "001122334455".into(),
                 "existing".into(),
-                false,
+                SetupMode::Manual,
             )
             .unwrap();
             assert!(disabled.led_enabled);
@@ -2016,7 +2183,7 @@ mod mac {
                 false,
                 "aa".into(),
                 "new".into(),
-                true,
+                SetupMode::Automatic,
             )
             .unwrap();
             assert!(latest.led_enabled);
@@ -2030,7 +2197,7 @@ mod mac {
                 false,
                 "aa".into(),
                 "new".into(),
-                true
+                SetupMode::Automatic
             )
             .is_err());
             assert_eq!(serde_json::to_value(&disabled).unwrap(), before);
@@ -2042,7 +2209,7 @@ mod mac {
                 true,
                 "aa".into(),
                 "new".into(),
-                true
+                SetupMode::Automatic
             )
             .is_err());
         }

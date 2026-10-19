@@ -360,7 +360,7 @@ enum UserEvent {
 fn start_lamp_setup(
     popover: &mut Popover,
     proxy: &tao::event_loop::EventLoopProxy<UserEvent>,
-    automatic: bool,
+    mode: crate::ble::SetupMode,
 ) {
     if popover.setup_busy {
         return;
@@ -369,9 +369,7 @@ fn start_lamp_setup(
     popover.push_state(&read_display_state());
     let proxy = proxy.clone();
     thread::spawn(move || {
-        let error = crate::ble::pair_from_app(automatic)
-            .err()
-            .map(|e| e.to_string());
+        let error = crate::ble::pair_from_app(mode).err().map(|e| e.to_string());
         let _ = proxy.send_event(UserEvent::LampSetupFinished(error));
     });
 }
@@ -635,8 +633,10 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                 // Five-second polling can miss a faster unplug/replug; switch
                 // to USB hotplug events if that ever matters.
                 #[cfg(target_os = "macos")]
-                if !popover.setup_busy && usb_auto_pair.poll() {
-                    start_lamp_setup(&mut popover, &setup_proxy, true);
+                if !popover.setup_busy {
+                    if let Some(mode) = usb_auto_pair.poll() {
+                        start_lamp_setup(&mut popover, &setup_proxy, mode);
+                    }
                 }
                 let state = read_display_state();
                 if let Some(tray) = tray_holder.as_ref() {
@@ -711,7 +711,7 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
             #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::UserEvent(UserEvent::Popover(msg)) => match msg {
                 PopoverMsg::AddLamp => {
-                    start_lamp_setup(&mut popover, &setup_proxy, false);
+                    start_lamp_setup(&mut popover, &setup_proxy, crate::ble::SetupMode::Manual);
                 }
                 PopoverMsg::SetLed { .. }
                 | PopoverMsg::ForgetLamp { .. }
@@ -792,6 +792,16 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                     let error = config::set_group_by_project(enabled)
                         .err()
                         .map(|error| format!("Could not save project grouping: {error}"));
+                    popover.push_state(&read_display_state());
+                    popover.config_action_result(error);
+                }
+                PopoverMsg::SetAutoAddForgottenUsb { enabled } => {
+                    let error = config::update_config(|cfg| {
+                        cfg.auto_add_forgotten_usb = enabled;
+                        Ok(())
+                    })
+                    .err()
+                    .map(|error| format!("Could not save USB lamp setting: {error}"));
                     popover.push_state(&read_display_state());
                     popover.config_action_result(error);
                 }
