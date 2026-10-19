@@ -699,8 +699,6 @@ share its Bluetooth permission.
 
 Local installs are ad-hoc signed with an identifier-only designated requirement. The
 permission survives rebuilds, but the signature **does not authenticate a publisher**.
-Distributors can set `BROGLOW_SIGNING_IDENTITY` to a real signing identity and should
-keep it consistent; changing the signer may require Bluetooth consent again.
 
 Neither a signature check nor a scan permitted in Terminal proves that the background
 service has permission. Verify a write from the installed service while the lamp runs
