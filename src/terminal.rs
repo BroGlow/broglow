@@ -321,8 +321,8 @@ pub fn focus(
     if harness == Some("codex") {
         return open_codex_thread(session_id);
     }
-    // No captured identity, or its window is gone: fall back to scanning
-    // Terminal.app window titles for the project directory name.
+    // No captured identity, or nothing it names could be raised: fall back
+    // to scanning Terminal.app window titles for the project directory name.
     project_path.is_some_and(focus_terminal_by_title)
 }
 
