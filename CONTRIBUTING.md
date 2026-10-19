@@ -31,8 +31,8 @@ which GTK 3 bindings cannot use), and the unmaintained build-time crate
 Mac and Windows builds do not include these crates.
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.12.17 or
-newer (CI uses 0.12.17). The project requires Python 3.14 or newer; uv downloads
-it if it is missing. Sync the locked development tools and enable the commit hook:
+newer (CI uses 0.12.17). The project uses Python 3.14, pinned in `.python-version`;
+uv downloads it if it is missing. Sync the locked development tools and enable the commit hook:
 
 ```bash
 uv sync --frozen --group dev
@@ -40,7 +40,8 @@ uv run --frozen --group dev prek install
 ```
 
 The development group in `pyproject.toml` pins Black, clang-format and prek;
-`uv.lock` fixes their transitive dependencies. Hooks use the native
+the `docs` and `cad` groups pin the website and CAD toolchains, and `uv.lock`
+fixes their transitive dependencies. Hooks use the native
 [`prek.toml`](prek.toml) configuration.
 
 ## Formatting and hooks
