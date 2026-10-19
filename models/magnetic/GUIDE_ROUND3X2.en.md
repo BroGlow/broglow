@@ -14,14 +14,7 @@ magnets: pull it off, put it back, or swap in any mascot you like, any time.
 
 Use **four axially magnetized Ø3×2 mm N52 neodymium magnets**: two in the mascot,
 two in the traffic light (tower). Pockets are **Ø3.05 × 2.30 mm** with a teardrop-shaped top, so
-they print without supports with the part on its side. The hand stays slim, and
-the tower has no external mounting platform.
-
-The 3.05 mm diameter was confirmed with magnets measuring 3.01–3.04 mm:
-easy insertion with slight retention, suitable for glue. The 2.30 mm depth
-and assembled holding force still need physical confirmation. Printer and magnet
-tolerances vary; dry-fit before bonding. Magnet faces are designed to sit flush
-with the mating surface and touch, with no gap.
+they print without supports with the part on its side.
 
 <a name="print"></a>
 
@@ -40,13 +33,11 @@ with the same parts as STEP, plus `BUILD.json`.
 
 Use all parts from the same package. STLs are bed-oriented: **100% scale, no auto-orientation, no supports**.
 The eye file contains one eye: duplicate it in the slicer.
-Reference slicing profile (sliced and checked, not a print test): **A1 mini / PETG
-Basic / 0.4 mm nozzle / 0.20 mm layers / 4 walls / 15% infill / 5 top and bottom
-layers**. Set temperatures for your filament.
+Print with **0.12 mm layers**; PLA Matte, PLA Basic or PETG all work. Set
+temperatures for your filament.
 
-The package has no sliced 3MF or G-code. The STEP files are the same parts in
-assembly coordinates; use STL for the supplied print orientations. The LED
-retainer (05) is recommended: without it the LEDs sit by friction only and can be pushed inside.
+The LED retainer (05) is recommended: without it the LEDs sit by friction only and
+can be pushed inside.
 
 <a name="assembly"></a>
 
@@ -70,7 +61,7 @@ to GND.
    **up 1.3 mm** into the roof pocket and secure the lower screw. Keep leads and
    wires clear of its slide path, guides and screw bosses.
 
-   ![Retainer 05 installed from the rear and secured with its lower screw; the LED leads and resistors stay clear of it]({{ repo_url }}/raw/HEAD/site/assets/photos/inside-retainer.jpg)
+    ![Retainer 05 installed from the rear and secured with its lower screw; the LED leads and resistors stay clear of it]({{ repo_url }}/raw/HEAD/site/assets/photos/inside-retainer.jpg)
 
 4. Before closing the cover, test the LEDs with the cover off. The board needs
    BroGlow firmware; see
@@ -78,39 +69,27 @@ to GND.
    Leave BOOT and RESET reachable and enough wire slack to slide the board out.
    Then close the rear with three screws, tightened by hand; the cover must close
    without bending the board or pinching wires.
-5. Check that each facing magnet pair **attracts** and mark polarity. Glue magnets
-   into each half separately, setting their faces **flush with the mating surface**;
-   do not push them to the bottom of the pocket. Press the faces against a smooth,
-   flat, nonmagnetic surface; if you use release film, it must cover both the
-   plastic and the magnet so the magnet does not sink. Keep glue off the magnet
-   faces. Join the halves only after the glue cures.
+5. Glue two magnets into the tower pockets with their faces **flush with the
+   mating surface**; do not push them to the bottom of the pocket. Let the glue
+   set. Snap the other two magnets onto the tower magnets: they attach with the
+   right polarity by themselves. Put glue into the mascot pockets and press the
+   mascot onto the protruding magnets until the halves meet, so the magnets seat
+   flush. Keep glue off the magnet faces and wipe any squeeze-out. Separate the
+   halves only after the glue cures.
 6. Glue both eyes into the front pockets. Bring the hand to the tower sideways;
    the magnet faces should touch, and all mascot feet and the tower base should sit
    flat on the table. Detach the mascot with a gentle sideways pull when it is in
    the way.
 
-At flush position the calculated glue space is 0.30 mm behind a 2.00 mm magnet,
-or 0.10 mm behind a 2.20 mm magnet. Actual thickness controls the remaining space.
 For servicing, remove the cover and withdraw the board rearward without pulling
 wires. To remove the LED retainer, undo its screw, slide down 1.3 mm, then pull back.
-
-<a name="validation"></a>
-
-## Checks and limits
-
-Walls around and behind each pocket are at least 0.80 mm; retainer 05 clears the
-backing of the tower pockets by 0.40 mm. The supplied STLs are exactly the ones that
-were sliced and reviewed. None of this proves magnet holding force or fit on your
-printer: dry-fit first.
 
 <a name="generate-from-source"></a>
 
 ## Generate from source
 
 Install [uv](https://docs.astral.sh/uv/). Run from the root of the full repository
-or GitHub's source ZIP. Reviewed on macOS 15 (Apple
-Silicon) with Python 3.14; other platforms may produce different STL hashes and
-fail the slicing check below.
+or GitHub's source ZIP.
 
 ```bash
 uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
