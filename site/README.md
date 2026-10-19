@@ -69,7 +69,7 @@ landing and local downloads.
 
 ## Interactive 3D and AR
 
-The build section has a rotatable assembly explorer on the same self-hosted
+The build section has a rotatable assembly explorer on the hero's self-hosted
 model-viewer with `assets/assembly.glb`, loaded lazily; it supports drag,
 keyboard rotation, zoom, Reset view and retry after loading errors. Its separated
 parts expose the LED retainer and mounting points. Signal effects and AR are
