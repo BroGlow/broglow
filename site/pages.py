@@ -420,6 +420,14 @@ a {{ color: #ff8a3d; }}
 """
 
 
+def landing_page(home):
+    return (
+        (SITE / "index.html")
+        .read_text()
+        .replace("https://broglow.github.io/broglow/", home)
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -441,7 +449,8 @@ def main():
         site_dir=str(output / "docs"),
     )
     build(config)
-    for name in ("index.html", "styles.css", "i18n.js", "theme.js", "model-preview.js"):
+    (output / "index.html").write_text(landing_page(home))
+    for name in ("styles.css", "i18n.js", "theme.js", "model-preview.js"):
         shutil.copy2(SITE / name, output / name)
     shutil.copytree(SITE / "assets", output / "assets")
     shutil.copytree(SITE / "vendor", output / "vendor")

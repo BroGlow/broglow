@@ -20,11 +20,14 @@ function check({ current = 'en', saved, explicit, languages = ['en-US'], blocked
   return Object.assign(state, { links, setHash(value) { location.hash = value; } });
 }
 
-assert.match(check({ languages: ['ru-RU'] }).redirect, /\/ru\/codex\/#codex-setup$/);
+assert.equal(check({ languages: ['ru-RU'] }).redirect, null);
+assert.equal(check({ current: 'ru', languages: ['en'] }).redirect, null);
+assert.match(check({ saved: 'ru', languages: ['en'] }).redirect, /\/ru\/codex\/#codex-setup$/);
+assert.equal(check({ languages: ['ru'], blocked: true }).redirect, null);
 assert.match(check({ current: 'ru', saved: 'en', languages: ['ru'] }).redirect, /\/docs\/codex\/#codex-setup$/);
 assert.equal(check({ saved: 'en', languages: ['ru'] }).redirect, null);
 assert.equal(check({ languages: ['de'], saved: 'invalid' }).redirect, null);
-assert.equal(check({ languages: ['ru'] }).saved, undefined, 'Auto-detection must not save a manual preference');
+assert.equal(check({ languages: ['ru'] }).saved, undefined, 'The default must not save a manual preference');
 const manual = check({ explicit: 'en', saved: 'ru', languages: ['ru'] });
 assert.equal(manual.saved, 'en');
 assert.equal(manual.redirect, null);
@@ -38,4 +41,4 @@ assert.equal(new URL(manual.navigation).hash, '#pairing');
 assert.equal(new URL(manual.navigation).searchParams.get('lang'), 'ru');
 assert.match(check({ explicit: 'ru', blocked: true }).redirect, /\/ru\/codex\/\?lang=ru#codex-setup$/);
 assert.equal(check({ current: 'ru', explicit: 'ru', blocked: true }).redirect, null);
-console.log('PASS: docs browser language, saved and manual choices, anchors, and blocked storage');
+console.log('PASS: docs URL language, saved and manual choices, anchors, and blocked storage');

@@ -9,9 +9,7 @@
   } catch {
     // The explicit URL choice still works when storage is unavailable.
   }
-  const browser = [...(navigator.languages || []), navigator.language]
-    .filter(Boolean).map((locale) => locale.toLowerCase().split("-")[0]).find(supported);
-  const preferred = supported(explicit) ? explicit : supported(saved) ? saved : browser || "en";
+  const preferred = supported(explicit) ? explicit : supported(saved) ? saved : document.documentElement.lang;
   const target = links.find((link) => link.hreflang === preferred);
   if (document.documentElement.lang !== preferred && target) {
     const url = new URL(target.href);

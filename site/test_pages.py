@@ -1,9 +1,11 @@
 """Behavioral checks for the website's MkDocs hooks (no release network calls)."""
 
 from html import unescape
+from html.parser import HTMLParser
 from pathlib import Path
 from types import SimpleNamespace
 import os
+import re
 
 import markdown
 import pytest
@@ -12,6 +14,47 @@ import pages
 
 REPOSITORY_URL = "https://github.com/example/lamp"
 DIGEST = "a" * 64
+
+
+class Landing(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.elements = []
+        self.text = []
+
+    def handle_starttag(self, tag, attributes):
+        self.elements.append((tag, dict(attributes)))
+
+    def handle_data(self, data):
+        self.text.append(data)
+
+
+@pytest.mark.parametrize(
+    "home", ["https://broglow.github.io/broglow/", "https://example.github.io/lamp/"]
+)
+def test_landing_preview_without_javascript(home: str) -> None:
+    landing = Landing()
+    landing.feed(pages.landing_page(home))
+    assert ("html", {"lang": "en"}) in landing.elements
+    assert not re.search(r"[А-Яа-яЁё]", "".join(landing.text).replace("Русский", ""))
+    assert ("link", {"rel": "canonical", "href": home}) in landing.elements
+    metadata = {
+        attributes.get("property", attributes.get("name")): attributes.get("content")
+        for tag, attributes in landing.elements
+        if tag == "meta"
+    }
+    assert metadata["og:type"] == "website"
+    assert metadata["og:locale"] == "en_US"
+    assert metadata["og:url"] == home
+    assert metadata["twitter:card"] == "summary_large_image"
+    assert metadata["og:title"] == metadata["twitter:title"]
+    assert metadata["og:description"] == metadata["twitter:description"]
+    assert metadata["og:image"] == metadata["twitter:image"]
+    assert metadata["og:image:alt"] == metadata["twitter:image:alt"]
+    for key in ("description", "og:title", "og:description", "og:image:alt"):
+        assert metadata[key] and not re.search(r"[А-Яа-яЁё]", metadata[key])
+    image = metadata["og:image"].removeprefix(home)
+    assert image.startswith("assets/") and (pages.SITE / image).is_file()
 
 
 @pytest.fixture

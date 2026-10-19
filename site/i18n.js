@@ -5,15 +5,15 @@
   const docLinks = [...document.querySelectorAll('a[href^="docs/"]')]
     .map((link) => [link, link.getAttribute("href")]);
 
-  // Russian is the HTML fallback; English lives next to each translated value.
+  // English is the HTML fallback; Russian lives next to each translated value.
   for (const attribute of [null, "content", "alt", "aria-label"]) {
-    const key = attribute ? `data-en-${attribute}` : "data-en";
+    const key = attribute ? `data-ru-${attribute}` : "data-ru";
     for (const element of document.querySelectorAll(`[${key}]`)) {
       translations.push({
         element,
         attribute,
-        ru: attribute ? element.getAttribute(attribute) : element.textContent,
-        en: element.getAttribute(key),
+        en: attribute ? element.getAttribute(attribute) : element.textContent,
+        ru: element.getAttribute(key),
       });
     }
   }
@@ -37,11 +37,7 @@
   } catch {
     // Storage may be unavailable in private browsing or when opening a local file.
   }
-  const browserLanguage = [...(navigator.languages || []), navigator.language]
-    .filter(Boolean)
-    .map((locale) => locale.toLowerCase().split("-")[0])
-    .find((language) => language === "ru" || language === "en");
-  setLanguage(saved === "ru" || saved === "en" ? saved : browserLanguage || "en");
+  setLanguage(saved === "ru" || saved === "en" ? saved : "en");
   picker.hidden = false;
 
   picker.addEventListener("change", () => {

@@ -126,11 +126,18 @@ adding Draco/KTX compression.
 
 ## Languages and behavior
 
-The first supported browser language selects RU/EN, otherwise English. Manual
-choice wins and is shared through localStorage key `broglow-language`; clear it
-to restore detection. `guide/assets/language.js` preserves page/section and uses
-`?lang=ru` / `?lang=en` when storage is blocked. Without JavaScript, guide links
-work in their URL's language and prompts can be copied manually.
+The landing defaults to English, including its static HTML and metadata. Russian
+translations live in `data-ru` attributes. Manual choice wins and is shared through
+localStorage key `broglow-language`; clear it to restore the default. The guide
+uses the URL's language unless a saved or explicit choice overrides it;
+`guide/assets/language.js` preserves page/section and uses `?lang=ru` / `?lang=en`
+when storage is blocked. Browser language does not override these defaults.
+Without JavaScript, guide links work in their URL's language and prompts can be
+copied manually.
+
+The landing's Open Graph and Twitter cards use English text and our real
+`assets/photos/signal-green.jpg` lamp photo. Absolute canonical and preview URLs
+point to the published site; `pages.py` adjusts them for `--repository`.
 
 Both the landing and the guide follow the system color scheme and offer an
 auto/light/dark switch: the landing's `theme.js` stores the choice under
