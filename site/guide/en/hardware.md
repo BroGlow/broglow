@@ -8,8 +8,7 @@ BroGlow sends local agent session status to ESP32-C3 SuperMini lamps over USB or
 on macOS, over Bluetooth LE. One Mac can drive several lamps. A lamp needs only USB
 power; it does not use Wi-Fi. Run source commands from the root of the source checkout
 and package commands from the extracted package folder. The enclosure is a
-separate print package. Before claiming hardware support, see the
-[verification limits](#repeatable-checks-and-results).
+separate print package.
 
 ## Choose a setup path
 
@@ -1043,48 +1042,3 @@ BroGlow settings and keep later unrelated changes.
 `~/.claude/broglow` (session state, logs and lamp settings, including saved lamp IDs).
 It keeps `~/.cargo/bin/broglow`. Do not use it for routine troubleshooting. To remove
 BroGlow on purpose, run `broglow ble off` first, then `broglow uninstall`.
-
-## Repeatable checks and results
-
-The development checks (formatting, lints, Rust and JavaScript tests, firmware host
-tests and builds) are listed in
-[CONTRIBUTING.md]({{ repo_url }}/blob/HEAD/CONTRIBUTING.md#build-and-test). CI runs
-them on Linux, macOS and Windows. Firmware tests mock GPIO, the clock, serial and
-Bluetooth, so they cannot establish wiring or radio behavior.
-
-Apple Silicon results were repeated with the release app and production firmware.
-First-time pairing was last verified on an earlier build. An upgrade of the identified
-bonded Mac and C3 to the brightness firmware passed GATT rediscovery and brightness
-delivery without forgetting or re-pairing the lamp. PWM duties reported by the firmware
-are diagnostics, not a visual check of the LEDs.
-
-| Area | Evidence and limits |
-| --- | --- |
-| Apple Silicon Mac | Package install, signed service, bonded Bluetooth reconnect, status, brightness, stale-status blanking and recovery were exercised. |
-| LEDs | Check all colors and brightness on each assembly. |
-| Multiple lamps | Isolation tests pass; simultaneous operation of two physical boards is unverified. |
-| Intel Mac, Windows, Linux | CI and build targets only; no physical Bluetooth or fresh-install claim. Bluetooth lamps are macOS-only. |
-| Distribution | Local package and site checks run before each publication; verify public downloads, the website and Gatekeeper on a fresh Mac after each release. |
-| Enclosure | Fit requirements and assembly checks are in the [print guide]({{ repo_url }}/blob/HEAD/models/magnetic/GUIDE_ROUND3X2.en.md); the magnet pocket depth and holding force still need physical confirmation. The print package holds `stl/`, `step/` and `BUILD.json`. |
-
-### Physical and background-service acceptance
-
-This checklist is for maintainers before a release. For each supported Mac and board
-combination, record the exact app and firmware versions and check:
-
-1. One signed tray process, an acknowledged write, USB setup, Bluetooth consent and a
-   reconnect without a USB data connection. Verify a service restart, login, and
-   recovery after a denied permission.
-2. Real sessions showing working, paused, needs help and off; both **Mixed sessions**
-   options; all LED colors and brightness.
-3. With the board still powered, interrupted updates clear the session color within
-   **ten seconds**; restore the service right after.
-4. Board reset, Mac sleep and wake, Bluetooth off and on, out-of-range, disable and
-   re-enable; an absent lamp must not block another.
-5. On disposable test bonds: the physical pairing window, refusal after the window
-   expires, and bond reset.
-6. Enclosure fit for the board and USB connector, LED mounting and screw engagement,
-   against the print guide.
-
-Builds do not replace these checks. Never reflash a working board for an app or
-documentation update.

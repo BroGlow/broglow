@@ -16,8 +16,7 @@ by changing color. The [SuperMini manufacturer guide](https://www.nologo.tech/en
 documents that LED, and [Apache NuttX's SuperMini reference](https://nuttx.apache.org/docs/latest/platforms/risc-v/esp32c3/boards/esp32c3-supermini/index.html)
 describes GPIO8's polarity and reset strapping constraint. Board variants differ:
 this build does not detect whether an LED is fitted. A separate power LED is not
-controlled by this firmware. See the
-[current verification limits](hardware.md#repeatable-checks-and-results).
+controlled by this firmware.
 GPIO8 is driven only after normal boot; do not add external
 circuitry that pulls this strapping pin low during reset.
 

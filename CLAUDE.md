@@ -18,7 +18,7 @@ in real time. It ships three faces of the same executable:
 
 Optionally mirrors aggregate state over USB serial, or from macOS over BLE to the
 ESP32-C3 SuperMini firmware in this repository. For hardware changes, flashing,
-Bluetooth setup, deployment, and acceptance results, read
+Bluetooth setup and deployment, read
 [site/guide/en/hardware.md](site/guide/en/hardware.md).
 
 Cross-platform: macOS, Windows, Linux. MIT licensed.

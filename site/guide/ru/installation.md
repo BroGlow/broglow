@@ -89,5 +89,4 @@ broglow ble status
 Терминальная панель необязательна: её кнопку можно показать через
 **Settings → Appearance → Show Dashboard button** или командой `broglow dashboard-button show`.
 
-Прошивка, восстановление и актуальные [результаты проверок](hardware.md#repeatable-checks-and-results)
-описаны в [техническом руководстве](hardware.md).
+Прошивка и восстановление описаны в [техническом руководстве](hardware.md).

@@ -81,8 +81,7 @@ For a new or unflashed C3, follow the [flashing and backup instructions](site/gu
 | Windows | Tray app and CLI; no installer, firmware or manuals | USB |
 | Linux | Build from source | USB |
 
-Apple Silicon has been tested locally; see [verification limits](site/guide/en/hardware.md#repeatable-checks-and-results)
-for other machines. The enclosure is a separate download on the same release.
+The enclosure is a separate download on the same release.
 
 ## Install
 

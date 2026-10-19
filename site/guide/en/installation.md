@@ -89,5 +89,4 @@ Updating the app does not flash the board; see the [firmware update steps](hardw
 The terminal dashboard is optional: show its shortcut under
 **Settings → Appearance → Show Dashboard button**, or run `broglow dashboard-button show`.
 
-See the [hardware reference](hardware.md) for flashing, recovery and current
-[hardware test results](hardware.md#repeatable-checks-and-results).
+See the [hardware reference](hardware.md) for flashing and recovery.

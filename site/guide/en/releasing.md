@@ -115,9 +115,9 @@ Before selecting **Publish release** in GitHub:
   Publishing the draft is the action that makes binary downloads public; it also
   reruns the **Website** workflow so the guide shows the enclosure archive's SHA-256.
 
-The operating manual's [acceptance checklist](hardware.md#physical-and-background-service-acceptance)
-separates builds, service delivery, physical LEDs and enclosure validation.
-Never reflash a working board just to test the release workflow.
+Before publishing, check the draft on real hardware: service start and login,
+Bluetooth consent, pairing and reconnect, all LED colors and brightness,
+stale-status blanking within ten seconds, and enclosure fit. Never reflash a working board just to test the release workflow.
 
 ## Package locally without publishing
 
