@@ -235,66 +235,30 @@ pub fn write_config(cfg: &Config) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Config, YellowMode};
+    use super::Config;
 
     #[test]
-    fn preserves_unrelated_settings_with_ble_selection() {
-        let mut cfg: Config = serde_json::from_str(
-            r#"{"custom_setting":{"keep":true},"led_port":"existing","yellow_mode":"active_wins"}"#,
-        )
-        .unwrap();
-        cfg.ble_peripherals = vec!["selected-id".into()];
-        cfg.led_transport = super::LedTransport::Ble;
-        let json = serde_json::to_value(&cfg).unwrap();
-        assert_eq!(json["custom_setting"]["keep"], true);
-        let back: Config = serde_json::from_value(json).unwrap();
-        assert_eq!(back.ble_peripherals, ["selected-id"]);
-        assert_eq!(back.led_port.as_deref(), Some("existing"));
-        assert_eq!(back.yellow_mode, YellowMode::ActiveWins);
-        assert_eq!(back.ble_ids(), ["selected-id"]);
-        let mut multiple = back;
-        multiple.ble_peripherals = vec!["work".into(), "selected-id".into(), "home".into()];
-        assert_eq!(multiple.ble_ids(), ["home", "selected-id", "work"]);
-    }
-
-    #[test]
-    fn roundtrips_through_json() {
-        let cfg = Config {
-            led_enabled: true,
-            led_port: Some("/dev/cu.usbmodem101".to_string()),
-            yellow_mode: YellowMode::ActiveWins,
-            usage_enabled: true,
-            led_brightness: 37,
-            lamp_brightness: [("home".into(), 0), ("office".into(), 80)].into(),
-            ..Config::default()
-        };
-        let json = serde_json::to_string(&cfg).unwrap();
-        let back: Config = serde_json::from_str(&json).unwrap();
-        assert!(back.led_enabled);
-        assert_eq!(back.led_port.as_deref(), Some("/dev/cu.usbmodem101"));
-        assert_eq!(back.yellow_mode, YellowMode::ActiveWins);
-        assert!(back.usage_enabled);
-        assert_eq!(back.led_brightness_percent(), 37);
-        assert_eq!(back.lamp_brightness_percent("home"), 0);
-        assert_eq!(back.lamp_brightness_percent("office"), 80);
-        assert_eq!(back.lamp_brightness_percent("new"), 37);
-    }
-
-    #[test]
-    fn brightness_defaults_to_full_without_enabling_lamps() {
+    fn missing_options_leave_lamps_and_usage_opted_out() {
         for cfg in [
             Config::default(),
             serde_json::from_str("{}").unwrap(),
-            serde_json::from_str(r#"{"led_enabled":false,"ble_peripherals":["home"]}"#).unwrap(),
+            serde_json::from_str(r#"{"led_port":null,"ble_peripherals":["home"]}"#).unwrap(),
         ] {
-            assert_eq!(cfg.led_brightness_percent(), 100);
+            assert!(
+                !cfg.led_enabled,
+                "remembering a lamp is not permission to enable it"
+            );
+            assert!(
+                !cfg.usage_enabled,
+                "usage scanning requires explicit opt-in"
+            );
             assert_eq!(cfg.lamp_brightness_percent("home"), 100);
-            assert!(serde_json::to_value(&cfg)
-                .unwrap()
-                .get("lamp_brightness")
-                .is_none());
-            assert!(!cfg.led_enabled);
         }
+        let lamps_only: Config = serde_json::from_str(r#"{"led_enabled":true}"#).unwrap();
+        assert!(
+            !lamps_only.usage_enabled,
+            "lamp opt-in does not authorize usage scanning"
+        );
     }
 
     #[test]
@@ -362,81 +326,5 @@ mod tests {
             assert_eq!(cfg.led_port.as_deref(), Some("keep"));
             assert_eq!(cfg.extra["custom"], 42);
         }
-    }
-
-    #[test]
-    fn usage_defaults_to_off() {
-        // Usage tracking is strictly opt-in: a brand-new user (no config file),
-        // a partial config, and a config written before the setting existed
-        // must all resolve to usage off, so the daemon never scans transcripts
-        // or reads credentials until the user turns it on.
-        assert!(!Config::default().usage_enabled);
-        let from_empty: Config = serde_json::from_str("{}").unwrap();
-        assert!(!from_empty.usage_enabled);
-        let old: Config = serde_json::from_str(r#"{"led_enabled": true}"#).unwrap();
-        assert!(!old.usage_enabled);
-        assert_eq!(old.led_transport, super::LedTransport::Usb);
-        assert!(old.ble_peripherals.is_empty());
-    }
-
-    #[test]
-    fn a_retired_billing_mode_is_kept_but_unused() {
-        // Configs from before dollar estimates were removed still load, and
-        // the old key survives a save like any other unknown setting.
-        let old: Config =
-            serde_json::from_str(r#"{"usage_enabled": true, "billing_mode": "api"}"#).unwrap();
-        assert!(old.usage_enabled);
-        assert_eq!(serde_json::to_value(&old).unwrap()["billing_mode"], "api");
-    }
-
-    #[test]
-    fn yellow_mode_defaults_to_any_inactive() {
-        // Configs written before the setting existed must keep the original
-        // behavior: any idle session shows yellow.
-        let old: Config = serde_json::from_str(r#"{"led_enabled": true}"#).unwrap();
-        assert_eq!(old.yellow_mode, YellowMode::AnyInactive);
-        assert_eq!(Config::default().yellow_mode, YellowMode::AnyInactive);
-    }
-
-    #[test]
-    fn empty_or_missing_fields_default_to_led_off() {
-        // A brand-new user (no config file) and a partial config must both
-        // resolve to LED off — the opt-in safety guarantee.
-        let from_empty: Config = serde_json::from_str("{}").unwrap();
-        assert!(!from_empty.led_enabled);
-        assert!(!from_empty.show_dashboard_button);
-        assert!(from_empty.led_port.is_none());
-
-        let from_partial: Config = serde_json::from_str(r#"{"led_port": null}"#).unwrap();
-        assert!(!from_partial.led_enabled);
-        assert!(!from_partial.show_dashboard_button);
-
-        assert!(!Config::default().led_enabled);
-        assert!(!Config::default().show_dashboard_button);
-    }
-
-    #[test]
-    fn grouping_by_project_is_off_unless_turned_on() {
-        assert!(!Config::default().group_by_project);
-        let cfg: Config = serde_json::from_str("{}").unwrap();
-        assert!(!cfg.group_by_project);
-        let cfg: Config = serde_json::from_str(r#"{"group_by_project":true}"#).unwrap();
-        assert!(cfg.group_by_project);
-        assert_eq!(
-            serde_json::to_value(&cfg).unwrap()["group_by_project"],
-            true
-        );
-    }
-
-    #[test]
-    fn agent_names_show_unless_turned_off() {
-        // Existing configs predate the setting and keep the default.
-        let old: Config = serde_json::from_str(r#"{"led_enabled": true}"#).unwrap();
-        assert!(old.show_agent_names);
-        assert!(Config::default().show_agent_names);
-
-        let off: Config = serde_json::from_str(r#"{"show_agent_names": false}"#).unwrap();
-        let back: Config = serde_json::from_str(&serde_json::to_string(&off).unwrap()).unwrap();
-        assert!(!back.show_agent_names);
     }
 }

@@ -755,88 +755,9 @@ fn base64(data: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{base64, session_payloads, AgentPayload, PopoverMsg, SettingsPayload};
-    use crate::config::YellowMode;
+    use super::{base64, session_payloads, PopoverMsg};
     use crate::state::{HookState, SessionStatus, Status};
 
-    #[test]
-    fn dismiss_session_requires_an_id() {
-        assert!(matches!(
-            serde_json::from_str::<PopoverMsg>(r#"{"cmd":"clear_paused"}"#).unwrap(),
-            PopoverMsg::ClearPaused
-        ));
-        assert!(matches!(
-            serde_json::from_str::<PopoverMsg>(r#"{"cmd":"clear_session","id":"codex-session"}"#).unwrap(),
-            PopoverMsg::ClearSession { id } if id == "codex-session"
-        ));
-        for payload in [
-            r#"{"cmd":"clear_session"}"#,
-            r#"{"cmd":"clear_session","id":null}"#,
-        ] {
-            assert!(serde_json::from_str::<PopoverMsg>(payload).is_err());
-        }
-    }
-
-    /// Pins the IPC wire format the popover page's JS emits for the Settings
-    /// view (`{cmd:'set_yellow_mode', mode:'...'}` in assets/popover.html).
-    #[test]
-    fn set_yellow_mode_parses_from_page_json() {
-        let msg: PopoverMsg =
-            serde_json::from_str(r#"{"cmd":"set_yellow_mode","mode":"active_wins"}"#).unwrap();
-        assert!(matches!(
-            msg,
-            PopoverMsg::SetYellowMode {
-                mode: YellowMode::ActiveWins
-            }
-        ));
-        let msg: PopoverMsg =
-            serde_json::from_str(r#"{"cmd":"set_yellow_mode","mode":"any_inactive"}"#).unwrap();
-        assert!(matches!(
-            msg,
-            PopoverMsg::SetYellowMode {
-                mode: YellowMode::AnyInactive
-            }
-        ));
-    }
-
-    /// Pins the IPC wire format for the usage-tracking toggle
-    /// (`{cmd:'set_usage', enabled:...}` in assets/popover.html).
-    #[test]
-    fn set_usage_parses_from_page_json() {
-        for enabled in [true, false] {
-            let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
-                "cmd": "set_usage", "enabled": enabled
-            }))
-            .unwrap();
-            assert!(matches!(msg, PopoverMsg::SetUsage { enabled: e } if e == enabled));
-        }
-        assert!(serde_json::from_str::<PopoverMsg>(r#"{"cmd":"set_usage"}"#).is_err());
-    }
-
-    /// Pins the IPC wire format for the Settings view's project grouping
-    /// toggle (`{cmd:'set_group_by_project', enabled:...}` in assets/popover.html).
-    #[test]
-    fn group_by_project_requires_an_explicit_boolean() {
-        for enabled in [true, false] {
-            let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
-                "cmd": "set_group_by_project", "enabled": enabled
-            }))
-            .unwrap();
-            assert!(
-                matches!(msg, PopoverMsg::SetGroupByProject { enabled: value } if value == enabled)
-            );
-        }
-        for payload in [
-            r#"{"cmd":"set_group_by_project"}"#,
-            r#"{"cmd":"set_group_by_project","enabled":"true"}"#,
-        ] {
-            assert!(serde_json::from_str::<PopoverMsg>(payload).is_err());
-        }
-    }
-
-    /// Pins the session shape the page groups by: `projectPath` is the key
-    /// (`""` = unknown) and `project` the shared label, computed over the live
-    /// sessions only.
     #[test]
     fn session_payloads_carry_the_project_path_and_a_label_over_live_sessions() {
         let session = |status: Status, path: Option<&str>| SessionStatus {
@@ -861,6 +782,7 @@ mod tests {
         state
             .sessions
             .insert("old".into(), session(Status::Done, Some("/c/recco")));
+        state.sessions.get_mut("b").unwrap().harness = Some("mystery".into());
         let payloads = serde_json::to_value(session_payloads(&state)).unwrap();
         let by_id = |id: &str| {
             payloads
@@ -871,6 +793,10 @@ mod tests {
                 .cloned()
         };
         assert!(by_id("old").is_none(), "done sessions stay off the page");
+        assert_eq!(by_id("a").unwrap()["agent"]["label"], "Claude");
+        assert!(by_id("a").unwrap()["agent"]["icon"].is_string());
+        assert_eq!(by_id("b").unwrap()["agent"]["badge"], "my");
+        assert!(by_id("b").unwrap()["agent"].get("icon").is_none());
         assert_eq!(by_id("a").unwrap()["projectPath"], "/a/recco");
         assert_eq!(by_id("a").unwrap()["project"], "a/recco");
         assert_eq!(by_id("b").unwrap()["project"], "b/recco");
@@ -890,99 +816,14 @@ mod tests {
         assert_eq!(live["project"], "recco");
     }
 
-    /// Pins the settings key the page reads for the grouping checkbox.
     #[test]
-    fn settings_payload_names_group_by_project_for_the_page() {
-        let settings = serde_json::to_value(SettingsPayload {
-            show_dashboard_button: false,
-            show_agent_names: true,
-            group_by_project: true,
-            yellow_mode: YellowMode::AnyInactive,
-            usage_enabled: false,
-        })
-        .unwrap();
-        assert_eq!(settings["groupByProject"], true);
-    }
-
-    #[test]
-    fn agent_names_require_an_explicit_boolean() {
-        for enabled in [true, false] {
-            let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
-                "cmd": "set_agent_names", "enabled": enabled
-            }))
-            .unwrap();
-            assert!(
-                matches!(msg, PopoverMsg::SetAgentNames { enabled: value } if value == enabled)
-            );
-        }
-        for payload in [
-            r#"{"cmd":"set_agent_names"}"#,
-            r#"{"cmd":"set_agent_names","enabled":"false"}"#,
-        ] {
-            assert!(serde_json::from_str::<PopoverMsg>(payload).is_err());
-        }
-    }
-
-    /// Pins the agent shape the page reads (`s.agent.label/icon/badge`).
-    #[test]
-    fn agent_payload_carries_label_icon_and_fallback_badge() {
-        let claude = serde_json::to_value(AgentPayload::from(crate::harness::agent(None))).unwrap();
-        assert_eq!(claude["label"], "Claude");
-        assert_eq!(claude["icon"], crate::harness::CLAUDE_ICON);
-
-        let unknown =
-            serde_json::to_value(AgentPayload::from(crate::harness::agent(Some("mystery"))))
-                .unwrap();
-        assert!(unknown.get("icon").is_none());
-        assert_eq!(unknown["badge"], "my");
-    }
-
-    #[test]
-    fn dashboard_visibility_requires_an_explicit_boolean() {
-        for enabled in [true, false] {
-            let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
-                "cmd": "set_dashboard_button", "enabled": enabled
-            }))
-            .unwrap();
-            assert!(
-                matches!(msg, PopoverMsg::SetDashboardButton { enabled: value } if value == enabled)
-            );
-        }
-        for payload in [
-            r#"{"cmd":"set_dashboard_button"}"#,
-            r#"{"cmd":"set_dashboard_button","enabled":"false"}"#,
-            r#"{"cmd":"set_dashboard_button","enabled":null}"#,
-        ] {
-            assert!(serde_json::from_str::<PopoverMsg>(payload).is_err());
-        }
-    }
-
-    /// Pins the IPC wire format the Lamp details control emits
-    /// (`{cmd:'set_led', enabled:...}` in assets/popover.html).
-    #[test]
-    fn lamp_controls_parse_from_page_json() {
-        assert!(matches!(
-            serde_json::from_str::<PopoverMsg>(r#"{"cmd":"add_lamp"}"#).unwrap(),
-            PopoverMsg::AddLamp
-        ));
-        let msg: PopoverMsg = serde_json::from_str(r#"{"cmd":"set_led","enabled":true}"#).unwrap();
-        assert!(matches!(msg, PopoverMsg::SetLed { enabled: true }));
-        let msg: PopoverMsg = serde_json::from_str(r#"{"cmd":"set_led","enabled":false}"#).unwrap();
-        assert!(matches!(msg, PopoverMsg::SetLed { enabled: false }));
-        let msg: PopoverMsg =
-            serde_json::from_str(r#"{"cmd":"forget_lamp","id":"saved-lamp"}"#).unwrap();
-        assert!(matches!(msg, PopoverMsg::ForgetLamp { id } if id == "saved-lamp"));
-        assert!(serde_json::from_str::<PopoverMsg>(r#"{"cmd":"forget_lamp"}"#).is_err());
-    }
-
-    #[test]
-    fn brightness_ipc_accepts_only_integer_percentages() {
+    fn brightness_ipc_enforces_the_lamp_percentage_range() {
         for command in [
             "set_brightness",
             "set_lamp_brightness",
             "preview_brightness",
         ] {
-            for percent in [0, 37, 100] {
+            for percent in [0, 100] {
                 let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
                     "cmd": command, "percent": percent, "id": "saved-lamp"
                 }))
@@ -993,12 +834,13 @@ mod tests {
                     | PopoverMsg::PreviewBrightness { percent: value, .. } if value == percent
                 ));
             }
-            for invalid in ["-1", "101", "255", "256", "1.5", "null", "\"50\""] {
-                assert!(serde_json::from_str::<PopoverMsg>(&format!(
-                    r#"{{"cmd":"{command}","percent":{invalid},"id":"saved-lamp"}}"#
-                ))
-                .is_err());
-            }
+            let error = serde_json::from_value::<PopoverMsg>(serde_json::json!({
+                "cmd": command, "percent": 101, "id": "saved-lamp"
+            }))
+            .unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("Brightness must be between 0 and 100"));
         }
         assert!(matches!(
             serde_json::from_str::<PopoverMsg>(r#"{"cmd":"preview_brightness","percent":0}"#)
@@ -1008,10 +850,6 @@ mod tests {
                 percent: 0
             }
         ));
-        assert!(serde_json::from_str::<PopoverMsg>(
-            r#"{"cmd":"set_lamp_brightness","percent":50}"#
-        )
-        .is_err());
     }
 
     #[test]

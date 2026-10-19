@@ -447,66 +447,53 @@ mod tests {
     use super::*;
 
     // Real line shapes captured from a Codex 0.144/0.145 install.
-    const META_EXEC: &str = r#"{"timestamp":"2026-07-20T13:40:17.039Z","type":"session_meta","payload":{"session_id":"019f7fc1-8557-7141-b06d-a5cd08901260","cwd":"/tmp","originator":"codex_exec","cli_version":"0.144.6","source":"exec","thread_source":"user"}}"#;
-    const META_DESKTOP: &str = r#"{"timestamp":"2026-07-20T13:08:52.675Z","type":"session_meta","payload":{"session_id":"019f7fa3-cff8-7962-956f-917245c8d037","cwd":"/tmp","originator":"Codex Desktop","cli_version":"0.145.0-alpha.18","source":"vscode","thread_source":"user"}}"#;
     const EVENT_USER: &str = r#"{"timestamp":"2026-07-20T13:08:52.681Z","type":"event_msg","payload":{"type":"user_message","client_id":"0bd480da","message":"how does codex differ from claude code?\n","images":[]}}"#;
     const ITEM_INJECTED: &str = r#"{"timestamp":"2026-07-20T13:08:52.675Z","type":"response_item","payload":{"type":"message","id":"msg_1","role":"user","content":[{"type":"input_text","text":"<recommended_plugins>\nplugin list here\n</recommended_plugins>"}]}}"#;
     const ITEM_TYPED: &str = r#"{"timestamp":"2026-07-20T13:08:52.681Z","type":"response_item","payload":{"type":"message","id":"msg_2","role":"user","content":[{"type":"input_text","text":"fix the flaky test in ota.rs"}]}}"#;
 
-    fn lines(v: &[&str]) -> impl Iterator<Item = String> {
-        v.iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<_>>()
-            .into_iter()
-    }
-
     #[test]
-    fn exec_meta_detected() {
-        assert!(session_meta_is_exec(META_EXEC));
-        assert!(!session_meta_is_exec(META_DESKTOP));
-        assert!(!session_meta_is_exec(EVENT_USER));
-        assert!(!session_meta_is_exec("not json"));
-    }
+    fn rollout_names_prefer_typed_prompts_and_ignore_injected_context() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("rollout.jsonl");
+        for (lines, expected) in [
+            (vec![ITEM_INJECTED, "not json"], None),
+            (
+                vec![ITEM_INJECTED, ITEM_TYPED],
+                Some("fix the flaky test in ota.rs"),
+            ),
+            (
+                vec![ITEM_INJECTED, ITEM_TYPED, EVENT_USER],
+                Some("how does codex differ from claude code?"),
+            ),
+        ] {
+            std::fs::write(&path, lines.join("\n")).unwrap();
 
-    #[test]
-    fn typed_event_msg_wins_over_injected_context() {
-        match extract_user_text(&serde_json::from_str(EVENT_USER).unwrap()) {
-            Some(UserText::Typed(t)) => {
-                assert_eq!(t, "how does codex differ from claude code?")
-            }
-            _ => panic!("expected typed text"),
-        }
-        // Injected XML-wrapped context must not become a session name.
-        assert!(extract_user_text(&serde_json::from_str(ITEM_INJECTED).unwrap()).is_none());
-        // A plain user response_item is accepted, but only as fallback.
-        match extract_user_text(&serde_json::from_str(ITEM_TYPED).unwrap()) {
-            Some(UserText::ResponseItem(t)) => assert_eq!(t, "fix the flaky test in ota.rs"),
-            _ => panic!("expected response-item fallback"),
+            assert_eq!(
+                first_user_message(path.to_str().unwrap()).as_deref(),
+                expected
+            );
         }
     }
 
     #[test]
-    fn thread_names_last_entry_wins_and_skips_garbage() {
-        let names = parse_thread_names(lines(&[
-            r#"{"id":"aaa","thread_name":"First name","updated_at":"2026-07-20T05:06:57Z"}"#,
-            r#"{"id":"bbb","thread_name":"Compare Codex with Claude Code"}"#,
-            r#"{"id":"aaa","thread_name":"Renamed thread"}"#,
-            "garbage line",
-            r#"{"id":"ccc","thread_name":"  "}"#,
-        ]));
-        assert_eq!(names.get("aaa").map(String::as_str), Some("Renamed thread"));
-        assert_eq!(
-            names.get("bbb").map(String::as_str),
-            Some("Compare Codex with Claude Code")
-        );
-        assert!(!names.contains_key("ccc"));
-    }
+    fn rollout_prompt_titles_use_the_first_line_with_a_unicode_safe_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("rollout.jsonl");
+        for (prompt, expected) in [
+            ("fix this\nand that".into(), "fix this".into()),
+            ("日".repeat(600), "日".repeat(500)),
+        ] {
+            std::fs::write(
+                &path,
+                serde_json::json!({
+                    "type": "event_msg", "payload": {"type": "user_message", "message": prompt}
+                })
+                .to_string(),
+            )
+            .unwrap();
 
-    #[test]
-    fn clip_prompt_takes_first_line_char_safe() {
-        assert_eq!(clip_prompt("fix this\nand that"), "fix this");
-        let long = "日".repeat(600);
-        assert_eq!(clip_prompt(&long).chars().count(), 500);
+            assert_eq!(first_user_message(path.to_str().unwrap()), Some(expected));
+        }
     }
 
     #[test]

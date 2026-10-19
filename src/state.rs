@@ -427,43 +427,32 @@ mod tests {
     }
 
     #[test]
-    fn any_inactive_shows_yellow_over_active() {
-        let mixed = state_with(&[Status::Active, Status::Inactive]);
-        assert_eq!(
-            aggregate(&mixed, YellowMode::AnyInactive),
-            Aggregate::Yellow
-        );
-    }
+    fn aggregate_prioritizes_help_and_respects_the_selected_idle_policy() {
+        use Aggregate::{Green, None, Red, Yellow};
+        use Status::{Active, Done, Inactive, NeedsHelp};
 
-    #[test]
-    fn active_wins_stays_green_while_anything_works() {
-        let mixed = state_with(&[Status::Active, Status::Inactive]);
-        assert_eq!(aggregate(&mixed, YellowMode::ActiveWins), Aggregate::Green);
+        let cases: &[(&str, &[Status], Aggregate, Aggregate)] = &[
+            ("empty", &[], None, None),
+            ("working", &[Active, Done], Green, Green),
+            ("paused", &[Inactive, Done], Yellow, Yellow),
+            ("mixed", &[Active, Inactive], Yellow, Green),
+            ("needs help", &[Active, Inactive, NeedsHelp], Red, Red),
+            ("finished", &[Done], None, None),
+        ];
+        for (name, statuses, any_inactive, active_wins) in cases {
+            let state = state_with(statuses);
 
-        // With no active sessions left, both modes agree on yellow.
-        let idle_only = state_with(&[Status::Inactive, Status::Done]);
-        assert_eq!(
-            aggregate(&idle_only, YellowMode::ActiveWins),
-            Aggregate::Yellow
-        );
-        assert_eq!(
-            aggregate(&idle_only, YellowMode::AnyInactive),
-            Aggregate::Yellow
-        );
-    }
-
-    #[test]
-    fn needs_help_is_red_in_both_modes() {
-        let help = state_with(&[Status::Active, Status::Inactive, Status::NeedsHelp]);
-        assert_eq!(aggregate(&help, YellowMode::AnyInactive), Aggregate::Red);
-        assert_eq!(aggregate(&help, YellowMode::ActiveWins), Aggregate::Red);
-    }
-
-    #[test]
-    fn done_only_is_none() {
-        let done = state_with(&[Status::Done]);
-        assert_eq!(aggregate(&done, YellowMode::AnyInactive), Aggregate::None);
-        assert_eq!(aggregate(&done, YellowMode::ActiveWins), Aggregate::None);
+            assert_eq!(
+                aggregate(&state, YellowMode::AnyInactive),
+                *any_inactive,
+                "{name}"
+            );
+            assert_eq!(
+                aggregate(&state, YellowMode::ActiveWins),
+                *active_wins,
+                "{name}"
+            );
+        }
     }
 
     /// Build a single-session state carrying `owner_pid`, whose last hook event

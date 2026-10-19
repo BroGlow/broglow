@@ -225,60 +225,48 @@ pub fn load_all_sessions(hook_state: &HookState, grouped: bool) -> Vec<DisplaySe
 
 #[cfg(test)]
 mod tests {
-    use super::{char_prefix, truncate};
+    use crate::state::{HookState, SessionStatus, Status};
 
-    #[test]
-    fn truncate_is_char_boundary_safe() {
-        // A multibyte string longer than the limit whose byte cut lands inside a
-        // char used to panic; it must now truncate cleanly on a char boundary.
-        let s = "日本語のプロンプトでセッションを開始してくださいね、これはとても長いテスト文字列でありまして五十文字を超えています本当に超えていますよ";
-        assert!(s.chars().count() > 50);
-        let out = truncate(s, 50);
-        assert!(out.ends_with("..."));
-        assert!(out.chars().count() <= 50);
-    }
-
-    #[test]
-    fn truncate_leaves_short_strings_untouched() {
-        assert_eq!(truncate("hello", 50), "hello");
-        assert_eq!(truncate("日本語", 50), "日本語");
-    }
-
-    #[test]
-    fn char_prefix_never_splits_a_char() {
-        assert_eq!(char_prefix("abcdefghij", 8), "abcdefgh");
-        // Fewer chars than requested → returns the whole string, no panic.
-        assert_eq!(char_prefix("日本", 8), "日本");
-    }
-
-    #[test]
-    fn merge_carries_the_harness_tag_from_hook_state() {
-        use crate::state::{HookState, SessionStatus, Status};
-
-        let session = |name: &str, harness: Option<&str>| SessionStatus {
-            status: Status::Active,
-            last_updated: "2026-01-01T00:00:00Z".to_string(),
-            project_path: Some("/tmp/proj".to_string()),
+    fn stored_session(status: Status, at: &str, path: Option<&str>) -> SessionStatus {
+        SessionStatus {
+            status,
+            last_updated: at.into(),
+            project_path: path.map(str::to_string),
             notification_type: None,
-            name: Some(name.to_string()),
+            name: None,
             terminal: None,
-            harness: harness.map(str::to_string),
-        };
+            harness: None,
+        }
+    }
 
-        let mut hook_state = HookState::default();
-        hook_state.sessions.insert(
-            "ses_oc".to_string(),
-            session("Wire opencode", Some("opencode")),
+    #[test]
+    fn session_rows_keep_agent_identity_and_use_unicode_safe_fallback_names() {
+        let mut state = HookState::default();
+        state.sessions.insert(
+            "ses_oc".into(),
+            SessionStatus {
+                name: Some("Wire opencode".into()),
+                harness: Some("opencode".into()),
+                ..stored_session(Status::Active, "2026-01-01T00:00:00Z", Some("/tmp/proj"))
+            },
         );
-        hook_state
-            .sessions
-            .insert("cc_1".to_string(), session("Fix bug", None));
+        let unnamed_id = "日本語日本語日本語";
+        state.sessions.insert(
+            unnamed_id.into(),
+            stored_session(Status::Active, "2026-01-01T00:00:00Z", None),
+        );
 
-        let sessions = super::load_all_sessions(&hook_state, false);
+        let sessions = super::load_all_sessions(&state, false);
+
         let oc = sessions.iter().find(|s| s.session_id == "ses_oc").unwrap();
-        let cc = sessions.iter().find(|s| s.session_id == "cc_1").unwrap();
+        let cc = sessions
+            .iter()
+            .find(|s| s.session_id == unnamed_id)
+            .unwrap();
         assert_eq!(oc.harness.as_deref(), Some("opencode"));
-        assert_eq!(cc.harness, None, "claude sessions carry no harness tag");
+        assert_eq!(oc.name, "Wire opencode");
+        assert_eq!(cc.harness, None);
+        assert_eq!(cc.name, "Session 日本語日本語日本");
     }
 
     #[test]
@@ -308,46 +296,36 @@ mod tests {
         assert!(super::project_labels([]).is_empty());
     }
 
-    fn fixture() -> crate::state::HookState {
-        use crate::state::{HookState, SessionStatus, Status};
-        let session = |status: Status, at: &str, path: Option<&str>| SessionStatus {
-            status,
-            last_updated: at.to_string(),
-            project_path: path.map(str::to_string),
-            notification_type: None,
-            name: None,
-            terminal: None,
-            harness: None,
-        };
+    fn fixture() -> HookState {
         let mut state = HookState::default();
         let mut add = |id: &str, s: SessionStatus| state.sessions.insert(id.into(), s);
         add(
             "help",
-            session(Status::NeedsHelp, "2026-01-01T10:03:00Z", Some("/a/recco")),
+            stored_session(Status::NeedsHelp, "2026-01-01T10:03:00Z", Some("/a/recco")),
         );
         add(
             "review",
-            session(Status::Active, "2026-01-01T10:05:00Z", Some("/a/recco")),
+            stored_session(Status::Active, "2026-01-01T10:05:00Z", Some("/a/recco")),
         );
         add(
             "grouping",
-            session(Status::Active, "2026-01-01T10:06:00Z", Some("/d/broglow")),
+            stored_session(Status::Active, "2026-01-01T10:06:00Z", Some("/d/broglow")),
         );
         add(
             "focus",
-            session(Status::Inactive, "2026-01-01T09:49:00Z", Some("/d/broglow")),
+            stored_session(Status::Inactive, "2026-01-01T09:49:00Z", Some("/d/broglow")),
         );
         add(
             "deploy",
-            session(Status::Inactive, "2026-01-01T09:24:00Z", Some("/b/recco")),
+            stored_session(Status::Inactive, "2026-01-01T09:24:00Z", Some("/b/recco")),
         );
         add(
             "done",
-            session(Status::Done, "2026-01-01T09:00:00Z", Some("/b/recco")),
+            stored_session(Status::Done, "2026-01-01T09:00:00Z", Some("/b/recco")),
         );
         add(
             "notes",
-            session(Status::Inactive, "2026-01-01T08:00:00Z", None),
+            stored_session(Status::Inactive, "2026-01-01T08:00:00Z", None),
         );
         state
     }
@@ -382,25 +360,17 @@ mod tests {
 
     #[test]
     fn grouped_order_puts_the_fresher_of_two_equally_urgent_projects_first() {
-        use crate::state::{HookState, SessionStatus, Status};
-        let session = |path: &str, at: &str| SessionStatus {
-            status: Status::Active,
-            last_updated: at.to_string(),
-            project_path: Some(path.to_string()),
-            notification_type: None,
-            name: None,
-            terminal: None,
-            harness: None,
-        };
         let mut state = HookState::default();
         // Path order (/a before /z) is the opposite of recency, so only the
         // recency key can put /z first.
-        state
-            .sessions
-            .insert("a".into(), session("/a", "2026-01-01T10:00:00Z"));
-        state
-            .sessions
-            .insert("z".into(), session("/z", "2026-01-01T11:00:00Z"));
+        state.sessions.insert(
+            "a".into(),
+            stored_session(Status::Active, "2026-01-01T10:00:00Z", Some("/a")),
+        );
+        state.sessions.insert(
+            "z".into(),
+            stored_session(Status::Active, "2026-01-01T11:00:00Z", Some("/z")),
+        );
         let paths: Vec<String> = super::load_all_sessions(&state, true)
             .into_iter()
             .map(|s| s.project_path)
@@ -410,32 +380,22 @@ mod tests {
 
     #[test]
     fn labels_ignore_done_sessions_dropped_by_the_cap() {
-        use crate::state::{HookState, SessionStatus, Status};
-        let session = |status: Status, at: &str, path: &str| SessionStatus {
-            status,
-            last_updated: at.to_string(),
-            project_path: Some(path.to_string()),
-            notification_type: None,
-            name: None,
-            terminal: None,
-            harness: None,
-        };
         let mut state = HookState::default();
         state.sessions.insert(
             "live".into(),
-            session(Status::Active, "2026-01-01T12:00:00Z", "/y/repo"),
+            stored_session(Status::Active, "2026-01-01T12:00:00Z", Some("/y/repo")),
         );
         // Five newer done rows survive the cap; the sixth, older one at a
         // same-named folder is dropped and must not lengthen the live label.
         for i in 0..5 {
             state.sessions.insert(
                 format!("done{i}"),
-                session(Status::Done, "2026-01-01T11:00:00Z", "/d/other"),
+                stored_session(Status::Done, "2026-01-01T11:00:00Z", Some("/d/other")),
             );
         }
         state.sessions.insert(
             "stale".into(),
-            session(Status::Done, "2026-01-01T01:00:00Z", "/x/repo"),
+            stored_session(Status::Done, "2026-01-01T01:00:00Z", Some("/x/repo")),
         );
         let sessions = super::load_all_sessions(&state, false);
         assert!(sessions.iter().all(|s| s.session_id != "stale"));
@@ -456,20 +416,19 @@ mod tests {
 
     #[test]
     fn grouped_order_breaks_recency_ties_by_path() {
-        use crate::state::{HookState, SessionStatus, Status};
-        let session = |path: &str| SessionStatus {
-            status: Status::Active,
-            last_updated: "2026-01-01T10:00:00Z".to_string(),
-            project_path: Some(path.to_string()),
-            notification_type: None,
-            name: None,
-            terminal: None,
-            harness: None,
-        };
         let mut state = HookState::default();
-        state.sessions.insert("z".into(), session("/z"));
-        state.sessions.insert("m".into(), session("/m"));
-        state.sessions.insert("a".into(), session("/a"));
+        state.sessions.insert(
+            "z".into(),
+            stored_session(Status::Active, "2026-01-01T10:00:00Z", Some("/z")),
+        );
+        state.sessions.insert(
+            "m".into(),
+            stored_session(Status::Active, "2026-01-01T10:00:00Z", Some("/m")),
+        );
+        state.sessions.insert(
+            "a".into(),
+            stored_session(Status::Active, "2026-01-01T10:00:00Z", Some("/a")),
+        );
         let paths: Vec<String> = super::load_all_sessions(&state, true)
             .into_iter()
             .map(|s| s.project_path)

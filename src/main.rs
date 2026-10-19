@@ -974,6 +974,14 @@ mod mac_install_tests {
     }
 
     #[test]
+    fn launch_agent_paths_escape_xml_metacharacters() {
+        assert_eq!(
+            xml_escape("/Users/A & B/<work>/\"quoted\"'s/broglow"),
+            "/Users/A &amp; B/&lt;work&gt;/&quot;quoted&quot;&apos;s/broglow"
+        );
+    }
+
+    #[test]
     fn a_tray_outside_launchd_holding_the_lock_is_stopped() {
         let dir = tempfile::tempdir().unwrap();
         let lock = dir.path().join(".menubar.lock");
@@ -1033,7 +1041,5 @@ mod mac_install_tests {
         assert_eq!(requirements[0], requirements[1]);
         assert!(requirements[0].contains(LAUNCH_AGENT_LABEL));
         assert!(!requirements[0].contains("cdhash"));
-        assert_eq!(xml_escape("/a & b/<c>"), "/a &amp; b/&lt;c&gt;");
-        assert!(LAUNCH_AGENT_PLIST.contains("<string>{{BIN}}</string>"));
     }
 }

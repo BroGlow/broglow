@@ -571,26 +571,24 @@ mod tests {
                 })
                 .unwrap()
         };
-        let bright = ratatui::style::Color::Rgb(0xe8, 0xea, 0xf0);
-        let dim = ratatui::style::Color::Rgb(0x5c, 0x63, 0x70);
+        let ordinary = project_fg(&mut app, "a");
         // Off: every project label is dim, whatever the order.
-        assert_eq!(project_fg(&mut app, "a"), dim);
-        assert_eq!(project_fg(&mut app, "b"), dim);
-        assert_eq!(project_fg(&mut app, "c"), dim);
+        assert_eq!(project_fg(&mut app, "b"), ordinary);
+        assert_eq!(project_fg(&mut app, "c"), ordinary);
         app.group_by_project = true;
-        assert_eq!(
-            project_fg(&mut app, "a"),
-            bright,
-            "first row of /work/recco"
+        let heading = project_fg(&mut app, "a");
+        assert_ne!(
+            heading, ordinary,
+            "a group heading stands out from repeated labels"
         );
         assert_eq!(
             project_fg(&mut app, "b"),
-            dim,
+            ordinary,
             "second row of the same project"
         );
         assert_eq!(
             project_fg(&mut app, "c"),
-            bright,
+            heading,
             "first row of /work/broglow"
         );
         // Scrolled so the group's first row is off screen: the first visible
@@ -598,7 +596,7 @@ mod tests {
         app.table_state = TableState::default().with_offset(1).with_selected(Some(1));
         assert_eq!(
             project_fg(&mut app, "b"),
-            bright,
+            heading,
             "first visible row of /work/recco"
         );
     }

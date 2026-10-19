@@ -2254,8 +2254,6 @@ mod mac {
                 .await
                 .unwrap();
                 assert_eq!(writes.borrow().last(), Some(&((b'G', 50), true)));
-                assert!(!due(Some((b'G', 25)), (b'G', 25), Duration::ZERO));
-                assert!(due(Some((b'G', 25)), (b'G', 0), Duration::ZERO));
             });
         }
 

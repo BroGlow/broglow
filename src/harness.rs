@@ -359,16 +359,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn badge_returns_registered_tags_and_a_fallback() {
-        assert_eq!(badge("opencode"), "oc");
-        assert_eq!(badge("codex"), "cx");
-        assert_eq!(badge("copilot"), "co");
-        // An unknown/future harness (e.g. a session written by a newer build)
-        // still renders a non-empty tag rather than blank.
-        assert_eq!(badge("mystery"), "my");
-    }
-
-    #[test]
     fn agent_identifies_claude_registered_and_unknown_harnesses() {
         let claude = agent(None);
         assert_eq!(claude.label, "Claude");
@@ -394,10 +384,12 @@ mod tests {
     }
 
     #[test]
-    fn agent_labels_and_icons_are_unique_and_attribute_safe() {
+    fn registered_agents_are_distinguishable_and_icons_are_attribute_safe() {
+        let mut badges = std::collections::HashSet::from([CLAUDE_BADGE]);
         let mut labels = std::collections::HashSet::from([CLAUDE_LABEL]);
         let mut icons = std::collections::HashSet::from([CLAUDE_ICON]);
         for a in ADAPTERS {
+            assert!(badges.insert(a.badge), "duplicate badge for {}", a.name);
             assert!(labels.insert(a.label), "duplicate label {:?}", a.label);
             assert!(icons.insert(a.icon), "duplicate icon for {}", a.name);
         }
@@ -408,21 +400,6 @@ mod tests {
                 icon.chars()
                     .all(|c| c.is_ascii_alphanumeric() || " .-,".contains(c)),
                 "icon must be plain path data: {icon:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn adapter_badges_are_unique() {
-        // A collision would make two harnesses indistinguishable in the UI.
-        // This guards the *exact* roadmap footgun: codex -> "co", copilot -> "co".
-        let mut seen = std::collections::HashSet::from([CLAUDE_BADGE]);
-        for a in ADAPTERS {
-            assert!(
-                seen.insert(a.badge),
-                "duplicate harness badge {:?} ({})",
-                a.badge,
-                a.name
             );
         }
     }

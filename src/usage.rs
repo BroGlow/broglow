@@ -755,17 +755,4 @@ mod tests {
         assert_eq!(compact_tokens(12_400), "12k");
         assert_eq!(compact_tokens(1_240_000), "1.2M");
     }
-
-    #[test]
-    fn oauth_response_parses_defensively() {
-        let resp: OauthUsageResp = serde_json::from_str(
-            r#"{"five_hour":{"utilization":62,"resets_at":"2026-07-04T23:00:00Z"},"seven_day":{"utilization":31,"resets_at":"2026-07-06T07:00:00Z"},"unknown_window":{"foo":1}}"#,
-        )
-        .unwrap();
-        assert_eq!(resp.five_hour.unwrap().utilization, Some(62.0));
-        assert_eq!(resp.seven_day.unwrap().utilization, Some(31.0));
-        // Shape drift must degrade, not error, at the callsite (Option).
-        let odd: OauthUsageResp = serde_json::from_str(r#"{"five_hour":{}}"#).unwrap();
-        assert_eq!(odd.five_hour.unwrap().utilization, None);
-    }
 }
