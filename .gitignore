@@ -6,7 +6,7 @@
 *.swo
 .idea
 
-# The public source of truth lives in site/guide/; do not recreate legacy docs/.
+# Documentation lives in site/guide/; keep a top-level docs/ out of Git.
 /docs/
 
 # Companion firmware and local Python environments/caches
