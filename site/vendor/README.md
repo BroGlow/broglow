@@ -10,7 +10,7 @@ The npm archive SHA-512 integrity was verified before copying:
 
 `model-viewer-module-4.3.1.min.js` is the unmodified upstream module build.
 `model-viewer-LICENSE` is the package's Apache-2.0 license. Source maps are not
-shipped. The landing automatically loads 3D with **Working** selected.
+shipped.
 
 `model-viewer-with-effects.js` is our small entrypoint: it loads model-viewer,
 then the effects module, and forwards retry query parameters to both imports.
@@ -24,12 +24,11 @@ Both modules use one shared Three.js **0.183.0** through the page's import map:
 ```
 
 `three.module.min.js` and its sibling `three.core.min.js` are unmodified upstream
-files; `three-LICENSE` contains their MIT license. Only the modular viewer and
-its effects entrypoint are shipped.
+files; `three-LICENSE` contains their MIT license.
 
-The current model uses plain glTF geometry/materials, so optional remote Draco,
-KTX2 and Lottie decoders in the library are not used. Keep exports uncompressed
-unless those additional dependencies are explicitly made part of the site.
+The model is plain glTF, so the library's optional remote Draco, KTX2 and Lottie
+decoders stay unused. Keep exports uncompressed unless those decoders are added
+to the site.
 
 ## model-viewer-effects
 
@@ -41,18 +40,15 @@ release avoids modifying Three.js or adding a compatibility shim.
 
 The build pins Lit **3.3.3**, lit-html **3.3.3**, lit-element **4.2.2**,
 @lit/reactive-element **2.1.2**, @lit-labs/ssr-dom-shim **1.6.0**, and esbuild
-**0.28.2**. Archives were downloaded directly from the official npm registry and
-verified against their SHA-512 integrity before extraction. Exact source URLs,
-integrity values, the build command and output SHA-256 hashes are recorded in
-[`bloom-provenance.json`](bloom-provenance.json). All build work stayed in ignored
-`.recovery/`; serving or building the website requires no npm install.
+**0.28.2**. Archives came from the npm registry and were SHA-512-verified before
+extraction; their URLs, integrity values, the build command and output SHA-256
+hashes are in [`bloom-provenance.json`](bloom-provenance.json). Serving or
+building the website requires no npm install.
 
 `model-viewer-effects-LICENSE` is Apache-2.0; `postprocessing-LICENSE` is Zlib.
 `lit-LICENSE` covers Lit, lit-element and reactive-element (BSD-3-Clause), and
 `lit-html-LICENSE` preserves lit-html's upstream license. Copyright/license
-comments remain in the bundles. The effects use real rendered pixels, including
-camera perspective and occlusion. Effects are not applied in external AR viewers
-or WebXR, which use the normal model rendering.
+comments remain in the bundles.
 
 ## qrcode-generator
 
