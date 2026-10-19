@@ -71,9 +71,8 @@ For several boards or failed setup, see [USB-assisted setup](hardware.md#usb-ass
 Open the **Lamp** button in the menu footer and expand a lamp's row:
 
 - **Name:** up to 40 characters, saved on this Mac; blank restores the automatic label.
-- **Identify:** scans that connected lamp's red → yellow → green LEDs three times,
-  one at a time at 100%, 100 ms per LED (0.9 seconds total), then restores the latest
-  status and saved brightness without changing settings.
+- **Identify:** quickly lights that connected lamp's red, yellow and green LEDs one by
+  one, a few times over, then returns to the current status without changing settings.
 - **Light brightness:** 0–100% for that lamp. **All lamps** replaces every saved lamp's
   individual level. Preview ends two seconds after the last change.
 - **Forget lamp:** removes it, with its name and brightness, from this Mac; other lamps
@@ -81,8 +80,8 @@ Open the **Lamp** button in the menu footer and expand a lamp's row:
 
 At 0%, the controlled LEDs stay dark (the board's red power LED stays on) while
 Bluetooth remains connected; **Identify** still works on a connected lamp.
-You can change brightness while a lamp is offline: it applies on reconnection and does
-not turn lamp control on.
+You can change brightness while a lamp is offline: it applies when the lamp reconnects.
+If lamp control is turned off, changing brightness does not turn it back on.
 Identify needs current BroGlow firmware; older firmware ignores the scan.
 Updating the app does not flash the board; see the [firmware update steps](hardware.md#flash-and-recover-usb-upload).
 
