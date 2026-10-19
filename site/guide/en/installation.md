@@ -23,7 +23,7 @@ Windows or Linux? See [Alternative installations](alternatives.md).
 ## Open BroGlow
 
 To open the Mac app, press **⌘ Space**, search **BroGlow** and press Return. Its
-traffic-light icon in the menu bar opens the session controls; the app starts at login.
+traffic-light icon in the menu bar opens the session controls.
 In Terminal, `broglow` opens the dashboard.
 
 ![The BroGlow menu-bar popover: three live sessions, one working and two paused, with Dashboard, Settings and Lamps controls]({{ repo_url }}/raw/HEAD/site/assets/photos/popover-dark.png)
@@ -71,12 +71,12 @@ For several boards or failed setup, see [USB-assisted setup](hardware.md#usb-ass
 Open the **Lamp** button in the menu footer and expand a lamp's row:
 
 - **Name:** up to 40 characters, saved on this Mac; blank restores the automatic label.
-- **Identify:** quickly lights that connected lamp's red, yellow and green LEDs one by
-  one, a few times over, then returns to the current status without changing settings.
+- **Identify:** lights the connected lamp's red, yellow and green LEDs in turn a few
+  times, then returns to the current status.
 - **Light brightness:** 0–100% for that lamp. **All lamps** replaces every saved lamp's
   individual level. Preview ends two seconds after the last change.
-- **Forget lamp:** removes it, with its name and brightness, from this Mac; other lamps
-  and Bluetooth bonds remain. Forgetting the last lamp also turns lamp control off.
+- **Forget lamp:** removes it, with its name and brightness, from this Mac; the Bluetooth
+  bond remains. Forgetting the last lamp also turns lamp control off.
 
 On macOS, a forgotten lamp is added again when you unplug its USB cable for at least
 five seconds and reconnect it. **Settings → Lamps → Automatically add forgotten lamps
@@ -85,14 +85,12 @@ over USB** is on by default; turn it off if you connect lamps only for power.
 while attached, and restarting the app does not add it again. Saved disabled lamps
 stay disabled.
 
-At 0%, the controlled LEDs stay dark (the board's red power LED stays on) while
-Bluetooth remains connected; **Identify** still works on a connected lamp.
+At 0%, the controlled LEDs stay dark (the board's red power LED stays on), but
+Bluetooth stays connected and **Identify** still works.
 You can change brightness while a lamp is offline: it applies when the lamp reconnects.
 If lamp control is turned off, changing brightness does not turn it back on.
-Identify needs current BroGlow firmware; older firmware ignores the scan.
-Updating the app does not flash the board; see the [firmware update steps](hardware.md#flash-and-recover-usb-upload).
 
 The terminal dashboard is optional: show its shortcut under
 **Settings → Appearance → Show Dashboard button**, or run `broglow dashboard-button show`.
 
-See the [hardware reference](hardware.md) for flashing and recovery.
+Updating the app does not flash the board: see [flashing and recovery](hardware.md#flash-and-recover-usb-upload).
