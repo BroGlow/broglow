@@ -1,9 +1,7 @@
 //! Cross-platform hook backend, invoked by Claude Code as `broglow hook`.
 //!
-//! This replaces the old bash + jq hook script: the same binary now handles
-//! session-state updates on macOS, Linux, and Windows with no shell or `jq`
-//! dependency. The on-disk `state.json` schema is unchanged, so the TUI and
-//! the menu-bar daemon are unaffected.
+//! It records session state in `state.json` on macOS, Linux, and Windows; the
+//! TUI and the menu-bar daemon read that file.
 
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
@@ -236,7 +234,7 @@ fn host_id_missing(t: &crate::state::TerminalInfo) -> bool {
 }
 
 /// `broglow hook`: read one hook event as JSON on stdin and update
-/// `state.json`. Mirrors the semantics of the previous `hook.sh` exactly.
+/// `state.json`.
 pub fn run() -> anyhow::Result<()> {
     // A nested Claude session that broglow spawns for auto-naming sets this,
     // so its own hooks must not recurse back into state tracking.
@@ -1000,8 +998,7 @@ fn run_claude_cli(prompt: &str) -> std::io::Result<std::process::Output> {
         cmd.args(["-p", "--no-session-persistence", "--model", "haiku", prompt])
             // BROGLOW_NAMING tells the hooks fired by this nested call to no-op.
             .env("BROGLOW_NAMING", "1")
-            // The old bash hook did `unset CLAUDECODE` before invoking a nested
-            // `claude` — without it the nested CLI can detect it's running
+            // Without CLAUDECODE unset, the nested CLI can detect it's running
             // inside a Claude Code session and change behavior.
             .env_remove("CLAUDECODE");
         crate::spawn::configure_detached(&mut cmd);

@@ -227,7 +227,7 @@ fn register_hooks() -> anyhow::Result<()> {
     std::fs::create_dir_all(hook_dir())?;
 
     // 2. Register the native hook backend in settings.json. The hook command is
-    //    this very binary invoked as `broglow hook` — no bash or jq needed.
+    //    this very binary invoked as `broglow hook`.
     let exe = std::env::current_exe().context("Resolving current executable path")?;
     let hook_cmd = format!("\"{}\" hook", exe.display());
 
