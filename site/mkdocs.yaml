@@ -71,11 +71,11 @@ plugins:
 nav:
   - Build: index.md
   - Install and connect: installation.md
+  - Why BroGlow: why.md
   - Alternative installations: alternatives.md
   - Coding agents: agents.md
   - Sessions: sessions.md
   - Troubleshooting: troubleshooting.md
-  - Why BroGlow: why.md
   - Reference:
       - Hardware reference: hardware.md
       - Printing and assembly: printing.md
