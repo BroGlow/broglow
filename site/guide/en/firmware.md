@@ -25,13 +25,14 @@ circuitry that pulls this strapping pin low during reset.
 | `startup`: first three seconds after firmware setup | All three breathe together for two 1.5-second rise-and-fall cycles | Same fades, with its peak scaled to 32/255 |
 | `preview`: brightness slider on a connected lamp | All three steadily show the preview percentage; returns to status two seconds after the last preview | Same preview percentage applied to its 32/255 base |
 | `identify`: Identify on a connected lamp | Red → yellow → green three times, one LED at a time, 100 ms per LED (0.9 seconds total); the app requests 100% | One 40 ms pulse per step at 32/255, scaled by the requested percentage |
-| `connected`: first valid status write (`N`, `R`, `Y` or `G`) of each BLE connection; none if it arrives during startup breathing | All three on once for 250 ms | On for the same 250 ms at 32/255 brightness |
+| `connected`: first valid status write (`N`, `R`, `Y` or `G`) of each BLE connection; skipped during startup breathing, after a status disconnect or when interrupting a watchdog fade | All three on once for 250 ms | On for the same 250 ms at 32/255 brightness |
 | `status`: fresh `R`, `Y` or `G` | Corresponding LED steadily on | Repeating groups: green = one, yellow = two, red = three 100 ms pulses, spaced 250 ms apart; one group every three seconds at 32/255 |
 | `status`: fresh `N` | Off | Off |
+| `fading`: confirmed BLE disconnect while showing a status, or missing valid BLE updates for five seconds | Disconnect: fade immediately from the displayed color and brightness to black over three seconds. Connected watchdog: hold for five seconds, fade for five seconds, fully off at ten seconds. Serial expiry retains its 700 ms fade | Fades with the color if already lit; starts no new pulses |
 | `pairing`: window open, no fresh status | Red → yellow → green, 250 ms per step | One 100 ms pulse per step at 32/255 |
 | `unpaired`: no board bonds, window closed, no fresh status | All three one second on, one second off | Same cadence at 32/255 |
 | `waiting`: board has bonds, BLE disconnected, window closed, no fresh status | All three pulse for 100 ms at 8/255 every 30 seconds; first pulse after 30 seconds in this mode | Same quiet pulse |
-| `stale`: BLE connected, no fresh status, and either confirmed status expired, or the board has bonds and the window is closed | Off | Off |
+| `stale`: BLE connected, no fresh status, and either recovering after disconnect, confirmed status expired, or the board has bonds and the window is closed | Off | Off |
 
 The duty values above are at **100% lamp brightness**. The saved setting scales
 every controlled output, including startup, connection and quiet waiting indications;
@@ -51,12 +52,32 @@ The firmware picks the first matching mode in this order:
    canceling or restarting the flash. Disconnect, lost authentication or status
    expiry cancels it, so even a delayed first write cannot light the LEDs past the
    ten-second stale deadline.
-4. Fresh status, including serial commands and `N`.
-5. `stale` on a confirmed connection whose status expired, even if the pairing
-   window is open.
-6. `pairing`, then `unpaired`, then `stale` (connected), then `waiting`.
+4. Fade: a confirmed BLE disconnect starts one three-second fade immediately from
+   the displayed status color and brightness. Diagnostics already report `state=N`.
+   Reconnection alone does not restore status or restart the fade. A fresh valid
+   status cancels the fade and shows the latest color at the configured brightness;
+   `N` stays off. Recovery skips the connection flash, including after the fade has
+   finished. Queued pre-disconnect colors are discarded; an acknowledged `N` can
+   still turn the lamp off. A connection that stays up without valid updates holds
+   its status for five seconds, then fades for five seconds to black at the
+   ten-second deadline. Its logical status remains until that deadline. A fresh
+   status restores the configured brightness; fading never changes that setting.
+   A fade starts from the current output capped at the configured brightness,
+   including a brightness reduction received at fade entry; it never starts by
+   jumping to maximum brightness.
+   Serial status expiry retains its 700 ms fade after ten seconds.
+   Off status, preview and connection flash do not start a fade. Timing follows the
+   original disconnect or expiry, so a delayed loop cannot replay a completed fade.
+5. Fresh status, including serial commands and `N`.
+6. `stale` while recovering without fresh status or on a confirmed connection whose
+   status expired, even if the pairing window is open.
+7. `pairing`, then `unpaired`, then `stale` (connected), then `waiting`.
 
-These patterns do not change the one-byte protocol or the ten-second status timeout.
+The one-byte protocol and ten-second missing-update deadline are unchanged. For
+BLE, the second half of that period is the fade (five seconds with the configured
+ten-second timeout). Confirmed disconnection starts its separate three-second fade
+immediately. After fading, the normal disconnected or stale indication resumes,
+including the existing quiet waiting pulse.
 
 Outputs use 2 kHz, eight-bit PWM. In `platformio.ini`, `LED_RED_PIN=0`,
 `LED_YELLOW_PIN=1` and `LED_GREEN_PIN=3` select the external LED pins (GPIO0..10,
@@ -164,7 +185,8 @@ base-MAC bytes, not the possibly changing over-the-air private Bluetooth address
 | Identify payload | On the same encrypted brightness characteristic: two binary bytes `[percent, 2]`, with percent 0..100. Scans red → yellow → green three times at 100 ms per LED (0.9 seconds from receipt), then restores the latest status and saved brightness. The app sends `[100, 2]`; no preferences change. |
 | Name payload | 1..21 UTF-8 bytes of the label, without the `BroGlow ` prefix or control characters; a single `0x00` restores the factory name. The full Bluetooth name fits the 29-byte scan-response name field. |
 | Host heartbeat | Two seconds |
-| Board stale timeout | Ten seconds since the last valid status; clears session color, then [indications](#pairing-feedback-and-diagnostics-without-external-leds) follow connection/bond state |
+| Board stale timeout | Ten seconds since the last valid status; BLE holds the color for five seconds and fades for the next five, reaching black and logical state `N` at ten seconds. Serial expiry retains its 700 ms fade after ten seconds. Then [indications](#pairing-feedback-and-diagnostics-without-external-leds) follow connection/bond state |
+| Confirmed BLE disconnect | Clears the BLE status to `N` immediately and fades the displayed status color and brightness to black over three seconds; recovery needs a fresh valid status and skips the connection flash |
 | Ownership | Connected BLE client; serial only while BLE is disconnected |
 | Security | LE Secure Connections Just Works bonding; all writable characteristics require encryption. New pairing is admitted only while the pairing window is open. |
 | Pairing window | 60 seconds. Opens at boot when the board has no bonds, on serial `PAIR`, or when BOOT (GPIO9) is held three seconds after normal boot. Holding BOOT ten seconds requests deletion of all bonds and reopens the window. See [Pair without a USB data cable](hardware.md#pair-without-a-usb-data-cable). |

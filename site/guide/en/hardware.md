@@ -401,8 +401,9 @@ disabled restores 100% brightness.
 Over the serial port the firmware accepts the complete lines `R\n`, `Y\n`, `G\n` and
 `N\n` at **115200 baud**, including CRLF endings. Empty, unknown, multi-character and
 oversized lines are ignored. To test expiry, send one `R\n` and nothing else for **ten
-seconds**, then send `?`: it must report `state=N`, and the disconnected pairing or
-waiting indication resumes. The `state`, `age_ms` and `mode` fields tell these
+seconds**, then send `?`: it must report `state=N`. The last lit status color fades
+to black over 700 ms (`mode=fading`), then the disconnected pairing or waiting
+indication resumes. The `state`, `age_ms` and `mode` fields tell these
 indications apart from a stale session color.
 
 ## Local recovery files
@@ -868,6 +869,17 @@ an unpaired lamp blinks; a bonded lamp without a connection gives a dim pulse ev
 flash, and then the fresh session status takes over. The onboard LED shows green,
 yellow and red with one, two and three pulses.
 
+A confirmed Bluetooth disconnect immediately fades the displayed status color and
+brightness to black over **three seconds**. Reconnection alone keeps the fade going
+or leaves the lamp dark. A fresh valid status restores the latest color at the
+configured brightness, without a connection flash, even after the fade has finished;
+`N` means off. If Bluetooth stays connected but valid updates stop, the lamp holds
+its current color for **five seconds**, then fades for **five seconds**, reaching
+black at the **ten-second** deadline. A returning valid status restores the
+configured brightness; the fade does not change the saved brightness setting.
+Both fades start from the current light level, capped at the configured brightness,
+without a jump to maximum brightness.
+
 Sending `?` over the identified USB serial port reports the state, the PWM duties,
 pairing and bonds, and the time since the last accepted status (`age_ms`). These are
 commanded outputs, not proof of visible light. Pattern timing, `INFO`, `PAIR` and the
@@ -933,9 +945,12 @@ reconnect.
 
 Each lamp receives the current status when it connects, whenever the status changes,
 and every **two seconds**. Reconnecting never replays an old queued color. Disabling
-tries to send `N`, then disconnects and stops scans and retries; the **ten-second**
-timeout clears any status that was not delivered. `N` cannot tell a disabled Mac from
-an absent one, so a disconnected bonded lamp eventually resumes its waiting pulse.
+tries to send `N`, then disconnects and stops scans and retries. If `N` was not
+delivered, confirmed disconnection immediately starts the **three-second** status
+fade. If the link stays up without updates, the lamp holds for **five seconds** and
+fades for **five seconds**, reaching black at **ten seconds**.
+`N` cannot tell a disabled Mac from an absent one, so a disconnected bonded lamp
+eventually resumes its waiting pulse.
 Disabling therefore does not guarantee that the lamp stays dark.
 
 ### Brightness control
@@ -1001,8 +1016,13 @@ connected, the board ignores serial color commands; read-only diagnostics still 
 
 ## BLE contract and firmware behavior
 
-Bluetooth uses acknowledged encrypted writes, resends the status every **two seconds**
-and clears it after a **ten-second** timeout. A connected Bluetooth client controls the
+Bluetooth uses acknowledged encrypted writes and resends the status every **two
+seconds**. A confirmed disconnect starts a **three-second** fade immediately. If
+the link remains connected without valid updates, the watchdog holds for **five
+seconds** and fades for **five seconds**, clearing the status and reaching black
+at **ten seconds**. Recovery needs a fresh valid
+status and shows it at the configured brightness without a connection flash.
+A connected Bluetooth client controls the
 LEDs; serial colors work only while Bluetooth is disconnected. Firmware updates go over
 USB. UUIDs, payloads, security and diagnostics are defined in the
 [firmware reference](firmware.md#ble-contract-and-firmware-behavior).
@@ -1032,7 +1052,7 @@ pinned toolchain.
 | Faint LED, or one color dark | Disconnect power; check polarity, GPIO, resistor, contacts and the shared GND. Use the [standalone test](#standalone-led-test-firmware); its logic readback cannot prove voltage, current or board damage. |
 | No local Codex sessions | Trust the six BroGlow hooks in Codex `/hooks` and send a new prompt in a local task. If Codex was installed after BroGlow, run `broglow install` again ([Codex setup]({{ repo_url }}/blob/HEAD/site/guide/en/agents.md#codex-missing-hooks)). |
 | Serial colors ignored | Disconnect Bluetooth. |
-| Light clears while the Mac sleeps | The ten-second timeout cleared it; after wake the Mac reconnects and resends. |
+| Light fades while the Mac sleeps | A confirmed disconnect starts a three-second fade; if the link stays up without updates, the lamp holds for five seconds then fades for five seconds. After wake, a fresh status restores the latest color at the configured brightness. |
 | `unavailable`, or no tray icon | Check launchd and the logs and recover the existing service; never start a second tray. |
 
 Restart without reinstalling the hooks:
