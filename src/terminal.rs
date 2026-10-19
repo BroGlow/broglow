@@ -317,12 +317,12 @@ pub fn focus(
         }
     }
     // Desktop hooks can have no terminal identity at all. Use the task ID
-    // before the legacy Terminal lookup, which cannot find a desktop task.
+    // before the Terminal title lookup, which cannot find a desktop task.
     if harness == Some("codex") {
         return open_codex_thread(session_id);
     }
-    // Sessions recorded before terminal capture existed: fall back to
-    // scanning Terminal.app window titles for the project directory name.
+    // No captured identity, or its window is gone: fall back to scanning
+    // Terminal.app window titles for the project directory name.
     project_path.is_some_and(focus_terminal_by_title)
 }
 
@@ -529,8 +529,8 @@ fn focus_iterm_session(uuid: Option<&str>, tty: Option<&str>) -> bool {
     run_osascript(&script)
 }
 
-/// Legacy fallback: raise the Terminal.app window whose title mentions the
-/// project directory name.
+/// Last-resort fallback: raise the Terminal.app window whose title mentions
+/// the project directory name.
 #[cfg(target_os = "macos")]
 fn focus_terminal_by_title(project_path: &str) -> bool {
     let name = std::path::Path::new(project_path)
