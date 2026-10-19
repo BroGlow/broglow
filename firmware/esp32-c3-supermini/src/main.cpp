@@ -26,6 +26,9 @@ constexpr size_t MAX_LAMP_NAME_BYTES =
     21;  // 31 - framing (2) - "BroGlow " (8).
 constexpr uint32_t PAIRING_MS = 60000;
 constexpr uint32_t IDENTIFY_STEP_MS = 100;
+constexpr uint32_t STATUS_FADE_MS = 700;
+constexpr uint32_t BLE_STATUS_FADE_MS = STATUS_TIMEOUT_MS / 2;
+constexpr uint32_t DISCONNECT_FADE_MS = 3000;
 constexpr int BUTTON_PIN =
     9;  // BOOT: use only after normal boot, never hold during reset.
 
@@ -58,9 +61,15 @@ bool overflow = false;
 uint32_t lastStatus = 0;
 bool lit = false;
 bool hasStatus = false;
+bool statusFromBle = false;
 bool bleConnected = false;
 std::atomic<bool> bleLinkConnected{false};
 char appliedStatus = 'N';
+uint32_t fadeStarted = 0, fadeDuration = 0;
+uint8_t fadeDuties[4] = {}, fadeBrightness = 100;
+bool resumeWithoutFlash = false;
+std::atomic<uint32_t> bleDisconnects{0}, bleDisconnectedAt{0};
+uint32_t synchronizedDisconnects = 0;
 uint32_t acceptedStatuses = 0;
 char identity[13];
 char defaultBluetoothName[24];
@@ -88,6 +97,7 @@ enum class Indication {
   Preview,
   Identify,
   Status,
+  Fading,
   Pairing,
   Unpaired,
   Waiting,
@@ -245,6 +255,8 @@ class ServerCallbacks : public BLEServerCallbacks {
   void onDisconnect(BLEServer*) override {
     bleLinkConnected.store(false);
     authenticated.store(false);
+    bleDisconnectedAt.store(millis());
+    ++bleDisconnects;
     const bool connected = false;
     xQueueOverwrite(bleConnections, &connected);
   }
@@ -356,12 +368,29 @@ void showStatus(char state) {
   appliedStatus = state;
 }
 
-void applyStatus(char state, uint32_t received) {
+void applyStatus(char state, uint32_t received, bool fromBle = false) {
+  fadeDuration = 0;
+  statusFromBle = fromBle;
   if (!hasStatus || state != appliedStatus) statusPatternStarted = received;
   showStatus(state);
   hasStatus = true;
   lastStatus = received;
   ++acceptedStatuses;
+}
+
+void startStatusFade(uint32_t duration, uint32_t started) {
+  fadeDuration = (indication == Indication::Status && lit) ||
+                         indication == Indication::Fading
+                     ? duration
+                     : 0;
+  fadeStarted = started;
+  fadeBrightness = brightness;
+  for (size_t channel = 0; channel < 4; ++channel) {
+    const unsigned base = channel == 3 ? BUILTIN_LED_BRIGHTNESS : 255;
+    const uint8_t configuredDuty = (base * brightness + 50) / 100;
+    // A pending brightness reduction may precede the next rendered frame.
+    fadeDuties[channel] = std::min(duties[channel], configuredDuty);
+  }
 }
 
 void outputLeds(uint8_t red, uint8_t yellow, uint8_t green, uint8_t builtin,
@@ -380,11 +409,21 @@ void outputLeds(uint8_t red, uint8_t yellow, uint8_t green, uint8_t builtin,
 
 void renderIndication() {
   const uint32_t now = millis();
-  if (hasStatus &&
-      static_cast<uint32_t>(now - lastStatus) >= STATUS_TIMEOUT_MS) {
+  const uint32_t statusAge = now - lastStatus;
+  if (hasStatus && statusFromBle && lit && !fadeDuration &&
+      indication == Indication::Status &&
+      statusAge >= STATUS_TIMEOUT_MS - BLE_STATUS_FADE_MS &&
+      statusAge < STATUS_TIMEOUT_MS)
+    startStatusFade(BLE_STATUS_FADE_MS,
+                    lastStatus + STATUS_TIMEOUT_MS - BLE_STATUS_FADE_MS);
+  if (hasStatus && statusAge >= STATUS_TIMEOUT_MS) {
+    if (!statusFromBle && indication == Indication::Status && lit)
+      startStatusFade(STATUS_FADE_MS, lastStatus + STATUS_TIMEOUT_MS);
     hasStatus = false;
     showStatus('N');
   }
+  if (fadeDuration && static_cast<uint32_t>(now - fadeStarted) >= fadeDuration)
+    fadeDuration = 0;
   if (connectionPulse &&
       (!hasStatus || !bleLinkConnected.load() || !authenticated.load() ||
        static_cast<uint32_t>(now - connectionPulseStarted) >= 250)) {
@@ -404,8 +443,10 @@ void renderIndication() {
       : preview && previewIdentify ? Indication::Identify
       : preview                    ? Indication::Preview
       : connectionPulse            ? Indication::Connected
+      : fadeDuration               ? Indication::Fading
       : hasStatus                  ? Indication::Status
-      : bleConnected && confirmedGeneration == bleGeneration.load()
+      : bleConnected && (resumeWithoutFlash ||
+                         confirmedGeneration == bleGeneration.load())
           ? Indication::Stale
       : pairingOpen()                      ? Indication::Pairing
       : esp_ble_get_bond_device_num() == 0 ? Indication::Unpaired
@@ -441,6 +482,18 @@ void renderIndication() {
       if (phase / 250 < pulses && phase % 250 < 100)
         builtin = BUILTIN_LED_BRIGHTNESS;
       break;
+    }
+    case Indication::Fading: {
+      const uint32_t remaining = fadeDuration - (now - fadeStarted);
+      uint8_t levels[4] = {};
+      if (fadeBrightness) {
+        for (size_t channel = 0; channel < 4; ++channel)
+          levels[channel] = std::min<uint32_t>(
+              255, remaining * fadeDuties[channel] * brightness /
+                       (fadeDuration * fadeBrightness));
+      }
+      outputLeds(levels[0], levels[1], levels[2], levels[3], 100);
+      return;
     }
     case Indication::Identify:
     case Indication::Pairing: {
@@ -488,6 +541,8 @@ const char* indicationName() {
       return "identify";
     case Indication::Status:
       return "status";
+    case Indication::Fading:
+      return "fading";
     case Indication::Pairing:
       return "pairing";
     case Indication::Unpaired:
@@ -627,6 +682,20 @@ void setup() {
 }
 
 void synchronizeBleConnection() {
+  const uint32_t disconnects = bleDisconnects.load();
+  if (disconnects != synchronizedDisconnects) {
+    synchronizedDisconnects = disconnects;
+    // The one-slot connection queue can coalesce a disconnect and reconnect.
+    if (statusFromBle) {
+      if (lit || fadeDuration) {
+        if (!resumeWithoutFlash)
+          startStatusFade(DISCONNECT_FADE_MS, bleDisconnectedAt.load());
+        hasStatus = false;
+        showStatus('N');
+      }
+      resumeWithoutFlash = true;
+    }
+  }
   if (xQueueReceive(bleConnections, &bleConnected, 0) == pdTRUE) {
     connectionPulse = false;
     preview = false;
@@ -657,25 +726,27 @@ void loop() {
     applyPendingBrightness();  // A brightness write acknowledged before this
                                // status wins.
     const bool connected = bleConnected && bleLinkConnected.load();
-    // Preserve already acknowledged state after disconnect, using its original
-    // timestamp. Only an obsolete connection generation is rejected; a
-    // disconnected write cannot confirm.
-    if (status.generation == bleGeneration.load()) {
+    const bool fresh =
+        static_cast<uint32_t>(millis() - status.received) < STATUS_TIMEOUT_MS;
+    // A queued pre-disconnect color must not cancel the fade or relight the
+    // lamp. An acknowledged N can still turn it off.
+    if (status.generation == bleGeneration.load() &&
+        (connected || status.state == 'N') && (!resumeWithoutFlash || fresh)) {
       // The GATT permission rejects unencrypted writes before the callback
       // runs.
       if (connected) authenticated.store(true);
-      applyStatus(status.state, status.received);
-      if (connected &&
-          static_cast<uint32_t>(millis() - status.received) <
-              STATUS_TIMEOUT_MS &&
-          confirmedGeneration != status.generation) {
+      const bool skipFlash = resumeWithoutFlash || fadeDuration;
+      applyStatus(status.state, status.received, true);
+      if (connected && fresh) resumeWithoutFlash = false;
+      if (connected && fresh && confirmedGeneration != status.generation) {
         confirmedGeneration = status.generation;
         // Startup already confirms power; do not replay a connection flash
         // for a status received during its two breathing cycles.
         connectionPulse =
-            !startup ||
-            (static_cast<uint32_t>(millis() - startupStarted) >= 3000 &&
-             static_cast<uint32_t>(status.received - startupStarted) >= 3000);
+            !skipFlash &&
+            (!startup ||
+             (static_cast<uint32_t>(millis() - startupStarted) >= 3000 &&
+              static_cast<uint32_t>(status.received - startupStarted) >= 3000));
         connectionPulseStarted = millis();
       }
     }

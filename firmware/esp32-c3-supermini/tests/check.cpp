@@ -436,14 +436,15 @@ void protocolChecks() {
   feed(std::string(1024, 'R'));
   feed("G\n");
   expectLamp(0, 255, 0);
-  checkAt(12000, 0, 0, 0, 0);  // Invalid serial input cannot extend status.
+  checkAt(12000, 0, 255, 0, 0);  // Invalid serial input cannot delay the fade.
+  checkAt(12700, 0, 0, 0, 0);
 
   connectPeer();
   statusAt(13000, "N");
   checkAt(13250, 0, 0, 0, 0);
   statusAt(14000, "G");
   expectLamp(0, 0, 255);
-  now = 22000;
+  now = 18000;
   // An empty prepared-write commit must not replay the preceding valid value.
   characteristic.callbacks->onWrite(&characteristic);
   for (const auto& invalid :
@@ -454,16 +455,17 @@ void protocolChecks() {
   }
   feed("R\nY\nN\n");
   expectLamp(0, 0, 255);  // BLE owns colors until disconnect.
-  checkAt(23999, 0, 0, 255, 0);
+  checkAt(19000, 0, 0, 255, 0);
+  checkAt(21500, 0, 0, 127, 0);
+  checkAt(23999, 0, 0, 0, 0);
   checkAt(24000, 0, 0, 0, 0);
   const uint32_t first = UINT32_MAX - 5000;
   statusAt(first, "G");
   statusAt(first + 2000,
            "G");  // Same-byte heartbeat extends the deadline across wrap.
-  at(first + 10000);
-  expectLamp(0, 0, 255);
-  at(first + 11999);
-  expectLamp(0, 0, 255);
+  checkAt(first + 7000, 0, 0, 255, 0);
+  checkAt(first + 9500, 0, 0, 127, 0);
+  checkAt(first + 11999, 0, 0, 0, 0);
   checkAt(first + 12000, 0, 0, 0, 0);
   disconnectPeer();
   loop();
@@ -477,10 +479,13 @@ void protocolChecks() {
   feed("\n");
   expectLamp(255, 0,
              0);  // Partial pre-BLE input cannot replay after disconnect.
+  at(serialTime + 9999);
   now = serialTime + 10000;
   Serial.input.push_back('x');
   Serial.flood = true;
   loop();
+  expectLamp(255, 0, 0, 0);
+  at(serialTime + 10700);
   expectLamp(0, 0, 0, 0);
   connectPeer();
   statusAt(now, "G");
@@ -587,6 +592,8 @@ void indicationChecks() {
           blue);  // Heartbeats do not restart the builtin pattern.
   feed("PAIR\n");
   expectLamp(255, 0, 0);
+  checkAt(162249, 255, 0, 0, blue);
+  checkAt(164749, 127, 0, 0, blue / 2);
   checkAt(167249, 0, 0, 0, 0);
   checkAt(197249, 0, 0, 0,
           0);  // Connected stale status stays dark, even in pairing mode.
@@ -613,7 +620,7 @@ void indicationChecks() {
   expectLamp(0, 0, 0, 0);
   connectPeer();
   statusAt(221000, "N");
-  expectLamp(255, 255, 255, blue);
+  expectLamp(0, 0, 0, 0);
   disconnectPeer();
   loop();
   expectLamp(0, 0, 0, 0);
@@ -631,7 +638,7 @@ void indicationChecks() {
   expectLamp(0, 0, 0, 0);
   now = 300000;
   characteristic.write("N");
-  checkAt(309900, 255, 255, 255, blue);
+  checkAt(309900, 0, 0, 0, 0);
   checkAt(310000, 0, 0, 0,
           0);  // A delayed first write still expires at receipt +10s.
 }
@@ -662,35 +669,36 @@ void brightnessChecks() {
   expectLamp(0, 0, 0, 0);
   brightnessAt(4000, 100);
   expectLamp(0, 0, 255);
+  checkAt(6001, 0, 0, 255, 0);
   brightnessAt(10000, 50);
-  expectLamp(0, 0, 128);
+  expectLamp(0, 0, 25);
   at(11000);
-  expectLamp(0, 0, 128);
-  checkAt(11001, 0, 0, 0, 0);  // Brightness never refreshes status freshness.
+  expectLamp(0, 0, 0, 0);
+  checkAt(11001, 0, 0, 0, 0);  // Brightness never delays status expiry.
   disconnectPeer();
   connectPeer();
-  statusAt(13000, "N");
+  statusAt(13000, "G");
   expectLamp(
-      128, 128, 128,
+      0, 0, 128,
       BUILTIN_LED_BRIGHTNESS / 2);  // Applied preference survives disconnect.
   brightnessCharacteristic.write(std::string(1, '\x4d'));
   disconnectPeer();
   connectPeer();
-  statusAt(14000, "N");
-  expectLamp(128, 128, 128,
+  statusAt(14000, "G");
+  expectLamp(0, 0, 128,
              BUILTIN_LED_BRIGHTNESS / 2);  // Obsolete preference is rejected.
   disconnectPeer();
   connectPeer();
   now = 15000;
   queueReceiveHook = brightnessBeforeStatus;
   loop();
-  expectLamp(64, 64, 64,
+  expectLamp(64, 0, 0,
              BUILTIN_LED_BRIGHTNESS / 4);  // Preference precedes first status.
   disconnectPeer();
   loop();
   expectLamp(64, 0, 0);
-  at(25000);
-  expectLamp(0, 0, 0, 0);
+  checkAt(16501, 32, 0, 0, BUILTIN_LED_BRIGHTNESS / 8);
+  checkAt(18001, 0, 0, 0, 0);
   connectPeer();
   brightnessAt(26000, 0);
   statusAt(27000, "N");
@@ -703,6 +711,180 @@ void brightnessChecks() {
   expectLamp(0, 0, 0, 0);
   mockBonds.clear();
   checkAt(128000, 0, 0, 0, 0);
+}
+
+void fadeChecks() {
+  bondedBoot();
+  connectPeer();
+  brightnessAt(100, 50);
+  for (unsigned color = 0; color < 3; ++color) {
+    const uint32_t time = 1000 + color * 20000;
+    statusAt(time, std::string(1, "RYG"[color]));
+    at(time + 250);
+    const int r = color == 0 ? 128 : 0, y = color == 1 ? 128 : 0,
+              g = color == 2 ? 128 : 0;
+    checkAt(time + 4999, r, y, g, 0);
+    checkAt(time + 5000, r, y, g, 0);
+    Serial.output.clear();
+    feed("?\n");
+    assert(Serial.output.find(std::string("state=") + "RYG"[color]) !=
+           std::string::npos);
+    assert(Serial.output.find("mode=fading") != std::string::npos);
+    checkAt(time + 7500, r ? 64 : 0, y ? 64 : 0, g ? 64 : 0, 0);
+    unsigned previous = 64;
+    for (uint32_t elapsed = 7501; elapsed < 10000; elapsed += 37) {
+      at(time + elapsed);
+      const auto duty = pinDuty(color == 2 ? 3 : color);
+      assert(duty <= previous);
+      previous = duty;
+    }
+    checkAt(time + 10000, 0, 0, 0, 0);
+    checkAt(time + 15000, 0, 0, 0, 0);
+  }
+
+  disconnectPeer();
+  connectPeer();
+  statusAt(61000, "R");
+  checkAt(65999, 128, 0, 0, 0);
+  checkAt(66000, 128, 0, 0, 0);
+  checkAt(68500, 64, 0, 0, 0);
+  statusAt(68501, "R");
+  expectLamp(128, 0, 0,
+             0);  // Same-color heartbeat restores configured brightness.
+  brightnessAt(68600, 75);
+  expectLamp(191, 0, 0, 0);
+  checkAt(73501, 191, 0, 0, 0);
+  checkAt(76001, 95, 0, 0, 0);
+  disconnectPeer();
+  connectPeer();
+  statusAt(76002, "G");
+  expectLamp(0, 0, 191, BUILTIN_LED_BRIGHTNESS * 3 / 4);
+  checkAt(83502, 0, 0, 95, BUILTIN_LED_BRIGHTNESS * 3 / 8);
+  checkAt(86002, 0, 0, 0, 0);
+  disconnectPeer();
+  connectPeer();
+  statusAt(87001, "Y");
+  expectLamp(0, 191, 0, BUILTIN_LED_BRIGHTNESS * 3 / 4);
+
+  brightnessAt(88000, 0);
+  statusAt(88001, "G");
+  checkAt(93001, 0, 0, 0, 0);
+  checkAt(95501, 0, 0, 0, 0);
+  statusAt(95502, "R");
+  expectLamp(0, 0, 0, 0);
+  checkAt(105502, 0, 0, 0, 0);
+
+  brightnessAt(110000, 100);
+  statusAt(111000, "R");
+  checkAt(116000, 255, 0, 0, BUILTIN_LED_BRIGHTNESS);
+  checkAt(118500, 127, 0, 0, BUILTIN_LED_BRIGHTNESS / 2);
+  statusAt(118501, "N");
+  expectLamp(0, 0, 0,
+             0);  // An explicit off cancels a visible fade immediately.
+  checkAt(121000, 0, 0, 0, 0);
+  checkAt(128501, 0, 0, 0, 0);  // Expiring an off status stays dark.
+  const uint32_t wrap = UINT32_MAX - 7500;
+  statusAt(wrap, "R");
+  checkAt(wrap + 4999, 255, 0, 0, 0);
+  checkAt(wrap + 5000, 255, 0, 0, 0);
+  checkAt(wrap + 7500, 127, 0, 0, 0);
+  checkAt(wrap + 10000, 0, 0, 0, 0);
+  statusAt(20000, "G");
+  checkAt(31000, 0, 0, 0, 0);  // A delayed loop cannot replay an expired fade.
+}
+
+void disconnectFadeChecks() {
+  bondedBoot();
+  connectPeer();
+  brightnessAt(100, 50);
+  statusAt(1000, "G");
+  checkAt(1999, 0, 0, 128, 0);
+  now = 2000;
+  disconnectPeer();
+  expectLamp(0, 0, 128, 0);  // Callbacks only queue changes for the renderer.
+  loop();
+  expectLamp(0, 0, 128, 0);
+  checkAt(3500, 0, 0, 64, 0);
+  connectPeer();
+  at(3501);
+  expectLamp(0, 0, 63, 0);  // A connection alone cannot restore the old status.
+  characteristic.write("RY");
+  loop();
+  expectLamp(0, 0, 63, 0);  // Invalid status cannot interrupt the fade.
+  brightnessAt(3600, 75);
+  statusAt(3700, "Y");
+  expectLamp(0, 191, 0, BUILTIN_LED_BRIGHTNESS * 3 / 4);
+  checkAt(5000, 0, 191, 0, 0);
+
+  now = 6000;
+  disconnectPeer();
+  loop();
+  expectLamp(0, 191, 0, 0);
+  checkAt(7500, 0, 95, 0, 0);
+  checkAt(9000, 0, 0, 0, 0);
+  checkAt(39000, 6, 6, 6, BUILTIN_LED_PIN < 0 ? 0 : 6);
+  checkAt(39100, 0, 0, 0, 0);  // Quiet waiting retains its existing pulse.
+  connectPeer();
+  checkAt(40000, 0, 0, 0, 0);
+  statusAt(40001, "R");
+  expectLamp(191, 0, 0, BUILTIN_LED_BRIGHTNESS * 3 / 4);
+  checkAt(40999, 191, 0, 0, 0);
+  now = 41000;
+  disconnectPeer();
+  loop();
+  checkAt(42500, 95, 0, 0, 0);
+  connectPeer();
+  statusAt(42501, "N");
+  expectLamp(0, 0, 0, 0);
+
+  brightnessAt(43000, 0);
+  statusAt(43001, "G");
+  now = 44000;
+  disconnectPeer();
+  loop();
+  checkAt(45000, 0, 0, 0, 0);
+  connectPeer();
+  brightnessAt(45500, 50);
+  expectLamp(0, 0, 0, 0);
+  statusAt(45501, "G");
+  expectLamp(0, 0, 128, BUILTIN_LED_BRIGHTNESS / 2);
+
+  const uint32_t drop = UINT32_MAX - 1000;
+  statusAt(drop - 500, "R");
+  checkAt(drop - 1, 128, 0, 0, 0);
+  now = drop;
+  disconnectPeer();
+  loop();
+  expectLamp(128, 0, 0, 0);
+  checkAt(drop + 1500, 64, 0, 0, 0);
+  checkAt(drop + 3000, 0, 0, 0, 0);
+
+  connectPeer();
+  statusAt(10000, "G");
+  checkAt(10999, 0, 0, 128, 0);
+  now = 11000;
+  disconnectPeer();
+  connectPeer();
+  loop();  // Even coalesced connection events must start the fade.
+  checkAt(12500, 0, 0, 64, 0);
+  disconnectPeer();
+  connectPeer();
+  loop();
+  checkAt(14000, 0, 0, 0, 0);  // Repeated link loss cannot restart the fade.
+  statusAt(14001, "Y");
+  expectLamp(0, 128, 0, BUILTIN_LED_BRIGHTNESS / 2);
+  statusAt(20000, "G");
+  checkAt(20999, 0, 0, 128, 0);
+  now = 21000;
+  disconnectPeer();
+  checkAt(25000, 0, 0, 0, 0);  // A delayed loop cannot replay a completed fade.
+  feed("PAIR\n");
+  connectPeer();
+  checkAt(26000, 0, 0, 0, 0);
+  checkAt(27000, 0, 0, 0,
+          0);  // An open pairing window cannot relight recovery.
+  statusAt(28000, "N");
+  expectLamp(0, 0, 0, 0);
 }
 
 void startupChecks(bool live) {
@@ -802,7 +984,7 @@ void previewChecks() {
   disconnectPeer();
   connectPeer();
   statusAt(19001, "G");
-  expectLamp(255, 255, 255, BUILTIN_LED_BRIGHTNESS);
+  expectLamp(0, 0, 255, BUILTIN_LED_BRIGHTNESS);
   checkAt(19251, 0, 0, 255, 0);
   now = 19500;
   brightnessCharacteristic.write(std::string("\x19\1", 2));
@@ -813,6 +995,8 @@ void previewChecks() {
   previewAt(receipt, 25);
   checkAt(receipt + 1999, 64, 64, 64, BUILTIN_LED_BRIGHTNESS / 4);
   checkAt(receipt + 2000, 0, 0, 255, -1);
+  checkAt(receipt + 4500, 0, 0, 255, 0);
+  checkAt(receipt + 7000, 0, 0, 127, 0);
   checkAt(receipt + 9500, 0, 0, 0, 0);
 }
 
@@ -858,7 +1042,7 @@ void identifyChecks() {
   previewAt(7000, 100, 2);
   disconnectPeer();
   loop();
-  expectLamp(128, 0, 0);  // Disconnect cancels the scan immediately.
+  expectLamp(0, 0, 0, 0);  // Disconnect cancels the scan immediately.
   connectPeer();
   statusAt(7200, "N");
   checkAt(7450, 0, 0, 0, 0);
@@ -920,8 +1104,8 @@ void callbackRaceChecks() {
   expectLamp(0, 0, 255);
   queueReceiveHook = disconnectDuringStatusRead;
   loop();
-  expectLamp(255, 0,
-             0);  // Acknowledged same-connection color survives disconnect.
+  expectLamp(0, 0,
+             255);  // A queued pre-disconnect color cannot replace the fade.
   connectPeer();
   statusAt(2000, "G");
   disconnectStatus = 'N';
@@ -932,6 +1116,33 @@ void callbackRaceChecks() {
   serialAvailableHook = connectBeforeSerialRead;
   loop();
   expectLamp(0, 0, 0, 0);  // Live BLE ownership already blocks USB.
+}
+
+void fadeBrightnessChecks() {
+  bondedBoot();
+  connectPeer();
+  statusAt(1000, "R");
+  checkAt(5999, 255, 0, 0, 0);
+  brightnessAt(6000, 25);
+  expectLamp(64, 0, 0,
+             0);  // A brightness edit at fade entry cannot flash at 100%.
+  checkAt(8500, 32, 0, 0, 0);
+  statusAt(8501, "G");
+  expectLamp(0, 0, 64, BUILTIN_LED_BRIGHTNESS / 4);
+
+  brightnessAt(9000, 100);
+  checkAt(9999, 0, 0, 255, 0);
+  now = 10000;
+  brightnessCharacteristic.write(std::string(1, '\x19'));
+  disconnectStatus = 'G';
+  queueReceiveHook = disconnectDuringStatusRead;
+  loop();  // Brightness applies before the disconnect is synchronized.
+  expectLamp(0, 0, 64, 0);
+  checkAt(11500, 0, 0, 32, 0);
+  checkAt(13000, 0, 0, 0, 0);
+  connectPeer();
+  statusAt(13001, "R");
+  expectLamp(64, 0, 0, BUILTIN_LED_BRIGHTNESS / 4);
 }
 
 void nameChecks() {
@@ -1040,6 +1251,12 @@ int main(int argc, char** argv) {
     indicationChecks();
   else if (scenario == "brightness")
     brightnessChecks();
+  else if (scenario == "fade")
+    fadeChecks();
+  else if (scenario == "disconnect-fade")
+    disconnectFadeChecks();
+  else if (scenario == "fade-brightness")
+    fadeBrightnessChecks();
   else if (scenario == "startup")
     startupChecks(false);
   else if (scenario == "startup-live")

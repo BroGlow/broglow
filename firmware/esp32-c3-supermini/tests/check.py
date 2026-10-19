@@ -16,6 +16,9 @@ SCENARIOS = (
     "pairing",
     "indications",
     "brightness",
+    "fade",
+    "disconnect-fade",
+    "fade-brightness",
     "startup",
     "startup-live",
     "preview",
@@ -71,6 +74,9 @@ with tempfile.TemporaryDirectory(prefix="broglow-c3-check-") as folder:
             else (
                 "indications",
                 "brightness",
+                "fade",
+                "disconnect-fade",
+                "fade-brightness",
                 "startup",
                 "startup-live",
                 "preview",
@@ -79,5 +85,5 @@ with tempfile.TemporaryDirectory(prefix="broglow-c3-check-") as folder:
         ):
             subprocess.run([str(executable), scenario], check=True, timeout=10)
     print(
-        "PASS: protocol/security/ownership, pairing, PWM/builtin, brightness/startup/preview/identify, persistent name, races, GATT cache change"
+        "PASS: protocol/security/ownership, pairing, PWM/builtin, brightness/fade/startup/preview/identify, persistent name, races, GATT cache change"
     )
