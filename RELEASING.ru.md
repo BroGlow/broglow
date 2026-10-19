@@ -1,6 +1,4 @@
----
-title: Выпуск и публикация
----
+[English](RELEASING.md) | [Русский](RELEASING.ru.md)
 
 <a name="release-and-website-publishing"></a>
 
@@ -12,7 +10,7 @@ title: Выпуск и публикация
 Выпуск приложения/прошивки и публикация сайта используют отдельные процессы
 GitHub Actions. Файлы STL и STEP распространяются только внутри ZIP-архива
 корпуса, приложенного к релизу; все сгенерированные файлы оставляйте
-игнорируемыми и вне Git (см. [CONTRIBUTING.ru.md](../../../CONTRIBUTING.ru.md)).
+игнорируемыми и вне Git (см. [CONTRIBUTING.ru.md](CONTRIBUTING.ru.md)).
 
 <a name="distribution"></a>
 
@@ -28,18 +26,18 @@ GitHub Actions. Файлы STL и STEP распространяются толь
 
 Пакеты Mac также содержат `BUILD.json`, внутренний `SHA256SUMS`, адреса записи
 прошивки и минимальную версию macOS, извлечённую из исполняемого файла.
-Приложение устанавливается по приложенному [руководству](hardware.md#install-a-prebuilt-package).
+Приложение устанавливается по приложенному [руководству](site/guide/ru/hardware.md#install-a-prebuilt-package).
 Каждый архив приложения содержит `THIRD-PARTY-NOTICES.md` для Rust-крейтов в
 исполняемом файле этой платформы и уведомления стандартной библиотеки Rust; пакеты
 для Mac добавляют скомпонованные библиотеки прошивки. Их создаёт
-[`scripts/third-party-notices.py`](../../../scripts/third-party-notices.py) из
+[`scripts/third-party-notices.py`](scripts/third-party-notices.py) из
 `Cargo.lock`, исходников крейтов и карты компоновки прошивки; упаковка запускает
 его сама. Сборки не подписаны сертификатом Developer ID и не нотаризованы Apple.
 На Linux приложение собирают из исходников. Формулу Homebrew публикует в
 отдельный репозиторий `broglow/tap` [workflow Homebrew tap](#homebrew-tap);
 процесса публикации в crates.io нет.
 
-О предупреждениях безопасности GTK 3 для трея на Linux см. [CONTRIBUTING](../../../CONTRIBUTING.ru.md#development-setup).
+О предупреждениях безопасности GTK 3 для трея на Linux см. [CONTRIBUTING](CONTRIBUTING.ru.md#development-setup).
 
 <a name="python-version"></a>
 
@@ -61,8 +59,8 @@ GitHub Actions. Файлы STL и STEP распространяются толь
 Подготовленная версия в `Cargo.toml` и `Cargo.lock` — **1.0.0**. Релизный тег
 **v1.0.0** должен указывать на проверенный релизный коммит.
 Проверьте исходники и сайт командами из
-[CONTRIBUTING.ru.md](../../../CONTRIBUTING.ru.md#build-and-test) и
-[инструкции по сайту](../../README.ru.md#check-changes).
+[CONTRIBUTING.ru.md](CONTRIBUTING.ru.md#build-and-test) и
+[инструкции по сайту](site/README.ru.md#check-changes).
 
 После проверки коммита и места назначения явно создайте тег и отправьте
 изменения. Замените `YOUR_REMOTE` именем удалённого репозитория GitHub (`git remote -v`):
@@ -133,7 +131,7 @@ git push YOUR_REMOTE v1.0.0
 
 ## Локальная упаковка без публикации
 
-[`scripts/package-enclosure.py`](../../../scripts/package-enclosure.py) собирает
+[`scripts/package-enclosure.py`](scripts/package-enclosure.py) собирает
 релизный пакет корпуса. `--output-dir PATH` выбирает другую
 папку; она тоже должна игнорироваться. Для репетиции релиза используйте чистую
 рабочую копию с соответствующим тегом и добавьте `--release-tag vVERSION`: этот
@@ -143,7 +141,7 @@ git push YOUR_REMOTE v1.0.0
 
 ### Магнитный корпус
 
-[Руководство по печати магнитного корпуса](printing.md) описывает состав печати,
+[Руководство по печати магнитного корпуса](site/guide/ru/printing.md) описывает состав печати,
 вклейку магнитов и генерацию из исходников. Команда:
 
 ```bash
@@ -169,7 +167,7 @@ uv run --frozen --only-group cad python scripts/package-enclosure.py
 Разовые отчёты инспекции CAD и задания снимков для отдельных версий не входят
 во входные данные сборки; храните их в игнорируемом `dist/enclosure/`, вне Git.
 Сборка заново создаёт `validation.json` в изолированном дереве.
-Сохраняйте проверенный [`slicer-validation.json`](../../../models/magnetic/slicer-validation.json):
+Сохраняйте проверенный [`slicer-validation.json`](models/magnetic/slicer-validation.json):
 упаковка сверяет его хеши STL, поскольку генерация геометрии не запускает
 внешний слайсер повторно.
 
@@ -206,7 +204,7 @@ uv run --frozen python scripts/package-macos.py
 Mac из отдельного репозитория GitHub `broglow/homebrew-tap`, где лежит только
 `Formula/broglow.rb`.
 
-[`scripts/homebrew-formula.py`](../../../scripts/homebrew-formula.py) формирует
+[`scripts/homebrew-formula.py`](scripts/homebrew-formula.py) формирует
 формулу из файлов `broglow-vVERSION-*-apple-darwin.tar.gz.sha256` релиза (архивы
 для Apple Silicon и Intel в блоках `on_macos`/`on_arm`/`on_intel`, `bin/broglow`,
 прошивка и руководства в `share/broglow`, и предупреждение, что `broglow install`
@@ -234,7 +232,7 @@ workflow с отмеченным **publish**.
 
 ## Публикация сайта
 
-Следуйте [инструкции по сайту](../../README.ru.md#publish-to-github-pages), затем
+Следуйте [инструкции по сайту](site/README.ru.md#publish-to-github-pages), затем
 выполните проверку после публикации.
 
 После публикации откройте английское и русское руководства на сайте и

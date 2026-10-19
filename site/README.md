@@ -174,12 +174,12 @@ current `Cargo.toml` version and shows it inline; when the
 checksum cannot be fetched the page points to the release page instead. Publishing a release restarts
 the Website workflow on the default branch so the checksum lands on the site. GitHub's automatic source ZIP contains editable
 source and instructions, without STL, STEP/STP or ready-to-print ZIPs; use the
-enclosure release asset or [generate it from source](guide/en/releasing.md).
+enclosure release asset or [generate it from source](../RELEASING.md).
 Previews neither rebuild nor copy archives; inspect a package's `BUILD.json` for
 its architecture, date and source.
 
 Unknown or missing source links in included guides fail the build. Keep the
-generation procedure in the [release runbook](guide/en/releasing.md) aligned
+generation procedure in the [release runbook](../RELEASING.md) aligned
 with the release workflow.
 
 Use the [hardware manual](guide/en/hardware.md) for supported hardware and
@@ -193,12 +193,12 @@ Our asset sources:
 - `assets/assembly.glb`: separated assembly from `models/magnetic/exploded.py`; source hashes and bounds in `assets/assembly-model.json`.
 - `guide/assets/favicon.svg`: our three-circle lamp artwork, also used by the landing favicon. Tray icons come from `assets/icons/` in the repository root.
 
-Follow the [media policy](guide/en/media.md). Keep render/photo
+Follow the [media policy](../MEDIA.md). Keep render/photo
 labels accurate and theme/library license notices intact.
 
 ## Publish to GitHub Pages
 
-1. Follow the [release runbook](guide/en/releasing.md) and push the intended sources,
+1. Follow the [release runbook](../RELEASING.md) and push the intended sources,
    including CAD, to your repository's default branch.
 2. Select **Settings → Pages → Build and deployment → Source → GitHub Actions**.
 3. Run **Actions → Website → Run workflow** on the default branch.
@@ -216,7 +216,7 @@ settings; relative paths support both domain roots and repository prefixes.
 Public downloads use this repository's Releases with a source-build fallback.
 Publish full Mac/C3 bundles and the separate enclosure ZIP with matching checksums;
 Windows bundles include the graphical tray app and CLI but omit the installer,
-firmware and manuals. See the [release runbook](guide/en/releasing.md)
+firmware and manuals. See the [release runbook](../RELEASING.md)
 for filenames, checks and publication steps. Preserve archive names and state
 pending physical checks in release notes.
 

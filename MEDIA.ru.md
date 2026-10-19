@@ -1,6 +1,4 @@
----
-title: Изображения и фотографии
----
+[English](MEDIA.md) | [Русский](MEDIA.ru.md)
 
 <a name="project-images-and-photos"></a>
 
@@ -13,12 +11,12 @@ title: Изображения и фотографии
 Рендеры получены из CAD-исходников релизного корпуса с условной электроникой.
 Подписывайте рендеры как рендеры: они не заменяют результаты физической примерки.
 Значки состояния в приложении — наши собственные
-([`assets/icons/`](../../../assets/icons/), их генерирует `render.py` в том же каталоге).
+([`assets/icons/`](assets/icons/), их генерирует `render.py` в том же каталоге).
 
 Весь каталог `models/broglow/preview/` должен оставаться игнорируемым и
 неотслеживаемым, включая рендеры, размерные схемы и задания рендера. Храните в Git
 выбранные ресурсы приложения и сайта и проверенные данные валидации.
-[`scripts/check-generated-artifacts.py`](../../../scripts/check-generated-artifacts.py)
+[`scripts/check-generated-artifacts.py`](scripts/check-generated-artifacts.py)
 отклоняет отслеживаемые предпросмотры, CAD-экспорты и архивы.
 
 <a name="3d-and-ar-preview"></a>
@@ -37,7 +35,7 @@ title: Изображения и фотографии
 
 JSON-файлы хранят хеши исходников и габариты. Не правьте выходные файлы вручную,
 а перегенерируйте их: при изменении CAD запустите
-[`scripts/export-web-model.py`](../../../scripts/export-web-model.py) (для сборки —
+[`scripts/export-web-model.py`](scripts/export-web-model.py) (для сборки —
 с флагом `--exploded`) и проверьте результат с `--check`. Для печати используйте
 комплект корпуса из релиза. Команды и зависимости:
-[README сайта](../../README.ru.md#interactive-3d-and-ar).
+[README сайта](site/README.ru.md#interactive-3d-and-ar).

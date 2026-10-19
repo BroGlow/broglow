@@ -27,13 +27,13 @@ Keep the entire `models/broglow/preview/` directory ignored and untracked, inclu
 renders, dimension diagrams and render recipes; selected app/site assets stay in Git.
 
 For **enclosure generation, release packaging, distribution, or website publication**,
-follow [the release runbook](site/guide/en/releasing.md) and its manual/agent generation
+follow [the release runbook](RELEASING.md) and its manual/agent generation
 procedure. Generate enclosure deliverables under ignored `dist/enclosure/`.
 GitHub source archives contain sources and instructions; ready-to-print files
 come from the separate enclosure release download.
 
 For **images, screenshots, or other media**, use only our own assets and follow
-[the media policy](site/guide/en/media.md). Label CAD renders accurately.
+[the media policy](MEDIA.md). Label CAD renders accurately.
 
 For **backups or test evidence**, use the ignored `.recovery/` directory and follow
 the [local recovery policy](site/guide/en/hardware.md#local-recovery-files).

@@ -29,8 +29,6 @@ REFERENCE_SOURCES = {
 SELF_CONTAINED_REFERENCES = {
     "hardware.md",
     "firmware.md",
-    "releasing.md",
-    "media.md",
 }
 GUIDE_ROUTES = {
     ("" if locale == "en" else "ru/") + path.stem

@@ -161,5 +161,5 @@ See the [contributing guide](CONTRIBUTING.md) to get started.
 
 [MIT](LICENSE). Release packages include third-party notices: the licenses of the Rust crates
 the app is built from and the Rust standard library notices; Mac packages also list the
-firmware's linked libraries and their licenses. See the [media policy](site/guide/en/media.md)
+firmware's linked libraries and their licenses. See the [media policy](MEDIA.md)
 for project images.

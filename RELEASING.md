@@ -1,6 +1,4 @@
----
-title: Release and publication
----
+[English](RELEASING.md) | [Русский](RELEASING.ru.md)
 
 <a name="release-and-website-publishing"></a>
 
@@ -12,7 +10,7 @@ These are maintainer instructions for a source checkout. The `site/` and
 App/firmware releases and website deployment use separate GitHub Actions
 workflows. STL and STEP files ship only inside the enclosure ZIP attached to
 the release; keep all generated files ignored and out of Git (see
-[CONTRIBUTING.md](../../../CONTRIBUTING.md)).
+[CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ## Distribution
 
@@ -26,11 +24,11 @@ the release; keep all generated files ignored and out of Git (see
 
 Mac bundles also contain `BUILD.json`, an internal `SHA256SUMS`, flash offsets
 and the minimum macOS version extracted from the executable. Install the app by
-following the bundled [operating manual](hardware.md#install-a-prebuilt-package).
+following the bundled [operating manual](site/guide/en/hardware.md#install-a-prebuilt-package).
 Every app archive carries `THIRD-PARTY-NOTICES.md` for the Rust crates in that
 target's binary and the Rust standard library notices; Mac packages add the
 firmware's linked libraries.
-[`scripts/third-party-notices.py`](../../../scripts/third-party-notices.py)
+[`scripts/third-party-notices.py`](scripts/third-party-notices.py)
 generates them from `Cargo.lock`, the crate sources and the firmware linker map;
 packaging runs it. Builds are not signed with a Developer ID certificate or notarized by Apple. Linux users build from
 source. The Homebrew formula is published to the separate `broglow/tap`
@@ -38,7 +36,7 @@ repository by the [Homebrew tap workflow](#homebrew-tap); there is no crates.io
 publishing workflow.
 
 For the Linux tray's GTK 3 advisories, see
-[CONTRIBUTING](../../../CONTRIBUTING.md#development-setup).
+[CONTRIBUTING](CONTRIBUTING.md#development-setup).
 
 ## Python version
 
@@ -56,8 +54,8 @@ checks on that platform.
 The prepared version in `Cargo.toml` and `Cargo.lock` is **1.0.0**. The release
 tag is **v1.0.0** and must point to the reviewed release commit.
 Check both the source and website using the commands in
-[CONTRIBUTING.md](../../../CONTRIBUTING.md#build-and-test) and
-[site/README.md](../../README.md#check-changes).
+[CONTRIBUTING.md](CONTRIBUTING.md#build-and-test) and
+[site/README.md](site/README.md#check-changes).
 
 After reviewing the commit and destination, tag and push explicitly. Replace
 `YOUR_REMOTE` with the GitHub remote's name (`git remote -v`):
@@ -120,7 +118,7 @@ working board just to test the release workflow.
 
 ## Package locally without publishing
 
-[`scripts/package-enclosure.py`](../../../scripts/package-enclosure.py) builds
+[`scripts/package-enclosure.py`](scripts/package-enclosure.py) builds
 the release enclosure package. `--output-dir PATH` selects another output
 directory; keep it ignored. For a release rehearsal, use a clean checkout of the
 matching tag and add `--release-tag vVERSION`: this strict mode validates tag,
@@ -130,7 +128,7 @@ version and clean source before generation.
 
 ### Magnetic enclosure
 
-The [magnetic print guide](printing.md) covers the print inventory, magnet
+The [magnetic print guide](site/guide/en/printing.md) covers the print inventory, magnet
 bonding and source generation. Run:
 
 ```bash
@@ -156,7 +154,7 @@ reviewed validation data in Git.
 Ad hoc CAD inspection reports and revision-specific snapshot job files are not
 build inputs; keep them under ignored `dist/enclosure/`, outside Git. The build
 regenerates `validation.json` in its isolated output tree.
-Keep the reviewed [`slicer-validation.json`](../../../models/magnetic/slicer-validation.json):
+Keep the reviewed [`slicer-validation.json`](models/magnetic/slicer-validation.json):
 packaging checks its STL hashes because generating geometry does not rerun the
 external slicer.
 
@@ -189,7 +187,7 @@ uses the stable release filename and refuses to overwrite an existing archive.
 release from the `broglow/homebrew-tap` GitHub repository, which holds only
 `Formula/broglow.rb`.
 
-[`scripts/homebrew-formula.py`](../../../scripts/homebrew-formula.py) renders the
+[`scripts/homebrew-formula.py`](scripts/homebrew-formula.py) renders the
 formula from the release's `broglow-vVERSION-*-apple-darwin.tar.gz.sha256` files
 (the Apple Silicon and Intel archives under `on_macos`/`on_arm`/`on_intel`,
 `bin/broglow`, firmware and manuals under `share/broglow`, and a caveat that
@@ -215,7 +213,7 @@ then `brew uninstall broglow` and `brew untap broglow/tap`. Do not run
 
 ## Publish the website
 
-Follow [the website runbook](../../README.md#publish-to-github-pages), then do
+Follow [the website runbook](site/README.md#publish-to-github-pages), then do
 the post-deployment check below.
 
 After deployment, open the live English and Russian guides and follow a release

@@ -579,13 +579,6 @@ does not affect future terminals. `broglow install` registers the hooks and the
 service, not PATH. Scripts and scheduled jobs may skip shell startup files, so call
 `"$HOME/.cargo/bin/broglow"` there. The LaunchAgent already uses the app's absolute path.
 
-### Make a local prebuilt package
-
-This is for maintainers. Building a Mac package without publishing it is described in
-the [release guide]({{ repo_url }}/blob/HEAD/site/guide/en/releasing.md#package-locally-without-publishing). The package
-contains the CLI, the four C3 images with their manifest, this guide and build
-metadata. Packaging does not build, install, flash or publish anything.
-
 ## Menu bar icon and service validation
 
 After installation, press **⌘ Space**, search **BroGlow** and press Return. The

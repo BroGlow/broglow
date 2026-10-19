@@ -114,11 +114,11 @@ of filename case. Write enclosure deliverables under `dist/enclosure/`, which is
 ignored as a whole. If a tool writes elsewhere, for example under `models/`,
 confirm the path is ignored with `git check-ignore -v <path>` before committing.
 Commit editable sources and reviewed slicer evidence (see the
-[maintainer runbook](site/guide/en/releasing.md)). Use only the project's own
-images and follow the [media policy](site/guide/en/media.md).
+[maintainer runbook](RELEASING.md)). Use only the project's own
+images and follow the [media policy](MEDIA.md).
 
 ## Releases and website publishing
 
-Follow the [maintainer runbook](site/guide/en/releasing.md) for release preparation,
+Follow the [maintainer runbook](RELEASING.md) for release preparation,
 enclosure generation, packaging and publication, and the
 [website runbook](site/README.md#publish-to-github-pages) for Pages deployment.

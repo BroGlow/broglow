@@ -62,12 +62,9 @@ plugins:
             Troubleshooting: Диагностика
             Why BroGlow: Почему BroGlow
             Reference: Справочники
-            Maintainers: Для разработчиков
             Hardware reference: Техническое руководство
             Printing and assembly: Печать и сборка
             Firmware reference: Справочник прошивки
-            Release and publication: Выпуск и публикация
-            Images and photos: Изображения и фотографии
 nav:
   - Build: index.md
   - Install and connect: installation.md
@@ -80,9 +77,6 @@ nav:
       - Hardware reference: hardware.md
       - Printing and assembly: printing.md
       - Firmware reference: firmware.md
-  - Maintainers:
-      - Release and publication: releasing.md
-      - Images and photos: media.md
 markdown_extensions:
   - attr_list
   - pymdownx.superfences
