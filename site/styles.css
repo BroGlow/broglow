@@ -254,6 +254,10 @@ h1 .accent {
   height:100%;
   object-fit:contain;
 }
+/* The page shows its own loading status; the component's bar lingers as a dark strip. */
+model-viewer::part(default-progress-bar) {
+  display:none;
+}
 model-viewer {
   position:absolute;
   inset:0;
