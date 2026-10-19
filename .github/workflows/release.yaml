@@ -56,9 +56,10 @@ jobs:
   website:
     needs:
       - source
-    # GitHub validates the called workflow's deploy-job permissions at startup,
-    # even though check-only skips that job; the build job keeps contents: read.
+    # GitHub validates the called workflow's redeploy- and deploy-job permissions
+    # at startup, even though check-only skips both; the build job keeps contents: read.
     permissions:
+      actions: write
       contents: read
       pages: write
       id-token: write
