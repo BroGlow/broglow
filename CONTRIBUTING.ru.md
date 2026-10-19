@@ -26,7 +26,7 @@ sudo apt-get install -y --no-install-recommends \
   libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libudev-dev
 ```
 
-Rust-привязки GTK 3 (0.18) для трея на Linux не поддерживаются и подтягивают
+Rust-привязки GTK 3 для трея на Linux (0.18, не сопровождаются) подтягивают
 `glib` 0.18 ([RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html):
 BroGlow не вызывает некорректный `VariantStrIter`, а исправление из `glib` 0.20
 для GTK 3 недоступно) и используемый при сборке `proc-macro-error`
