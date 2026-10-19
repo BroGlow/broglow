@@ -69,12 +69,11 @@ landing and local downloads.
 
 ## Interactive 3D and AR
 
-The build section has a rotatable assembly explorer in place of the exploded
-still image. It reuses the self-hosted model-viewer with `assets/assembly.glb`,
-loaded lazily, and supports drag, keyboard rotation, zoom, Reset view and retry
-after loading errors. Its separated parts expose the LED retainer and mounting
-points. Signal effects and AR remain in the hero. Without JavaScript, the page
-directs visitors to enable it.
+The build section has a rotatable assembly explorer on the same self-hosted
+model-viewer with `assets/assembly.glb`, loaded lazily; it supports drag,
+keyboard rotation, zoom, Reset view and retry after loading errors. Its separated
+parts expose the LED retainer and mounting points. Signal effects and AR are
+hero-only. Without JavaScript, the page directs visitors to enable it.
 
 The 3D preview starts automatically with **Working** selected. Self-hosted
 `@google/model-viewer` 4.3.1 and the effects module share Three.js via a local import
@@ -83,18 +82,14 @@ yellow or red lens; **Off** dims all three and removes the glow. A restrained bl
 keeps the lens color visible. One Three.js point light follows the active LED and
 casts its color onto nearby surfaces with distance falloff; Off disables it.
 The light attaches through the effects composer's public mesh selection, so it
-follows the model during rotation. The darker tower, warm stage and closer camera
-make the light easier to read.
+follows the model during rotation.
 
 The selected signal applies before the first rendered frame and after retrying;
-Reset view preserves it. Automatic loading does not take keyboard focus. The
-matching Working-state poster remains visible while loading and without JavaScript.
-After a loading failure, **Retry 3D** is available; the still image cannot preview
-other signals. Camera controls and Reset view use the component's native behavior.
+Reset view preserves it. Automatic loading does not take keyboard focus. After a
+loading failure, the photo shows the selected signal and **Retry 3D** is available.
 The material mapping is checked against the exported GLB in `model-preview.test.cjs`.
-External Android Scene Viewer reloads the original GLB, so these live signal changes
-apply to the browser preview, not that external AR view. Bloom postprocessing is
-not available in AR modes, including WebXR.
+Android Scene Viewer reloads the original GLB, so signal changes do not reach it.
+Bloom postprocessing is not available in AR modes, including WebXR.
 
 **View in your space** opens a keyboard-accessible dialog with a locally generated
 QR code and an **Open on this device** link. The QR uses the current site path with
@@ -126,9 +121,8 @@ uv run --no-project --python 3.14 python scripts/export-web-model.py --exploded 
 Export needs the CAD skill at `~/.agents/skills/cad` or `--cad-skill /path/to/cad`.
 `--check` needs only stdlib and verifies source hashes and the `cad` group's
 build123d pin when the CAD tree is present;
-it reports skipped comparisons in reduced exports. Ordinary website builds use
-the committed GLB without CAD dependencies. Keep optional codecs self-hosted if
-adding Draco/KTX compression. Vendor sources and licenses are in [vendor/README.md](vendor/README.md).
+it reports skipped comparisons in reduced exports. Keep optional codecs self-hosted if
+adding Draco/KTX compression.
 
 ## Languages and behavior
 
@@ -196,7 +190,7 @@ Our asset sources:
 
 - `assets/broglow.jpg`: our photo of the built lamp with the LEDs off, cropped to 7:5 at 1400×1000; the poster shown until the 3D view loads.
 - `assets/photos/`: our photos of the built lamp (`state-*.jpg` squares and `signal-*.jpg` 7:5 crops with one LED lit, `inside-*.jpg` rear views with and without the LED retainer) and the `popover-dark.png` menu-bar screenshot, web-sized; originals stay untracked in `originals/`.
-- `assets/assembly.glb`: separated assembly from `models/magnetic/exploded.py`; source hashes and bounds are recorded in `assets/assembly-model.json`. Regenerate with `--exploded` when its CAD source changes.
+- `assets/assembly.glb`: separated assembly from `models/magnetic/exploded.py`; source hashes and bounds in `assets/assembly-model.json`.
 - `guide/assets/favicon.svg`: our three-circle lamp artwork, also used by the landing favicon. Tray icons come from `assets/icons/` in the repository root.
 
 Follow the [media policy](guide/en/media.md). Keep render/photo
@@ -224,8 +218,7 @@ Publish full Mac/C3 bundles and the separate enclosure ZIP with matching checksu
 Windows bundles include the graphical tray app and CLI but omit the installer,
 firmware and manuals. See the [release runbook](guide/en/releasing.md)
 for filenames, checks and publication steps. Preserve archive names and state
-pending physical checks in release notes. Building the website does not publish
-an app release.
+pending physical checks in release notes.
 
 ### Check the exact Pages artifact locally
 
