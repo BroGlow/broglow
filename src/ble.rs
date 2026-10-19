@@ -1319,11 +1319,15 @@ mod mac {
                     && c.properties.contains(CharPropFlags::WRITE)
             })
             .context("Saved device lacks the BroGlow writable brightness characteristic")?;
-        let name_characteristic = p.characteristics().into_iter().find(|c| {
-            c.service_uuid == SERVICE
-                && c.uuid == NAME
-                && c.properties.contains(CharPropFlags::WRITE)
-        });
+        let name_characteristic = p
+            .characteristics()
+            .into_iter()
+            .find(|c| {
+                c.service_uuid == SERVICE
+                    && c.uuid == NAME
+                    && c.properties.contains(CharPropFlags::WRITE)
+            })
+            .context("Saved device lacks the BroGlow writable name characteristic")?;
         // Set the saved brightness before any status/connection flash. This first
         // encrypted write may prompt for pairing; sample current settings again afterward.
         let initial = [config::read_config().lamp_brightness_percent(&target)];
@@ -1347,7 +1351,7 @@ mod mac {
         let last_brightness = &last_brightness;
         let last_preview = &last_preview;
         let last_name = &last_name;
-        let name_characteristic = name_characteristic.as_ref();
+        let name_characteristic = &name_characteristic;
         let result = send_updates(
             |(byte, brightness, preview, name): (_, _, _, Vec<u8>), _first| async move {
                 wait_for(
@@ -1372,13 +1376,11 @@ mod mac {
                         }
                         p.write(characteristic, &[byte], WriteType::WithResponse)
                             .await?;
-                        if let Some(setting) = name_characteristic {
-                            if last_name.borrow().as_ref() != Some(&name) {
-                                p.write(setting, &name, WriteType::WithResponse)
-                                    .await
-                                    .context("Lamp Bluetooth name write failed")?;
-                                *last_name.borrow_mut() = Some(name.clone());
-                            }
+                        if last_name.borrow().as_ref() != Some(&name) {
+                            p.write(name_characteristic, &name, WriteType::WithResponse)
+                                .await
+                                .context("Lamp Bluetooth name write failed")?;
+                            *last_name.borrow_mut() = Some(name.clone());
                         }
                         Ok(())
                     },
@@ -1386,7 +1388,7 @@ mod mac {
                     Duration::from_secs(3),
                 )
                 .await?;
-                let mut detail = if let Some((preview, _)) = last_preview
+                let detail = if let Some((preview, _)) = last_preview
                     .get()
                     .filter(|(preview, written)| written.elapsed() < preview.duration())
                 {
@@ -1401,9 +1403,6 @@ mod mac {
                 } else {
                     format!("Status acknowledged; brightness {brightness}% applied")
                 };
-                if name_characteristic.is_none() && name != [0] {
-                    detail.push_str("; Bluetooth naming needs a firmware update");
-                }
                 publish("connected", &detail);
                 Ok(())
             },
