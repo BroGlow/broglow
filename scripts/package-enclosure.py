@@ -37,7 +37,6 @@ SOURCE_FILES = (
             "magnetic.py",
             "refined.py",
             "round3x2.py",
-            "round3x2_exploded.py",
             "appearance.py",
             "exploded.py",
             "GUIDE_ROUND3X2.en.md",
@@ -113,7 +112,7 @@ def identity(version, tag):
 
 
 def package_magnetic(source, output, version):
-    """Package the five production parts and assembly views in one flat folder."""
+    """Package the five production parts in one flat folder."""
     model = source / MAGNETIC
     slices = json.loads((model / "slicer-validation.json").read_text())
     report = json.loads((model / "validation.json").read_text())
@@ -128,7 +127,6 @@ def package_magnetic(source, output, version):
         )
     generated = [Path("stl") / f"{name}.stl" for name in PARTS]
     generated += [Path("step") / f"{name}.step" for name in PARTS]
-    generated += [Path(name) for name in ("round3x2.step", "round3x2_exploded.step")]
     entries = {path.name: (model / path).read_bytes() for path in generated}
     entries["BUILD.json"] = (source / "BUILD.json").read_bytes()
     archive = output / f"broglow-enclosure-magnetic-v{version}.zip"

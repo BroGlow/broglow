@@ -58,16 +58,14 @@ with tempfile.TemporaryDirectory(prefix="broglow-enclosure-check-") as folder:
         json.dumps({"parts": records})
     )
     (magnetic_model / "validation.json").write_text('{"status": "passed"}')
-    for name in ("round3x2.step", "round3x2_exploded.step"):
-        (magnetic_model / name).write_bytes(b"STEP")
     (stage / "BUILD.json").write_text("{}")
     archive = package.package_magnetic(stage, root / "dist", "1.2.3")
     with ZipFile(archive) as zipped:
-        # One flat folder: print files, assembly views and provenance only.
+        # One flat folder: print files and provenance only.
         assert sorted(zipped.namelist()) == sorted(
             [f"{name}.stl" for name in package.PARTS]
             + [f"{name}.step" for name in package.PARTS]
-            + ["round3x2.step", "round3x2_exploded.step", "BUILD.json"]
+            + ["BUILD.json"]
         ), zipped.namelist()
     path.write_bytes(b"changed mesh")
     rejected(

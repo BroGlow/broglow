@@ -304,7 +304,7 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
             models = (
                 f"[Файлы корпуса для печати · релизы]({releases})\n\n"
                 f"Скачайте `{archive}` из релиза. В архиве нет вложенных папок: пять деталей STL "
-                "в ориентации для печати, те же детали в STEP, два вида сборки и `BUILD.json`.\n\n"
+                "в ориентации для печати, те же детали в STEP и `BUILD.json`.\n\n"
             )
             models += (
                 f"SHA-256:\n\n```text\n{checksum}\n```\n\n"
@@ -320,7 +320,7 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
             models = (
                 f"[Enclosure print files · releases]({releases})\n\n"
                 f"Download `{archive}` from the release. The archive has no subfolders: the five "
-                "STL parts in print orientation, the same parts as STEP, two assembly views and `BUILD.json`.\n\n"
+                "STL parts in print orientation, the same parts as STEP and `BUILD.json`.\n\n"
             )
             models += (
                 f"SHA-256:\n\n```text\n{checksum}\n```\n\n"
@@ -379,10 +379,10 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
             )
             models += (
                 "В архиве нет вложенных папок: пять деталей STL в ориентации для печати, "
-                "те же детали в STEP, два вида сборки и `BUILD.json`."
+                "те же детали в STEP и `BUILD.json`."
                 if ru
                 else "The archive has no subfolders: the five STL parts in print orientation, "
-                "the same parts as STEP, two assembly views and `BUILD.json`."
+                "the same parts as STEP and `BUILD.json`."
             )
         else:
             models = (

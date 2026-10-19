@@ -172,7 +172,7 @@ Keep the preview server running for the HTTP check.
 ## Local downloads and factual limits
 
 The only enclosure download is `broglow-enclosure-magnetic-vVERSION.zip`, a flat
-folder of STL, STEP, two assembly views and `BUILD.json`; `printing.md` includes
+folder of STL, STEP and `BUILD.json`; `printing.md` includes
 its guide from `models/magnetic/`.
 
 `pages.py` expands `<!-- mac-downloads -->` and `<!-- model-download -->`:

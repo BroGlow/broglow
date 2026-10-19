@@ -28,7 +28,7 @@ with the mating surface and touch, with no gap.
 ## What to print
 
 The archive has no subfolders: these five STL parts to print, the same parts as
-STEP, two assembly views and `BUILD.json`.
+STEP and `BUILD.json`.
 
 | File | Quantity | Color |
 | --- | --- | --- |
@@ -45,10 +45,8 @@ Basic / 0.4 mm nozzle / 0.20 mm layers / 4 walls / 15% infill / 5 top and bottom
 layers**. Set temperatures for your filament.
 
 The package has no sliced 3MF or G-code. The STEP files are the same parts in
-assembly coordinates; use STL for the supplied print orientations.
-**round3x2.step** and **round3x2_exploded.step** show the assembly with reference
-magnets and electronics; they are not for printing. The LED retainer (05) is
-recommended: without it the LEDs sit by friction only and can be pushed inside.
+assembly coordinates; use STL for the supplied print orientations. The LED
+retainer (05) is recommended: without it the LEDs sit by friction only and can be pushed inside.
 
 <a name="assembly"></a>
 

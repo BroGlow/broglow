@@ -21,7 +21,7 @@ the release; keep all generated files ignored and out of Git (see
 | `broglow-vVERSION-aarch64-apple-darwin.tar.gz` | Apple Silicon app, C3 firmware and source, operating manual, licenses and checksums. |
 | `broglow-vVERSION-x86_64-apple-darwin.tar.gz` | The same bundle, with a native Intel Mac app. |
 | `broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz` | Windows graphical tray app and CLI in `broglow.exe`, with USB lamp support, license and third-party notices; no installer, BLE, firmware or manuals. |
-| `broglow-enclosure-magnetic-vVERSION.zip` | Enclosure print files in one flat folder: the five production parts 01–05 as STL (print orientation) and STEP, two assembly views and `BUILD.json`. The mascot attaches with four Ø3×2 mm N52 magnets (two in the mascot, two in the traffic light). |
+| `broglow-enclosure-magnetic-vVERSION.zip` | Enclosure print files in one flat folder: the five production parts 01–05 as STL (print orientation) and STEP, plus `BUILD.json`. The mascot attaches with four Ø3×2 mm N52 magnets (two in the mascot, two in the traffic light). |
 | Matching `.sha256` | Checksum of each archive, with its original filename. |
 
 Mac bundles also contain `BUILD.json`, an internal `SHA256SUMS`, flash offsets
@@ -85,7 +85,7 @@ The **Release** workflow runs in this order:
 1. The `source` job on Apple Silicon `macos-15` runs the packaging tests and
    checks the tag, version and clean source. It installs the pinned Python CAD
    toolchain and generates the enclosure from the tag: the five production
-   parts with their STL and STEP files and the assembly views. Exact STL hashes
+   parts with their STL and STEP files. Exact STL hashes
    are verified against the reviewed slicer validation results, and the ZIP is
    produced with its `.sha256`. The job then checks that the
     web model export is current (`scripts/export-web-model.py --check`), and a
@@ -144,8 +144,8 @@ This produces `dist/enclosure/broglow-enclosure-magnetic-vVERSION.zip` and its
 `.sha256`, using `dist/enclosure/magnetic-build/source/` for isolated generation.
 Only production parts 01–05 are exported; no coupons or machine-specific
 3MF/G-code are included. The stored slicer validation results must match all
-five STL hashes. The archive is flat: STL and STEP files, the two assembly
-views and `BUILD.json`, with no CAD source or guide inside; the guide lives on
+five STL hashes. The archive is flat: STL and STEP files and
+`BUILD.json`, with no CAD source or guide inside; the guide lives on
 the website.
 
 After a geometry change in `models/magnetic/refined.py`, the same command stops
