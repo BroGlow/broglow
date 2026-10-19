@@ -1,324 +1,310 @@
-"""Small check for local/public download routing in the MkDocs hook."""
+"""Behavioral checks for the website's MkDocs hooks (no release network calls)."""
 
-from types import SimpleNamespace
+from html import unescape
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from html import unescape
-import re
+from types import SimpleNamespace
+import os
+import unittest
+from unittest.mock import patch
+
 import markdown
-from mkdocs.config import load_config
 
 import pages
-from pages import SITE, on_config, on_page_content, on_page_markdown
 
-for locale in ("en", "ru"):
-    for name in ("index.md", "alternatives.md", "printing.md"):
-        source = (Path(__file__).parent / "guide" / locale / name).read_text()
-        page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/{name}"))
-        public = on_page_markdown(
-            source,
-            page=page,
-            config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
+
+class PagesTest(unittest.TestCase):
+    def setUp(self) -> None:
+        temporary = self.enterContext(TemporaryDirectory())
+        self.root = Path(temporary).resolve()
+        self.enterContext(patch.object(pages, "SITE", self.root / "site"))
+        self.write("Cargo.toml", '[package]\nversion = "1.2.3"\n')
+        self.repository = "https://github.com/example/lamp"
+
+    def write(self, path: str, content: str = "") -> Path:
+        target = self.root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content)
+        return target
+
+    def page(self, source: str = "en/index.md", url: str = "") -> SimpleNamespace:
+        return SimpleNamespace(file=SimpleNamespace(src_uri=source), url=url)
+
+    def config(self, public: bool = False, published: bool = False) -> SimpleNamespace:
+        return SimpleNamespace(
+            repo_url=self.repository if public else None,
+            site_url="https://example.github.io/lamp/docs/" if published else None,
         )
-        assert "/dist/" not in public and "{ download }" not in public
-        if name == "alternatives.md":
-            version = pages.cargo_package()["version"]
-            assert "https://github.com/example/lamp/releases" in public
-            assert "https://github.com/example/lamp/archive/HEAD.zip" in public
-            assert f"broglow-v{version}-aarch64-apple-darwin.tar.gz" in public
-            assert f"broglow-v{version}-x86_64-apple-darwin.tar.gz" in public
-            # No release lookup without a site_url: the page points to the release page.
-            assert (
-                "published next to it on the release page" in public
-                or "на странице релиза" in public
-            )
-            assert ".sha256)" not in public, "No checksum download link"
-        else:
-            version = pages.cargo_package()["version"]
-            archive = f"broglow-models-v{version}.zip"
-            assert "https://github.com/example/lamp/releases" in public
-            # Tests never set site_url, so no release lookup happens; the page says
-            # where the checksum is published instead of offering a .sha256 download.
-            assert (
-                "published next to it on the release page" in public
-                or "на странице релиза" in public
-            )
-            assert ".sha256" not in public
-            assert "https://github.com/example/lamp/archive/HEAD.zip" in public
-            assert "printing.md#generate-from-source" in public
-            assert "glued" not in public.lower() and "START_HERE" not in public
-        with TemporaryDirectory() as temporary:
-            pages.SITE = Path(temporary) / "site"
-            local = on_page_markdown(
-                source, page=page, config=SimpleNamespace(repo_url=None)
-            )
-            if name == "alternatives.md":
-                assert (
-                    "hardware.md#build-from-source" in local and "/dist/" not in local
-                )
-                dist = Path(temporary) / "dist"
-                dist.mkdir()
-                archive = dist / "broglow-v1.0.0-aarch64-apple-darwin.tar.gz"
-                archive.touch()
-                assert "/dist/" not in on_page_markdown(
-                    source, page=page, config=SimpleNamespace(repo_url=None)
-                )
-                digest = "c" * 64
-                archive.with_name(archive.name + ".sha256").write_text(
-                    f"{digest}  {archive.name}\n"
-                )
-                local = on_page_markdown(
-                    source, page=page, config=SimpleNamespace(repo_url=None)
-                )
-                prefix = "../" * (2 + (locale == "ru") + 1)
-                assert f"]({prefix}dist/{archive.name}){{ download }}" in local
-                # The checksum is shown inline, never offered as a second download.
-                assert f"```text\n{digest}  {archive.name}\n```" in local
-                assert ".sha256)" not in local
-            else:
-                assert "{ download }" not in local
-                assert "printing.md#generate-from-source" in local
-                dist = Path(temporary) / "dist/enclosure"
-                dist.mkdir(parents=True)
-                archive = dist / "broglow-models-v1.0.0.zip"
-                archive.touch()
-                assert "{ download }" not in on_page_markdown(
-                    source, page=page, config=SimpleNamespace(repo_url=None)
-                )
-                digest = "0" * 64
-                archive.with_name(archive.name + ".sha256").write_text(
-                    f"{digest}  {archive.name}\n"
-                )
-                local = on_page_markdown(
-                    source, page=page, config=SimpleNamespace(repo_url=None)
-                )
-                prefix = "../" * (2 + (locale == "ru") + (name != "index.md"))
-                assert (
-                    f"]({prefix}dist/enclosure/{archive.name}){{ download }}" in local
-                ), local
-                # The checksum is shown inline, never offered as a second download.
-                assert f"```text\n{digest}  {archive.name}\n```" in local
-                assert ".sha256)" not in local
-        pages.SITE = SITE
 
-print(
-    "PASS: separate Mac/enclosure downloads, inline checksums and source fallback in both languages"
-)
+    def render_download(self, marker: str, source: str = "en/index.md") -> str:
+        return pages.on_page_markdown(
+            f"<!-- {marker} -->", page=self.page(source), config=self.config()
+        )
 
-# Checksum lines are accepted only in sha256sum format for the named archive.
-assert pages.checksum_line(f"{'a' * 64}  x.zip\n", "x.zip") == f"{'a' * 64}  x.zip"
-assert pages.checksum_line(f"{'a' * 64}  other.zip\n", "x.zip") is None
-assert pages.checksum_line("<html>not found</html>", "x.zip") is None
-untouched = "<!-- nothing to expand -->\n"
-assert (
-    on_page_markdown(
-        untouched,
-        page=SimpleNamespace(file=SimpleNamespace(src_uri="en/agents.md")),
-        config=SimpleNamespace(repo_url="https://x", site_url="https://x/docs/"),
-    )
-    == untouched
-), "Pages without download markers never look up releases"
-print("PASS: checksum lines are validated; pages without markers skip lookups")
+    def package(self, path: str, modified: int = 1, complete: bool = True) -> Path:
+        archive = self.write(path)
+        os.utime(archive, (modified, modified))
+        if complete:
+            self.write(f"{path}.sha256", f"{'a' * 64}  {archive.name}\n")
+        return archive
 
-# Missing references still fail; references inside the repository resolve.
-with TemporaryDirectory() as temporary:
-    root = Path(temporary).resolve()
-    pages.SITE = root / "site"
-    model = root / "models/broglow"
-    model.mkdir(parents=True)
-    (model / "broglow.py").touch()
-    (root / "Cargo.toml").write_text('[package]\nversion = "1.2.3"\n')
-    for locale in ("en", "ru"):
-        page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/printing.md"))
-        for invalid in (
-            "missing.md",
-            "missing.png",
-            "missing.step",
-            "stl/typo.stl",
-            "../../../outside.stp",
+    def test_local_downloads_require_a_complete_package(self) -> None:
+        for marker, path, fallback in (
+            (
+                "mac-downloads",
+                "dist/broglow-v1.0.0-aarch64-apple-darwin.tar.gz",
+                "hardware.md#build-from-source",
+            ),
+            (
+                "model-download",
+                "dist/enclosure/broglow-models-v1.0.0.zip",
+                "printing.md#generate-from-source",
+            ),
         ):
-            for repo in (None, "https://github.com/example/lamp"):
-                try:
-                    on_page_content(
-                        f'<a href="{invalid}">Bad</a>',
-                        page=page,
-                        config=SimpleNamespace(repo_url=repo),
-                    )
-                except ValueError:
-                    pass
-                else:
-                    raise AssertionError(
-                        f"Accepted missing or outside-repository link: {invalid}"
-                    )
-        public = on_page_content(
-            '<a href="../broglow/broglow.py">Source</a>',
-            page=page,
-            config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
-        )
-        assert (
-            'href="https://github.com/example/lamp/blob/HEAD/models/broglow/broglow.py"'
-            in public
-        )
-    pages.SITE = SITE
-print("PASS: missing or outside-repository references fail; repository files resolve")
+            with self.subTest(marker=marker):
+                self.package(path, complete=False)
 
-config = on_config(load_config(str(SITE / "mkdocs.yaml")))
-# GitHub-readable named anchors become native heading IDs after snippet expansion.
-with TemporaryDirectory() as temporary:
-    source = Path(temporary) / "section.md"
-    source.write_text(
-        '<a name="stable-section"></a>\n\n## Переведённый раздел\n\n'
-        '```html\n<a name="code-example"></a>\n\n## Literal example\n```\n'
-    )
-    renderer = markdown.Markdown(
-        extensions=[
-            "pymdownx.snippets",
-            "fenced_code",
-            "attr_list",
-            "toc",
-            pages.SectionAnchors(),
-        ],
-        extension_configs={
-            "pymdownx.snippets": {"base_path": [temporary], "check_paths": True}
-        },
-    )
-    rendered = renderer.convert('--8<-- "section.md"')
-    assert rendered.count('id="stable-section"') == 1 and "<a name=" not in rendered
-    assert renderer.toc_tokens[0]["id"] == "stable-section"
-    assert renderer.toc_tokens[0]["name"] == "Переведённый раздел"
-    assert '<a name="code-example"></a>' in unescape(rendered)
-    assert "## Literal example" in rendered and "{ #code-example }" not in rendered
-master = (SITE / "guide/en/hardware.md").read_text()
-for section, expected in (
-    ("lamp-wiring", "GPIO3"),
-    ("path-check", "command -v broglow"),
-    ("path-setup", "export PATH="),
-):
-    for locale in ("en", "ru"):
-        directive = f'--8<-- "site/guide/{locale}/hardware.md:{section}"'
-        rendered = markdown.markdown(
-            directive,
-            extensions=config.markdown_extensions,
-            extension_configs=config.mdx_configs,
-        )
-        assert expected in unescape(re.sub(r"<[^>]+>", "", rendered))
-        page_name = "index" if section == "lamp-wiring" else "alternatives"
-        assert directive in (SITE / "guide" / locale / f"{page_name}.md").read_text()
+                rendered = self.render_download(marker)
 
-# Changing a manual changes its included diagram without editing the quick guide.
-with TemporaryDirectory() as temporary:
-    guide = Path(temporary) / "hardware.md"
-    for value in ("220", "470"):
-        guide.write_text(master.replace("220 Ω ── green", f"{value} Ω ── green"))
-        rendered = markdown.markdown(
-            '--8<-- "hardware.md:lamp-wiring"',
-            extensions=["pymdownx.snippets"],
+                self.assertIn(fallback, rendered)
+                self.assertNotIn("{ download }", rendered)
+
+    def test_local_downloads_select_newest_complete_package_at_each_page_depth(
+        self,
+    ) -> None:
+        for marker, pattern in (
+            ("mac-downloads", "dist/broglow-v{}-aarch64-apple-darwin.tar.gz"),
+            ("model-download", "dist/enclosure/broglow-models-v{}.zip"),
+        ):
+            self.package(pattern.format("1.0.0"), modified=1)
+            archive = self.package(pattern.format("2.0.0"), modified=2)
+            self.package(pattern.format("3.0.0"), modified=3, complete=False)
+            for source, prefix in (
+                ("en/index.md", "../../"),
+                ("en/alternatives.md", "../../../"),
+                ("ru/index.md", "../../../"),
+                ("ru/printing.md", "../../../../"),
+            ):
+                with self.subTest(marker=marker, source=source):
+                    rendered = self.render_download(marker, source)
+
+                    path = archive.relative_to(self.root).as_posix()
+                    self.assertIn(f"]({prefix}{path}){{ download }}", rendered)
+                    self.assertIn(f"{'a' * 64}  {archive.name}", rendered)
+                    self.assertNotIn(".sha256)", rendered)
+
+    def test_mismatched_checksum_does_not_advertise_a_package(self) -> None:
+        archive = self.package("dist/enclosure/broglow-models-v1.0.0.zip")
+        archive.with_name(archive.name + ".sha256").write_text(
+            f"{'a' * 64}  another-package.zip\n"
+        )
+
+        with self.assertRaisesRegex(ValueError, "Not a sha256sum line"):
+            self.render_download("model-download")
+
+    def test_public_preview_routes_to_releases_without_fetching_checksums(self) -> None:
+        with patch.object(pages, "release_checksum") as fetch:
+            for locale in ("en", "ru"):
+                rendered = pages.on_page_markdown(
+                    "<!-- mac-downloads -->\n<!-- model-download -->",
+                    page=self.page(f"{locale}/index.md"),
+                    config=self.config(public=True),
+                )
+
+                self.assertIn(f"]({self.repository}/releases)", rendered)
+                self.assertIn(f"]({self.repository}/archive/HEAD.zip)", rendered)
+                for archive in (
+                    "broglow-v1.2.3-aarch64-apple-darwin.tar.gz",
+                    "broglow-v1.2.3-x86_64-apple-darwin.tar.gz",
+                    "broglow-models-v1.2.3.zip",
+                ):
+                    self.assertIn(archive, rendered)
+                self.assertNotIn("/dist/", rendered)
+            fetch.assert_not_called()
+
+    def test_published_downloads_show_release_checksums_inline(self) -> None:
+        checksum = f"{'b' * 64}  broglow-models-v1.2.3.zip"
+        with patch.object(pages, "release_checksum", return_value=checksum):
+            rendered = pages.on_page_markdown(
+                "<!-- model-download -->",
+                page=self.page(),
+                config=self.config(public=True, published=True),
+            )
+
+        self.assertIn(f"```text\n{checksum}\n```", rendered)
+        self.assertNotIn(".sha256)", rendered)
+
+    def test_pages_without_downloads_do_not_fetch_release_metadata(self) -> None:
+        source = "Ordinary guide content"
+        with patch.object(pages, "release_checksum") as fetch:
+            result = pages.on_page_markdown(
+                source,
+                page=self.page(),
+                config=self.config(public=True, published=True),
+            )
+
+        self.assertEqual(result, source)
+        fetch.assert_not_called()
+
+    def test_checksum_parser_rejects_wrong_archive_and_error_pages(self) -> None:
+        line = f"{'a' * 64}  model.zip"
+        self.assertEqual(pages.checksum_line(line + "\n", "model.zip"), line)
+        for text in (line.replace("model.zip", "other.zip"), "<html>Not found</html>"):
+            with self.subTest(text=text):
+                self.assertIsNone(pages.checksum_line(text, "model.zip"))
+
+    def test_manual_links_reject_missing_and_outside_repository_targets(self) -> None:
+        for target in ("missing.md", "../../../outside.stp"):
+            for public in (False, True):
+                with self.subTest(target=target, public=public):
+                    with self.assertRaisesRegex(
+                        ValueError, "Missing or outside-repository manual reference"
+                    ):
+                        pages.on_page_content(
+                            f'<a href="{target}">Broken</a>',
+                            page=self.page("en/printing.md"),
+                            config=self.config(public=public),
+                        )
+
+    def test_manual_repository_files_and_icons_work_in_local_and_public_guides(
+        self,
+    ) -> None:
+        self.write("firmware/board/main.cpp")
+        self.write("assets/icon.png", "image fixture")
+        sample = (
+            '<a href="../../../firmware/board/">Firmware</a>'
+            '<a href="../../../firmware/board/main.cpp">Source</a>'
+            '<img src="../../../assets/icon.png" alt="Status">'
+        )
+        page = self.page("en/hardware.md")
+
+        local = pages.on_page_content(sample, page=page, config=self.config())
+        public = pages.on_page_content(
+            sample, page=page, config=self.config(public=True)
+        )
+
+        self.assertIn("<code>firmware/board</code>", local)
+        self.assertNotIn('href="../../../', local)
+        self.assertIn(f"{self.repository}/tree/HEAD/firmware/board", public)
+        self.assertIn(f"{self.repository}/blob/HEAD/firmware/board/main.cpp", public)
+        self.assertIn("data:image/png;base64,", local)
+        self.assertIn("data:image/png;base64,", public)
+
+    def test_manual_guide_links_stay_on_site_and_keep_the_section(self) -> None:
+        for locale, other, translated in (
+            ("en", "ru", "../ru/hardware/"),
+            ("ru", "en", "../../hardware/"),
+        ):
+            self.write(f"site/guide/{locale}/firmware.md")
+            self.write(f"site/guide/{other}/hardware.md")
+            sample = (
+                '<a href="firmware.md#commands">Firmware</a>'
+                f'<a href="../{other}/hardware.md#wiring">Language</a>'
+                '<h2 id="camera-2026"></h2><a href="#camera--2026">Camera</a>'
+            )
+            with self.subTest(locale=locale):
+                result = pages.on_page_content(
+                    sample,
+                    page=self.page(f"{locale}/hardware.md"),
+                    config=self.config(public=True),
+                )
+
+                self.assertIn('href="../firmware/#commands"', result)
+                self.assertIn(f'href="{translated}#wiring"', result)
+                self.assertIn('href="#camera-2026"', result)
+
+    def test_remote_manual_and_printing_links_resolve_to_translated_site_pages(
+        self,
+    ) -> None:
+        source = "".join(
+            f'<a href="{self.repository}/blob/HEAD/{path}">Guide</a>'
+            for path in (
+                "site/guide/ru/hardware.md#usb-assisted-setup",
+                "models/magnetic/GUIDE_ROUND3X2.en.md#fit",
+                "models/magnetic/GUIDE_ROUND3X2.md",
+            )
+        )
+
+        result = pages.on_page_content(
+            source, page=self.page("en/hardware.md"), config=self.config(public=True)
+        )
+
+        for target in (
+            "../ru/hardware/#usb-assisted-setup",
+            "../printing/#fit",
+            "../ru/printing/",
+        ):
+            self.assertIn(f'href="{target}"', result)
+
+    def test_repository_photos_are_served_from_site_assets_at_each_depth(self) -> None:
+        self.write("site/assets/photos/lamp.jpg")
+        source = f'<img src="{self.repository}/raw/HEAD/site/assets/photos/lamp.jpg">'
+        for url, prefix in (
+            ("", "../"),
+            ("installation/", "../../"),
+            ("ru/hardware/", "../../../"),
+        ):
+            with self.subTest(url=url):
+                result = pages.on_page_content(
+                    source,
+                    page=self.page("en/installation.md", url),
+                    config=self.config(public=True),
+                )
+
+                self.assertIn(f'src="{prefix}assets/photos/lamp.jpg"', result)
+
+    def test_included_heading_anchors_reach_toc_without_rewriting_code_examples(
+        self,
+    ) -> None:
+        self.write(
+            "section.md",
+            '<a name="stable-section"></a>\n\n## Translated heading\n\n'
+            '```html\n<a name="code-example"></a>\n\n## Literal example\n```\n',
+        )
+        renderer = markdown.Markdown(
+            extensions=[
+                "pymdownx.snippets",
+                "fenced_code",
+                "attr_list",
+                "toc",
+                pages.SectionAnchors(),
+            ],
             extension_configs={
-                "pymdownx.snippets": {"base_path": [temporary], "check_paths": True}
+                "pymdownx.snippets": {
+                    "base_path": [str(self.root)],
+                    "check_paths": True,
+                }
             },
         )
-        assert f"{value} Ω ── green" in rendered
 
-page = SimpleNamespace(file=SimpleNamespace(src_uri="en/hardware.md"))
-sample = '<a href="../../../firmware/esp32-c3-supermini/">Firmware</a><img src="../../../assets/icons/broglow-red.png" alt="Red status lamp"><h2 id="camera-2026"></h2><a href="#camera--2026">Check</a>'
-local = on_page_content(sample, page=page, config=SimpleNamespace(repo_url=None))
-public = on_page_content(
-    sample,
-    page=page,
-    config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
-)
-assert 'href="../' not in local and "firmware/esp32-c3-supermini" in local
-assert "https://github.com/example/lamp/tree/HEAD/firmware/esp32-c3-supermini" in public
-assert "data:image/png;base64," in local and 'href="#camera-2026"' in public
-# Photos referenced by repository URL come from the site's own assets, at any depth.
-photo = '<img src="{}/raw/HEAD/site/assets/photos/state-green.jpg" alt="Green">'
-for url, expected in (
-    ("", "../"),
-    ("installation/", "../../"),
-    ("ru/hardware/", "../../../"),
-):
-    page = SimpleNamespace(file=SimpleNamespace(src_uri="en/installation.md"), url=url)
-    assert (
-        on_page_content(
-            photo.format("https://github.com/example/lamp"),
-            page=page,
-            config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
-        )
-        == f'<img src="{expected}assets/photos/state-green.jpg" alt="Green">'
-    )
-for locale in ("en", "ru"):
-    page = SimpleNamespace(file=SimpleNamespace(src_uri=f"{locale}/hardware.md"))
-    sample = (
-        '<a href="firmware.md#commands">Firmware</a>'
-        f'<a href="../{"en" if locale == "ru" else "ru"}/hardware.md#wiring-and-resistor-choice">Language</a>'
-    )
-    for repo in (None, "https://github.com/example/lamp"):
-        result = on_page_content(
-            sample, page=page, config=SimpleNamespace(repo_url=repo)
-        )
-        assert 'href="../firmware/#commands"' in result
-        expected = "../../hardware/" if locale == "ru" else "../ru/hardware/"
-        assert f'href="{expected}#wiring-and-resistor-choice"' in result
-        resolved = '<a href="../media/">Images</a>'
-        assert (
-            on_page_content(resolved, page=page, config=SimpleNamespace(repo_url=repo))
-            == resolved
-        )
-        bar = '<p><a href="./">English</a> | <a href="media.ru.md">Русский</a></p>\n'
-        assert (
-            on_page_content(bar, page=page, config=SimpleNamespace(repo_url=repo)) == ""
-        )
-try:
-    on_page_content(
-        '<a href="../../outside.md">Bad</a>',
-        page=page,
-        config=SimpleNamespace(repo_url=None),
-    )
-except ValueError:
-    pass
-else:
-    raise AssertionError("Reference escaped the repository")
-print(
-    "PASS: shared source snippets, live source edits, reference links/icons and anchors"
-)
+        rendered = renderer.convert('--8<-- "section.md"')
 
-# Prompts link the planned repository; the base URL is set once in Cargo.toml.
-document = markdown.Markdown(
-    extensions=[
-        "pymdownx.superfences",
-        pages.SectionAnchors("https://github.com/example/lamp"),
-    ]
-)
-html = document.convert(
-    "```text\nRead {{ repo_url }}/blob/HEAD/README.md\n```\n\n{{ repo_url }}"
-)
-assert (
-    "{{ repo_url }}" not in html and html.count("https://github.com/example/lamp") == 2
-)
-assert pages.repository_url() == "https://github.com/broglow/broglow"
-print("PASS: {{ repo_url }} resolves in text and code blocks")
+        self.assertEqual(renderer.toc_tokens[0]["id"], "stable-section")
+        self.assertEqual(rendered.count('id="stable-section"'), 1)
+        self.assertIn(
+            '<a name="code-example"></a>\n\n## Literal example', unescape(rendered)
+        )
 
-# Remote links to published guides (needed inside ZIPs) stay on-site in the website.
-page = SimpleNamespace(file=SimpleNamespace(src_uri="ru/printing.md"))
-html = on_page_content(
-    '<a href="https://github.com/example/lamp/blob/HEAD/site/guide/ru/hardware.md#usb-assisted-setup">x</a>',
-    page=page,
-    config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
-)
-assert 'href="../hardware/#usb-assisted-setup"' in html, html
-# The shipped hardware manual links the print guide by its repository path.
-page = SimpleNamespace(file=SimpleNamespace(src_uri="en/hardware.md"))
-html = on_page_content(
-    '<a href="https://github.com/example/lamp/blob/HEAD/models/magnetic/GUIDE_ROUND3X2.en.md#fit">x</a>'
-    '<a href="https://github.com/example/lamp/blob/HEAD/models/magnetic/GUIDE_ROUND3X2.md">y</a>',
-    page=page,
-    config=SimpleNamespace(repo_url="https://github.com/example/lamp"),
-)
-assert 'href="../printing/#fit"' in html and 'href="../ru/printing/"' in html, html
-print("PASS: remote guide links map to site routes")
+    def test_repository_url_expands_in_prompts_and_prose(self) -> None:
+        renderer = markdown.Markdown(
+            extensions=["pymdownx.superfences", pages.SectionAnchors(self.repository)]
+        )
 
-# The root 404 page links home and both guides with absolute URLs.
-page = pages.not_found_page("https://example.github.io/lamp/")
-for link in ("lamp/", "lamp/docs/", "lamp/docs/ru/"):
-    assert f'href="https://example.github.io/{link}"' in page, link
-print("PASS: root 404 page links home and both guides")
+        result = renderer.convert(
+            "```text\nRead {{ repo_url }}/README.md\n```\n\n{{ repo_url }}"
+        )
+
+        self.assertNotIn("{{ repo_url }}", result)
+        self.assertEqual(result.count(self.repository), 2)
+
+    def test_not_found_page_uses_absolute_links_under_repository_prefix(self) -> None:
+        home = "https://example.github.io/lamp/"
+
+        rendered = pages.not_found_page(home)
+
+        for path in ("", "docs/", "docs/ru/"):
+            self.assertIn(f'href="{home}{path}"', rendered)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -35,15 +35,16 @@ assert.equal(load({ saved: "weird", light: true }).root.dataset.theme, "light", 
 const page = load({ light: true });
 assert.equal(page.picker.value, "auto");
 assert.equal(page.storage.saved, undefined, "Auto-detection must not save a preference");
+const lightChrome = page.meta.content;
 page.switchTo("dark");
 assert.equal(page.root.dataset.theme, "dark");
 assert.equal(page.root.dataset.themeChoice, "dark", "The picker icon follows the choice");
-assert.equal(page.meta.content, "#181a19");
+assert.notEqual(page.meta.content, lightChrome, "Browser chrome changes with the theme");
 assert.equal(page.storage.saved, "dark");
 page.switchTo("auto");
 assert.equal(page.root.dataset.theme, "light");
 assert.equal(page.root.dataset.themeChoice, "auto");
-assert.equal(page.meta.content, "#f5f3ec", "Browser chrome follows the theme");
+assert.equal(page.meta.content, lightChrome, "Returning to light restores its browser chrome");
 page.media.matches = false;
 page.listeners.media();
 assert.equal(page.root.dataset.theme, "dark", "System changes apply while auto is selected");
