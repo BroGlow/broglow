@@ -202,8 +202,7 @@ The UI throttles slider preview changes to about 80 ms and renews a held pointer
 only the latest event per target (or all-lamps request) for two seconds for both slider
 preview and Identify. Each connection uses the newer matching targeted
 or all-lamps event; a targeted request cannot affect a different lamp. Normal
-heartbeats do not renew either. Firmware needs an authenticated connection with fresh
-status and discards an expired or previous-connection request.
+heartbeats do not renew either. Firmware discards an expired or previous-connection request.
 
 Empty or multi-byte **status** payloads, unknown status bytes, brightness above
 100, and brightness payloads other than one byte, `[percent, 1]` or `[percent, 2]` are ignored.
