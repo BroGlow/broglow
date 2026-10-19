@@ -35,7 +35,7 @@ GitHub source archives contain sources and instructions; ready-to-print files
 come from the separate enclosure release download.
 
 For **images, screenshots, or other media**, use only our own assets and follow
-[the media policy and photo checklist](site/guide/en/media.md). Label CAD renders accurately
+[the media policy](site/guide/en/media.md). Label CAD renders accurately
 and use current source instead of old packages.
 
 For **backups or test evidence**, use the ignored `.recovery/` directory and follow

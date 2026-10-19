@@ -204,7 +204,7 @@ Our asset sources:
 - `assets/assembly.glb`: separated assembly from `models/magnetic/exploded.py`; source hashes and bounds are recorded in `assets/assembly-model.json`. Regenerate with `--exploded` when its CAD source changes.
 - `guide/assets/favicon.svg`: our three-circle lamp artwork, also used by the landing favicon. Tray icons come from `assets/icons/` in the repository root.
 
-Follow the [media policy and photo checklist](guide/en/media.md). Keep render/photo
+Follow the [media policy](guide/en/media.md). Keep render/photo
 labels accurate and theme/library license notices intact.
 
 ## Publish to GitHub Pages
