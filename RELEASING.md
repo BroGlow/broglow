@@ -112,6 +112,9 @@ Before selecting **Publish release** in GitHub:
   Publishing the draft makes the downloads public and reruns the **Website**
   workflow so the guide shows the enclosure archive's SHA-256.
 
+Never delete a published release or move its tag: the tap's formulae point at its
+downloads and checksums. Ship the next patch version instead.
+
 Also check on real hardware: reconnect, all LED colors and brightness,
 stale-status blanking within ten seconds and enclosure fit. Never reflash a
 working board just to test the release workflow.
