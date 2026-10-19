@@ -50,7 +50,7 @@ follow [website documentation maintenance](site/README.md#keep-the-instructions-
 in the same change. Keep English and Russian versions of every project guide and
 developer document in sync. The website includes the matching language source;
 preserve section IDs, commands and technical values across translations. Run
-`uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt python site/check-translations.py`,
+`uv run --frozen --only-group docs python site/check-translations.py`,
 then build and check local and Pages documentation before finishing. Dependency
 license texts remain verbatim.
 

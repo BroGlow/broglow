@@ -48,12 +48,11 @@ includes; missing snippet sections fail the build.
 ## Build and preview
 
 Run from the **broglow repository root** with [uv](https://docs.astral.sh/uv/getting-started/installation/).
-CI uses Python 3.14. MkDocs commands run in an isolated environment from
-`site/requirements-docs.txt`.
+CI uses Python 3.14. MkDocs commands use the locked `docs` dependency group in
+`pyproject.toml`; `--only-group docs` installs it without the firmware tools.
 
 ```bash
-uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
-  mkdocs build --strict -f site/mkdocs.yaml
+uv run --frozen --only-group docs mkdocs build --strict -f site/mkdocs.yaml
 uv run --no-project --python 3.14 python -m http.server 8080 --bind 127.0.0.1
 ```
 
@@ -64,7 +63,7 @@ Website builds need no generated STL, STEP/STP or ZIP files and do not run CAD.
 Keep those exports ignored; printable downloads are release assets.
 
 For automatic guide refresh, use
-`uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt mkdocs serve -f site/mkdocs.yaml`.
+`uv run --frozen --only-group docs mkdocs serve -f site/mkdocs.yaml`.
 It serves only the guide; use the repository-root server above to check the
 landing and local downloads.
 
@@ -115,19 +114,18 @@ The model depicts the magnetic enclosure from `models/magnetic/` with reference
 magnets and electronics (`appearance.py` for the hero, `exploded.py` for the
 explorer). Use the separate enclosure package for printing. Source hashes and
 bounds live in `assets/broglow-model.json`; regenerate both outputs rather than
-editing them. From a full checkout, run the export with the pinned CAD requirements:
+editing them. From a full checkout, run the export with the locked `cad` dependency group:
 
 ```bash
-uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-  python scripts/export-web-model.py
+uv run --frozen --only-group cad python scripts/export-web-model.py
 uv run --no-project --python 3.14 python scripts/export-web-model.py --check
-uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-  python scripts/export-web-model.py --exploded
+uv run --frozen --only-group cad python scripts/export-web-model.py --exploded
 uv run --no-project --python 3.14 python scripts/export-web-model.py --exploded --check
 ```
 
 Export needs the CAD skill at `~/.agents/skills/cad` or `--cad-skill /path/to/cad`.
-`--check` needs only stdlib and verifies source hashes when the CAD tree is present;
+`--check` needs only stdlib and verifies source hashes and the `cad` group's
+build123d pin when the CAD tree is present;
 it reports skipped comparisons in reduced exports. Ordinary website builds use
 the committed GLB without CAD dependencies. Keep optional codecs self-hosted if
 adding Draco/KTX compression. Vendor sources and licenses are in [vendor/README.md](vendor/README.md).
@@ -151,17 +149,14 @@ external font service is configured.
 ## Check changes
 
 ```bash
-uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
-  python site/check-translations.py
+uv run --frozen --only-group docs python site/check-translations.py
 node site/i18n.test.cjs
 node site/theme.test.cjs
 node site/model-preview.test.cjs
 node site/docs-language.test.cjs
 node site/docs-copy.test.cjs
-uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
-  python site/pages.test.py
-uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
-  mkdocs build --strict -f site/mkdocs.yaml
+uv run --frozen --only-group docs python site/pages.test.py
+uv run --frozen --only-group docs mkdocs build --strict -f site/mkdocs.yaml
 uv run --no-project --python 3.14 python site/check-links.py
 uv run --no-project --python 3.14 python site/check-links.py --base-url http://127.0.0.1:8080/site/
 ```
@@ -237,8 +232,7 @@ an app release.
 Replace `OWNER/REPOSITORY`; build from a full checkout. No GitHub access is needed:
 
 ```bash
-uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
-  python site/pages.py --repository OWNER/REPOSITORY
+uv run --frozen --only-group docs python site/pages.py --repository OWNER/REPOSITORY
 uv run --no-project --python 3.14 python site/check-links.py --site-dir site/_pages
 uv run --no-project --python 3.14 python -m http.server 8081 --bind 127.0.0.1 --directory site/_pages
 ```

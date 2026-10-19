@@ -14,7 +14,8 @@ on:
       - 'scripts/export-web-model.py'
       - 'models/magnetic/**'
       - 'models/broglow/*.py'
-      - 'models/broglow/requirements.txt'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - 'Cargo.toml'
       - '.github/workflows/pages.yaml'
   pull_request:
@@ -28,7 +29,8 @@ on:
       - 'scripts/export-web-model.py'
       - 'models/magnetic/**'
       - 'models/broglow/*.py'
-      - 'models/broglow/requirements.txt'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - 'Cargo.toml'
       - '.github/workflows/pages.yaml'
   workflow_dispatch:
@@ -81,23 +83,20 @@ jobs:
           node-version: '24'
       - name: Check language and copying
         run: |
-          uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
-            python site/check-translations.py
+          uv run --frozen --only-group docs python site/check-translations.py
           node site/i18n.test.cjs
           node site/theme.test.cjs
           node site/model-preview.test.cjs
           node site/docs-language.test.cjs
           node site/docs-copy.test.cjs
-          uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
-            python site/pages.test.py
+          uv run --frozen --only-group docs python site/pages.test.py
           uv run --no-project --python 3.14 python scripts/export-web-model.py --check
           uv run --no-project --python 3.14 python scripts/export-web-model.py --exploded --check
       - name: Build and check the complete website
         env:
           WEBSITE_REPOSITORY: ${{ github.repository }}
         run: |
-          uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
-            python site/pages.py --repository "$WEBSITE_REPOSITORY"
+          uv run --frozen --only-group docs python site/pages.py --repository "$WEBSITE_REPOSITORY"
           uv run --no-project --python 3.14 python site/check-links.py --site-dir site/_pages
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request' && !inputs.check-only

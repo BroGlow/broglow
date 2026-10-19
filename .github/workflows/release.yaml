@@ -35,10 +35,9 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
+          uv run --frozen --only-group cad \
             python scripts/package-enclosure.py --release-tag "$RELEASE_TAG"
-          uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-            python scripts/export-web-model.py --check
+          uv run --frozen --only-group cad python scripts/export-web-model.py --check
           test -z "$(git status --porcelain --untracked-files=normal)"
       - uses: actions/upload-artifact@v7
         with:

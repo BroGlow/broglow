@@ -57,12 +57,12 @@ Pages. Проверка переводов выявляет отсутствую
 ## Сборка и предварительный просмотр
 
 Выполняйте из **корня репозитория broglow** через [uv](https://docs.astral.sh/uv/getting-started/installation/).
-В CI используется Python 3.14. Команды MkDocs работают в изолированном окружении
-из `site/requirements-docs.txt`.
+В CI используется Python 3.14. Команды MkDocs используют закреплённую группу
+зависимостей `docs` из `pyproject.toml`; `--only-group docs` ставит её без
+инструментов прошивки.
 
 ```bash
-uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
-  mkdocs build --strict -f site/mkdocs.yaml
+uv run --frozen --only-group docs mkdocs build --strict -f site/mkdocs.yaml
 uv run --no-project --python 3.14 python -m http.server 8080 --bind 127.0.0.1
 ```
 
@@ -73,7 +73,7 @@ http://127.0.0.1:8080/site/docs/ для руководства. После пр�
 Эти результаты остаются игнорируемыми; файлы для печати публикуются в релизах.
 
 Для автоматического обновления руководства используйте
-`uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt mkdocs serve -f site/mkdocs.yaml`.
+`uv run --frozen --only-group docs mkdocs serve -f site/mkdocs.yaml`.
 Он обслуживает только руководство; главную страницу и локальные скачивания
 проверяйте через сервер из корня выше.
 
@@ -130,20 +130,19 @@ GLB — метры. Safari на iPhone/iPad создаёт USDZ по запро�
 сборки). Для печати используйте отдельный пакет корпуса. Хеши исходников и
 габариты находятся в `assets/broglow-model.json`; оба результата нужно
 перегенерировать, а не править вручную. В полной рабочей копии запустите экспорт
-с закреплёнными CAD-зависимостями:
+с закреплённой группой зависимостей `cad`:
 
 ```bash
-uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-  python scripts/export-web-model.py
+uv run --frozen --only-group cad python scripts/export-web-model.py
 uv run --no-project --python 3.14 python scripts/export-web-model.py --check
-uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-  python scripts/export-web-model.py --exploded
+uv run --frozen --only-group cad python scripts/export-web-model.py --exploded
 uv run --no-project --python 3.14 python scripts/export-web-model.py --exploded --check
 ```
 
 Для экспорта нужен CAD-скилл в `~/.agents/skills/cad` либо `--cad-skill /path/to/cad`.
 `--check` использует только стандартную библиотеку и проверяет хеши исходников
-при наличии CAD; в сокращённых экспортах сообщает о пропущенных сравнениях.
+и версию build123d из группы `cad` при наличии CAD; в сокращённых экспортах
+сообщает о пропущенных сравнениях.
 Обычная сборка сайта использует GLB из репозитория без CAD-зависимостей.
 При добавлении сжатия Draco/KTX размещайте кодеки локально. Источники и лицензии
 внешних библиотек находятся в [vendor/README.ru.md](vendor/README.ru.md).
@@ -173,17 +172,14 @@ Material предоставляет навигацию, локальный по�
 ## Проверка изменений
 
 ```bash
-uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
-  python site/check-translations.py
+uv run --frozen --only-group docs python site/check-translations.py
 node site/i18n.test.cjs
 node site/theme.test.cjs
 node site/model-preview.test.cjs
 node site/docs-language.test.cjs
 node site/docs-copy.test.cjs
-uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
-  python site/pages.test.py
-uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
-  mkdocs build --strict -f site/mkdocs.yaml
+uv run --frozen --only-group docs python site/pages.test.py
+uv run --frozen --only-group docs mkdocs build --strict -f site/mkdocs.yaml
 uv run --no-project --python 3.14 python site/check-links.py
 uv run --no-project --python 3.14 python site/check-links.py --base-url http://127.0.0.1:8080/site/
 ```
@@ -268,8 +264,7 @@ ZIP исходников; сборка Pages запрашивает `.sha256` о
 Замените `OWNER/REPOSITORY`; запускайте из полной рабочей копии. Доступ к GitHub не нужен:
 
 ```bash
-uv run --no-project --python 3.14 --with-requirements site/requirements-docs.txt \
-  python site/pages.py --repository OWNER/REPOSITORY
+uv run --frozen --only-group docs python site/pages.py --repository OWNER/REPOSITORY
 uv run --no-project --python 3.14 python site/check-links.py --site-dir site/_pages
 uv run --no-project --python 3.14 python -m http.server 8081 --bind 127.0.0.1 --directory site/_pages
 ```

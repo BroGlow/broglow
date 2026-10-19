@@ -92,8 +92,7 @@ Install [uv](https://docs.astral.sh/uv/). Run from the root of the full reposito
 or GitHub's source ZIP.
 
 ```bash
-uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-  python scripts/package-enclosure.py
+uv run --frozen --only-group cad python scripts/package-enclosure.py
 ```
 
 Output: **dist/enclosure/broglow-models-vVERSION.zip** and its

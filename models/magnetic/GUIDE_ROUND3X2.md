@@ -94,8 +94,7 @@
 репозитория или ZIP исходников с GitHub.
 
 ```bash
-uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-  python scripts/package-enclosure.py
+uv run --frozen --only-group cad python scripts/package-enclosure.py
 ```
 
 Результат: **dist/enclosure/broglow-models-vVERSION.zip** и его

@@ -1,3 +1,0 @@
-build123d==0.12.0
-trimesh==5.1.0
-matplotlib==3.11.2

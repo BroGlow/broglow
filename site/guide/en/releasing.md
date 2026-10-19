@@ -136,8 +136,7 @@ The [magnetic print guide](printing.md) covers the print inventory, magnet
 bonding and source generation. Run:
 
 ```bash
-uv run --no-project --python 3.14 --with-requirements models/broglow/requirements.txt \
-  python scripts/package-enclosure.py
+uv run --frozen --only-group cad python scripts/package-enclosure.py
 ```
 
 This produces `dist/enclosure/broglow-models-vVERSION.zip` and its

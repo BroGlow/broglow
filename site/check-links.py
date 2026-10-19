@@ -44,8 +44,8 @@ args = parser.parse_args()
 site = args.site_dir.resolve() if args.site_dir else Path(__file__).resolve().parent
 boundary = site if args.site_dir else site.parent
 assert (site / "docs/index.html").is_file(), (
-    "Build the guide first: uv run --no-project --python 3.14 --with-requirements "
-    "site/requirements-docs.txt mkdocs build --strict -f site/mkdocs.yaml"
+    "Build the guide first: uv run --frozen --only-group docs "
+    "mkdocs build --strict -f site/mkdocs.yaml"
 )
 if args.site_dir:
     assert "/docs/" in (site / "404.html").read_text(), "Missing root 404.html"
