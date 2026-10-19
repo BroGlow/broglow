@@ -8,6 +8,11 @@
 с приложением в строке меню, терминальной панелью и необязательной лампой ESP32-C3.
 Лампа, подключённая по USB или Bluetooth LE, показывает работу, ожидание и запрос ввода.
 
+<p align="center">
+  <img src="site/assets/photos/signal-yellow.jpg" width="420" alt="Лампа BroGlow с горящим жёлтым светом рядом с оранжевым маскотом">
+  <img src="site/assets/photos/popover-dark.png" width="353" alt="Окно BroGlow в строке меню: три активные сессии — одна работает, две на паузе — и кнопки Dashboard, Settings и Lamps">
+</p>
+
 **[Руководство на сайте](https://broglow.github.io/broglow/docs/ru/)**: установка,
 сборка лампы, подключение Codex и решение проблем.
 

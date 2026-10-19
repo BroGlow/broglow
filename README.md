@@ -6,6 +6,11 @@ A local session monitor for Claude Code, opencode, Codex and GitHub Copilot CLI,
 with a menu-bar app, terminal dashboard and optional ESP32-C3 status lamp.
 The lamp, connected over USB or Bluetooth LE, shows working, idle and needs-input states.
 
+<p align="center">
+  <img src="site/assets/photos/signal-yellow.jpg" width="420" alt="The BroGlow lamp with its yellow light on, next to the orange mascot">
+  <img src="site/assets/photos/popover-dark.png" width="353" alt="The BroGlow menu-bar popover: three live sessions, one working and two paused, with Dashboard, Settings and Lamps controls">
+</p>
+
 **[Read the guide on the website](https://broglow.github.io/broglow/docs/)**: install,
 build the lamp, connect Codex and fix problems.
 
