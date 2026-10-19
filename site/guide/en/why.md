@@ -12,13 +12,8 @@ BroGlow would not exist without [ClawLight](https://github.com/clawlight/clawlig
 Its idea, a small desk lamp that shows what your coding agents are doing, is the idea
 BroGlow is built on, and BroGlow started as a fork of its code. We honor the original
 project and its authors: ClawLight proved the concept and inspired us to take it
-further. BroGlow is a separate, independently maintained application; the rest of this
-page lists what it adds.
-
-Sessions get real names, agent and host icons, project grouping and one-click opening
-of the right conversation; the lamp works over Bluetooth on macOS with per-lamp setup,
-naming and brightness; installation comes through Homebrew with safe upgrades; and the
-printable enclosure has a swappable magnetic mascot with an interactive assembly guide.
+further. BroGlow is a separate, independently maintained application; below is what
+it adds.
 
 <a name="sessions"></a>
 
@@ -42,10 +37,10 @@ Details: [Working with sessions](sessions.md).
 | What's better | What you gain |
 | --- | --- |
 | **Wireless lamp connection** | Put the lamp anywhere in Bluetooth range; no data cable to the Mac. |
-| **Plug in, paired** | A new USB-attached lamp pairs itself on macOS; **Add lamp** remains as a manual retry. |
-| **Lamps managed one at a time** | Name, forget or identify one lamp; the others stay connected, with status for each. |
+| **Plug in, paired** | A new USB-attached lamp pairs itself on macOS; **Add lamp** retries manually. |
+| **Lamps managed one at a time** | Name or forget one lamp; the others stay connected, with status for each. |
 | **Brightness with live preview** | Adjust each lamp to a comfortable level and see the result before saving. |
-| **Identify a lamp** | Flash the selected lamp with a three-pass scan to confirm which one you're controlling. |
+| **Identify a lamp** | A three-pass scan on the selected lamp shows which one it is. |
 | **Safe firmware flashing** | One locked toolchain flashes and backs up the board the same way on every machine. |
 
 Details: [Install and connect](installation.md#pairing).
@@ -59,7 +54,7 @@ Details: [Install and connect](installation.md#pairing).
 | **Homebrew install** | `brew install broglow/tap/broglow`, then `broglow install`; upgrades the same way. |
 | **Upgrades that don't break** | Config writes are atomic, a failed macOS upgrade rolls back, dotfile symlinks survive, uninstall removes every hook. |
 | **Track token usage** | Opt-in view of your plan's 5-hour and weekly percentages and today's tokens, Claude and Codex together. |
-| **120 fps popover** | The menu-bar interface renders at your display's full refresh rate: smooth scrolling, settings that stay responsive while agents work. |
+| **120 fps popover** | The menu-bar interface renders at your display's full refresh rate. |
 
 Details: [Install and connect](installation.md).
 
@@ -70,10 +65,9 @@ Details: [Install and connect](installation.md).
 | What's better | What you gain |
 | --- | --- |
 | **Print the enclosure, swap the mascot** | The mascot holds on by magnets: attach any mascot you like and change it anytime. |
-| **Interactive assembly guide** | Rotate and zoom the separated parts to understand how they fit together. |
+| **Interactive assembly guide** | Rotate and zoom the separated parts. |
 
 Details: [Build your lamp](index.md) and [Printing and assembly](printing.md).
 
-Bluetooth lamp features (wireless control, automatic pairing, naming, per-lamp
-brightness, **Identify**) and direct opening of desktop sessions are macOS-only.
-The lamp still needs power and is designed for DIY assembly.
+Bluetooth lamp features (including naming, brightness and **Identify**) and
+direct opening of desktop sessions are macOS-only.
