@@ -755,22 +755,19 @@ rejected. Only a verified BroGlow `INFO` reply allows `PAIR`; the app never flas
 firmware on its own.
 
 Automatic setup tries each USB attachment once. If it fails, the previous lamp settings
-return; use **Add lamp** to retry, or unplug for at least **five seconds** and
-reconnect. Verified USB identities are saved in `usb_lamps`. Lamps added earlier keep
-their transport and their enabled setting. By default, unplugging a forgotten lamp
-for at least **five seconds** and reconnecting it adds it again. Under **Settings →
-Lamps**, turn off **Automatically add forgotten lamps over USB** if you connect lamps
-only for power; **Add lamp** or `broglow ble pair` still works. Forget takes effect
-immediately while attached. Restarting the app with the lamp attached does not add
-it again, and a disabled saved lamp stays disabled. Progress and errors appear under
-**Lamps**. Windows and Linux keep the USB behavior; automatic Bluetooth setup is
-macOS-only.
+return; select **Add lamp**, or unplug for at least **five seconds** and reconnect.
+Verified USB identities are saved in `usb_lamps`; saved lamps keep their transport and
+enabled setting. Replugging a forgotten lamp this way adds it again unless
+**Settings → Lamps → Automatically add forgotten lamps over USB** is off; turn it off
+if you connect lamps only for power. **Add lamp** and `broglow ble pair` work either
+way. Forget takes effect immediately while attached. Restarting the app does not
+re-add a forgotten lamp, and a disabled saved lamp stays disabled. Progress and errors
+appear under **Lamps**. Automatic Bluetooth setup is macOS-only.
 
 Setup first reads `INFO` at **115200 baud**; a saved board already in `usb_lamps`
 ends automatic setup there, so replugging a saved lamp leaves the other lamps
-connected. A forgotten board proceeds only on a detected replug with the setting on.
-While Bluetooth lamps are enabled, a new lamp is found without a pause: BroGlow sends
-`PAIR` and, for **eight seconds**, the running lamp worker reports BroGlow
+connected. While Bluetooth lamps are enabled, a new lamp is found without a pause:
+BroGlow sends `PAIR` and, for **eight seconds**, the running lamp worker reports BroGlow
 advertisements (`ble-sightings.json`, written only while setup asks). Exactly one
 advertisement seen after `PAIR` with the same six-byte identity is saved, and the
 worker connects it while the other lamps stay connected. If the worker does not answer
@@ -782,7 +779,7 @@ While lamps are mirrored over USB, the worker holds the port, so the pause comes
 `INFO`. A busy port causes an error; BroGlow does
 not take it over. On failure, the previous lamp settings return while unrelated
 settings changed in the meantime are kept. Closing the popover does not stop setup or
-recovery. USB-assisted setup still uses Just Works pairing and needs macOS consent.
+recovery. USB-assisted setup also uses Just Works pairing and needs macOS consent.
 
 Repeat for each lamp: new IDs are added and existing bonds kept. If the board does not
 answer `INFO`, flash it with [prebuilt](#flash-prebuilt-c3-firmware) or
