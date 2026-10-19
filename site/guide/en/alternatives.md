@@ -21,7 +21,7 @@ been checked for installation and Bluetooth.
 
 Verify, extract and install the package by following
 [Install a prebuilt package](hardware.md#install-a-prebuilt-package); it ends with
-`"$HOME/.cargo/bin/broglow" install`. Then [check PATH](installation.md#path) and
+`"$HOME/.cargo/bin/broglow" install`. Then [check PATH](#path) and
 [pair the lamp](installation.md#pairing).
 
 <a name="from-source"></a>
@@ -41,6 +41,26 @@ cargo install --locked --path .
 Details and checks: [Build from source](hardware.md#build-from-source). No Linux
 binaries are published; on Linux the lamp works over USB only, and the tray's GTK 3
 bindings carry known advisories listed in the contributing guide.
+
+<a name="path"></a>
+
+## Run broglow from any folder (PATH)
+
+The package and source routes put the command in `~/.cargo/bin/broglow` (the prebuilt
+package does not need Cargo); Homebrew's `$(brew --prefix)/bin` is already on PATH. In
+a fresh terminal outside the package or source folder, check:
+
+--8<-- "site/guide/en/hardware.md:path-check"
+
+If the first line is not your `~/.cargo/bin/broglow` (shown as a full path, such as
+`/Users/you/.cargo/bin/broglow`), add this line **once** to `~/.zshrc` (default macOS
+shell), preserving existing settings:
+
+--8<-- "site/guide/en/hardware.md:path-setup"
+
+Open a new terminal and repeat the checks. If `~/.zshrc` already loads
+`"$HOME/.cargo/env"` (the Rust installer adds it), change nothing; other shells use
+their own startup file. `broglow install` does not change `PATH`.
 
 <a name="windows"></a>
 

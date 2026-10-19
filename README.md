@@ -123,7 +123,7 @@ On macOS, press **⌘ Space**, search **BroGlow** and press Return to open its
 controls. The app lives in `~/Applications/BroGlow.app` and starts at login.
 You can also run `open "$HOME/Applications/BroGlow.app"`. In Terminal, `broglow`
 opens the optional terminal dashboard once `~/.cargo/bin` is on
-[PATH](site/guide/en/installation.md#path).
+[PATH](site/guide/en/alternatives.md#path).
 
 ## Connect your coding agents
 

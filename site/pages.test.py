@@ -202,7 +202,7 @@ for section, expected in (
             extension_configs=config.mdx_configs,
         )
         assert expected in unescape(re.sub(r"<[^>]+>", "", rendered))
-        page_name = "index" if section == "lamp-wiring" else "installation"
+        page_name = "index" if section == "lamp-wiring" else "alternatives"
         assert directive in (SITE / "guide" / locale / f"{page_name}.md").read_text()
 
 # Changing a manual changes its included diagram without editing the quick guide.

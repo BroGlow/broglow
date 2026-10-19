@@ -13,7 +13,7 @@ For Codex, follow the [Codex setup steps](codex.md) and check that the task appe
 A question Codex asks in text ends the turn as **Paused**; only a permission request
 shows **Needs help** (red).
 
-If Terminal cannot find `broglow` or runs an older copy, follow the [PATH checks](installation.md#path).
+If Terminal cannot find `broglow` or runs an older copy, follow the [PATH checks](alternatives.md#path).
 
 Then check, in BroGlow's **Lamps** view:
 

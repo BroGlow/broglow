@@ -22,7 +22,7 @@
 
 Проверьте, распакуйте и установите пакет по разделу
 [Установка готового пакета](hardware.md#install-a-prebuilt-package); он заканчивается
-командой `"$HOME/.cargo/bin/broglow" install`. Затем [проверьте PATH](installation.md#path)
+командой `"$HOME/.cargo/bin/broglow" install`. Затем [проверьте PATH](#path)
 и [подключите лампу](installation.md#pairing).
 
 <a name="from-source"></a>
@@ -43,6 +43,26 @@ cargo install --locked --path .
 Готовые сборки для Linux не публикуются; на Linux лампа работает только по USB, а
 привязки GTK 3 трея имеют известные предупреждения безопасности, перечисленные в
 руководстве для участников.
+
+<a name="path"></a>
+
+## Запуск broglow из любой папки (PATH)
+
+Готовый пакет и сборка из исходников кладут команду в `~/.cargo/bin/broglow` (для
+готового пакета Cargo не нужен); `$(brew --prefix)/bin` Homebrew уже есть в PATH.
+В новом терминале вне каталога пакета или исходников проверьте:
+
+--8<-- "site/guide/ru/hardware.md:path-check"
+
+Если первая строка — не ваш `~/.cargo/bin/broglow` (он выводится полным путём, например
+`/Users/имя/.cargo/bin/broglow`), добавьте эту строку **один раз** в `~/.zshrc`
+(стандартная оболочка macOS), сохранив остальные настройки:
+
+--8<-- "site/guide/ru/hardware.md:path-setup"
+
+Откройте новый терминал и повторите проверку. Если `~/.zshrc` уже подключает
+`"$HOME/.cargo/env"` (эту строку добавляет установщик Rust), ничего менять не нужно;
+для другой оболочки используйте её файл запуска. `broglow install` не меняет `PATH`.
 
 <a name="windows"></a>
 

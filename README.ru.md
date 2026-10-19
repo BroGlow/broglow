@@ -133,7 +133,7 @@ cargo install --locked --path .
 управление. Приложение находится в `~/Applications/BroGlow.app` и запускается
 при входе. Также можно выполнить `open "$HOME/Applications/BroGlow.app"`.
 Команда `broglow` в Terminal открывает необязательную терминальную панель, если
-`~/.cargo/bin` есть в [PATH](site/guide/ru/installation.md#path).
+`~/.cargo/bin` есть в [PATH](site/guide/ru/alternatives.md#path).
 
 <a name="connect-your-coding-agents"></a>
 

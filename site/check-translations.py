@@ -83,7 +83,7 @@ for locale in ("en", "ru"):
     manual = (SITE / "guide" / locale / "hardware.md").read_text()
     for section in ("lamp-wiring", "path-check", "path-setup"):
         assert f"start:{section}" in manual and f"end:{section}" in manual
-        page = "index.md" if section == "lamp-wiring" else "installation.md"
+        page = "index.md" if section == "lamp-wiring" else "alternatives.md"
         assert (
             f'--8<-- "site/guide/{locale}/hardware.md:{section}"'
             in (SITE / "guide" / locale / page).read_text()

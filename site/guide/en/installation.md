@@ -18,31 +18,13 @@ agents (Claude Code always; Codex, opencode and GitHub Copilot CLI when they are
 installed), installs the menu-bar app and starts it at login. No Homebrew, or on
 Windows or Linux? See [Alternative installations](alternatives.md).
 
-<a name="path"></a>
+<a name="open"></a>
 
-## Open BroGlow and check the command
+## Open BroGlow
 
-To open the Mac app, press **⌘ Space**, search **BroGlow** and press Return.
-Its traffic-light icon opens the session controls. You can also open
-`~/Applications/BroGlow.app` in Finder or run `open "$HOME/Applications/BroGlow.app"`.
-It starts at login. The plain `broglow` command opens the terminal dashboard; on its
-first run on an unconfigured Mac it also registers the hooks and login startup.
-
-With Homebrew, the `broglow` command lives in `$(brew --prefix)/bin/broglow`, which is
-already on PATH. The package and source routes put it in `~/.cargo/bin/broglow` (the
-prebuilt package does not need Cargo). In a fresh terminal outside the project, check:
-
---8<-- "site/guide/en/hardware.md:path-check"
-
-If you installed from a package or source and the first line is not your
-`~/.cargo/bin/broglow` (shown as a full path, such as `/Users/you/.cargo/bin/broglow`),
-add this line **once** to `~/.zshrc` (default macOS shell), preserving existing settings:
-
---8<-- "site/guide/en/hardware.md:path-setup"
-
-Open a new terminal and repeat the checks. If `~/.zshrc` already loads
-`"$HOME/.cargo/env"` (the Rust installer adds it), change nothing; other shells use
-their own startup file. `broglow install` does not change `PATH`.
+To open the Mac app, press **⌘ Space**, search **BroGlow** and press Return. Its
+traffic-light icon in the menu bar opens the session controls; the app starts at login.
+In Terminal, `broglow` opens the dashboard.
 
 <a name="pairing"></a>
 
