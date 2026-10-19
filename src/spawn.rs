@@ -1,7 +1,7 @@
 //! Shared helper for spawning detached, windowless child processes on Windows.
 //!
-//! Consolidates the `CREATE_NO_WINDOW` / `DETACHED_PROCESS` recipe that was
-//! previously copy-pasted (and had drifted) across `main.rs` and `hook.rs`.
+//! Every detached spawn takes its `CREATE_NO_WINDOW` / `DETACHED_PROCESS`
+//! flags from here, so callers cannot drift apart.
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
