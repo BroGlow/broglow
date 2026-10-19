@@ -4,11 +4,9 @@
 
 # Другие способы установки
 
-Рекомендуемый способ — [Homebrew](installation.md#homebrew). Эта страница нужна,
-если Homebrew недоступен, нужен офлайн-пакет для Mac либо вы работаете на Windows
-или Linux. Каждый способ заканчивается командой `broglow install`: она регистрирует
-хуки в ваших coding-агентах, а на macOS ещё устанавливает приложение в строке меню и
-включает его запуск при входе.
+Рекомендуемый способ — [Homebrew](installation.md#homebrew). Каждый способ
+заканчивается командой `broglow install`: она регистрирует хуки в ваших coding-агентах,
+а на macOS ещё устанавливает приложение в строке меню и включает его запуск при входе.
 
 <a name="mac-package"></a>
 
@@ -21,9 +19,8 @@
 <!-- mac-downloads -->
 
 Проверьте, распакуйте и установите пакет по разделу
-[Установка готового пакета](hardware.md#install-a-prebuilt-package); он заканчивается
-командой `"$HOME/.cargo/bin/broglow" install`. Затем [проверьте PATH](#path)
-и [подключите лампу](installation.md#pairing).
+[Установка готового пакета](hardware.md#install-a-prebuilt-package). Затем
+[проверьте PATH](#path) и [подключите лампу](installation.md#pairing).
 
 <a name="from-source"></a>
 

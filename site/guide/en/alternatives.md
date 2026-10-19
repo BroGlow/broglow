@@ -4,10 +4,9 @@
 
 # Alternative installations
 
-The recommended route is [Homebrew](installation.md#homebrew). Use this page when you
-cannot use Homebrew, want the offline Mac package, or run Windows or Linux. Every
-route ends with `broglow install`, which registers the hooks in your coding agents
-and, on macOS, installs the menu-bar app and starts it at login.
+The recommended route is [Homebrew](installation.md#homebrew). Every route ends with
+`broglow install`, which registers the hooks in your coding agents and, on macOS,
+installs the menu-bar app and starts it at login.
 
 <a name="mac-package"></a>
 
@@ -20,9 +19,8 @@ for installation and Bluetooth.
 <!-- mac-downloads -->
 
 Verify, extract and install the package by following
-[Install a prebuilt package](hardware.md#install-a-prebuilt-package); it ends with
-`"$HOME/.cargo/bin/broglow" install`. Then [check PATH](#path) and
-[pair the lamp](installation.md#pairing).
+[Install a prebuilt package](hardware.md#install-a-prebuilt-package). Then
+[check PATH](#path) and [pair the lamp](installation.md#pairing).
 
 <a name="from-source"></a>
 
