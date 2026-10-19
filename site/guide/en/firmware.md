@@ -208,8 +208,7 @@ Empty or multi-byte **status** payloads, unknown status bytes, brightness above
 100, and brightness payloads other than one byte, `[percent, 1]` or `[percent, 2]` are ignored.
 Brightness, preview and Identify do not refresh the status timeout. A GATT write
 response only acknowledges receipt. All GPIO changes and timeout decisions happen
-in the main loop; callbacks transfer state through synchronized FreeRTOS mailboxes.
-The timeout uses wrap-safe unsigned clock arithmetic. Disconnect restarts advertising.
+in the main loop. Disconnect restarts advertising.
 
 ### GATT cache after a firmware upgrade
 
@@ -222,16 +221,8 @@ connecting peer from `ESP_GATTS_CONNECT_EVT`, using
 and the [IDF 4.4.7 indication dispatch and mode setter](https://raw.githubusercontent.com/espressif/esp-idf/v4.4.7/components/bt/host/bluedroid/bta/gatt/bta_gatts_api.c)).
 This is intended to trigger rediscovery while preserving the existing bond.
 
-The SDK bundled with pinned Arduino 2.0.17 defaults to automatic Service Changed
-mode, which rejects this explicit request. Startup therefore selects manual mode
-with `BTA_GATTS_SetServiceChangeMode(1)`. Its `uint8_t` signature was checked in
-IDF 4.4.7 source and its export in the actual C3 `libbt.a`; it is a dependency of
-this pinned SDK, not a portable Arduino API. Before changing the toolchain,
-recheck the exported symbol, its signature,
-manual-mode value and callback behavior, then repeat a bonded firmware-upgrade
-test.
-
-To check it: `gatt_change_manual=1` at boot and in `?` confirms manual mode;
+To check it: `gatt_change_manual=1` at boot and in `?` confirms the firmware can
+send the indication;
 `gatt_change_requests` counts connections that requested the indication;
 `gatt_change_request=0` means the indication was queued; `gatt_change_result` is the
 stack's send status (`-1` until reported). None of these proves that macOS refreshed

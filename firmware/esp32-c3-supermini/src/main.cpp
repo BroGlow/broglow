@@ -15,6 +15,8 @@
 // Pinned IDF 4.4.7 exports this BTA API but omits it from its public headers.
 // Its prebuilt AUTO mode rejects manual indications; runtime MANUAL (1) allows
 // bonded Macs to invalidate a GATT cache retained across firmware upgrades.
+// Before changing the toolchain, recheck the exported symbol, its signature,
+// the MANUAL value and callback behavior, then repeat a bonded upgrade test.
 // https://github.com/espressif/esp-idf/blob/v4.4.7/components/bt/host/bluedroid/bta/gatt/bta_gatts_api.c#L597
 extern "C" uint8_t BTA_GATTS_SetServiceChangeMode(uint8_t mode);
 
