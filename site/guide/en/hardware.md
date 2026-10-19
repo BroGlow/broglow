@@ -101,6 +101,11 @@ LEDs with a multimeter's diode mode. The cathodes share GND, **never a resistor*
 Power the board from USB-C; the LEDs run from the GPIO **3.3 V**, not the 5 V pin.
 Use separate indicator LEDs, not an RGB LED or an addressable strip.
 
+![The built lamp from the rear with the cover and LED retainer removed: red, yellow and green LEDs from the top, each lead through its resistor, the shared ground lead running down to the ESP32-C3 SuperMini]({{ repo_url }}/raw/HEAD/site/assets/photos/inside-no-retainer.jpg)
+
+The built lamp from the rear, before the LED retainer goes in: LEDs on top, resistors
+and the shared GND lead at the board.
+
 | LED | Board pad | Command | Meaning |
 | --- | --- | --- | --- |
 | Red / top | `0` / GPIO0 | `R` | A session needs help |

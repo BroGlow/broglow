@@ -71,6 +71,9 @@ to GND.
 3. Insert retainer 05 from the rear **1.3 mm below** its final position, slide it
    **up 1.3 mm** into the roof pocket and secure the lower screw. Keep leads and
    wires clear of its slide path, guides and screw bosses.
+
+   ![Retainer 05 installed from the rear and secured with its lower screw; the LED leads and resistors stay clear of it]({{ repo_url }}/raw/HEAD/site/assets/photos/inside-retainer.jpg)
+
 4. Before closing the cover, test the LEDs with the cover off. The board needs
    BroGlow firmware; see
    [Check the wiring before connecting BroGlow]({{ repo_url }}/blob/HEAD/site/guide/en/hardware.md#check-the-wiring-before-connecting-broglow).
