@@ -394,8 +394,8 @@ unix-only, same reason), Copilot per-event payloads through the shim
 (copilot_lifecycle.rs, unix-only, same reason), install/uninstall round-trip
 incl. the opencode plugin, Codex hooks.json and the Copilot hooks file (install.rs,
 Linux-only — on macOS it would `launchctl bootout` the dev machine's real
-daemon), and CLI smoke tests incl. a `node --check` parse of the embedded
-opencode plugin when node is present (cli.rs, all platforms). Prefer extending
+daemon), and CLI behavior checks (cli.rs; stateful cases are Unix-only). The JavaScript
+suite loads and runs the embedded opencode plugin. Prefer extending
 these over unit tests for new behavior. A `Stop` event with a `transcript_path` spawns the real detached
 namer — tests must omit it or pre-seed a name.
 

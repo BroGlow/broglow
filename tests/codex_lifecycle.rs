@@ -8,34 +8,16 @@
 //! sandboxes the Codex side (session_index.jsonl, rollouts).
 #![cfg(unix)]
 
-use std::path::PathBuf;
+mod common;
 
-use assert_cmd::Command;
+use common::{codex_home, command, read_state, session, state_path, temp_home};
 use serde_json::{json, Value};
 use tempfile::TempDir;
 
-fn temp_home() -> TempDir {
-    TempDir::new().expect("create temp home")
-}
-
-fn state_path(home: &TempDir) -> PathBuf {
-    home.path()
-        .join(".claude")
-        .join("broglow")
-        .join("state.json")
-}
-
-fn codex_home(home: &TempDir) -> PathBuf {
-    home.path().join("codex-home")
-}
-
 /// Run `broglow codex-hook` inside the sandbox with the given stdin.
 fn run_codex_hook(home: &TempDir, stdin: &str) -> assert_cmd::assert::Assert {
-    Command::cargo_bin("broglow")
-        .expect("binary built")
+    command(home)
         .arg("codex-hook")
-        .env("HOME", home.path())
-        .env("CODEX_HOME", codex_home(home))
         .write_stdin(stdin.to_string())
         .assert()
 }
@@ -58,15 +40,6 @@ fn ev_with_transcript(hook_event: &str, session_id: &str, transcript: &str) -> S
         "transcript_path": transcript,
     })
     .to_string()
-}
-
-fn read_state(home: &TempDir) -> Value {
-    let content = std::fs::read_to_string(state_path(home)).expect("state.json exists");
-    serde_json::from_str(&content).expect("state.json parses")
-}
-
-fn session(state: &Value, session_id: &str) -> Value {
-    state["sessions"][session_id].clone()
 }
 
 #[test]

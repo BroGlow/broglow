@@ -8,30 +8,17 @@
 //! `$HOME` on unix, which is what sandboxes each test's home.
 #![cfg(unix)]
 
-use std::path::PathBuf;
+mod common;
 
-use assert_cmd::Command;
-use serde_json::{json, Value};
+use common::{command, read_state, session, state_path, temp_home};
+use serde_json::json;
 use tempfile::TempDir;
-
-fn temp_home() -> TempDir {
-    TempDir::new().expect("create temp home")
-}
-
-fn state_path(home: &TempDir) -> PathBuf {
-    home.path()
-        .join(".claude")
-        .join("broglow")
-        .join("state.json")
-}
 
 /// Run `broglow copilot-hook <event>` inside the sandbox with the given
 /// stdin payload.
 fn run_copilot_hook(home: &TempDir, event: &str, stdin: &str) -> assert_cmd::assert::Assert {
-    Command::cargo_bin("broglow")
-        .expect("binary built")
+    command(home)
         .args(["copilot-hook", event])
-        .env("HOME", home.path())
         .write_stdin(stdin.to_string())
         .assert()
 }
@@ -44,15 +31,6 @@ fn payload(session_id: &str) -> String {
         "cwd": "/tmp/copilot-project",
     })
     .to_string()
-}
-
-fn read_state(home: &TempDir) -> Value {
-    let content = std::fs::read_to_string(state_path(home)).expect("state.json exists");
-    serde_json::from_str(&content).expect("state.json parses")
-}
-
-fn session(state: &Value, session_id: &str) -> Value {
-    state["sessions"][session_id].clone()
 }
 
 #[test]

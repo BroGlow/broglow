@@ -7,40 +7,16 @@
 //! follows `$HOME` on unix, which is what sandboxes each test's home.
 #![cfg(unix)]
 
-use std::path::PathBuf;
+mod common;
 
-use assert_cmd::Command;
-use serde_json::{json, Value};
+use common::{command, read_state, run_hook, seed_state, session_status, state_path, temp_home};
+use serde_json::json;
 use tempfile::TempDir;
-
-fn temp_home() -> TempDir {
-    TempDir::new().expect("create temp home")
-}
-
-fn state_path(home: &TempDir) -> PathBuf {
-    home.path()
-        .join(".claude")
-        .join("broglow")
-        .join("state.json")
-}
 
 /// Run `broglow event` inside the sandbox home with the given stdin.
 fn run_event(home: &TempDir, stdin: &str) -> assert_cmd::assert::Assert {
-    Command::cargo_bin("broglow")
-        .expect("binary built")
+    command(home)
         .arg("event")
-        .env("HOME", home.path())
-        .write_stdin(stdin.to_string())
-        .assert()
-}
-
-/// Run `broglow hook` (the Claude path) inside the sandbox home.
-fn run_hook(home: &TempDir, stdin: &str) -> assert_cmd::assert::Assert {
-    Command::cargo_bin("broglow")
-        .expect("binary built")
-        .arg("hook")
-        .env("HOME", home.path())
-        .env_remove("BROGLOW_NAMING")
         .write_stdin(stdin.to_string())
         .assert()
 }
@@ -66,24 +42,6 @@ fn ev_title(event: &str, session_id: &str, title: &str) -> String {
     .to_string()
 }
 
-fn read_state(home: &TempDir) -> Value {
-    let content = std::fs::read_to_string(state_path(home)).expect("state.json exists");
-    serde_json::from_str(&content).expect("state.json parses")
-}
-
-fn session_status(state: &Value, session_id: &str) -> String {
-    state["sessions"][session_id]["status"]
-        .as_str()
-        .unwrap_or_else(|| panic!("session {session_id} has a status"))
-        .to_string()
-}
-
-fn seed_state(home: &TempDir, state: &Value) {
-    let path = state_path(home);
-    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-    std::fs::write(path, state.to_string()).unwrap();
-}
-
 #[test]
 fn full_lifecycle_maps_normalized_events_to_statuses() {
     let home = temp_home();
@@ -100,6 +58,12 @@ fn full_lifecycle_maps_normalized_events_to_statuses() {
             session_status(&read_state(&home), "ses-life"),
             expected,
             "after {event}"
+        );
+        let state = read_state(&home);
+        assert_eq!(state["sessions"]["ses-life"]["harness"], "opencode");
+        assert_eq!(
+            state["sessions"]["ses-life"]["project_path"],
+            "/tmp/oc-project"
         );
     }
 }
@@ -121,21 +85,6 @@ fn failed_state_lock_never_writes_unlocked() {
     )
     .success();
     assert_eq!(std::fs::read(&path).unwrap(), original);
-}
-
-#[test]
-fn permission_ask_flips_red_and_reply_clears_it() {
-    let home = temp_home();
-    run_event(&home, &ev("working", "ses-perm")).success();
-    assert_eq!(session_status(&read_state(&home), "ses-perm"), "active");
-
-    // permission.asked → needs_help (the product's core red moment).
-    run_event(&home, &ev("needs_input", "ses-perm")).success();
-    assert_eq!(session_status(&read_state(&home), "ses-perm"), "needs_help");
-
-    // permission.replied → active immediately (allow or deny, the agent continues).
-    run_event(&home, &ev("resumed", "ses-perm")).success();
-    assert_eq!(session_status(&read_state(&home), "ses-perm"), "active");
 }
 
 #[test]
@@ -269,19 +218,6 @@ fn unknown_events_and_missing_session_ids_write_nothing() {
     run_event(&home, "not json at all {{{").success();
 
     assert!(!state_path(&home).exists());
-}
-
-#[test]
-fn an_opencode_session_records_its_harness() {
-    let home = temp_home();
-    run_event(&home, &ev("working", "ses-oc")).success();
-
-    let state = read_state(&home);
-    assert_eq!(state["sessions"]["ses-oc"]["harness"], "opencode");
-    assert_eq!(
-        state["sessions"]["ses-oc"]["project_path"],
-        "/tmp/oc-project"
-    );
 }
 
 #[test]

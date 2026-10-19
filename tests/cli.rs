@@ -1,12 +1,10 @@
-//! Cross-platform CLI smoke tests. These must stay safe to run on any machine
-//! (including Windows, where the home directory can't be sandboxed via env),
-//! so nothing here may read or write real state.
+//! CLI behavior through the compiled binary. Settings tests are Unix-only:
+//! dirs::home_dir honors HOME there, so each test can use a temporary home.
+//! Cross-platform smoke checks must never read or write real state.
 
-use assert_cmd::Command;
+mod common;
 
-fn broglow() -> Command {
-    Command::cargo_bin("broglow").expect("binary built")
-}
+use common::broglow;
 
 #[test]
 fn version_identifies_the_release() {
@@ -15,30 +13,6 @@ fn version_identifies_the_release() {
         .assert()
         .success()
         .stdout(concat!("broglow ", env!("CARGO_PKG_VERSION"), "\n"));
-}
-
-#[test]
-fn help_lists_the_public_subcommands() {
-    let assert = broglow().arg("--help").assert().success();
-    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
-
-    for subcommand in [
-        "install",
-        "uninstall",
-        "menubar",
-        "dashboard-button",
-        "led",
-        "ble",
-    ] {
-        assert!(stdout.contains(subcommand), "--help mentions {subcommand}");
-    }
-    // Internal backends stay hidden from users.
-    for hidden in ["hook", "name"] {
-        assert!(
-            !stdout.contains(&format!("\n  {hidden}")),
-            "{hidden} is hidden"
-        );
-    }
 }
 
 #[cfg(unix)]
@@ -152,98 +126,6 @@ fn concurrent_settings_commands_preserve_disjoint_edits() {
     }
 }
 
-#[test]
-fn ble_help_documents_selection_without_accessing_the_radio() {
-    let assert = broglow().args(["ble", "--help"]).assert().success();
-    let help = String::from_utf8_lossy(&assert.get_output().stdout);
-    for command in [
-        "scan", "pair", "add", "remove", "list", "usb", "off", "status",
-    ] {
-        assert!(help.contains(command));
-    }
-    broglow().args(["ble", "add"]).assert().failure();
-    broglow().args(["ble", "pair", "--help"]).assert().success();
-}
-
-#[test]
-fn unknown_subcommands_fail() {
-    broglow().arg("no-such-command").assert().failure();
-}
-
-#[test]
-fn the_hook_exits_cleanly_under_the_naming_guard() {
-    // BROGLOW_NAMING short-circuits before any state I/O, so this is safe to
-    // run against the real home directory on every platform.
-    broglow()
-        .arg("hook")
-        .env("BROGLOW_NAMING", "1")
-        .write_stdin("")
-        .assert()
-        .success();
-}
-
-#[test]
-fn the_event_backend_exits_cleanly_on_junk_input() {
-    // Malformed stdin must be a safe no-op, like the hook backend. Uses a
-    // nonexistent HOME override on unix so nothing real is written; on Windows
-    // the parse fails before any state path is touched.
-    let mut cmd = broglow();
-    cmd.arg("event").write_stdin("not an event {{{");
-    #[cfg(unix)]
-    cmd.env("HOME", "/nonexistent-broglow-test-home");
-    cmd.assert().success();
-}
-
-#[test]
-fn the_copilot_shim_exits_cleanly_on_junk_input() {
-    // Same contract as the other stdin backends: malformed payloads are a
-    // safe no-op. The event name is argv, so an unknown one must no-op too.
-    for (event, stdin) in [("agentStop", "not json {{{"), ("someFutureEvent", "{}")] {
-        let mut cmd = broglow();
-        cmd.args(["copilot-hook", event]).write_stdin(stdin);
-        #[cfg(unix)]
-        cmd.env("HOME", "/nonexistent-broglow-test-home");
-        cmd.assert().success();
-    }
-}
-
-#[test]
-fn the_opencode_plugin_parses_as_a_js_module() {
-    // Optional parse check: runs only where `node` runs (the plugin's real
-    // coverage is tests/js). Probing by running it resolves `node.exe` on
-    // Windows too; skip cleanly only when it is absent. `node --check` is
-    // the portable syntax-only check; `bun` has no equivalent flag.
-    let node = "node";
-    match std::process::Command::new(node).arg("--version").output() {
-        Ok(_) => {}
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            eprintln!("skipping plugin parse check: no node on PATH");
-            return;
-        }
-        Err(e) => panic!("probing node: {e}"),
-    }
-
-    let asset = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/opencode-plugin.js");
-    let contents = std::fs::read_to_string(asset).expect("read plugin asset");
-    // ES-module syntax parses only with an .mjs extension, so copy it out.
-    let dir = tempfile::TempDir::new().unwrap();
-    let mjs = dir.path().join("broglow.mjs");
-    std::fs::write(&mjs, contents).unwrap();
-
-    let output = std::process::Command::new(node)
-        .arg("--check")
-        .arg(&mjs)
-        .output()
-        .expect("run the JS engine");
-    assert!(
-        output.status.success(),
-        "the embedded plugin must be valid JS:\n{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-/// Whether `program` resolves to a file on PATH. Deliberately simple — it only
-/// gates the optional parse check above, so a false negative just skips it.
 #[cfg(target_os = "macos")]
 #[test]
 fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {

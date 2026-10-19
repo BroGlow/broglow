@@ -9,31 +9,11 @@
 
 use std::path::PathBuf;
 
-use assert_cmd::Command;
+mod common;
+
+use common::{command, read_state, run_hook, seed_state, session_status, state_path, temp_home};
 use serde_json::{json, Value};
 use tempfile::TempDir;
-
-fn temp_home() -> TempDir {
-    TempDir::new().expect("create temp home")
-}
-
-fn state_path(home: &TempDir) -> PathBuf {
-    home.path()
-        .join(".claude")
-        .join("broglow")
-        .join("state.json")
-}
-
-/// Run `broglow hook` inside the sandbox home with the given stdin.
-fn run_hook(home: &TempDir, stdin: &str) -> assert_cmd::assert::Assert {
-    Command::cargo_bin("broglow")
-        .expect("binary built")
-        .arg("hook")
-        .env("HOME", home.path())
-        .env_remove("BROGLOW_NAMING")
-        .write_stdin(stdin.to_string())
-        .assert()
-}
 
 /// A hook event as Claude Code sends it. `transcript_path` is deliberately
 /// omitted: a `Stop` event carrying one would spawn the detached auto-namer,
@@ -48,43 +28,12 @@ fn event(name: &str, session_id: &str) -> String {
     .to_string()
 }
 
-fn read_state(home: &TempDir) -> Value {
-    let content = std::fs::read_to_string(state_path(home)).expect("state.json exists");
-    serde_json::from_str(&content).expect("state.json parses")
-}
-
-fn session_status(state: &Value, session_id: &str) -> String {
-    state["sessions"][session_id]["status"]
-        .as_str()
-        .unwrap_or_else(|| panic!("session {session_id} has a status"))
-        .to_string()
-}
-
-/// Seed a pre-existing state.json, bypassing the binary.
-fn seed_state(home: &TempDir, state: &Value) {
-    let path = state_path(home);
-    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-    std::fs::write(path, state.to_string()).unwrap();
-}
-
-#[test]
-fn session_start_records_an_active_session() {
-    let home = temp_home();
-    run_hook(&home, &event("SessionStart", "sess-1")).success();
-
-    let state = read_state(&home);
-    assert_eq!(session_status(&state, "sess-1"), "active");
-    assert_eq!(
-        state["sessions"]["sess-1"]["project_path"],
-        "/tmp/some-project"
-    );
-}
-
 #[test]
 fn full_lifecycle_maps_events_to_statuses() {
     let home = temp_home();
     let steps = [
         ("SessionStart", "active"),
+        ("Stop", "inactive"),
         ("UserPromptSubmit", "active"),
         ("Stop", "inactive"),
         ("Notification", "needs_help"),
@@ -97,6 +46,10 @@ fn full_lifecycle_maps_events_to_statuses() {
             session_status(&state, "sess-life"),
             expected,
             "after {hook_event}"
+        );
+        assert_eq!(
+            state["sessions"]["sess-life"]["project_path"],
+            "/tmp/some-project"
         );
     }
 }
@@ -271,23 +224,17 @@ fn ask_user_question_is_needs_help_until_the_turn_moves_on() {
 }
 
 #[test]
-fn unknown_events_and_missing_session_ids_write_nothing() {
+fn unsupported_or_malformed_events_write_nothing() {
     let home = temp_home();
     run_hook(&home, &event("SomeFutureEvent", "sess-x")).success();
+    for payload in ["this is not json {{{", ""] {
+        run_hook(&home, payload).success();
+    }
     run_hook(
         &home,
         &json!({"hook_event_name": "SessionStart"}).to_string(),
     )
     .success();
-
-    assert!(!state_path(&home).exists());
-}
-
-#[test]
-fn malformed_input_is_a_safe_noop() {
-    let home = temp_home();
-    run_hook(&home, "this is not json {{{").success();
-    run_hook(&home, "").success();
 
     assert!(!state_path(&home).exists());
 }
@@ -361,10 +308,8 @@ fn sessions_are_tracked_independently() {
 #[test]
 fn the_naming_guard_env_disables_tracking() {
     let home = temp_home();
-    Command::cargo_bin("broglow")
-        .expect("binary built")
+    command(&home)
         .arg("hook")
-        .env("HOME", home.path())
         .env("BROGLOW_NAMING", "1")
         .write_stdin(event("SessionStart", "sess-nested"))
         .assert()
@@ -408,12 +353,10 @@ fn write_transcript(home: &TempDir, first_prompt: &str) -> PathBuf {
 }
 
 fn run_namer(home: &TempDir, path_env: &str, transcript: &PathBuf) {
-    Command::cargo_bin("broglow")
-        .expect("binary built")
+    command(home)
         .arg("name")
         .arg("sess-unnamed")
         .arg(transcript)
-        .env("HOME", home.path())
         .env("PATH", path_env)
         .assert()
         .success();
@@ -535,12 +478,9 @@ fn write_titled_transcript(home: &TempDir, titles: &[&str]) -> PathBuf {
 /// on PATH so a wrongly spawned namer can never reach the real CLI.
 fn run_hook_with_transcript(home: &TempDir, name: &str, transcript: &PathBuf) {
     let path_env = fake_claude(home, "exit 1");
-    Command::cargo_bin("broglow")
-        .expect("binary built")
+    command(home)
         .arg("hook")
-        .env("HOME", home.path())
         .env("PATH", path_env)
-        .env_remove("BROGLOW_NAMING")
         .write_stdin(
             json!({
                 "hook_event_name": name,

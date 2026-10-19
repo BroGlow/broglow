@@ -7,6 +7,8 @@
 //! on Windows it writes the real HKCU Run key, so neither can run here.
 #![cfg(target_os = "linux")]
 
+mod common;
+
 use assert_cmd::Command;
 use serde_json::{json, Value};
 use tempfile::TempDir;
@@ -20,20 +22,15 @@ const HOOK_EVENTS: [&str; 6] = [
     "PreToolUse",
 ];
 
+/// Empty PATH makes detection independent of locally installed coding agents.
+fn installer(home: &TempDir) -> Command {
+    let mut command = common::command(home);
+    command.env("PATH", home.path().join("empty-bin"));
+    command
+}
+
 fn run(home: &TempDir, subcommand: &str) {
-    // A real DISPLAY would make `install` spawn a detached tray that outlives
-    // the test; a real CODEX_HOME/COPILOT_HOME would point at the developer's
-    // own hook files instead of this sandbox.
-    Command::cargo_bin("broglow")
-        .expect("binary built")
-        .arg(subcommand)
-        .env("HOME", home.path())
-        .env_remove("DISPLAY")
-        .env_remove("WAYLAND_DISPLAY")
-        .env_remove("CODEX_HOME")
-        .env_remove("COPILOT_HOME")
-        .assert()
-        .success();
+    installer(home).arg(subcommand).assert().success();
 }
 
 fn read_settings(home: &TempDir) -> Value {
@@ -44,14 +41,7 @@ fn read_settings(home: &TempDir) -> Value {
 #[test]
 fn headless_tray_does_not_register_hooks() {
     let home = TempDir::new().unwrap();
-    Command::cargo_bin("broglow")
-        .expect("binary built")
-        .arg("menubar")
-        .env("HOME", home.path())
-        .env_remove("DISPLAY")
-        .env_remove("WAYLAND_DISPLAY")
-        .assert()
-        .failure();
+    installer(&home).arg("menubar").assert().failure();
     assert!(
         !home.path().join(".claude/settings.json").exists(),
         "a failed tray launch must not recreate hooks during uninstall"
@@ -214,7 +204,7 @@ fn install_writes_the_opencode_plugin_when_detected_and_uninstall_removes_it() {
 #[test]
 fn install_skips_the_plugin_when_opencode_is_absent() {
     let home = TempDir::new().unwrap();
-    // No ~/.config/opencode and (assumed) no opencode on PATH → detection fails.
+    // No config directory and an isolated empty PATH → detection fails.
     run(&home, "install");
     let plugin = home.path().join(".config/opencode/plugins/broglow.js");
     assert!(
@@ -249,7 +239,7 @@ fn reinstall_overwrites_a_stale_managed_plugin() {
 }
 
 #[test]
-fn install_leaves_a_foreign_opencode_plugin_alone() {
+fn foreign_opencode_plugins_survive_install_and_uninstall() {
     let home = TempDir::new().unwrap();
     let plugin_dir = home.path().join(".config/opencode/plugins");
     std::fs::create_dir_all(&plugin_dir).unwrap();
@@ -267,23 +257,8 @@ fn install_leaves_a_foreign_opencode_plugin_alone() {
         hand_rolled,
         "install must never overwrite a file without our header"
     );
-}
-
-#[test]
-fn uninstall_leaves_a_foreign_opencode_plugin_alone() {
-    let home = TempDir::new().unwrap();
-    let plugin_dir = home.path().join(".config/opencode/plugins");
-    std::fs::create_dir_all(&plugin_dir).unwrap();
-    let plugin = plugin_dir.join("broglow.js");
-    // A file at our path that isn't ours (no managed-by header).
-    std::fs::write(&plugin, "// my own hand-rolled plugin\n").unwrap();
-
     run(&home, "uninstall");
-
-    assert!(
-        plugin.exists(),
-        "a file without our header must never be deleted"
-    );
+    assert_eq!(std::fs::read_to_string(&plugin).unwrap(), hand_rolled);
 }
 
 #[test]
@@ -306,10 +281,8 @@ fn install_registers_codex_hooks_and_uninstall_reverts_them() {
     .unwrap();
 
     let run = |subcommand: &str| {
-        Command::cargo_bin("broglow")
-            .expect("binary built")
+        installer(&home)
             .arg(subcommand)
-            .env("HOME", home.path())
             .env("CODEX_HOME", &codex_home)
             .assert()
             .success();
