@@ -28,7 +28,7 @@ circuitry that pulls this strapping pin low during reset.
 | `connected`: first valid status write (`N`, `R`, `Y` or `G`) of each BLE connection; skipped during startup breathing, after a status disconnect or when interrupting a watchdog fade | All three on once for 250 ms | On for the same 250 ms at 32/255 brightness |
 | `status`: fresh `R`, `Y` or `G` | Corresponding LED steadily on | Repeating groups: green = one, yellow = two, red = three 100 ms pulses, spaced 250 ms apart; one group every three seconds at 32/255 |
 | `status`: fresh `N` | Off | Off |
-| `fading`: confirmed BLE disconnect while showing a status, or missing valid BLE updates for five seconds | Disconnect: fade immediately from the displayed color and brightness to black over three seconds. Connected watchdog: hold for five seconds, fade for five seconds, fully off at ten seconds. Serial expiry retains its 700 ms fade | Fades with the color if already lit; starts no new pulses |
+| `fading`: confirmed BLE disconnect while showing a status, or missing valid BLE updates for five seconds | Disconnect: fade immediately from the displayed color and brightness to black over three seconds. Connected watchdog: hold for five seconds, fade for five seconds, fully off at ten seconds. Serial expiry fades over 700 ms | Fades with the color if already lit; starts no new pulses |
 | `pairing`: window open, no fresh status | Red → yellow → green, 250 ms per step | One 100 ms pulse per step at 32/255 |
 | `unpaired`: no board bonds, window closed, no fresh status | All three one second on, one second off | Same cadence at 32/255 |
 | `waiting`: board has bonds, BLE disconnected, window closed, no fresh status | All three pulse for 100 ms at 8/255 every 30 seconds; first pulse after 30 seconds in this mode | Same quiet pulse |
@@ -37,8 +37,8 @@ circuitry that pulls this strapping pin low during reset.
 The duty values above are at **100% lamp brightness**. The saved setting scales
 every controlled output, including startup, connection and quiet waiting indications;
 preview temporarily uses the slider's percentage instead; Identify uses its requested
-percentage (100% from the app). At 0% that selected
-level is dark; the board's red power LED is unchanged. See [brightness control](hardware.md#brightness-control).
+percentage (100% from the app). At 0% the controlled LEDs are dark.
+See [brightness control](hardware.md#brightness-control).
 
 The firmware picks the first matching mode in this order:
 
@@ -60,12 +60,10 @@ The firmware picks the first matching mode in this order:
    finished. Queued pre-disconnect colors are discarded; an acknowledged `N` can
    still turn the lamp off. A connection that stays up without valid updates holds
    its status for five seconds, then fades for five seconds to black at the
-   ten-second deadline. Its logical status remains until that deadline. A fresh
-   status restores the configured brightness; fading never changes that setting.
+   ten-second deadline. Its logical status remains until that deadline. Fading
+   never changes the brightness setting.
    A fade starts from the current output capped at the configured brightness,
-   including a brightness reduction received at fade entry; it never starts by
-   jumping to maximum brightness.
-   Serial status expiry retains its 700 ms fade after ten seconds.
+   including a brightness reduction received at fade entry.
    Off status, preview and connection flash do not start a fade. Timing follows the
    original disconnect or expiry, so a delayed loop cannot replay a completed fade.
 5. Fresh status, including serial commands and `N`.
@@ -73,11 +71,7 @@ The firmware picks the first matching mode in this order:
    status expired, even if the pairing window is open.
 7. `pairing`, then `unpaired`, then `stale` (connected), then `waiting`.
 
-The one-byte protocol and ten-second missing-update deadline are unchanged. For
-BLE, the second half of that period is the fade (five seconds with the configured
-ten-second timeout). Confirmed disconnection starts its separate three-second fade
-immediately. After fading, the normal disconnected or stale indication resumes,
-including the existing quiet waiting pulse.
+For BLE, the watchdog fade takes the second half of the stale timeout.
 
 Outputs use 2 kHz, eight-bit PWM. In `platformio.ini`, `LED_RED_PIN=0`,
 `LED_YELLOW_PIN=1` and `LED_GREEN_PIN=3` select the external LED pins (GPIO0..10,
@@ -101,9 +95,7 @@ With USB serial connected, the firmware prints these lines:
 - `bond_reset=requested count=<n>` or `bond_reset=error` after a 10-second BOOT hold.
   `requested` means deletion was requested, not confirmed.
 
-A `?\n` request returns a diagnostic line.
-This read-only diagnostic is allowed while BLE owns the lamp; LED-setting serial
-commands remain ignored until BLE disconnects.
+A `?\n` request returns a diagnostic line, even while BLE owns the lamp.
 
 Set `BOARD_PORT` to the identified board as in
 [Build and identify the board](hardware.md#build-and-identify-the-board). Only one
@@ -164,9 +156,8 @@ sends `INFO` before `PAIR`. Example reply (identity varies by board):
 broglow_pair identity=001122334455 service=7d2ea28a-f7bd-485a-bd9d-92ad6ecfe93e
 ```
 
-These setup commands work while BLE owns the LED outputs; arbitrary serial color
-commands still do not override that ownership. The advertised identity is the six
-base-MAC bytes, not the possibly changing over-the-air private Bluetooth address.
+These setup commands also work while BLE owns the LEDs. The advertised identity
+is the six base-MAC bytes, not the possibly changing over-the-air private Bluetooth address.
 
 ## BLE contract and firmware behavior
 
@@ -185,7 +176,7 @@ base-MAC bytes, not the possibly changing over-the-air private Bluetooth address
 | Identify payload | On the same encrypted brightness characteristic: two binary bytes `[percent, 2]`, with percent 0..100. Scans red → yellow → green three times at 100 ms per LED (0.9 seconds from receipt), then restores the latest status and saved brightness. The app sends `[100, 2]`; no preferences change. |
 | Name payload | 1..21 UTF-8 bytes of the label, without the `BroGlow ` prefix or control characters; a single `0x00` restores the factory name. The full Bluetooth name fits the 29-byte scan-response name field. |
 | Host heartbeat | Two seconds |
-| Board stale timeout | Ten seconds since the last valid status; BLE holds the color for five seconds and fades for the next five, reaching black and logical state `N` at ten seconds. Serial expiry retains its 700 ms fade after ten seconds. Then [indications](#pairing-feedback-and-diagnostics-without-external-leds) follow connection/bond state |
+| Board stale timeout | Ten seconds since the last valid status; BLE holds the color for five seconds and fades for the next five, reaching black and logical state `N` at ten seconds. Serial expiry fades over 700 ms after ten seconds. Then [indications](#pairing-feedback-and-diagnostics-without-external-leds) follow connection/bond state |
 | Confirmed BLE disconnect | Clears the BLE status to `N` immediately and fades the displayed status color and brightness to black over three seconds; recovery needs a fresh valid status and skips the connection flash |
 | Ownership | Connected BLE client; serial only while BLE is disconnected |
 | Security | LE Secure Connections Just Works bonding; all writable characteristics require encryption. New pairing is admitted only while the pairing window is open. |
@@ -193,12 +184,9 @@ base-MAC bytes, not the possibly changing over-the-air private Bluetooth address
 
 After discovery, the host writes brightness before its initial `N`/status write,
 so the firmware uses the saved level for its first connection indication.
-Later percentage changes are written on the existing connection. If the
-writable brightness characteristic is absent, the host does not connect and
-reports an error: the lamp needs firmware with both the status and the
-brightness characteristics.
+Later percentage changes are written on the existing connection.
 
-The optional name characteristic receives the saved label on connection and when
+The name characteristic receives the saved label on connection and when
 it changes, without disconnecting the lamp. Firmware updates the GAP device name
 and scan-response name, and commits changed labels to NVS; repeated names do not
 write flash. An empty write is ignored; only `0x00` clears a name. Invalid UTF-8,
@@ -208,36 +196,26 @@ Naming never refreshes session status or alters pairing keys or manufacturer ide
 Storage failures report `name=save_failed` over serial; GAP name failures report
 `name=apply_failed`. A GATT write response alone does not prove persistence or a
 macOS Settings refresh. Reconnecting may be needed to refresh the Mac's cached name.
-Older firmware without this characteristic still supports lamp control.
 
 The UI throttles slider preview changes to about 80 ms and renews a held pointer every
 500 ms. Identify sends one request for the selected connected lamp. The host retains
 only the latest event per target (or all-lamps request) for two seconds for both slider
 preview and Identify. Each connection uses the newer matching targeted
-or all-lamps event; a targeted request cannot affect a different lamp. The latest
-preview or Identify request replaces the previous one. Normal heartbeats do not renew either.
-Firmware requires a confirmed authenticated connection and fresh status, and
-discards an expired or previous-connection request.
-
-Older firmware silently ignores `[percent, 2]`, even if it acknowledges the write
-and supports slider previews. The scan requires matching firmware; updating the app
-does not flash the board. Back up and flash the identified board as in
-[Flash and recover USB upload](hardware.md#flash-and-recover-usb-upload), or use
-[Flash prebuilt C3 firmware](hardware.md#flash-prebuilt-c3-firmware).
+or all-lamps event; a targeted request cannot affect a different lamp. Normal
+heartbeats do not renew either. Firmware needs an authenticated connection with fresh
+status and discards an expired or previous-connection request.
 
 Empty or multi-byte **status** payloads, unknown status bytes, brightness above
 100, and brightness payloads other than one byte, `[percent, 1]` or `[percent, 2]` are ignored.
-Brightness, preview and Identify do not refresh the status timeout. The GATT stack's
-write response acknowledges receipt; it is not a custom
-application validation response and never proves electrical LED operation. All
-GPIO changes and timeout decisions happen in the main loop; callbacks transfer
-state through synchronized FreeRTOS mailboxes. The timeout uses wrap-safe unsigned
-clock arithmetic. Disconnect restarts advertising.
+Brightness, preview and Identify do not refresh the status timeout. A GATT write
+response only acknowledges receipt. All GPIO changes and timeout decisions happen
+in the main loop; callbacks transfer state through synchronized FreeRTOS mailboxes.
+The timeout uses wrap-safe unsigned clock arithmetic. Disconnect restarts advertising.
 
 ### GATT cache after a firmware upgrade
 
-Adding the brightness attribute can leave a bonded Mac using its cached
-status-only service. The firmware requests a Service Changed indication for the
+A firmware update that changes the GATT services can leave a bonded Mac using
+its cached copy. The firmware requests a Service Changed indication for the
 connecting peer from `ESP_GATTS_CONNECT_EVT`, using
 `BLEDevice::setCustomGattsHandler` and the public
 `esp_ble_gatts_send_service_change_indication(gatts_if, remote_bda)` API
@@ -258,4 +236,4 @@ To check it: `gatt_change_manual=1` at boot and in `?` confirms manual mode;
 `gatt_change_requests` counts connections that requested the indication;
 `gatt_change_request=0` means the indication was queued; `gatt_change_result` is the
 stack's send status (`-1` until reported). None of these proves that macOS refreshed
-its cache. Do not erase bonds as a routine brightness upgrade step.
+its cache. Do not erase bonds as a routine upgrade step.
