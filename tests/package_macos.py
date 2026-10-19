@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 
 spec = importlib.util.spec_from_file_location(
@@ -34,15 +35,20 @@ assert package.macho_build_info("Load command 0\n cmd LC_MAIN\n") == {}
 with tempfile.TemporaryDirectory(prefix="broglow-flash-package-") as folder:
     destination = Path(folder)
     package.copy_flash_tool(destination)
-    copied = sorted(
-        str(path.relative_to(destination))
-        for path in destination.rglob("*")
-        if path.is_file()
+    # Exercise the shipped entry point, independently of the source-list helper.
+    # Running this path directly also avoids importing the checkout's installed
+    # broglow_tools package and accidentally hiding missing packaged code.
+    subprocess.run(
+        [sys.executable, str(destination / "tools/broglow_tools/flash.py"), "--help"],
+        cwd=destination,
+        check=True,
+        capture_output=True,
+        text=True,
     )
-    expected = sorted(
-        str(path.relative_to(package.ROOT)) for path in package.flash_tool_sources()
-    )
-    assert copied == expected
+    for name in ("pyproject.toml", "uv.lock"):
+        assert (destination / name).read_bytes() == (package.ROOT / name).read_bytes()
+    assert not list(destination.rglob("__pycache__"))
+    assert not list(destination.rglob("*.pyc"))
 
 
 notices = package.notices

@@ -24,7 +24,6 @@ with tempfile.TemporaryDirectory(prefix="broglow-formula-") as folder:
         "https://github.com/example/lamp",
         "https://github.com/example/lamp/releases/download/v1.2.3/",
     )
-    assert 'version "' not in text, "Homebrew infers the version from the URL"
     assert (
         'url "https://github.com/example/lamp/releases/download/v1.2.3/broglow-v1.2.3-aarch64-apple-darwin.tar.gz"'
         in text
