@@ -32,6 +32,8 @@ jobs:
           {
             echo '## Release download counts'
             echo
+            # Markdown backticks must stay literal.
+            # shellcheck disable=SC2016
             echo 'Proxy for installs (no uninstall signal; excludes `cargo install`). See `scripts/download-stats.sh`.'
             echo
             echo '### Per release'
