@@ -477,7 +477,8 @@ function renderLamp() {
     document.getElementById('lampsetup').hidden = l.bluetooth_supported !== true;
     const add = document.getElementById('lampadd');
     add.dataset.cmd = 'add_lamp';
-    add.disabled = setupBusy || lampActionPending();
+    add.disabled = setupBusy;
+    add.setAttribute('aria-disabled', String(setupBusy || lampActionPending()));
     add.textContent = setupBusy ? 'Adding…' : 'Add lamp';
     const setupResult = document.getElementById('lampsetupresult');
     setupResult.textContent = setupBusy ? 'Setting up USB lamp…' : lampSetupError || lampSetupMessage;

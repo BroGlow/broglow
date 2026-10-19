@@ -678,6 +678,31 @@ test('Add lamp reports errors with retry and success without claiming a connecti
   assert.ok(!element('lampbtn').innerHTML.includes('dgreen'));
 });
 
+test('saving a name keeps Add lamp visually steady while preventing overlapping setup', () => {
+  for (const error of [null, 'Cannot save name']) {
+    const { context, element, update, click, commands } = popoverPage();
+    const current = lamp({ bluetooth_supported: true, names: { 'saved-lamp': 'Home' } });
+    update(current);
+    click('lampbtn');
+    const add = element('lampadd');
+    const appearance = () => [add.textContent, add.disabled];
+    const before = appearance();
+    element('lampname-0').value = 'Office';
+    click('lampsave-0');
+    assert.deepEqual(appearance(), before, 'Saving must not dim or relabel Add lamp');
+    assert.equal(add.attributes['aria-disabled'], 'true');
+    click('lampadd');
+    assert.equal(commands('add_lamp').length, 0, 'Setup still waits for the pending save');
+    update(current);
+    assert.deepEqual(appearance(), before, 'A heartbeat must not flash Add lamp either');
+    context.window.__configActionResult(error);
+    assert.deepEqual(appearance(), before);
+    assert.equal(add.attributes['aria-disabled'], 'false');
+    click('lampadd');
+    assert.equal(commands('add_lamp').length, 1, 'Setup becomes available after success or failure');
+  }
+});
+
 test('names render as text and drafts survive heartbeat, focus changes and failed saves', () => {
   const { context, element, update, click, listeners, commands } = popoverPage();
   const devices = [{ id: 'home-id', state: 'searching' }, { id: 'work-id', state: 'searching' }];
