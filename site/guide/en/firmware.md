@@ -151,20 +151,22 @@ base-MAC bytes, not the possibly changing over-the-air private Bluetooth address
 
 | Item | Value |
 | --- | --- |
-| Name | `BroGlow C3` plus a four-hex-digit board suffix |
+| Name | `BroGlow <label>` after naming; otherwise `BroGlow C3` plus a four-hex-digit board suffix |
 | Advertisement | Full service UUID and manufacturer data `0xffff` followed by the six base-MAC bytes (the `INFO` identity) |
 | Service UUID | `7d2ea28a-f7bd-485a-bd9d-92ad6ecfe93e` |
 | Writable status characteristic | `7d2ea28b-f7bd-485a-bd9d-92ad6ecfe93e` |
 | Writable brightness characteristic | `7d2ea28c-f7bd-485a-bd9d-92ad6ecfe93e` |
+| Writable name characteristic | `7d2ea28d-f7bd-485a-bd9d-92ad6ecfe93e` |
 | GATT operation | Write with response |
 | Status payload | Exactly one ASCII byte: `R`, `Y`, `G`, or `N`; no newline |
 | Brightness payload | Exactly one binary byte, percentage 0..100; not ASCII digits. Board default 100; volatile until reset. |
 | Preview payload | On the same encrypted brightness characteristic: two binary bytes `[percent, 1]`, with percent 0..100. Temporarily overrides all controlled lights for two seconds from receipt; does not change saved brightness. |
 | Identify payload | On the same encrypted brightness characteristic: two binary bytes `[percent, 2]`, with percent 0..100. Scans red → yellow → green three times at 100 ms per LED (0.9 seconds from receipt), then restores the latest status and saved brightness. The app sends `[100, 2]`; no preferences change. |
+| Name payload | 1..21 UTF-8 bytes of the label, without the `BroGlow ` prefix or control characters; a single `0x00` restores the factory name. The full Bluetooth name fits the 29-byte scan-response name field. |
 | Host heartbeat | Two seconds |
 | Board stale timeout | Ten seconds since the last valid status; clears session color, then [indications](#pairing-feedback-and-diagnostics-without-external-leds) follow connection/bond state |
 | Ownership | Connected BLE client; serial only while BLE is disconnected |
-| Security | LE Secure Connections Just Works bonding; both writable characteristics require encryption. New pairing is admitted only while the pairing window is open. |
+| Security | LE Secure Connections Just Works bonding; all writable characteristics require encryption. New pairing is admitted only while the pairing window is open. |
 | Pairing window | 60 seconds. Opens at boot when the board has no bonds, on serial `PAIR`, or when BOOT (GPIO9) is held three seconds after normal boot. Holding BOOT ten seconds requests deletion of all bonds and reopens the window. See [Pair without a USB data cable](hardware.md#pair-without-a-usb-data-cable). |
 
 After discovery, the host writes brightness before its initial `N`/status write,
@@ -173,6 +175,18 @@ Later percentage changes are written on the existing connection. If the
 writable brightness characteristic is absent, the host does not connect and
 reports an error: the lamp needs firmware with both the status and the
 brightness characteristics.
+
+The optional name characteristic receives the saved label on connection and when
+it changes, without disconnecting the lamp. Firmware updates the GAP device name
+and scan-response name, and commits changed labels to NVS; repeated names do not
+write flash. An empty write is ignored; only `0x00` clears a name. Invalid UTF-8,
+control characters and oversized labels are ignored. Old-connection requests are
+discarded; an acknowledged request from the current generation survives disconnect.
+Naming never refreshes session status or alters pairing keys or manufacturer identity.
+Storage failures report `name=save_failed` over serial; GAP name failures report
+`name=apply_failed`. A GATT write response alone does not prove persistence or a
+macOS Settings refresh. Reconnecting may be needed to refresh the Mac's cached name.
+Older firmware without this characteristic still supports lamp control.
 
 The UI throttles slider preview changes to about 80 ms and renews a held pointer every
 500 ms. Identify sends one request for the selected connected lamp. The host retains

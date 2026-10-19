@@ -254,6 +254,7 @@ mod mac {
     const SERVICE: Uuid = Uuid::from_u128(0x7d2ea28a_f7bd_485a_bd9d_92ad6ecfe93e);
     const STATUS: Uuid = Uuid::from_u128(0x7d2ea28b_f7bd_485a_bd9d_92ad6ecfe93e);
     const BRIGHTNESS: Uuid = Uuid::from_u128(0x7d2ea28c_f7bd_485a_bd9d_92ad6ecfe93e);
+    const NAME: Uuid = Uuid::from_u128(0x7d2ea28d_f7bd_485a_bd9d_92ad6ecfe93e);
     const POLL: Duration = Duration::from_millis(250);
     const HEARTBEAT: Duration = Duration::from_secs(2);
     const OP_TIMEOUT: Duration = Duration::from_secs(10);
@@ -1228,6 +1229,21 @@ mod mac {
         }
     }
 
+    fn name_payload(cfg: &Config, id: &str) -> Vec<u8> {
+        let Some(name) = cfg.lamp_names.get(id).filter(|name| !name.is_empty()) else {
+            return vec![0]; // Explicit reset; empty prepared writes are ignored by firmware.
+        };
+        let mut label = String::new();
+        for ch in name.chars() {
+            // The 31-byte scan response has two framing bytes and "BroGlow ".
+            if label.len() + ch.len_utf8() > 21 {
+                break;
+            }
+            label.push(ch);
+        }
+        label.into_bytes()
+    }
+
     async fn drive(
         p: &Peripheral,
         keep: &impl Fn() -> bool,
@@ -1262,6 +1278,11 @@ mod mac {
                     && c.properties.contains(CharPropFlags::WRITE)
             })
             .context("Saved device lacks the BroGlow writable brightness characteristic")?;
+        let name_characteristic = p.characteristics().into_iter().find(|c| {
+            c.service_uuid == SERVICE
+                && c.uuid == NAME
+                && c.properties.contains(CharPropFlags::WRITE)
+        });
         // Set the saved brightness before any status/connection flash. This first
         // encrypted write may prompt for pairing; sample current settings again afterward.
         let initial = [config::read_config().lamp_brightness_percent(&target)];
@@ -1279,12 +1300,15 @@ mod mac {
         }, keep, Duration::from_secs(60)).await?;
         let last_brightness = Cell::new(initial[0]);
         let last_preview = Cell::new(None::<(BrightnessPreview, StdInstant)>);
+        let last_name = RefCell::new(None::<Vec<u8>>);
         let setting = &brightness_characteristic;
         let characteristic = &characteristic;
         let last_brightness = &last_brightness;
         let last_preview = &last_preview;
+        let last_name = &last_name;
+        let name_characteristic = name_characteristic.as_ref();
         let result = send_updates(
-            |(byte, brightness, preview), _first| async move {
+            |(byte, brightness, preview, name): (_, _, _, Vec<u8>), _first| async move {
                 wait_for(
                     async {
                         if last_brightness.get() != brightness {
@@ -1307,13 +1331,21 @@ mod mac {
                         }
                         p.write(characteristic, &[byte], WriteType::WithResponse)
                             .await?;
+                        if let Some(setting) = name_characteristic {
+                            if last_name.borrow().as_ref() != Some(&name) {
+                                p.write(setting, &name, WriteType::WithResponse)
+                                    .await
+                                    .context("Lamp Bluetooth name write failed")?;
+                                *last_name.borrow_mut() = Some(name.clone());
+                            }
+                        }
                         Ok(())
                     },
                     keep,
                     Duration::from_secs(3),
                 )
                 .await?;
-                let detail = if let Some((preview, _)) = last_preview
+                let mut detail = if let Some((preview, _)) = last_preview
                     .get()
                     .filter(|(preview, written)| written.elapsed() < preview.duration())
                 {
@@ -1328,6 +1360,9 @@ mod mac {
                 } else {
                     format!("Status acknowledged; brightness {brightness}% applied")
                 };
+                if name_characteristic.is_none() && name != [0] {
+                    detail.push_str("; Bluetooth naming needs a firmware update");
+                }
                 publish("connected", &detail);
                 Ok(())
             },
@@ -1340,6 +1375,7 @@ mod mac {
                     )),
                     cfg.lamp_brightness_percent(&target),
                     current_preview(id),
+                    name_payload(&cfg, &target),
                 )
             },
             keep,
@@ -1353,7 +1389,7 @@ mod mac {
         result
     }
 
-    async fn send_updates<T: Copy + PartialEq, F: Future<Output = Result<()>>>(
+    async fn send_updates<T: Clone + PartialEq, F: Future<Output = Result<()>>>(
         mut write: impl FnMut(T, bool) -> F,
         read: impl Fn() -> T,
         keep: &impl Fn() -> bool,
@@ -1367,8 +1403,8 @@ mod mac {
             tokio::pin!(changed);
             changed.as_mut().enable();
             let current = read();
-            if due(last, current, written.elapsed()) {
-                write(current, last.is_none()).await?;
+            if due(last.as_ref(), &current, written.elapsed()) {
+                write(current.clone(), last.is_none()).await?;
                 last = Some(current);
                 written = Instant::now();
             }
@@ -1391,6 +1427,93 @@ mod mac {
     #[cfg(test)]
     mod tests {
         use super::*;
+        #[test]
+        fn bluetooth_name_payload_fits_scan_response_without_splitting_unicode() {
+            let mut cfg = Config::default();
+            assert_eq!(name_payload(&cfg, "home"), [0]);
+            for (label, expected) in [
+                ("Home".into(), "Home".into()),
+                ("a".repeat(40), "a".repeat(21)),
+                ("Дом 🏠".into(), "Дом 🏠".into()),
+                ("🏠".repeat(40), "🏠".repeat(5)),
+                (format!("{}🏠", "a".repeat(20)), "a".repeat(20)),
+            ] {
+                cfg.lamp_names.insert("home".into(), label);
+                let payload = name_payload(&cfg, "home");
+                assert_eq!(String::from_utf8(payload.clone()).unwrap(), expected);
+                assert!(payload.len() + "BroGlow ".len() + 2 <= 31);
+            }
+            cfg.lamp_names.insert("home".into(), String::new());
+            assert_eq!(name_payload(&cfg, "home"), [0]);
+        }
+
+        #[test]
+        fn name_changes_send_on_the_existing_connection_and_again_after_reconnect() {
+            runtime().unwrap().block_on(async {
+                let original = Config {
+                    led_enabled: true,
+                    led_transport: LedTransport::Ble,
+                    ble_peripherals: vec!["home".into(), "work".into()],
+                    ..Config::default()
+                };
+                let cfg = RefCell::new(original.clone());
+                let active = Cell::new(true);
+                let writes = RefCell::new(Vec::new());
+                let started = Instant::now();
+                send_updates(
+                    |value, first| {
+                        writes.borrow_mut().push((value, first));
+                        match writes.borrow().len() {
+                            1 => {
+                                cfg.borrow_mut()
+                                    .lamp_names
+                                    .insert("home".into(), "Home".into());
+                            }
+                            2 => {
+                                cfg.borrow_mut().lamp_names.remove("home");
+                            }
+                            _ => active.set(false),
+                        }
+                        async { Ok(()) }
+                    },
+                    || (b'G', name_payload(&cfg.borrow(), "home")),
+                    &|| active.get(),
+                )
+                .await
+                .unwrap();
+                assert_eq!(
+                    *writes.borrow(),
+                    vec![
+                        ((b'G', vec![0]), true),
+                        ((b'G', b"Home".to_vec()), false),
+                        ((b'G', vec![0]), false),
+                    ]
+                );
+                assert!(started.elapsed() < HEARTBEAT);
+                assert_eq!(name_payload(&cfg.borrow(), "work"), [0]);
+                assert!(crate::led::same_target(&original, &cfg.borrow()));
+                cfg.borrow_mut()
+                    .lamp_names
+                    .insert("home".into(), "Offline edit".into());
+                active.set(true);
+                send_updates(
+                    |value, first| {
+                        writes.borrow_mut().push((value, first));
+                        active.set(false);
+                        async { Ok(()) }
+                    },
+                    || (b'G', name_payload(&cfg.borrow(), "home")),
+                    &|| active.get(),
+                )
+                .await
+                .unwrap();
+                assert_eq!(
+                    writes.borrow().last(),
+                    Some(&((b'G', b"Offline edit".to_vec()), true))
+                );
+            });
+        }
+
         #[test]
         fn preview_expiry_and_write_deduplication() {
             let now = StdInstant::now();

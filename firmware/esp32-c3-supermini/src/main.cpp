@@ -5,6 +5,7 @@
 #include <esp_gatts_api.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include <nvs.h>
 
 #include <algorithm>
 #include <atomic>
@@ -20,6 +21,9 @@ extern "C" uint8_t BTA_GATTS_SetServiceChangeMode(uint8_t mode);
 constexpr char SERVICE_UUID[] = "7d2ea28a-f7bd-485a-bd9d-92ad6ecfe93e";
 constexpr char STATUS_UUID[] = "7d2ea28b-f7bd-485a-bd9d-92ad6ecfe93e";
 constexpr char BRIGHTNESS_UUID[] = "7d2ea28c-f7bd-485a-bd9d-92ad6ecfe93e";
+constexpr char NAME_UUID[] = "7d2ea28d-f7bd-485a-bd9d-92ad6ecfe93e";
+constexpr size_t MAX_LAMP_NAME_BYTES =
+    21;  // 31 - framing (2) - "BroGlow " (8).
 constexpr uint32_t PAIRING_MS = 60000;
 constexpr uint32_t IDENTIFY_STEP_MS = 100;
 constexpr int BUTTON_PIN =
@@ -59,6 +63,10 @@ std::atomic<bool> bleLinkConnected{false};
 char appliedStatus = 'N';
 uint32_t acceptedStatuses = 0;
 char identity[13];
+char defaultBluetoothName[24];
+std::string savedLampName;
+nvs_handle_t nameStorage;
+bool nameStorageReady = false;
 BLEServer* bleServer;
 std::atomic<bool> pairingEnabled{false};
 std::atomic<uint32_t> pairingStarted{0};
@@ -174,10 +182,53 @@ struct BleBrightness {
   uint32_t received;
   bool identify;
 };
+struct BleName {
+  char label[MAX_LAMP_NAME_BYTES + 1];
+  uint32_t generation;
+};
 QueueHandle_t bleConnections;
 QueueHandle_t bleStatuses;
 QueueHandle_t bleBrightness;
 QueueHandle_t blePreviews;
+QueueHandle_t bleNames;
+
+bool validLampName(const std::string& value) {
+  if (value.size() > MAX_LAMP_NAME_BYTES) return false;
+  for (size_t i = 0; i < value.size();) {
+    const auto first = static_cast<uint8_t>(value[i++]);
+    size_t extra;
+    uint32_t code;
+    if (first < 0x80) {
+      extra = 0;
+      code = first;
+    } else if (first >= 0xc2 && first <= 0xdf) {
+      extra = 1;
+      code = first & 0x1f;
+    } else if (first >= 0xe0 && first <= 0xef) {
+      extra = 2;
+      code = first & 0x0f;
+    } else if (first >= 0xf0 && first <= 0xf4) {
+      extra = 3;
+      code = first & 0x07;
+    } else
+      return false;
+    if (i + extra > value.size()) return false;
+    for (size_t j = 0; j < extra; ++j) {
+      const auto byte = static_cast<uint8_t>(value[i++]);
+      if ((byte & 0xc0) != 0x80) return false;
+      code = (code << 6) | (byte & 0x3f);
+    }
+    if ((extra == 2 && code < 0x800) || (extra == 3 && code < 0x10000) ||
+        code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) || code < 0x20 ||
+        (code >= 0x7f && code <= 0x9f))
+      return false;
+  }
+  return true;
+}
+
+std::string bluetoothName(const std::string& label) {
+  return label.empty() ? defaultBluetoothName : "BroGlow " + label;
+}
 
 bool validStatus(char state) {
   return state == 'R' || state == 'Y' || state == 'G' || state == 'N';
@@ -241,6 +292,48 @@ class BrightnessCallbacks : public BLECharacteristicCallbacks {
     xQueueOverwrite(value.size() == 1 ? bleBrightness : blePreviews, &setting);
   }
 } brightnessCallbacks;
+
+class NameCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic* characteristic) override {
+    const std::string value = characteristic->getValue();
+    characteristic->setValue(std::string());
+    const bool reset = value == std::string(1, '\0');
+    if (!reset && (value.empty() || !validLampName(value))) return;
+    BleName setting{};
+    if (!reset) std::memcpy(setting.label, value.data(), value.size());
+    setting.generation = bleGeneration.load();
+    xQueueOverwrite(bleNames, &setting);
+  }
+} nameCallbacks;
+
+void applyPendingName() {
+  BleName setting;
+  if (xQueueReceive(bleNames, &setting, 0) != pdTRUE ||
+      setting.generation != bleGeneration.load() ||
+      savedLampName == setting.label)
+    return;
+  // Only changed names reach NVS; heartbeats and reconnects must not wear
+  // flash.
+  if (!nameStorageReady ||
+      nvs_set_str(nameStorage, "name", setting.label) != ESP_OK ||
+      nvs_commit(nameStorage) != ESP_OK) {
+    Serial.print("name=save_failed\n");
+    return;
+  }
+  const std::string name = bluetoothName(setting.label);
+  if (esp_ble_gap_set_device_name(name.c_str()) != ESP_OK) {
+    Serial.print("name=apply_failed\n");
+    return;
+  }
+  savedLampName = setting.label;
+  BLEAdvertising* advertising = BLEDevice::getAdvertising();
+  if (!bleLinkConnected.load()) advertising->stop();
+  BLEAdvertisementData scanResponse;
+  scanResponse.setName(name);
+  advertising->setScanResponseData(scanResponse);
+  if (!bleLinkConnected.load()) advertising->start();
+  Serial.printf("lamp=%s\n", name.c_str());
+}
 
 void applyPendingBrightness() {
   BleBrightness setting;
@@ -454,7 +547,9 @@ void setup() {
   bleStatuses = xQueueCreate(1, sizeof(BleStatus));
   bleBrightness = xQueueCreate(1, sizeof(BleBrightness));
   blePreviews = xQueueCreate(1, sizeof(BleBrightness));
-  configASSERT(bleConnections && bleStatuses && bleBrightness && blePreviews);
+  bleNames = xQueueCreate(1, sizeof(BleName));
+  configASSERT(bleConnections && bleStatuses && bleBrightness && blePreviews &&
+               bleNames);
   const uint64_t mac = ESP.getEfuseMac();
   char identityBytes[6];
   for (size_t i = 0; i < sizeof(identityBytes); ++i) {
@@ -462,10 +557,18 @@ void setup() {
     identityBytes[i] = static_cast<char>(byte);
     snprintf(identity + 2 * i, 3, "%02x", byte);
   }
-  char name[24];
-  snprintf(name, sizeof(name), "BroGlow C3 %02X%02X",
-           static_cast<unsigned>((mac >> 32) & 0xff),
+  snprintf(defaultBluetoothName, sizeof(defaultBluetoothName),
+           "BroGlow C3 %02X%02X", static_cast<unsigned>((mac >> 32) & 0xff),
            static_cast<unsigned>((mac >> 40) & 0xff));
+  nameStorageReady = nvs_open("broglow", NVS_READWRITE, &nameStorage) == ESP_OK;
+  char storedName[MAX_LAMP_NAME_BYTES + 1] = {};
+  size_t storedSize = sizeof(storedName);
+  savedLampName.clear();
+  if (nameStorageReady &&
+      nvs_get_str(nameStorage, "name", storedName, &storedSize) == ESP_OK &&
+      validLampName(storedName))
+    savedLampName = storedName;
+  const std::string name = bluetoothName(savedLampName);
   BLEDevice::init(name);
   const uint8_t changeModeResult = BTA_GATTS_SetServiceChangeMode(1);
   serviceChangeManual.store(changeModeResult == 0);
@@ -496,6 +599,10 @@ void setup() {
       BRIGHTNESS_UUID, BLECharacteristic::PROPERTY_WRITE);
   brightnessSetting->setCallbacks(&brightnessCallbacks);
   brightnessSetting->setAccessPermissions(ESP_GATT_PERM_WRITE_ENCRYPTED);
+  BLECharacteristic* nameSetting = service->createCharacteristic(
+      NAME_UUID, BLECharacteristic::PROPERTY_WRITE);
+  nameSetting->setCallbacks(&nameCallbacks);
+  nameSetting->setAccessPermissions(ESP_GATT_PERM_WRITE_ENCRYPTED);
   service->start();
   BLEAdvertising* advertising = BLEDevice::getAdvertising();
   BLEAdvertisementData advertisement, scanResponse;
@@ -516,7 +623,7 @@ void setup() {
   if (esp_ble_get_bond_device_num() == 0) openPairing();
   indicationStarted = millis();
   startupStarted = millis();
-  Serial.printf("lamp=%s security=sc-bonded button=BOOT\n", name);
+  Serial.printf("lamp=%s security=sc-bonded button=BOOT\n", name.c_str());
 }
 
 void synchronizeBleConnection() {
@@ -540,6 +647,7 @@ void loop() {
     Serial.printf("authentication=%s reason=%d\n", auth ? "failed" : "ok",
                   auth & 0xff);
   synchronizeBleConnection();
+  applyPendingName();
   applyPendingBrightness();
   BleStatus status;
   if (xQueueReceive(bleStatuses, &status, 0) == pdTRUE) {

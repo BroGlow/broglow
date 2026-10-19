@@ -21,6 +21,7 @@ SCENARIOS = (
     "preview",
     "identify",
     "races",
+    "name",
     "gatt-change",
     "gatt-mode-failed",
 )
@@ -34,6 +35,7 @@ with tempfile.TemporaryDirectory(prefix="broglow-c3-check-") as folder:
         "BLEDevice.h",
         "BLEServer.h",
         "esp_gatts_api.h",
+        "nvs.h",
         "freertos/FreeRTOS.h",
         "freertos/queue.h",
     ):
@@ -77,5 +79,5 @@ with tempfile.TemporaryDirectory(prefix="broglow-c3-check-") as folder:
         ):
             subprocess.run([str(executable), scenario], check=True, timeout=10)
     print(
-        "PASS: protocol/security/ownership, pairing, PWM/builtin, brightness/startup/preview/identify, races, GATT cache change"
+        "PASS: protocol/security/ownership, pairing, PWM/builtin, brightness/startup/preview/identify, persistent name, races, GATT cache change"
     )

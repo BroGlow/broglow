@@ -883,10 +883,19 @@ From the command line, `broglow ble off` disables lamp control and keeps the IDs
 
 In **Lamps**, expand a row (click, or Enter or Space) for its controls, **Name** and
 **Forget lamp**; open **Connection details** for **Device ID** and **Diagnostic**.
-Names are stored on the Mac only and can have up to **40 Unicode characters**; an
-empty name restores `Lamp 1`, `Lamp 2` and so on. Names can be saved while a lamp is
-absent or disabled and do not change the advertised name or bonds. From the command
-line: `broglow ble rename <SAVED_ID> "Office"` (`""` clears the name).
+Names can have up to **40 Unicode characters**. On the next active Bluetooth
+connection, matching firmware also saves the name on the lamp: `Home` becomes
+`BroGlow Home` in Bluetooth settings and survives a power cycle. The Bluetooth
+name uses at most **21 UTF-8 bytes** of the label, keeping whole characters;
+BroGlow retains the full label on the Mac. An empty name restores `Lamp 1`, `Lamp 2`
+and so on in BroGlow and the factory `BroGlow C3 …` Bluetooth name. Names can be
+saved while a lamp is absent or disabled and are sent when it reconnects.
+macOS may keep a cached Bluetooth name until reconnection; an immediate Settings
+refresh has not been verified. Pairing keys and device IDs stay the same.
+Older firmware keeps the Mac label and lamp control working; **Connection details**
+reports that Bluetooth naming needs a firmware update. Updating the app does not
+flash the board; follow the [backup and flash procedure](#flash-and-recover-usb-upload).
+From the command line: `broglow ble rename <SAVED_ID> "Office"` (`""` clears the name).
 **Troubleshooting** shows service and setup details; Back or Escape returns to the
 sessions. In the TUI, `d` toggles details, arrows or `j`/`k` scroll and Escape returns.
 

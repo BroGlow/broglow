@@ -66,6 +66,35 @@ struct MockEsp {
 } ESP;
 
 constexpr int ESP_OK = 0, ESP_GATT_PERM_WRITE_ENCRYPTED = 0x20;
+using nvs_handle_t = unsigned;
+constexpr int NVS_READWRITE = 1;
+std::string storedLampName;
+int nameCommits = 0;
+bool nameStorageFails = false;
+int nvs_open(const char* space, int mode, nvs_handle_t* handle) {
+  assert(std::string(space) == "broglow" && mode == NVS_READWRITE);
+  *handle = 1;
+  return ESP_OK;
+}
+int nvs_get_str(nvs_handle_t handle, const char* key, char* value,
+                size_t* size) {
+  assert(handle == 1 && std::string(key) == "name");
+  if (storedLampName.size() + 1 > *size) return -1;
+  *size = storedLampName.size() + 1;
+  std::memcpy(value, storedLampName.c_str(), *size);
+  return ESP_OK;
+}
+int nvs_set_str(nvs_handle_t handle, const char* key, const char* value) {
+  assert(handle == 1 && std::string(key) == "name");
+  if (nameStorageFails) return -1;
+  storedLampName = value;
+  return ESP_OK;
+}
+int nvs_commit(nvs_handle_t handle) {
+  assert(handle == 1);
+  ++nameCommits;
+  return ESP_OK;
+}
 constexpr int ESP_LE_AUTH_REQ_SC_BOND = 9, ESP_IO_CAP_NONE = 3;
 constexpr int ESP_BLE_ENC_KEY_MASK = 1, ESP_BLE_ID_KEY_MASK = 2;
 constexpr int ESP_BLE_ONLY_ACCEPT_SPECIFIED_AUTH_ENABLE = 1;
@@ -180,14 +209,17 @@ struct BLECharacteristic {
     callbacks->onWrite(this);
     return true;
   }
-} characteristic, brightnessCharacteristic;
+} characteristic, brightnessCharacteristic, nameCharacteristic;
 struct BLEService {
   std::string uuid;
   bool started = false;
   BLECharacteristic* createCharacteristic(const char* value, int properties) {
-    auto* target = std::string(value) == "7d2ea28c-f7bd-485a-bd9d-92ad6ecfe93e"
-                       ? &brightnessCharacteristic
-                       : &characteristic;
+    auto* target =
+        std::string(value) == "7d2ea28d-f7bd-485a-bd9d-92ad6ecfe93e"
+            ? &nameCharacteristic
+        : std::string(value) == "7d2ea28c-f7bd-485a-bd9d-92ad6ecfe93e"
+            ? &brightnessCharacteristic
+            : &characteristic;
     target->uuid = value;
     target->properties = properties;
     return target;
@@ -247,12 +279,13 @@ struct BLEAdvertising {
     scanResponse = value;
   }
   void start() { active = true; }
+  void stop() { active = false; }
 } advertising;
 struct BLEDevice {
   static inline std::string name;
   static inline BLESecurityCallbacks* security = nullptr;
   static inline gatts_event_handler gattsHandler = nullptr;
-  static void init(const char* value) { name = value; }
+  static void init(const std::string& value) { name = value; }
   static void setCustomGattsHandler(gatts_event_handler value) {
     gattsHandler = value;
   }
@@ -263,6 +296,12 @@ struct BLEDevice {
   static BLEAdvertising* getAdvertising() { return &advertising; }
   static void startAdvertising() { advertising.start(); }
 };
+bool nameApplyFails = false;
+int esp_ble_gap_set_device_name(const char* value) {
+  if (nameApplyFails) return -1;
+  BLEDevice::name = value;
+  return ESP_OK;
+}
 
 #define configASSERT(value) assert(value)
 constexpr int pdTRUE = 1;
@@ -368,7 +407,9 @@ void protocolChecks() {
   assert(characteristic.uuid == "7d2ea28b-f7bd-485a-bd9d-92ad6ecfe93e");
   assert(brightnessCharacteristic.uuid ==
          "7d2ea28c-f7bd-485a-bd9d-92ad6ecfe93e");
-  for (auto* target : {&characteristic, &brightnessCharacteristic}) {
+  assert(nameCharacteristic.uuid == "7d2ea28d-f7bd-485a-bd9d-92ad6ecfe93e");
+  for (auto* target :
+       {&characteristic, &brightnessCharacteristic, &nameCharacteristic}) {
     assert(target->properties & BLECharacteristic::PROPERTY_WRITE);
     assert(target->permissions & ESP_GATT_PERM_WRITE_ENCRYPTED);
     assert(!target->write("R", false));
@@ -893,6 +934,85 @@ void callbackRaceChecks() {
   expectLamp(0, 0, 0, 0);  // Live BLE ownership already blocks USB.
 }
 
+void nameChecks() {
+  bondedBoot();
+  const auto identityData = advertising.advertisement.manufacturer;
+  const auto factoryName = BLEDevice::name;
+  connectPeer();
+  statusAt(1000, "G");
+  at(1250);
+  assert(!nameCharacteristic.write("Home", false));
+  loop();
+  assert(BLEDevice::name == factoryName && nameCommits == 0);
+  nameCharacteristic.write("Home");
+  loop();
+  assert(BLEDevice::name == "BroGlow Home");
+  assert(advertising.scanResponse.name == BLEDevice::name);
+  assert(!advertising.active && bleLinkConnected.load());
+  assert(advertising.advertisement.manufacturer == identityData);
+  assert(storedLampName == "Home" && nameCommits == 1);
+  expectLamp(0, 0, 255);
+  nameCharacteristic.write("Home");
+  loop();
+  assert(nameCommits == 1);
+  nameCharacteristic.callbacks->onWrite(&nameCharacteristic);
+  loop();
+  assert(nameCommits == 1);  // An empty prepared write cannot replay a rename.
+  for (const auto& invalid :
+       {std::string(), std::string(22, 'a'), std::string("a\0b", 3),
+        std::string("a\nb"), std::string("\x7f"), std::string("\xc2\x80"),
+        std::string("\x80"), std::string("\xc0\xaf"),
+        std::string("\xe0\x80\xaf"), std::string("\xed\xa0\x80"),
+        std::string("\xf4\x90\x80\x80"), std::string("\xe5\xae")}) {
+    nameCharacteristic.write(invalid);
+    loop();
+    assert(BLEDevice::name == "BroGlow Home" && nameCommits == 1);
+  }
+  nameStorageFails = true;
+  nameCharacteristic.write("Office");
+  loop();
+  assert(BLEDevice::name == "BroGlow Home" && storedLampName == "Home");
+  nameStorageFails = false;
+  nameApplyFails = true;
+  nameCharacteristic.write("Office");
+  loop();
+  assert(BLEDevice::name == "BroGlow Home" && savedLampName == "Home");
+  nameApplyFails = false;
+  nameCharacteristic.write("Office");
+  loop();
+  assert(BLEDevice::name == "BroGlow Office");
+  nameCharacteristic.write("Home");
+  loop();
+  nameCharacteristic.write("Old connection");
+  disconnectPeer();
+  connectPeer();
+  loop();
+  assert(BLEDevice::name == "BroGlow Home");
+  nameCharacteristic.write("Дом 🏠");
+  disconnectPeer();
+  loop();  // Preserve a valid same-connection write already acknowledged.
+  assert(BLEDevice::name == "BroGlow Дом 🏠" && advertising.active);
+  connectPeer();
+  nameCharacteristic.write(std::string(21, 'a'));
+  loop();
+  assert(BLEDevice::name.size() == 29 &&
+         advertising.scanResponse.getPayload().size() == 31);
+  setup();  // A new boot reloads the NVS name without the Mac.
+  assert(BLEDevice::name == "BroGlow " + std::string(21, 'a'));
+  connectPeer();
+  nameCharacteristic.write(std::string(1, '\0'));
+  loop();
+  assert(BLEDevice::name == factoryName && storedLampName.empty());
+  setup();
+  assert(BLEDevice::name == factoryName);
+  storedLampName = std::string(22, 'x');
+  setup();
+  assert(BLEDevice::name == factoryName);
+  storedLampName = "\xc0\xaf";
+  setup();
+  assert(BLEDevice::name == factoryName && mockBonds.size() == 1);
+}
+
 void serviceChangeChecks(bool modeFailure) {
   mockChangeModeResult = modeFailure ? 255 : 0;
   bondedBoot();
@@ -930,6 +1050,8 @@ int main(int argc, char** argv) {
     identifyChecks();
   else if (scenario == "races")
     callbackRaceChecks();
+  else if (scenario == "name")
+    nameChecks();
   else if (scenario == "gatt-change")
     serviceChangeChecks(false);
   else if (scenario == "gatt-mode-failed")
