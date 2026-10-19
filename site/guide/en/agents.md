@@ -42,8 +42,10 @@ next prompt on.
    definitions may need approval again.
 3. Send a prompt in a new local Codex task, in the CLI or desktop app.
    In BroGlow's session list, check that this task shows **Working** while it runs and
-   **Paused** after the response. A human approval request or blocking question shows
-   **Needs help**. Automatic approval review stays **Working** if Codex records the
+   **Paused** after the response. A human approval request or question shows
+   **Needs help**. An unanswered quiz stays red even after Codex finishes its response,
+   until you reply, interrupt the turn or end the session.
+   Automatic approval review stays **Working** if Codex records the
    reviewer; otherwise permission requests show **Needs help**. Interrupting a turn
    pauses it; ending the session removes it from live status. Other live sessions and
    the **Settings → Mixed sessions** choice also affect the lamp's color.

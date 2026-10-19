@@ -164,6 +164,60 @@ fn codex_questions_interrupts_and_session_end_follow_the_lifecycle() {
     assert_eq!(session(&read_state(&home), id)["status"], "done");
 }
 
+#[test]
+fn codex_async_question_stays_red_until_the_user_replies() {
+    let home = temp_home();
+    let id = "async-question";
+    run_codex_hook(&home, &ev("SessionStart", id)).success();
+    for event in ["PreToolUse", "PostToolUse"] {
+        run_codex_hook(
+            &home,
+            &json!({
+                "hook_event_name": event, "session_id": id,
+                "tool_name": "request_user_input_async", "tool_use_id": "quiz",
+                "tool_input": {"questions": [{"title": "iPhone or Samsung?", "options": ["iPhone", "Samsung"]}]},
+                "tool_response": {"accepted": true},
+            })
+            .to_string(),
+        )
+        .success();
+        assert_eq!(
+            session(&read_state(&home), id)["status"],
+            "needs_help",
+            "{event}"
+        );
+    }
+    // Displaying the quiz completes the tool immediately; neither concurrent
+    // work nor the end of the turn means the user has answered it.
+    for event in ["PreToolUse", "PostToolUse", "Stop"] {
+        run_codex_hook(&home, &ev(event, id)).success();
+        assert_eq!(
+            session(&read_state(&home), id)["status"],
+            "needs_help",
+            "{event}"
+        );
+    }
+    run_codex_hook(&home, &ev("UserPromptSubmit", id)).success();
+    assert_eq!(session(&read_state(&home), id)["status"], "active");
+    run_codex_hook(&home, &ev("Stop", id)).success();
+    assert_eq!(session(&read_state(&home), id)["status"], "inactive");
+    for (event, status) in [("Interrupt", "inactive"), ("SessionEnd", "done")] {
+        run_codex_hook(
+            &home,
+            &json!({
+                "hook_event_name": "PreToolUse", "session_id": id,
+                "tool_name": "request_user_input_async", "tool_use_id": "next-quiz",
+            })
+            .to_string(),
+        )
+        .success();
+        run_codex_hook(&home, &ev(event, id)).success();
+        let s = session(&read_state(&home), id);
+        assert_eq!(s["status"], status, "{event}");
+        assert!(s["notification_type"].is_null());
+    }
+}
+
 #[cfg(target_os = "macos")]
 #[test]
 fn desktop_rollout_repairs_stale_terminal_identity_before_focus() {

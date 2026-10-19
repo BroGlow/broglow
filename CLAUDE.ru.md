@@ -279,7 +279,9 @@ Claude Code вызывает хук → `broglow hook` читает JSON соб�
   подтверждения. `PreToolUse` для `request_user_input` тоже включает красный;
   `tool_use_id` не даёт чужому завершению убрать вопрос. Его завершение или
   `UserPromptSubmit` возобновляет работу; остальные `PostToolUse` снимают ожидание
-  разрешения. `Interrupt` → `idle`,
+  разрешения. `request_user_input_async` возвращается сразу после показа вопроса,
+  поэтому красный сохраняется после завершения инструмента и `Stop` до
+  `UserPromptSubmit`, `Interrupt` или `SessionEnd`. `Interrupt` → `idle`,
   `SessionEnd` → `ended`, `Stop` → `idle` либо `ended` для одноразовых запусков
   `codex exec`. Для старых версий Codex остаётся очистка по PID владельца.
   На macOS `session_meta.originator: Codex Desktop` исправляет сохранённый

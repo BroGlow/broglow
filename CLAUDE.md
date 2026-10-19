@@ -231,7 +231,9 @@ thin:
   Missing reviewer metadata keeps the human-approval behavior. `PreToolUse` of
   `request_user_input` also turns red; its `tool_use_id` keeps unrelated completions
   from clearing the question. Matching completion or `UserPromptSubmit` resumes it;
-  other `PostToolUse` events resume permission waits.
+  other `PostToolUse` events resume permission waits. `request_user_input_async`
+  returns as soon as the question is displayed, so it stays red through tool
+  completion and `Stop` until `UserPromptSubmit`, `Interrupt` or `SessionEnd`.
   `Interrupt` → `idle`, `SessionEnd` → `ended`, and `Stop` → `idle` — or `ended` for
   one-shot `codex exec` rollouts. Older Codex versions retain the owner-pid reap backstop.
   On macOS, `session_meta.originator: Codex Desktop` repairs captured terminal identity

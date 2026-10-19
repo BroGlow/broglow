@@ -512,15 +512,17 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
         }
         let existing = state.sessions.get(&session_id);
 
-        // Code-mode tools can finish concurrently with a blocking question.
-        // Only that question's completion (or a lifecycle event) resolves it.
+        // Async questions return before the answer and can outlive the turn.
+        // Blocking questions resolve only on their own completion.
         if harness == "codex"
-            && v["hook_event_name"] == "PostToolUse"
             && existing
                 .and_then(|s| s.notification_type.as_deref())
                 .is_some_and(|pending| {
-                    pending.starts_with("codex_question:")
-                        && Some(pending) != notification_type.as_deref()
+                    (pending.starts_with("codex_question_async:")
+                        && matches!(v["hook_event_name"].as_str(), Some("PostToolUse" | "Stop")))
+                        || (pending.starts_with("codex_question:")
+                            && v["hook_event_name"] == "PostToolUse"
+                            && Some(pending) != notification_type.as_deref())
                 })
         {
             return terminal_changed;
@@ -621,7 +623,9 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
 /// Mapping notes:
 /// - `PermissionRequest` → `needs_input` unless this turn explicitly uses
 ///   automatic approval review; those requests do not wait for the user.
-/// - `PreToolUse` of `request_user_input` → `needs_input` until it completes.
+/// - `PreToolUse` of `request_user_input` → `needs_input` until it completes;
+///   `request_user_input_async` stays red through completion and `Stop` until
+///   the user replies, interrupts, or ends the session.
 /// - `PostToolUse` → `resumed`: the first tool completion after an approval is
 ///   what clears the red; a plain `working` deliberately would not.
 /// - `UserPromptSubmit` → `resumed`: the user typing is also them dealing
@@ -658,7 +662,12 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
     let exec = hook_event == "Stop"
         && !transcript_path.is_empty()
         && crate::codex::rollout_is_exec(&transcript_path);
-    let event = if hook_event == "PreToolUse" && v["tool_name"] == "request_user_input" {
+    let question_marker = match v["tool_name"].as_str() {
+        Some("request_user_input") => Some("codex_question"),
+        Some("request_user_input_async") => Some("codex_question_async"),
+        _ => None,
+    };
+    let event = if hook_event == "PreToolUse" && question_marker.is_some() {
         Some("needs_input")
     } else {
         codex_event_verb(&hook_event, exec)
@@ -682,9 +691,9 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
         "session_id": session_id,
         "hook_event_name": hook_event,
     });
-    if v["tool_name"] == "request_user_input" {
+    if let Some(marker) = question_marker {
         ev["notification_type"] = Value::String(format!(
-            "codex_question:{}",
+            "{marker}:{}",
             field("tool_use_id").unwrap_or_default()
         ));
     }
