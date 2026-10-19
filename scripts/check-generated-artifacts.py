@@ -1,4 +1,4 @@
-"""Reject top-level docs, CAD exports, archives, disposable previews and inspection JSON."""
+"""Reject top-level docs, CAD exports, archives and disposable CAD previews."""
 
 from pathlib import Path
 import re
@@ -10,11 +10,6 @@ def is_generated(path):
         path.lower().startswith("docs/")
         or re.search(r"\.(zip|stl|step|stp|3mf)$", path, re.I)
         or path.lower().startswith("models/broglow/preview/")
-        or re.fullmatch(
-            r"models/broglow/(?:cad|coupon|usb-coupon)-inspection\.json",
-            path,
-            re.I,
-        )
     )
 
 
@@ -33,7 +28,7 @@ def main():
             + "\n".join(forbidden)
         )
     print(
-        "No top-level docs, generated STL, STEP/STP, 3MF, ZIP, CAD previews or disposable JSON are tracked."
+        "No top-level docs, generated STL, STEP/STP, 3MF, ZIP or CAD previews are tracked."
     )
 
 
