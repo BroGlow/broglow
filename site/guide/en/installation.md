@@ -62,7 +62,8 @@ Wait for **Connected** on the intended lamp's row: **Lamp added** only means sav
 Connected confirms a status write, not visible LED operation. Then power the lamp from
 your Mac or a USB adapter. BroGlow reconnects automatically when the lamp is in range,
 as long as the app is running and lamp control and Bluetooth are on.
-For several boards or failed setup, see [USB-assisted setup](hardware.md#usb-assisted-setup).
+To add more lamps, connect them by cable one at a time and repeat these steps.
+If several boards are connected at once or setup fails, see [USB-assisted setup](hardware.md#usb-assisted-setup).
 
 <a name="controls"></a>
 
