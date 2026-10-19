@@ -14,7 +14,7 @@ in real time. It ships three faces of the same executable:
 - **Menu bar / system tray daemon** (`broglow menubar`) — a color-coded status-light icon
   reflecting aggregate session health; auto-starts at login.
 - **Hook backend** (`broglow hook`) — invoked by Claude Code's lifecycle hooks to
-  record per-session status. Replaces the old bash+jq hook script; no shell/`jq` dep.
+  record per-session status.
 
 Optionally mirrors aggregate state over USB serial, or from macOS over BLE to the
 ESP32-C3 SuperMini firmware in this repository. For hardware changes, flashing,
@@ -29,8 +29,7 @@ For source changes, follow [CONTRIBUTING.md](CONTRIBUTING.md) for development
 setup, formatting, hooks and checks. The [build and test commands](CONTRIBUTING.md#build-and-test)
 are shared by human and agent contributors.
 
-`broglow install` is idempotent and also (re)starts the tray daemon, so re-run it
-after `cargo install` to make the running daemon pick up a new binary. On macOS it
+`broglow install` is idempotent and also (re)starts the tray daemon. On macOS it
 installs `~/Applications/BroGlow.app` and reloads the existing LaunchAgent
 (`io.github.broglow.menubar`) via `launchctl bootout`/`bootstrap`/`kickstart`.
 Inspect the installed service and preserve unrelated hooks/settings before deployment.
@@ -209,7 +208,7 @@ thin:
   `uninstall_hooks`) and `agent(harness)` iterate it. `agent` gives the popover's icon and
   name, the TUI's AGENT column (the name, or the tag with names off) and the Linux tray
   menu's `[cx] Codex · recco`; Claude comes from `CLAUDE_LABEL`/`CLAUDE_ICON`/`CLAUDE_BADGE` (`cc`). So **adding
-  Codex/Copilot is one `Adapter` entry + its embedded asset**, not edits across
+  a harness is one `Adapter` entry + its embedded asset**, not edits across
   main.rs/session.rs/ui.rs. Each new harness needs a **unique** `badge` (a test enforces
   it — the `codex`/`copilot` → `"co"` collision is the trap the two-char fallback would
   otherwise hide), plus a unique `label` and `icon`. Icons are our own geometric glyphs,
@@ -217,8 +216,8 @@ thin:
   the popover places only in a `d` attribute. An unknown harness shows its badge instead.
 - **`assets/opencode-plugin.js`** is embedded via `include_str!` and written to opencode's
   global `~/.config/opencode/plugins/broglow.js` at install time, with this binary's absolute
-  path and version baked in (so it runs even when broglow isn't on opencode's PATH; the
-  unconditional rewrite each install is the version-skew fix). It is **logic-free by design**:
+  path and version baked in (so it runs even when broglow isn't on opencode's PATH; every
+  install rewrites it to match the binary). It is **logic-free by design**:
   it only normalizes opencode's bus events to the verbs above and fire-and-forgets `broglow
   event` — every mapping decision lives in Rust where it's tested. Install is detection-gated
   (opencode config dir exists *or* `opencode` on PATH); uninstall removes the file only if it
@@ -301,9 +300,9 @@ thin:
   prompt, without `<system-reminder>` blocks. It never overwrites an existing name.
 - **LEDs are opt-in, but a clean first install auto-enables USB when a board is already
   plugged in** (`maybe_autoenable_led` in main.rs, called from `install_hooks`). It's gated
-  on there being no `config.json` yet, so re-running install — or an existing user — never
-  has the LEDs flipped back on against a deliberate opt-out. The daemon mirrors status
-  only while `led_enabled` is set — from Lamp details or TUI `l`.
+  on there being no `config.json` yet, so re-running install never flips
+  the LEDs back on against a deliberate opt-out. The daemon mirrors status only while
+  `led_enabled` is set — from Lamp details or TUI `l`.
   On macOS, the tray also identifies new USB candidates while mirroring is disabled
   and enables successfully added new lamps over BLE. Rendering stays read-only.
   USB VID `0x303A` identifies Espressif,
@@ -382,19 +381,16 @@ pairing/bonds; these are not pin readback or proof of visible light. `N` cannot
 distinguish disabled from absent Mac, so disconnected waiting pulses may resume;
 `WAIT_LED_BRIGHTNESS=0` silences them. The hardware guide owns pattern timing and setup.
 
-See the hardware guide for flashing commands and the confirmed hardware state.
-
 ## CI
 
 `.github/workflows/ci.yaml` runs on PRs and pushes to master: `cargo fmt --check`,
 then clippy (`-D warnings`) + `cargo test` on ubuntu/macos/windows. The tests/
 suite drives the *compiled binary* end-to-end: Claude hook events on stdin →
 `state.json` assertions, the auto-namer against a fake `claude` on PATH
-(hook_lifecycle.rs, unix-only — `$HOME` can't be redirected on Windows),
-normalized harness events → `state.json` (event_lifecycle.rs, unix-only, same
-reason), Codex Claude-dialect payloads through the shim (codex_lifecycle.rs,
-unix-only, same reason), Copilot per-event payloads through the shim
-(copilot_lifecycle.rs, unix-only, same reason), install/uninstall round-trip
+(hook_lifecycle.rs), normalized harness events → `state.json` (event_lifecycle.rs),
+Codex Claude-dialect payloads through the shim (codex_lifecycle.rs), Copilot
+per-event payloads through the shim (copilot_lifecycle.rs) — these four are
+unix-only because `$HOME` can't be redirected on Windows; install/uninstall round-trip
 incl. the opencode plugin, Codex hooks.json and the Copilot hooks file (install.rs,
 Linux-only — on macOS it would `launchctl bootout` the dev machine's real
 daemon), and CLI behavior checks (cli.rs; stateful cases are Unix-only). The JavaScript
