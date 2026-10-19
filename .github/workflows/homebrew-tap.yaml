@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   formula:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
         with:
@@ -78,7 +78,7 @@ jobs:
     if: ${{ inputs.publish }}
     needs:
       - check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Refuse to publish while the repository is private
         env:

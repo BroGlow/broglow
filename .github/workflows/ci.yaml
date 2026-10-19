@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   python-format:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -34,7 +34,7 @@ jobs:
         run: uv run --frozen --group dev black --check --diff .
 
   firmware:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       # The packaging test generates Rust notices with cargo and the toolchain's
@@ -56,7 +56,7 @@ jobs:
       # Release packaging builds the firmware; contributors build it locally.
 
   fmt:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -71,7 +71,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-latest
+          - ubuntu-26.04
           - macos-latest
           - windows-latest
     runs-on: ${{ matrix.os }}
@@ -108,7 +108,7 @@ jobs:
   # cover. A dedicated job so it's a distinct, required PR check. Linux only: it
   # sandboxes state via $HOME like the Rust suite.
   js-integration:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 

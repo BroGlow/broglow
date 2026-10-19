@@ -149,7 +149,7 @@ jobs:
     needs:
       - mac
       - windows
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
