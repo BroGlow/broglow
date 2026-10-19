@@ -9,8 +9,7 @@
     "models/broglow/broglow.py": "dc12212c1468e9a728b6e6fcd2711ff699338ab1ad326c7928d46078debde788",
     "models/broglow/hand_joint.py": "031ee6d6fb650a14932008af05faca70a37432f1488e6805c67a1480f0a9abfe",
     "models/broglow/check.py": "e91412054717300c9b6241655df6a5a7d4adb31ec20e8a106932ae174c9da0d3",
-    "models/broglow/usb_coupon.py": "edd9fb3f4520f5ba1202b22752b931438d207e15e5dd6e7bd371573300f9190e",
-    "models/broglow/requirements.txt": "7e19cc593c31f82d94efbe33f846e2eb5201ddc004dc3ebb93d5930c32ee9116"
+    "models/broglow/usb_coupon.py": "edd9fb3f4520f5ba1202b22752b931438d207e15e5dd6e7bd371573300f9190e"
   },
   "source_changed_during_export": false,
   "exporter": {

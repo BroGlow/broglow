@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Export the current CAD appearance or exploded view to a web GLB.
 
-Run with the CAD Python environment (models/broglow/requirements.txt) and the
+Run with the locked CAD dependency group (uv run --frozen --only-group cad) and the
 installed CAD skill. Only gen_step() is invoked; generator main/export_all is not.
 """
 
@@ -16,6 +16,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL = ROOT / "models/magnetic"
@@ -30,12 +31,16 @@ SHARED = (
     "models/broglow/hand_joint.py",
     "models/broglow/check.py",
     "models/broglow/usb_coupon.py",
-    "models/broglow/requirements.txt",
 )
 
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def cad_group():
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    return pyproject["dependency-groups"]["cad"]
 
 
 def glb_facts(path):
@@ -127,6 +132,9 @@ def check(metadata, facts, allow_missing_sources=False):
             assert (
                 digest(source.read_bytes()) == sha
             ), f"Stale web model: {name} changed; explicitly re-export current CAD"
+        assert (
+            f"build123d=={metadata['exporter']['build123d']}" in cad_group()
+        ), "Stale web model: pinned build123d changed; explicitly re-export current CAD"
     assert all(
         metadata[key] == value for key, value in facts.items()
     ), "GLB and provenance differ"

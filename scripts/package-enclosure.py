@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tomllib
 from zipfile import ZIP_DEFLATED, ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +20,8 @@ MAGNETIC = Path("models/magnetic")
 SOURCE_FILES = (
     Path("LICENSE"),
     Path("Cargo.toml"),
+    Path("pyproject.toml"),
+    Path("uv.lock"),
     Path("scripts/package-enclosure.py"),
     Path("scripts/package-macos.py"),
     *(
@@ -28,7 +31,6 @@ SOURCE_FILES = (
             "hand_joint.py",
             "check.py",
             "usb_coupon.py",
-            "requirements.txt",
         )
     ),
     *(
@@ -160,14 +162,14 @@ def main():
         print(f"Release source verified: {args.release_tag} ({commit})")
         return
     toolchain = {}
-    for requirement in (ROOT / MODEL / "requirements.txt").read_text().splitlines():
-        if not requirement.strip() or requirement.startswith("#"):
-            continue
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    for requirement in pyproject["dependency-groups"]["cad"]:
         name, expected = requirement.split("==")
         actual = importlib.metadata.version(name)
         release.require(
             actual == expected,
-            f"Install pinned CAD requirements: {name}=={expected}, found {actual}",
+            f"Run with the locked CAD group (uv run --frozen --only-group cad): "
+            f"{name}=={expected}, found {actual}",
         )
         toolchain[name] = actual
     inputs = source_files()
