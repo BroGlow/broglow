@@ -17,11 +17,7 @@ Maintained by **Suren Khorenyan**. Copyright notices are in [LICENSE](LICENSE).
 
 BroGlow is a separate, independently maintained application based on
 [ClawLight](https://github.com/clawlight/clawlight-cli). It substantially reworks
-and extends the original: sessions get real names, agent and host icons, project
-grouping and one-click opening of the right conversation; the lamp works over
-Bluetooth on macOS with per-lamp setup, naming and brightness; installation comes
-through Homebrew with safe upgrades; and the printable enclosure has a swappable
-magnetic mascot with an interactive assembly guide.
+and extends the original:
 
 **Sessions**
 
@@ -39,7 +35,7 @@ magnetic mascot with an interactive assembly guide.
 | What's better | What you gain |
 | --- | --- |
 | **Wireless lamp connection** | Put the lamp anywhere in Bluetooth range; no data cable to the Mac. |
-| **Plug in, paired** | A new USB-attached lamp pairs itself on macOS; **Add lamp** remains as a manual retry. |
+| **Plug in, paired** | A new USB-attached lamp pairs itself on macOS; **Add lamp** retries. |
 | **Lamps managed one at a time** | Name, forget or identify one lamp; the others stay connected, with status for each. |
 | **Brightness with live preview** | Adjust each lamp to a comfortable level and see the result before saving. |
 | **Identify a lamp** | Flash the selected lamp with a three-pass scan to confirm which one you're controlling. |
@@ -63,7 +59,7 @@ magnetic mascot with an interactive assembly guide.
 
 Bluetooth lamp features (wireless control, automatic pairing, naming, per-lamp
 brightness, **Identify**) and direct opening of desktop sessions are macOS-only.
-The lamp still needs power and is designed for DIY assembly.
+The lamp is a DIY build and needs power.
 
 ## Start here
 
@@ -113,13 +109,12 @@ cargo install --locked --path .
 ```
 
 On Linux, install the [system development libraries](CONTRIBUTING.md#development-setup)
-before compiling. The Linux tray uses GTK 3 bindings with known advisories; see
-[development setup](CONTRIBUTING.md#development-setup). On Windows, use the Rust MSVC
+before compiling; the tray's GTK 3 bindings have known advisories. On Windows, use the Rust MSVC
 toolchain, run `cargo install --locked --path .`, then `broglow install`.
 No board is flashed by app installation.
 
 On macOS, press **⌘ Space**, search **BroGlow** and press Return to open its
-controls. The app lives in `~/Applications/BroGlow.app` and starts at login.
+controls. The app lives in `~/Applications/BroGlow.app`.
 You can also run `open "$HOME/Applications/BroGlow.app"`. In Terminal, `broglow`
 opens the optional terminal dashboard once `~/.cargo/bin` is on
 [PATH](site/guide/en/alternatives.md#path).
@@ -127,7 +122,7 @@ opens the optional terminal dashboard once `~/.cargo/bin` is on
 ## Connect your coding agents
 
 Installation always registers Claude Code hooks and adds hooks for other agents
-it detects; already-running sessions may need a restart. Details per agent:
+it detects. Details per agent:
 [Connect your coding agents](site/guide/en/agents.md).
 
 | Agent | Setup note |
@@ -155,10 +150,8 @@ broglow dashboard-button show   Show terminal-dashboard buttons in the tray app
 broglow uninstall               Remove hooks, autostart, the app (macOS) and all BroGlow data
 ```
 
-The app starts at login. Needs input always wins (red); in **Settings** (macOS and
-Windows) choose whether mixed working and idle sessions show yellow or green.
-See the [guide](site/guide/en/installation.md) and [troubleshooting](site/guide/en/troubleshooting.md);
-the [manual](site/guide/en/hardware.md) covers firmware, wiring and verification.
+Needs input always wins (red); in **Settings** (macOS and Windows) choose whether
+mixed working and idle sessions show yellow or green.
 
 ## Contributing
 
