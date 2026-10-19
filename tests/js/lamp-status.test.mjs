@@ -281,6 +281,7 @@ test('Settings uses native radios for mixed sessions and a checkbox for usage tr
 for (const { id, key, command, defaultValue } of [
   { id: 'showagentnames', key: 'showAgentNames', command: 'set_agent_names', defaultValue: true },
   { id: 'groupbyproject', key: 'groupByProject', command: 'set_group_by_project', defaultValue: false },
+  { id: 'autoaddforgottenusb', key: 'autoAddForgottenUsb', command: 'set_auto_add_forgotten_usb', defaultValue: true },
 ]) {
   test(`Settings saves ${key} while preserving the pending choice and keyboard focus`, () => {
     const { context, element, click, listeners, commands, pushState } = popoverPage();
@@ -303,9 +304,24 @@ for (const { id, key, command, defaultValue } of [
       assert.equal(toggle.checked, enabled);
       assert.equal(context.document.activeElement, toggle);
     }
+    toggle.checked = !defaultValue;
+    listeners.change({ target: toggle });
+    refresh({ [key]: defaultValue });
+    context.window.__configActionResult('Could not save setting');
+    assert.equal(toggle.checked, defaultValue, 'A failed write restores the saved value');
+    assert.equal(element('settingserror').textContent, 'Could not save setting');
     assert.equal(element('groups').writes, builds, 'Keep the control attached during host refreshes');
   });
 }
+
+test('USB re-add preference is shown only on platforms with Bluetooth setup', () => {
+  const { click, element, pushState } = popoverPage();
+  click('settingsbtn');
+  for (const supported of [true, false]) {
+    pushState({ lamp: lamp({ bluetooth_supported: supported }) });
+    assert.equal(element('usblampsettings').hidden, !supported);
+  }
+});
 
 test('grouping by project lists sessions under directory headings with the status in each row', () => {
   const { context, element } = popoverPage();

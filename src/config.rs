@@ -52,8 +52,9 @@ pub struct Config {
     pub led_transport: LedTransport,
     /// Remembered CoreBluetooth UUIDs, never guessed MAC addresses/names.
     pub ble_peripherals: Vec<String>,
-    /// Verified USB base MAC → Bluetooth ID. Retain forgotten boards so automatic
-    /// setup never undoes an explicit Forget or Disable, including after restart.
+    /// Add forgotten lamps on a detected USB replug. Startup alone never adds them.
+    pub auto_add_forgotten_usb: bool,
+    /// Verified USB base MAC → Bluetooth ID, including forgotten boards.
     #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub usb_lamps: std::collections::BTreeMap<String, String>,
     /// Optional user labels, keyed by the saved Bluetooth identity.
@@ -92,6 +93,7 @@ impl Default for Config {
             led_port: None,
             led_transport: LedTransport::default(),
             ble_peripherals: Vec::new(),
+            auto_add_forgotten_usb: true,
             usb_lamps: Default::default(),
             lamp_names: Default::default(),
             led_brightness: 100,
@@ -236,6 +238,24 @@ pub fn write_config(cfg: &Config) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::Config;
+
+    #[test]
+    fn forgotten_usb_preference_defaults_on_and_round_trips() {
+        assert!(Config::default().auto_add_forgotten_usb);
+        assert!(
+            serde_json::from_str::<Config>("{}")
+                .unwrap()
+                .auto_add_forgotten_usb
+        );
+        let cfg: Config = serde_json::from_str(
+            r#"{"auto_add_forgotten_usb":false,"usb_lamps":{"a":"lamp"},"custom":42}"#,
+        )
+        .unwrap();
+        let saved = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(saved["auto_add_forgotten_usb"], false);
+        assert_eq!(saved["usb_lamps"]["a"], "lamp");
+        assert_eq!(saved["custom"], 42);
+    }
 
     #[test]
     fn missing_options_leave_lamps_and_usage_opted_out() {

@@ -78,6 +78,13 @@ Open the **Lamp** button in the menu footer and expand a lamp's row:
 - **Forget lamp:** removes it, with its name and brightness, from this Mac; other lamps
   and Bluetooth bonds remain. Forgetting the last lamp also turns lamp control off.
 
+On macOS, a forgotten lamp is added again when you unplug its USB cable for at least
+five seconds and reconnect it. **Settings → Lamps → Automatically add forgotten lamps
+over USB** is on by default; turn it off if you connect lamps only for power.
+**Add lamp** always works with a USB data cable. Forget keeps the lamp disconnected
+while attached, and restarting the app does not add it again. Saved disabled lamps
+stay disabled.
+
 At 0%, the controlled LEDs stay dark (the board's red power LED stays on) while
 Bluetooth remains connected; **Identify** still works on a connected lamp.
 You can change brightness while a lamp is offline: it applies when the lamp reconnects.

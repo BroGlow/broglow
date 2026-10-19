@@ -126,7 +126,10 @@ grant or board operation: record those acceptance checks separately.
   advertising) fall back to the pause and own scan under `radio_lock`. The automatic
   `remember_usb` guard expects the enable state setup left (`paused`). The tray checks
   USB every five seconds and attempts setup once per new attachment; `usb_lamps`
-  records verified boards so Disable/Forget survive restart. Retain exact identity
+  records verified boards so Disable/Forget survive restart. A detected replug can
+  re-add a forgotten board when `auto_add_forgotten_usb` is on (the default); startup
+  uses `Automatic` while a new attachment uses `UsbReplug`. Recheck the preference
+  before saving. Saved disabled lamps stay disabled. Retain exact identity
   checks, serial/worker locks, failure rollback and macOS consent.
   Keep btleplug 0.13.1 locked: its macOS write-error propagation fixes dropped
   CoreBluetooth NSError failures during pairing. A longer host timeout cannot
