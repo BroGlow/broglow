@@ -92,8 +92,7 @@ Node.js 24, as in CI, which runs that suite on Linux. See
 The [CI workflow](.github/workflows/ci.yaml) has the complete firmware, packaging
 and platform checks. For packaging, icon or firmware build changes, also run the
 matching steps of its `firmware` job: `tests/package_macos.py`,
-`tests/package_enclosure.py`, `assets/icons/render.py --check` and the
-`led-test` PlatformIO build.
+`assets/icons/render.py --check` and the `led-test` PlatformIO build.
 
 For a local app update and live service checks, follow the
 [source installation procedure](site/guide/en/hardware.md#install-or-update-the-mac-service).

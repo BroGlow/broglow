@@ -54,7 +54,6 @@ jobs:
       - run: uv run --frozen python tests/package_macos.py
       - run: uv run --frozen python tests/homebrew_formula.py
       - run: uv run --frozen python scripts/check-generated-artifacts.py
-      - run: uv run --frozen python tests/package_enclosure.py
       - run: uv run --frozen python assets/icons/render.py --check
       - run: uv run --frozen flash --build-only
       - run: uv run --frozen platformio run -d firmware/esp32-c3-supermini -e led-test

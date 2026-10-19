@@ -104,8 +104,7 @@ uv run --frozen python scripts/check-generated-artifacts.py
 [Workflow CI](.github/workflows/ci.yaml) содержит полный набор проверок прошивки,
 упаковки и платформ. При изменениях упаковки, иконок или сборки прошивки также
 запускайте соответствующие шаги его задания `firmware`: `tests/package_macos.py`,
-`tests/package_enclosure.py`, `assets/icons/render.py --check` и сборку
-PlatformIO `led-test`.
+`assets/icons/render.py --check` и сборку PlatformIO `led-test`.
 
 Для локального обновления приложения и проверки работающей службы следуйте
 [процедуре установки из исходников](site/guide/ru/hardware.md#install-or-update-the-mac-service).
