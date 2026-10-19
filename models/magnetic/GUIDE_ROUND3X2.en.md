@@ -5,16 +5,15 @@
 [English](GUIDE_ROUND3X2.en.md) | [Русский](GUIDE_ROUND3X2.md)
 
 Download **broglow-models-vVERSION.zip** from the project's GitHub
-Releases; the website shows its SHA-256. The mascot holds on by
-magnets: pull it off, put it back, or swap in any mascot you like, any time.
+Releases; the website shows its SHA-256. The mascot holds on by magnets, so you
+can remove or swap it.
 
 <a name="fit"></a>
 
 ## Magnets and fit
 
 Use **four axially magnetized Ø3×2 mm N52 neodymium magnets**: two in the mascot,
-two in the traffic light (tower). Pockets are **Ø3.05 × 2.30 mm** with a teardrop-shaped top, so
-they print without supports with the part on its side.
+two in the traffic light (tower). Pockets are **Ø3.05 × 2.30 mm**.
 
 <a name="print"></a>
 
@@ -31,10 +30,9 @@ with the same parts as STEP, plus `BUILD.json`.
 | 04_rear_cover_black.stl | 1 | Black |
 | 05_LED_retainer_black.stl | 1 | Black |
 
-Use all parts from the same package. STLs are bed-oriented: **100% scale, no auto-orientation, no supports**.
+STLs are bed-oriented: **100% scale, no auto-orientation, no supports**.
 The eye file contains one eye: duplicate it in the slicer.
-Print with **0.12 mm layers**; PLA Matte, PLA Basic or PETG all work. Set
-temperatures for your filament.
+Print with **0.12 mm layers**; PLA Matte, PLA Basic or PETG all work.
 
 The LED retainer (05) is recommended: without it the LEDs sit by friction only and
 can be pushed inside.
@@ -45,13 +43,13 @@ can be pushed inside.
 
 You also need an ESP32-C3 SuperMini, three 5 mm LEDs, wiring, resistors, glue for
 the magnets and eyes, and **four DIN 7982 ST2.2 × 6.5 mm countersunk screws**
-(three for the cover, one for the retainer; skip that one without the retainer). Disconnect USB while assembling.
+(three for the cover, one for the retainer). Disconnect USB while assembling.
 Wire the LEDs as in the
 [hardware guide]({{ repo_url }}/blob/HEAD/site/guide/en/hardware.md#wiring-and-resistor-choice):
 red/yellow/green anodes through 330/330/220 Ω resistors to GPIO0/1/3, all cathodes
 to GND.
 
-1. Clean off any stringing and dry-fit the actual board, cable, LEDs and magnets.
+1. Clean off any stringing and dry-fit the board, cable, LEDs and magnets.
    The board enters straight from the rear, USB toward the rear cover. Keep it
    centered; do not force components past the guides or pull the board into place
    with screws.
@@ -63,7 +61,7 @@ to GND.
 
     ![Retainer 05 installed from the rear and secured with its lower screw; the LED leads and resistors stay clear of it]({{ repo_url }}/raw/HEAD/site/assets/photos/inside-retainer.jpg)
 
-4. Before closing the cover, test the LEDs with the cover off. The board needs
+4. Test the LEDs before closing the cover. The board needs
    BroGlow firmware; see
    [Check the wiring before connecting BroGlow]({{ repo_url }}/blob/HEAD/site/guide/en/hardware.md#check-the-wiring-before-connecting-broglow).
    Leave BOOT and RESET reachable and enough wire slack to slide the board out.
@@ -96,4 +94,4 @@ uv run --frozen --only-group cad python scripts/package-enclosure.py
 ```
 
 Output: **dist/enclosure/broglow-models-vVERSION.zip** and its
-**.sha256**, built from an isolated copy of the source.
+**.sha256**.
