@@ -91,9 +91,10 @@ also run `node --test tests/js/*.test.mjs` after `cargo build --locked`
 (needs Node.js 24). See
 [test coverage and platform limits](CLAUDE.md#ci) for details.
 
-The [CI workflow](.github/workflows/ci.yaml) has the complete firmware, packaging
-and platform checks. For icon or firmware build changes, also run the matching
-steps of its `firmware` job: `assets/icons/render.py --check` and the `led-test` PlatformIO build.
+The [CI workflow](.github/workflows/ci.yaml) has the firmware host, packaging
+and platform checks. For icon changes, also run `assets/icons/render.py --check`.
+CI does not build the firmware: for firmware changes, run `uv run --frozen flash --build-only`
+and the [`led-test` build](site/guide/en/hardware.md#standalone-led-test-firmware) locally.
 
 For a local app update and live service checks, follow the
 [source installation procedure](site/guide/en/hardware.md#install-or-update-the-mac-service).

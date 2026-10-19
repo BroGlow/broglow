@@ -101,10 +101,11 @@ Python-тесты используют функции pytest, явные фик�
 `cargo build --locked` (нужен Node.js 24). Подробности — в описании
 [покрытия тестами и ограничений платформ](CLAUDE.ru.md#ci).
 
-[Workflow CI](.github/workflows/ci.yaml) содержит полный набор проверок прошивки,
-упаковки и платформ. При изменениях иконок или сборки прошивки также запускайте
-соответствующие шаги его задания `firmware`: `assets/icons/render.py --check` и
-сборку PlatformIO `led-test`.
+[Workflow CI](.github/workflows/ci.yaml) содержит проверки прошивки на хосте,
+упаковки и платформ. При изменениях иконок также запускайте
+`assets/icons/render.py --check`. CI не собирает прошивку: при её изменениях
+локально запустите `uv run --frozen flash --build-only` и
+[сборку `led-test`](site/guide/ru/hardware.md#standalone-led-test-firmware).
 
 Для локального обновления приложения и проверки работающей службы следуйте
 [процедуре установки из исходников](site/guide/ru/hardware.md#install-or-update-the-mac-service).

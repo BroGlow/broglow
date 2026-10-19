@@ -409,4 +409,5 @@ lamp status and lamp controls, the Settings view and the session list, including
 grouping by project.
 
 `.github/workflows/release.yaml` builds and packages release binaries per platform.
-CI also builds the pinned C3 PlatformIO environment and runs its host mock checks.
+CI runs the C3 firmware's host mock checks but does not build it with PlatformIO;
+release packaging does.
