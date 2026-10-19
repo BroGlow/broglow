@@ -1,3 +1,0 @@
-# Source archives include the app, firmware and editable enclosure sources.
-# Retired reference directories stay out of archives.
-/references export-ignore

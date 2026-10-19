@@ -1,25 +1,13 @@
-"""Reject CAD exports, archives, disposable previews, inspection JSON and retired media."""
+"""Reject top-level docs, CAD exports, archives, disposable previews and inspection JSON."""
 
 from pathlib import Path
 import re
 import subprocess
 
-RETIRED_MEDIA = {
-    "site/assets/assembly.png",
-    "site/assets/broglow.png",
-    "site/vendor/model-viewer-4.3.1.min.js",
-    "references/clawlight/claw-light-ar.usdz",
-    "references/clawlight/claw-light-ar.glb",
-    "references/clawlight/store-photo.jpg",
-    "references/clawlight/product-photo.jpg",
-    "references/clawlight/ar-reference-views.png",
-}
-
 
 def is_generated(path):
     return bool(
         path.lower().startswith("docs/")
-        or path.lower() in RETIRED_MEDIA
         or re.search(r"\.(zip|stl|step|stp|3mf)$", path, re.I)
         or path.lower().startswith("models/broglow/preview/")
         or re.fullmatch(
@@ -41,11 +29,11 @@ def main():
     forbidden = [p for p in paths if is_generated(p)]
     if forbidden:
         raise SystemExit(
-            "Top-level docs, generated files and retired media must stay outside Git; use site/guide/ for documentation and dist/enclosure/ for exports:\n"
+            "Top-level docs and generated files must stay outside Git; use site/guide/ for documentation and dist/enclosure/ for exports:\n"
             + "\n".join(forbidden)
         )
     print(
-        "No top-level docs, generated STL, STEP/STP, 3MF, ZIP, CAD previews, disposable JSON or retired media are tracked."
+        "No top-level docs, generated STL, STEP/STP, 3MF, ZIP, CAD previews or disposable JSON are tracked."
     )
 
 
