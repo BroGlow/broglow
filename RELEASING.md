@@ -51,8 +51,8 @@ checks on that platform.
 
 ## Build a draft release
 
-The prepared version in `Cargo.toml` and `Cargo.lock` is **1.0.0**. The release
-tag is **v1.0.0** and must point to the reviewed release commit.
+Set the version in `Cargo.toml` and run `cargo check` so `Cargo.lock` matches.
+The release tag is **vVERSION** and must point to the reviewed release commit.
 Check both the source and website using the commands in
 [CONTRIBUTING.md](CONTRIBUTING.md#build-and-test) and
 [site/README.md](site/README.md#check-changes).
@@ -61,14 +61,14 @@ After reviewing the commit and destination, tag and push explicitly. Replace
 `YOUR_REMOTE` with the GitHub remote's name (`git remote -v`):
 
 ```bash
-git tag v1.0.0
-uv run --frozen python scripts/package-macos.py --release-tag v1.0.0 --check-only
+git tag vVERSION
+uv run --frozen python scripts/package-macos.py --release-tag vVERSION --check-only
 git push YOUR_REMOTE HEAD:master
-git push YOUR_REMOTE v1.0.0
+git push YOUR_REMOTE vVERSION
 ```
 
 If the check fails (dirty tree or version mismatch), delete the local tag with
-`git tag -d v1.0.0`, fix the problem and repeat. Pushing `master` runs CI and,
+`git tag -d vVERSION`, fix the problem and repeat. Pushing `master` runs CI and,
 when it changes the site, docs, models or `Cargo.toml`, deploys the website
 automatically.
 

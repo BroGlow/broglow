@@ -56,8 +56,8 @@ GitHub Actions. Файлы STL и STEP распространяются толь
 
 ## Подготовка черновика релиза
 
-Подготовленная версия в `Cargo.toml` и `Cargo.lock` — **1.0.0**. Релизный тег
-**v1.0.0** должен указывать на проверенный релизный коммит.
+Укажите версию в `Cargo.toml` и запустите `cargo check`, чтобы `Cargo.lock`
+совпадал. Релизный тег **vVERSION** должен указывать на проверенный релизный коммит.
 Проверьте исходники и сайт командами из
 [CONTRIBUTING.ru.md](CONTRIBUTING.ru.md#build-and-test) и
 [инструкции по сайту](site/README.ru.md#check-changes).
@@ -66,14 +66,14 @@ GitHub Actions. Файлы STL и STEP распространяются толь
 изменения. Замените `YOUR_REMOTE` именем удалённого репозитория GitHub (`git remote -v`):
 
 ```bash
-git tag v1.0.0
-uv run --frozen python scripts/package-macos.py --release-tag v1.0.0 --check-only
+git tag vVERSION
+uv run --frozen python scripts/package-macos.py --release-tag vVERSION --check-only
 git push YOUR_REMOTE HEAD:master
-git push YOUR_REMOTE v1.0.0
+git push YOUR_REMOTE vVERSION
 ```
 
 Если проверка не прошла (незакоммиченные изменения или несовпадение версии),
-удалите локальный тег командой `git tag -d v1.0.0`, исправьте проблему и
+удалите локальный тег командой `git tag -d vVERSION`, исправьте проблему и
 повторите. Отправка в `master` запускает CI, а если она меняет сайт,
 документацию, модели или `Cargo.toml`, ещё и автоматически публикует сайт.
 
