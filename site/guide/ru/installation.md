@@ -26,6 +26,8 @@ coding-агентах (Claude Code — всегда; Codex, opencode и GitHub C
 Return. Значок со светофором в строке меню открывает управление сессиями; приложение
 запускается при входе в систему. В Terminal команда `broglow` открывает панель.
 
+![Окно BroGlow в строке меню: три активные сессии — одна работает, две на паузе — и кнопки Dashboard, Settings и Lamps]({{ repo_url }}/raw/HEAD/site/assets/photos/popover-dark.png)
+
 <a name="colors"></a>
 
 ## Что значат цвета

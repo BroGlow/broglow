@@ -26,6 +26,8 @@ To open the Mac app, press **⌘ Space**, search **BroGlow** and press Return. I
 traffic-light icon in the menu bar opens the session controls; the app starts at login.
 In Terminal, `broglow` opens the dashboard.
 
+![The BroGlow menu-bar popover: three live sessions, one working and two paused, with Dashboard, Settings and Lamps controls]({{ repo_url }}/raw/HEAD/site/assets/photos/popover-dark.png)
+
 <a name="colors"></a>
 
 ## What the colors mean

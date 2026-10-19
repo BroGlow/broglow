@@ -200,6 +200,7 @@ fit or delivery of agent events.
 Our asset sources:
 
 - `assets/broglow.jpg`: our photo of the built lamp with the LEDs off, cropped to 7:5 at 1400×1000; the poster shown until the 3D view loads.
+- `assets/photos/`: our photos of the built lamp (`state-*.jpg` squares with one LED lit, `inside-*.jpg` rear views with and without the LED retainer) and the `popover-dark.png` menu-bar screenshot, web-sized; originals stay untracked in `originals/`.
 - `assets/assembly.glb`: separated assembly from `models/magnetic/exploded.py`; source hashes and bounds are recorded in `assets/assembly-model.json`. Regenerate with `--exploded` when its CAD source changes.
 - `guide/assets/favicon.svg`: our three-circle lamp artwork, also used by the landing favicon. Tray icons come from `assets/icons/` in the repository root.
 

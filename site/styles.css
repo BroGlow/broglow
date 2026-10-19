@@ -575,6 +575,12 @@ h2 {
   color:var(--muted);
   max-width:420px;
 }
+.status-app {
+  width:100%;
+  max-width:400px;
+  height:auto;
+  margin-top:24px;
+}
 .status-photos {
   list-style:none;
   padding:0;
