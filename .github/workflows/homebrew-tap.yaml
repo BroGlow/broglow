@@ -1,11 +1,15 @@
 name: Homebrew tap
 
 # Renders Formula/broglow.rb for a released tag from the release's Mac archive
-# checksums, checks it, and (only on request) publishes it to the separate
-# broglow/homebrew-tap repository. Publishing needs the HOMEBREW_TAP_TOKEN secret:
-# a fine-grained token with Contents: read and write on that repository.
+# checksums, checks it, and publishes it to the separate broglow/homebrew-tap
+# repository when a release is published (or by hand with publish ticked).
+# Publishing needs the HOMEBREW_TAP_TOKEN secret: a fine-grained token with
+# Contents: read and write on that repository.
 
 on:
+  release:
+    types:
+      - published
   workflow_dispatch:
     inputs:
       tag:
@@ -20,28 +24,28 @@ on:
 permissions:
   contents: read
 
+env:
+  TAG: ${{ inputs.tag || github.event.release.tag_name }}
+
 jobs:
   formula:
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ env.TAG }}
       - uses: actions/setup-python@v7
         with:
           python-version: '3.14'
       - name: Download the release checksums
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           mkdir -p dist
           gh release download "$TAG" --dir dist --pattern 'broglow-*-apple-darwin.tar.gz.sha256'
           ls dist
       - name: Render the formula
-        env:
-          TAG: ${{ inputs.tag }}
         run: python scripts/homebrew-formula.py --version "${TAG#v}"
       - uses: actions/upload-artifact@v7
         with:
@@ -75,7 +79,7 @@ jobs:
           "$(brew --prefix)/bin/broglow" --version
 
   publish:
-    if: ${{ inputs.publish }}
+    if: ${{ inputs.publish || github.event_name == 'release' }}
     needs:
       - check
     runs-on: ubuntu-26.04
@@ -98,8 +102,6 @@ jobs:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
       - name: Commit and push the formula
-        env:
-          TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           mkdir -p tap/Formula

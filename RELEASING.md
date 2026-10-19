@@ -194,16 +194,16 @@ formula from the release's `broglow-vVERSION-*-apple-darwin.tar.gz.sha256` files
 `broglow install` must run once and after upgrades). `tests/test_homebrew_formula.py`
 checks the rendering in CI.
 
-The **Homebrew tap** workflow (`.github/workflows/homebrew-tap.yaml`) runs only
-by hand: **Actions → Homebrew tap → Run workflow** with the released tag. It
-downloads the checksums from that release (a draft is enough), renders the
+The **Homebrew tap** workflow (`.github/workflows/homebrew-tap.yaml`) runs when
+a release is published, or by hand: **Actions → Homebrew tap → Run workflow**
+with a released tag. It downloads the checksums from that release, renders the
 formula, stages it in a local tap on a macOS runner for `brew style` and
 `brew audit --strict`, installs and tests it, and uploads `broglow.rb` as the
-`homebrew-formula` artifact. With **publish** ticked it also pushes
-`Formula/broglow.rb` to `broglow/homebrew-tap` using the `HOMEBREW_TAP_TOKEN`
-repository secret (a fine-grained token with **Contents: read and write** on
-`homebrew-tap` only). Publish the GitHub release first, then run the workflow
-with **publish** ticked.
+`homebrew-formula` artifact. For a published release, or by hand with **publish**
+ticked, it then pushes `Formula/broglow.rb` to `broglow/homebrew-tap` using the
+`HOMEBREW_TAP_TOKEN` repository secret (a fine-grained token with
+**Contents: read and write** on `homebrew-tap` only). Renew the token before it
+expires.
 
 To rehearse locally, render the formula against archives in `dist/` with
 `--url-base file:///path/to/dist/`, copy it into `brew tap-new broglow/tap`,

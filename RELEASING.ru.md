@@ -212,15 +212,15 @@ Mac из отдельного репозитория GitHub `broglow/homebrew-ta
 проверяет формирование в CI.
 
 Workflow **Homebrew tap** (`.github/workflows/homebrew-tap.yaml`) запускается
-только вручную: **Actions → Homebrew tap → Run workflow** с тегом релиза. Он
-скачивает контрольные суммы из этого релиза (достаточно черновика), формирует
+при публикации релиза или вручную: **Actions → Homebrew tap → Run workflow** с
+тегом релиза. Он скачивает контрольные суммы из этого релиза, формирует
 формулу, кладёт её в локальный tap на macOS-раннере для `brew style` и
 `brew audit --strict`, устанавливает и тестирует её и загружает `broglow.rb` как
-артефакт `homebrew-formula`. С отмеченным **publish** он также отправляет
-`Formula/broglow.rb` в `broglow/homebrew-tap`, используя секрет репозитория
-`HOMEBREW_TAP_TOKEN` (fine-grained token с правом **Contents: read and write**
-только на `homebrew-tap`). Сначала опубликуйте релиз на GitHub, затем запустите
-workflow с отмеченным **publish**.
+артефакт `homebrew-formula`. Для опубликованного релиза, а вручную — с отмеченным
+**publish**, он затем отправляет `Formula/broglow.rb` в `broglow/homebrew-tap`,
+используя секрет репозитория `HOMEBREW_TAP_TOKEN` (fine-grained token с правом
+**Contents: read and write** только на `homebrew-tap`). Обновите токен до
+истечения его срока.
 
 Для локальной репетиции сформируйте формулу по архивам в `dist/` с
 `--url-base file:///путь/к/dist/`, скопируйте её в `brew tap-new broglow/tap`,
