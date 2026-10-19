@@ -13,6 +13,7 @@ function popoverPage() {
       id, dataset: {}, attributes: {}, offsetHeight: 200, value: '100', active: false,
       textContent: '', hidden: false, open: false, tagName: 'DIV',
       focus() { context.document.activeElement = this; },
+      blur() { if (context.document.activeElement === this) context.document.activeElement = null; },
       click() { click(id); },
       setAttribute(name, value) { this.attributes[name] = value; },
       matches(selector) {
@@ -701,6 +702,7 @@ test('names render as text and drafts survive heartbeat, focus changes and faile
   assert.deepEqual(commands('rename_lamp'), [{ cmd: 'rename_lamp', id: 'home-id', name: 'Дом 🏡' }]);
   assert.equal(element('lamplabel-0').textContent, 'Changed elsewhere', 'No optimistic saved name');
   assert.equal(element('lampsave-0').textContent, 'Saving…');
+  assert.equal(element('lampnamesaved-0').hidden, true, 'Wait for a successful host response');
   click('lampsave-1');
   click('lampforget-1');
   click('lampadd');
@@ -710,22 +712,38 @@ test('names render as text and drafts survive heartbeat, focus changes and faile
   context.window.__configActionResult('Cannot save name');
   refresh({ 'home-id': 'Changed elsewhere' });
   assert.equal(element('lamperror').textContent, 'Cannot save name');
+  assert.equal(element('lampnamesaved-0').hidden, true, 'A failed save cannot show success');
   assert.equal(input.value, '  Дом 🏡  ');
   assert.equal(element('lampsave-0').disabled, false);
+  input.focus();
   click('lampsave-0');
   refresh({ 'home-id': 'Дом 🏡' });
   context.window.__configActionResult(null);
   assert.equal(element('lamplabel-0').textContent, 'Дом 🏡');
   assert.equal(input.value, 'Дом 🏡');
+  assert.notEqual(context.document.activeElement, input, 'Successful save ends editing');
+  assert.equal(element('lampnamesaved-0').textContent, 'Name saved.');
+  assert.equal(element('lampnamesaved-0').hidden, false);
+  assert.equal(element('lampnamesaved-1').hidden, true, 'Feedback belongs to the renamed lamp');
+  assert.match(list.innerHTML, /id="lampnamesaved-0" role="status"/);
   assert.equal(element('lamperror').hidden, true);
   assert.equal(list.writes, builds, 'Names and drafts do not rebuild disclosure controls');
+  refresh({ 'home-id': 'Дом 🏡' });
+  assert.equal(element('lampnamesaved-0').hidden, false, 'Feedback survives a heartbeat');
+  input.focus();
+  input.value = 'Next name';
+  listeners.input({ target: input });
+  assert.equal(element('lampnamesaved-0').hidden, true, 'Editing clears the previous confirmation');
+  assert.equal(context.document.activeElement, input);
+  assert.equal(input.value, 'Next name');
 });
 
 test('Enter in a lamp name saves it like the Save button', () => {
-  const { element, update, click, listeners, commands } = popoverPage();
+  const { context, element, update, click, listeners, commands } = popoverPage();
   update(lamp({ state: 'searching', devices: [{ id: 'saved-lamp', state: 'searching' }], names: {} }));
   click('lampbtn');
   const input = element('lampname-0');
+  input.focus();
   input.value = ' Desk ';
   let prevented = false;
   listeners.keydown({ key: 'Enter', isComposing: true, target: input, preventDefault() {} });
@@ -733,6 +751,12 @@ test('Enter in a lamp name saves it like the Save button', () => {
   listeners.keydown({ key: 'Enter', target: input, preventDefault() { prevented = true; } });
   assert.deepEqual(commands('rename_lamp'), [{ cmd: 'rename_lamp', id: 'saved-lamp', name: 'Desk' }]);
   assert.ok(prevented);
+  update(lamp({ state: 'searching', devices: [{ id: 'saved-lamp', state: 'searching' }], names: { 'saved-lamp': 'Desk' } }));
+  context.window.__configActionResult(null);
+  assert.equal(element('lampnamesaved-0').textContent, 'Name saved.');
+  assert.equal(element('lampnamesaved-0').hidden, false);
+  assert.notEqual(context.document.activeElement, input);
+  assert.equal(input.value, 'Desk');
 });
 
 test('rename accepts 40 Unicode characters, rejects longer names and resets to automatic with blank input', () => {
@@ -761,6 +785,7 @@ test('rename accepts 40 Unicode characters, rejects longer names and resets to a
   context.window.__configActionResult(null);
   assert.equal(element('lamplabel-0').textContent, 'Lamp 1');
   assert.equal(input.value, '');
+  assert.equal(element('lampnamesaved-0').hidden, false, 'Clearing a name also confirms success');
   assert.equal(commands('set_led').length, 0);
 });
 

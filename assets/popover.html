@@ -217,6 +217,7 @@ summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outl
 .lampnameedit label { display: block; margin-bottom: 5px; }
 .lampnamefields { display: flex; gap: 6px; }
 .lampnamefields input { min-width: 0; width: 100%; padding: 5px 7px; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; background: rgba(255,255,255,.05); color: inherit; font: inherit; }
+.lampnamesaved { margin-top: 5px; color: #66d987; font-size: 11px; }
 .lamperror { margin: 0 10px 12px; color: #ff8a80; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 .lamptechnical { margin: 0 10px 12px; font-size: 11px; color: rgba(255,255,255,.6); }
 .lamptechnical summary { cursor: pointer; padding: 5px 0; }
@@ -342,6 +343,7 @@ function lampState(status) {
     error: 'Needs attention', unavailable: 'No recent response', disabled: 'Off' })[status] || 'No recent response';
 }
 let pendingForgetId = null, pendingRenameId = null, pendingIdentifyId = null, configActionError = '';
+let savedRenameId = null;
 const lampNameDrafts = new Map();
 function lampActionPending() { return pendingForgetId !== null || pendingRenameId !== null || pendingIdentifyId !== null; }
 // Settings checkboxes the user just clicked, keyed by the settings field:
@@ -349,7 +351,11 @@ function lampActionPending() { return pendingForgetId !== null || pendingRenameI
 // that races the write (every hook event pushes one) can't flip them back.
 let pendingSettings = {};
 window.__configActionResult = error => {
-  if (!error && pendingRenameId !== null) lampNameDrafts.delete(pendingRenameId);
+  if (!error && pendingRenameId !== null) {
+    lampNameDrafts.delete(pendingRenameId);
+    savedRenameId = pendingRenameId;
+    if (document.activeElement?.dataset.lampNameId === pendingRenameId) document.activeElement.blur();
+  }
   pendingForgetId = null;
   pendingRenameId = null;
   pendingIdentifyId = null;
@@ -495,7 +501,8 @@ function renderLamp() {
         `<span class="lampchevron" aria-hidden="true">›</span></summary>` +
         (wireless ? `<div class="lampnameedit"><label for="lampname-${i}">Name</label><div class="lampnamefields">` +
           `<input id="lampname-${i}" type="text" autocomplete="off" placeholder="Automatic name">` +
-          `<button class="pbtn" type="button" id="lampsave-${i}">Save</button></div></div>` +
+          `<button class="pbtn" type="button" id="lampsave-${i}">Save</button></div>` +
+          `<p class="lampnamesaved" id="lampnamesaved-${i}" role="status" hidden></p></div>` +
           `<div class="lampidentify"><button class="pbtn" type="button" id="lampidentify-${i}">Identify</button></div>` +
           `<div class="brightness"><label for="lampbrightness-${i}">Light brightness<output id="lampbrightnessvalue-${i}" for="lampbrightness-${i}"></output></label>` +
           `<input id="lampbrightness-${i}" type="range" min="0" max="100" step="1" value="100" aria-describedby="lampbrightnesshint-${i}">` +
@@ -545,6 +552,9 @@ function renderLamp() {
         save.dataset.input = input.id;
         save.disabled = setupBusy || lampActionPending();
         save.textContent = pendingRenameId === device.id ? 'Saving…' : 'Save';
+        const saved = document.getElementById('lampnamesaved-' + i);
+        saved.textContent = savedRenameId === device.id ? 'Name saved.' : '';
+        saved.hidden = savedRenameId !== device.id;
         const forget = document.getElementById('lampforget-' + i);
         forget.dataset.cmd = 'forget_lamp';
         forget.dataset.id = device.id;
@@ -794,7 +804,13 @@ document.addEventListener('toggle', ev => {
 
 document.addEventListener('input', ev => {
   if (ev.target.dataset.lampNameId !== undefined) {
-    if (!lampSetupBusy() && !lampActionPending()) lampNameDrafts.set(ev.target.dataset.lampNameId, ev.target.value);
+    if (!lampSetupBusy() && !lampActionPending()) {
+      lampNameDrafts.set(ev.target.dataset.lampNameId, ev.target.value);
+      if (savedRenameId === ev.target.dataset.lampNameId) {
+        savedRenameId = null;
+        render();
+      }
+    }
     return;
   }
   if (isBrightnessSlider(ev.target)) {
@@ -913,6 +929,7 @@ document.addEventListener('click', ev => {
   }
   if (msg.cmd === 'rename_lamp') {
     if (lampActionPending() || !msg.id) return;
+    savedRenameId = null;
     const input = document.getElementById(btn.dataset.input);
     lampNameDrafts.set(msg.id, input.value);
     msg.name = input.value.trim();

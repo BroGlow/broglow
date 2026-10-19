@@ -883,6 +883,10 @@ From the command line, `broglow ble off` disables lamp control and keeps the IDs
 
 In **Lamps**, expand a row (click, or Enter or Space) for its controls, **Name** and
 **Forget lamp**; open **Connection details** for **Device ID** and **Diagnostic**.
+Click **Save** or press Enter in the name field: **Saving…** is followed by a green
+**Name saved.** confirmation after BroGlow saves the preference, and the input loses
+focus. Editing again clears the confirmation. A failed save shows an error and keeps
+your draft for retrying.
 Names can have up to **40 Unicode characters**. On the next active Bluetooth
 connection, matching firmware also saves the name on the lamp: `Home` becomes
 `BroGlow Home` in Bluetooth settings and survives a power cycle. The Bluetooth
