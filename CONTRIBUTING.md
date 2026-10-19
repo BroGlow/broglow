@@ -7,8 +7,8 @@ version, steps to reproduce, the expected and actual result, and relevant output
 (for example `broglow ble status` or logs). For changes, describe what changed
 and how you checked it.
 
-These instructions apply to a source checkout. To install or use the app, start
-with the [README](README.md) and [setup manual](site/guide/en/hardware.md).
+To install or use the app, see the [README](README.md) and
+[setup manual](site/guide/en/hardware.md).
 
 ## Development setup
 
@@ -22,16 +22,15 @@ sudo apt-get install -y --no-install-recommends \
   libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libudev-dev
 ```
 
-The Linux tray uses GTK 3 through `tao` and `tray-icon`. The GTK 3 Rust bindings
-(0.18) are unmaintained and bring `glib` 0.18, which is affected by
-[RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html)
-(unsound `VariantStrIter`, which BroGlow does not call; fixed only in `glib` 0.20,
-which GTK 3 bindings cannot use), and the unmaintained build-time crate
-`proc-macro-error` ([RUSTSEC-2024-0370](https://rustsec.org/advisories/RUSTSEC-2024-0370.html)).
-Mac and Windows builds do not include these crates.
+The Linux tray's GTK 3 bindings (0.18, unmaintained) pull in `glib` 0.18
+([RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html):
+BroGlow does not call the unsound `VariantStrIter`; the fix in `glib` 0.20 is not
+available to GTK 3) and the build-time `proc-macro-error`
+([RUSTSEC-2024-0370](https://rustsec.org/advisories/RUSTSEC-2024-0370.html)).
+Mac and Windows builds do not include them.
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.12.17 or
-newer (CI uses 0.12.17). The project uses Python 3.14, pinned in `.python-version`;
+newer. The project uses Python 3.14, pinned in `.python-version`;
 uv downloads it if it is missing. Sync the locked development tools and enable the commit hook:
 
 ```bash
@@ -55,9 +54,8 @@ uv run --frozen --group dev prek run --all-files
 
 Black uses its default style for all Python files. The prek hook runs Black on
 staged Python files. If Black changes a file, the commit stops: stage the fixes
-and commit again. CI runs
-`uv run --frozen --group dev black --check --diff .` and fails if formatting is
-needed. Keep Black's version in `pyproject.toml` and `prek.toml` in sync.
+and commit again. CI fails on unformatted Python. Keep Black's version in
+`pyproject.toml` and `prek.toml` in sync.
 
 Firmware uses clang-format 23.1.1 with the Google-based
 [`firmware/esp32-c3-supermini/.clang-format`](firmware/esp32-c3-supermini/.clang-format).
@@ -83,21 +81,19 @@ uv run --frozen python scripts/check-generated-artifacts.py
 
 Python tests use pytest functions, explicit fixtures and parametrized cases in
 `test_*.py` modules. The `test` group pins pytest and includes the docs dependencies
-needed by the website tests. The command above discovers all Python tests; pass a
-test path to run a focused suite.
+needed by the website tests.
 
 The firmware host test (`firmware/esp32-c3-supermini/tests/test_firmware.py`)
 compiles the firmware logic with the system `c++`, so it needs a C++17 compiler.
 Rust tests include end-to-end checks
 of the compiled binary. For agent-integration, popover or lamp-status changes,
-also run `node --test tests/js/*.test.mjs` after `cargo build --locked`; it needs
-Node.js 24, as in CI, which runs that suite on Linux. See
+also run `node --test tests/js/*.test.mjs` after `cargo build --locked`
+(needs Node.js 24). See
 [test coverage and platform limits](CLAUDE.md#ci) for details.
 
 The [CI workflow](.github/workflows/ci.yaml) has the complete firmware, packaging
 and platform checks. For icon or firmware build changes, also run the matching
 steps of its `firmware` job: `assets/icons/render.py --check` and the `led-test` PlatformIO build.
-Packaging and Homebrew formula tests are included in the pytest suite.
 
 For a local app update and live service checks, follow the
 [source installation procedure](site/guide/en/hardware.md#install-or-update-the-mac-service).

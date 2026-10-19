@@ -9,8 +9,8 @@
 относящийся к делу вывод (например, `broglow ble status` или логи). В описании
 изменений расскажите, что изменилось и как вы это проверили.
 
-Эти инструкции относятся к репозиторию исходников. Для установки и использования
-приложения начните с [README](README.ru.md) и [руководства по настройке](site/guide/ru/hardware.md).
+Для установки и использования приложения см. [README](README.ru.md) и
+[руководство по настройке](site/guide/ru/hardware.md).
 
 <a name="development-setup"></a>
 
@@ -26,16 +26,15 @@ sudo apt-get install -y --no-install-recommends \
   libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libudev-dev
 ```
 
-Трей на Linux использует GTK 3 через `tao` и `tray-icon`. Rust-привязки GTK 3
-(0.18) больше не поддерживаются и подтягивают `glib` 0.18, затронутый
-[RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html)
-(некорректный `VariantStrIter`, который BroGlow не вызывает; исправлено только в `glib` 0.20,
-который привязки GTK 3 использовать не могут), и неподдерживаемый крейт сборки
-`proc-macro-error` ([RUSTSEC-2024-0370](https://rustsec.org/advisories/RUSTSEC-2024-0370.html)).
-Сборки для Mac и Windows этих крейтов не содержат.
+Rust-привязки GTK 3 (0.18) для трея на Linux не поддерживаются и подтягивают
+`glib` 0.18 ([RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html):
+BroGlow не вызывает некорректный `VariantStrIter`, а исправление из `glib` 0.20
+для GTK 3 недоступно) и используемый при сборке `proc-macro-error`
+([RUSTSEC-2024-0370](https://rustsec.org/advisories/RUSTSEC-2024-0370.html)).
+Сборки для Mac и Windows их не содержат.
 
 Установите [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.12.17
-или новее (в CI используется 0.12.17). Проект использует Python 3.14, закреплённый в
+или новее. Проект использует Python 3.14, закреплённый в
 `.python-version`; если его нет, uv скачает его сам. Синхронизируйте закреплённые инструменты разработки
 и включите хук коммита:
 
@@ -62,10 +61,8 @@ uv run --frozen --group dev prek run --all-files
 
 Black применяет стандартный стиль ко всем Python-файлам. Хук prek запускает Black
 для Python-файлов в индексе. Если Black изменил файлы, коммит прерывается:
-добавьте исправления в индекс (`git add`) и повторите коммит. CI запускает
-`uv run --frozen --group dev black --check --diff .` и завершается с ошибкой,
-если требуется форматирование. Сохраняйте одинаковую версию Black в
-`pyproject.toml` и `prek.toml`.
+добавьте исправления в индекс (`git add`) и повторите коммит. CI падает на неотформатированном
+Python-коде. Сохраняйте одинаковую версию Black в `pyproject.toml` и `prek.toml`.
 
 Прошивка форматируется clang-format 23.1.1 по конфигурации на основе стиля Google:
 [`firmware/esp32-c3-supermini/.clang-format`](firmware/esp32-c3-supermini/.clang-format).
@@ -94,22 +91,20 @@ uv run --frozen python scripts/check-generated-artifacts.py
 
 Python-тесты используют функции pytest, явные фикстуры и параметризованные случаи
 в модулях `test_*.py`. Группа `test` фиксирует pytest и включает зависимости docs,
-нужные тестам сайта. Команда выше находит все
-Python-тесты; для отдельного набора передайте путь к тесту.
+нужные тестам сайта.
 
 Хостовый тест прошивки (`firmware/esp32-c3-supermini/tests/test_firmware.py`)
 компилирует логику прошивки системным `c++`, поэтому нужен компилятор с поддержкой C++17.
 Тесты Rust включают сквозные
 проверки собранного исполняемого файла. При изменении интеграций агентов, popover
 или статуса ламп также запускайте `node --test tests/js/*.test.mjs` после
-`cargo build --locked`; нужен Node.js 24, как в CI, где этот набор выполняется
-на Linux. Подробности — в описании
+`cargo build --locked` (нужен Node.js 24). Подробности — в описании
 [покрытия тестами и ограничений платформ](CLAUDE.ru.md#ci).
 
 [Workflow CI](.github/workflows/ci.yaml) содержит полный набор проверок прошивки,
 упаковки и платформ. При изменениях иконок или сборки прошивки также запускайте
 соответствующие шаги его задания `firmware`: `assets/icons/render.py --check` и
-сборку PlatformIO `led-test`. Тесты упаковки и формулы Homebrew входят в набор pytest.
+сборку PlatformIO `led-test`.
 
 Для локального обновления приложения и проверки работающей службы следуйте
 [процедуре установки из исходников](site/guide/ru/hardware.md#install-or-update-the-mac-service).
