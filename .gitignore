@@ -44,3 +44,6 @@ __pycache__/
 /[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]/[cC][lL][aA][wW][lL][iI][gG][hH][tT]/[sS][tT][oO][rR][eE]-[pP][hH][oO][tT][oO].[jJ][pP][gG]
 /[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]/[cC][lL][aA][wW][lL][iI][gG][hH][tT]/[pP][rR][oO][dD][uU][cC][tT]-[pP][hH][oO][tT][oO].[jJ][pP][gG]
 /[rR][eE][fF][eE][rR][eE][nN][cC][eE][sS]/[cC][lL][aA][wW][lL][iI][gG][hH][tT]/[aA][rR]-[rR][eE][fF][eE][rR][eE][nN][cC][eE]-[vV][iI][eE][wW][sS].[pP][nN][gG]
+
+# Photo originals stay local; the website tracks web-sized copies only.
+site/assets/photos/originals/

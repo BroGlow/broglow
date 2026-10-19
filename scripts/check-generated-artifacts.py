@@ -6,6 +6,7 @@ import subprocess
 
 RETIRED_MEDIA = {
     "site/assets/assembly.png",
+    "site/assets/broglow.png",
     "site/vendor/model-viewer-4.3.1.min.js",
     "references/clawlight/claw-light-ar.usdz",
     "references/clawlight/claw-light-ar.glb",

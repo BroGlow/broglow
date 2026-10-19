@@ -27,8 +27,8 @@ magnets and electronics. Tracked outputs in `site/assets/`:
   (`models/magnetic/appearance.py`), used for the browser preview and phone AR;
 - `assembly.glb` and `assembly-model.json`: the assembly explorer
   (`models/magnetic/exploded.py`);
-- `broglow.png`: the poster and no-JavaScript fallback, a Working-state render of
-  `broglow.glb`.
+- `broglow.jpg`: the poster and no-JavaScript fallback, a photo of the built lamp
+  with the LEDs off (the 3D view replaces it once loaded).
 
 The JSON files record source hashes and bounds. Regenerate the outputs instead of
 editing them: run [`scripts/export-web-model.py`](../../../scripts/export-web-model.py)

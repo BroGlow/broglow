@@ -228,7 +228,7 @@ the post-deployment check below.
 After deployment, open the live English and Russian guides and follow a release
 download through to its checksum. Download links point to this repository's
 Releases; check that the links work after publication. The guide includes a separate enclosure
-download, and the landing labels the product image as a render.
+download, and the landing opens with the product photo before the 3D view loads.
 
 Local checks cannot prove GitHub permissions, hosted-runner success, live Pages
 delivery or installation on another Mac. Verify those after each release
