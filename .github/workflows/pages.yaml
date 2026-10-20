@@ -86,6 +86,7 @@ jobs:
           uv run --frozen --only-group docs python site/check-translations.py
           node site/i18n.test.cjs
           node site/theme.test.cjs
+          node site/github.test.cjs
           node site/model-preview.test.cjs
           node site/docs-language.test.cjs
           node site/docs-copy.test.cjs

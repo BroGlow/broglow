@@ -420,11 +420,12 @@ a {{ color: #ff8a3d; }}
 """
 
 
-def landing_page(home):
+def landing_page(home, repo_url=None):
     return (
         (SITE / "index.html")
         .read_text()
         .replace("https://broglow.github.io/broglow/", home)
+        .replace("https://github.com/broglow/broglow", repo_url or repository_url())
     )
 
 
@@ -449,8 +450,8 @@ def main():
         site_dir=str(output / "docs"),
     )
     build(config)
-    (output / "index.html").write_text(landing_page(home))
-    for name in ("styles.css", "i18n.js", "theme.js", "model-preview.js"):
+    (output / "index.html").write_text(landing_page(home, config.repo_url))
+    for name in ("styles.css", "i18n.js", "theme.js", "github.js", "model-preview.js"):
         shutil.copy2(SITE / name, output / name)
     shutil.copytree(SITE / "assets", output / "assets")
     shutil.copytree(SITE / "vendor", output / "vendor")

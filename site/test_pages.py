@@ -30,11 +30,15 @@ class Landing(HTMLParser):
 
 
 @pytest.mark.parametrize(
-    "home", ["https://broglow.github.io/broglow/", "https://example.github.io/lamp/"]
+    "home,repo_url",
+    [
+        ("https://broglow.github.io/broglow/", "https://github.com/broglow/broglow"),
+        ("https://example.github.io/lamp/", REPOSITORY_URL),
+    ],
 )
-def test_landing_preview_without_javascript(home: str) -> None:
+def test_landing_preview_without_javascript(home: str, repo_url: str) -> None:
     landing = Landing()
-    landing.feed(pages.landing_page(home))
+    landing.feed(pages.landing_page(home, repo_url))
     assert ("html", {"lang": "en"}) in landing.elements
     assert not re.search(r"[А-Яа-яЁё]", "".join(landing.text).replace("Русский", ""))
     assert ("link", {"rel": "canonical", "href": home}) in landing.elements
@@ -55,6 +59,9 @@ def test_landing_preview_without_javascript(home: str) -> None:
         assert metadata[key] and not re.search(r"[А-Яа-яЁё]", metadata[key])
     image = metadata["og:image"].removeprefix(home)
     assert image.startswith("assets/") and (pages.SITE / image).is_file()
+    assert ("a", {"class": "repository-badge", "href": repo_url}) in landing.elements
+    assert ("script", {"src": "github.js"}) in landing.elements
+    assert (pages.SITE / "github.js").is_file()
 
 
 @pytest.fixture

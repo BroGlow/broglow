@@ -197,6 +197,34 @@ h1 .accent {
   margin-top:26px;
   margin-bottom:35px;
 }
+.hero-actions {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:16px;
+}
+.repository-badge {
+  min-width:180px;
+  padding:9px 14px;
+  border:1px solid var(--line);
+  border-radius:7px;
+}
+.repository-badge:hover {
+  border-color:var(--accent);
+}
+.repository-name {
+  display:block;
+  font-size:14px;
+  font-weight:600;
+}
+.repository-description,.repository-stats {
+  color:var(--muted);
+  font-size:12px;
+  white-space:nowrap;
+}
+.repository-stats>span+span {
+  margin-left:10px;
+}
 .button {
   display:inline-flex;
   align-items:center;

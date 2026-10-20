@@ -162,6 +162,11 @@ uv run --no-project --python 3.14 python scripts/export-web-model.py --exploded 
 URL и URL превью указывают на опубликованный сайт; `pages.py` адаптирует их
 к значению `--repository`.
 
+Значок GitHub рядом с кнопкой сборки ведёт в репозиторий и загружает число звёзд
+и форков через публичный API GitHub. Без JavaScript или при ошибке запроса он
+остаётся ссылкой на исходный код. `pages.py` адаптирует ссылку на репозиторий
+к значению `--repository` и включает `github.js` в артефакт Pages.
+
 Лендинг и руководство следуют цветовой схеме системы и предлагают переключатель
 «как в системе / светлая / тёмная»: `theme.js` лендинга хранит выбор в ключе
 localStorage `broglow-theme` и выставляет `data-theme` до первой отрисовки;
@@ -179,6 +184,7 @@ Material предоставляет навигацию, локальный по�
 uv run --frozen --only-group docs python site/check-translations.py
 node site/i18n.test.cjs
 node site/theme.test.cjs
+node site/github.test.cjs
 node site/model-preview.test.cjs
 node site/docs-language.test.cjs
 node site/docs-copy.test.cjs

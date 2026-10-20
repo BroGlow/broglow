@@ -142,6 +142,11 @@ The landing's Open Graph and Twitter cards use English text and our real
 `assets/photos/broglow-all-lights.jpg` lamp photo, with all three LEDs glowing. Absolute canonical and preview URLs
 point to the published site; `pages.py` adjusts them for `--repository`.
 
+The GitHub badge beside the build button links to the repository and loads its
+star and fork counts from GitHub's public API. Without JavaScript or when the
+request fails, it remains a source-code link. `pages.py` adjusts the repository
+link for `--repository` and includes `github.js` in the Pages artifact.
+
 Both the landing and the guide follow the system color scheme and offer an
 auto/light/dark switch: the landing's `theme.js` stores the choice under
 localStorage key `broglow-theme` and sets `data-theme` before the first paint;
@@ -156,6 +161,7 @@ external font service is configured.
 uv run --frozen --only-group docs python site/check-translations.py
 node site/i18n.test.cjs
 node site/theme.test.cjs
+node site/github.test.cjs
 node site/model-preview.test.cjs
 node site/docs-language.test.cjs
 node site/docs-copy.test.cjs

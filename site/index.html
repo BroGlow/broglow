@@ -68,7 +68,17 @@
         <p class="eyebrow" data-ru="Ваш агент — с одного взгляда.">Your agent. At a glance.</p>
         <h1 id="hero-title"><span data-ru="Меньше вкладок.">Fewer tabs.</span><br><span class="accent" data-ru="Больше ясности.">More clarity.</span></h1>
         <p class="intro" data-ru="Маленький светофор на столе показывает, чем занят ваш ИИ-агент: работает, ждёт или зовёт вас.">A small traffic light on your desk shows what your coding agent is doing: working, waiting, or asking for your attention.</p>
-        <a class="button" href="#build"><span data-ru="Собрать свой BroGlow">Build your BroGlow</span> <span aria-hidden="true">↗</span></a>
+        <div class="hero-actions">
+          <a class="button" href="#build"><span data-ru="Собрать свой BroGlow">Build your BroGlow</span> <span aria-hidden="true">↗</span></a>
+          <a class="repository-badge" href="https://github.com/broglow/broglow">
+            <span class="repository-name">GitHub <span aria-hidden="true">↗</span></span>
+            <span class="repository-description" data-ru="Исходный код">Source code</span>
+            <span class="repository-stats" hidden>
+              <span><span data-ru="Звёзды:">Stars:</span> <span data-stars></span></span>
+              <span><span data-ru="Форки:">Forks:</span> <span data-forks></span></span>
+            </span>
+          </a>
+        </div>
       </div>
       <figure class="hero-visual">
         <img id="hero-photo" src="assets/photos/broglow-all-lights.jpg" width="1400" height="1000" alt="BroGlow’s orange mascot beside the black traffic light with all three LEDs glowing red, yellow and green" data-ru-alt="Оранжевый маскот BroGlow рядом с чёрным светофором с тремя горящими светодиодами: красным, жёлтым и зелёным" fetchpriority="high">
@@ -221,6 +231,7 @@
     <a id="ar-link" class="model-button ar-link" href="#view-in-space" data-ru="Открыть на этом устройстве">Open on this device</a>
   </dialog>
   <script src="i18n.js"></script>
+  <script src="github.js"></script>
   <script src="vendor/qrcode-generator-2.0.4.js"></script>
   <script type="module" src="model-preview.js"></script>
 </body>
