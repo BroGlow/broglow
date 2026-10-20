@@ -195,11 +195,60 @@ jobs:
             broglow-models-*.zip
             broglow-models-*.zip.sha256
           body: |
-            Mac archives contain the native BroGlow app, ESP32-C3 SuperMini firmware and its source, checksums, operating guide and third-party notices. Choose aarch64 for Apple Silicon or x86_64 for Intel. Install with the included guide; the app is not Developer ID notarized.
+            ### Install on macOS
 
-            The Windows archive contains the graphical system-tray app and CLI in broglow.exe, with USB lamp support, its license and third-party notices. In PowerShell, run `.\broglow.exe install` from its permanent folder to register hooks, enable startup at login and launch the tray app. Use `.\broglow.exe menubar` to launch the tray interface directly, or `.\broglow.exe` for the terminal dashboard. No installer, BLE support, firmware or manuals are included.
+            With [Homebrew](https://brew.sh/) installed:
 
-            Enclosure: broglow-models-${{ github.ref_name }}.zip holds the five production parts 01–05 in stl/ (print orientation) and step/, plus BUILD.json, with a matching checksum. Print two copies of eye 02. The mascot attaches with four Ø3×2 mm N52 magnets (two in the mascot, two in the traffic light) and can be swapped for any mascot. Slice the STL files for your printer; machine-specific 3MF/G-code is not included. Print settings and assembly steps are in the website guide.
+            **First-time install**
 
+            ```bash
+            brew install broglow/tap/broglow
+            broglow install
+            ```
+
+            **Upgrade**
+
+            ```bash
+            brew upgrade broglow
+            broglow install
+            ```
+
+            Run `broglow install` after installing or upgrading to register agent integrations and start the menu-bar app.
+
+            [Setup guide](https://broglow.github.io/broglow/docs/)
+
+            <details>
+            <summary>Manual downloads, Windows setup and enclosure files</summary>
+
+            **macOS downloads**
+
+            Choose the archive for your Mac from the assets below:
+
+            - Apple Silicon: `broglow-${{ github.ref_name }}-aarch64-apple-darwin.tar.gz`
+            - Intel: `broglow-${{ github.ref_name }}-x86_64-apple-darwin.tar.gz`
+
+            Both contain the native BroGlow app, ESP32-C3 SuperMini firmware and its source, checksums, operating guide and third-party notices. Follow the included guide to install. The app is not Developer ID signed or notarized.
+
+            **Windows (x64)**
+
+            Download `broglow-${{ github.ref_name }}-x86_64-pc-windows-msvc.tar.gz` and extract it to a permanent folder. Open PowerShell in that folder and run:
+
+            ```powershell
+            .\broglow.exe install
+            ```
+
+            This registers hooks, enables startup at login and launches the system-tray app. Use `.\broglow.exe menubar` to launch the tray interface directly, or `.\broglow.exe` for the terminal dashboard. The archive includes USB lamp support, its license and third-party notices; no installer, BLE support, firmware or manuals.
+
+            **3D-printed enclosure (optional)**
+
+            Download `broglow-models-${{ github.ref_name }}.zip` for the five production parts 01–05 in `stl/` (print orientation) and `step/`, plus `BUILD.json`. Print two copies of eye 02. The swappable mascot attaches with four Ø3×2 mm N52 magnets (two in the mascot, two in the traffic light). Slice the STL files for your printer; machine-specific 3MF/G-code is not included. See the [printing and assembly guide](https://broglow.github.io/broglow/docs/printing/).
+
+            GitHub's **Source code** downloads contain sources and instructions; ready-to-print files are in the separate enclosure ZIP.
+
+            **Checksums and verification**
+
+            Each archive has a matching `.sha256` file.
             These assets passed automated checks; release builds do not establish fresh-machine permissions, physical lamp behavior or printed enclosure fit.
+
+            </details>
           generate_release_notes: true
