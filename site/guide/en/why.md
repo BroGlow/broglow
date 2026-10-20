@@ -8,12 +8,12 @@
 
 ## Thanks to ClawLight
 
-BroGlow would not exist without [ClawLight](https://github.com/clawlight/clawlight-cli).
-Its idea, a small desk lamp that shows what your coding agents are doing, is the idea
-BroGlow is built on, and BroGlow started as a fork of its code. We honor the original
-project and its authors: ClawLight proved the concept and inspired us to take it
-further. BroGlow is a separate, independently maintained application; below is what
-it adds.
+BroGlow is a separate, independently maintained application inspired by
+[ClawLight](https://github.com/clawlight/clawlight-cli). ClawLight showed how a
+small desk lamp could make coding-agent activity visible. BroGlow started as a fork
+of its code; most of the app has since been rewritten, with a substantially
+redesigned interface and expanded capabilities. We thank ClawLight's authors for
+the original idea and project.
 
 <a name="sessions"></a>
 
