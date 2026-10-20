@@ -51,7 +51,8 @@ next prompt on.
    the **Settings → Mixed sessions** choice also affect the lamp's color.
 
 Unsaved background jobs and internal subagents or approval reviewers do not appear
-as separate chats or affect the lamp. Saved scheduled chats remain monitored.
+as separate chats or affect the lamp. A subagent's activity does not clear its
+parent chat's unanswered question or change its status. Saved scheduled chats remain monitored.
 Dismiss any paused background entries left by an older BroGlow once; dismissing
 a BroGlow row does not delete the Codex chat.
 

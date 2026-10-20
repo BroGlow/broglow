@@ -234,6 +234,10 @@ thin:
   other `PostToolUse` events resume permission waits. `request_user_input_async`
   returns as soon as the question is displayed, so it stays red through tool
   completion and `Stop` until `UserPromptSubmit`, `Interrupt` or `SessionEnd`.
+  Before filtering or changing state, the shim ignores hooks whose rollout thread
+  ID differs from the hook's `session_id`: subagent hooks can carry their parent's
+  ID and must not clear its question or status. Use `session_meta.id`, falling back
+  to `session_meta.session_id`; missing or unknown IDs keep existing behavior.
   Hooks with an explicit null/empty `transcript_path` are unsaved runs and are
   ignored, as are rollouts with `source.subagent` or `thread_source` equal to
   `subagent`/`guardian_review`. A subsequent hook removes any old Codex row for

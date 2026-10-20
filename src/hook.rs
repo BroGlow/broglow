@@ -656,6 +656,11 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
     if codex_event_verb(&hook_event, false).is_none() {
         return Ok(());
     }
+    // A child's hooks can use the parent's session_id; they must never mutate
+    // or remove the parent's status, including a question still awaiting a reply.
+    if crate::codex::rollout_thread_id(&transcript_path).is_some_and(|id| id != session_id) {
+        return Ok(());
+    }
     if crate::codex::hook_is_background(&v) {
         // Remove a row left by an older adapter without touching other agents.
         return update_state(|state| {

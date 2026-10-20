@@ -355,6 +355,64 @@ fn codex_internal_rollouts_do_not_become_paused_chats() {
 }
 
 #[test]
+fn codex_subagent_hooks_cannot_clear_the_parent_question() {
+    let home = temp_home();
+    let id = "parent-chat";
+    let rollout = home.path().join("child.jsonl");
+    run_codex_hook(
+        &home,
+        &json!({
+            "hook_event_name": "PreToolUse", "session_id": id,
+            "tool_name": "request_user_input_async", "tool_use_id": "quiz",
+        })
+        .to_string(),
+    )
+    .success();
+    let pending = read_state(&home);
+    assert_eq!(session(&pending, id)["status"], "needs_help");
+    // Codex routes child hooks with the parent's session_id. The rollout's
+    // id is the child's identity; even its legacy session_id names the parent.
+    for (thread_id, legacy_id) in [
+        (json!("child-agent"), id),
+        (Value::Null, "child-agent"),
+        (json!(""), "child-agent"),
+    ] {
+        std::fs::write(
+            &rollout,
+            json!({
+                "type": "session_meta",
+                "payload": {
+                    "id": thread_id, "session_id": legacy_id,
+                    "source": {"subagent": {"thread_spawn": {"parent_thread_id": id, "depth": 1}}},
+                    "thread_source": "subagent",
+                },
+            })
+            .to_string(),
+        )
+        .unwrap();
+        for event in [
+            "PreToolUse",
+            "PostToolUse",
+            "PermissionRequest",
+            "SessionStart",
+            "UserPromptSubmit",
+            "Stop",
+            "Interrupt",
+            "SessionEnd",
+        ] {
+            run_codex_hook(
+                &home,
+                &ev_with_transcript(event, id, rollout.to_str().unwrap()),
+            )
+            .success();
+            assert_eq!(read_state(&home), pending, "child {event}");
+        }
+    }
+    run_codex_hook(&home, &ev("UserPromptSubmit", id)).success();
+    assert_eq!(session(&read_state(&home), id)["status"], "active");
+}
+
+#[test]
 fn codex_saved_chats_keep_working_when_metadata_is_incomplete_or_unfamiliar() {
     let home = temp_home();
     let rollout = home.path().join("saved.jsonl");

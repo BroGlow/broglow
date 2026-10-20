@@ -297,6 +297,18 @@ pub fn rollout_is_desktop(transcript_path: &str) -> bool {
     rollout_metadata(transcript_path).is_some_and(|v| v["originator"] == "Codex Desktop")
 }
 
+/// Child hooks can carry the parent's session_id. The rollout's modern id
+/// identifies the actual thread, even when its legacy session_id is inherited.
+pub fn rollout_thread_id(transcript_path: &str) -> Option<String> {
+    let meta = rollout_metadata(transcript_path)?;
+    ["id", "session_id"].into_iter().find_map(|key| {
+        meta[key]
+            .as_str()
+            .filter(|id| !id.is_empty())
+            .map(str::to_owned)
+    })
+}
+
 /// Unsaved app jobs have no transcript to reopen. Internal agents and approval
 /// reviewers can have rollouts, but belong to their parent chat's status.
 /// An omitted path or unreadable metadata is inconclusive on older Codex builds.
