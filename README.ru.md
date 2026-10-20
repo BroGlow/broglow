@@ -9,7 +9,7 @@
 Лампа, подключённая по USB или Bluetooth LE, показывает работу, ожидание и запрос ввода.
 
 <p align="center">
-  <img src="site/assets/photos/signal-yellow.jpg" width="420" alt="Лампа BroGlow с горящим жёлтым светом рядом с оранжевым маскотом">
+  <img src="site/assets/photos/broglow-all-lights.jpg" width="420" alt="Лампа BroGlow с тремя горящими огнями — красным, жёлтым и зелёным — рядом с оранжевым маскотом">
   <img src="site/assets/photos/popover-dark.png" width="353" alt="Окно BroGlow в строке меню: три активные сессии — одна работает, две на паузе — и кнопки Dashboard, Settings и Lamps">
 </p>
 

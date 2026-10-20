@@ -136,7 +136,7 @@ Without JavaScript, guide links work in their URL's language and prompts can be
 copied manually.
 
 The landing's Open Graph and Twitter cards use English text and our real
-`assets/photos/signal-green.jpg` lamp photo. Absolute canonical and preview URLs
+`assets/photos/broglow-all-lights.jpg` lamp photo. Absolute canonical and preview URLs
 point to the published site; `pages.py` adjusts them for `--repository`.
 
 Both the landing and the guide follow the system color scheme and offer an
@@ -195,7 +195,8 @@ fit or delivery of agent events.
 
 Our asset sources:
 
-- `assets/broglow.jpg`: our photo of the built lamp with the LEDs off, cropped to 7:5 at 1400×1000; the poster shown until the 3D view loads.
+- `assets/photos/broglow-all-lights.jpg`: our main photo of the lamp and orange mascot with all three LEDs glowing, cropped to 7:5 at 1400×1000; used by the README and social previews, and as the poster until the 3D view loads.
+- `assets/broglow.jpg`: our photo of the built lamp with the LEDs off, cropped to 7:5 at 1400×1000; used by the signal demo's **Off** state.
 - `assets/photos/`: our photos of the built lamp (`state-*.jpg` squares and `signal-*.jpg` 7:5 crops with one LED lit, `inside-*.jpg` rear views with and without the LED retainer) and the `popover-dark.png` menu-bar screenshot, web-sized; originals stay untracked in `originals/`.
 - `assets/assembly.glb`: separated assembly from `models/magnetic/exploded.py`; source hashes and bounds in `assets/assembly-model.json`.
 - `guide/assets/favicon.svg`: our three-circle lamp artwork, also used by the landing favicon. Tray icons come from `assets/icons/` in the repository root.
