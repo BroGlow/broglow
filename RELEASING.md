@@ -211,7 +211,8 @@ The **Homebrew tap** workflow (`.github/workflows/homebrew-tap.yaml`) runs when
 a release is published, or by hand: **Actions → Homebrew tap → Run workflow**
 with a released tag. It downloads the checksums from that release, renders both
 formulae, stages them in a local tap on a macOS runner for `brew style` and
-`brew audit --strict`, installs and tests them, and uploads them as the
+`brew audit --strict`, installs the latest formula before the pinned one to keep
+the default command linked, tests both, and uploads them as the
 `homebrew-formula` artifact. For a published release, or by hand with **publish**
 ticked, it then pushes them to `broglow/homebrew-tap`'s `Formula/` using the
 `HOMEBREW_TAP_TOKEN` repository secret (a fine-grained token with

@@ -76,7 +76,9 @@ jobs:
         run: |
           set -euo pipefail
           PINNED="broglow/tap/broglow@${TAG#v}"
-          brew install broglow/tap/broglow "$PINNED"
+          # Install separately so the pinned formula sees the linked latest formula.
+          brew install broglow/tap/broglow
+          brew install "$PINNED"
           brew test broglow/tap/broglow "$PINNED"
           "$(brew --prefix)/bin/broglow" --version
           "$(brew --prefix "broglow@${TAG#v}")/bin/broglow" --version
