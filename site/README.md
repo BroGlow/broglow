@@ -69,13 +69,16 @@ landing and local downloads.
 
 ## Interactive 3D and AR
 
-The build section has a rotatable assembly explorer on the hero's self-hosted
+The hero keeps the main photo visible, with all three LEDs glowing. Directly below,
+**Explore in 3D** hosts the assembled lamp preview with signal effects and AR.
+The build section has a rotatable assembly explorer using the same self-hosted
 model-viewer with `assets/assembly.glb`, loaded lazily; it supports drag,
 keyboard rotation, zoom, Reset view and retry after loading errors. Its separated
-parts expose the LED retainer and mounting points. Signal effects and AR are
-hero-only. Without JavaScript, the page directs visitors to enable it.
+parts expose the LED retainer and mounting points. Without JavaScript, the hero
+photo remains visible and the 3D preview shows the green-light photo.
 
-The 3D preview starts automatically with **Working** selected. Self-hosted
+The 3D preview starts automatically with **Working** selected; its initial poster
+is `assets/photos/signal-green.jpg`. Self-hosted
 `@google/model-viewer` 4.3.1 and the effects module share Three.js via a local import
 map (see [vendor/README.md](vendor/README.md)). **Working**, **Paused** and **Needs help** light only the green,
 yellow or red lens; **Off** dims all three and removes the glow. A restrained bloom
@@ -106,7 +109,7 @@ cannot reach another device's localhost. Physical phone placement and size still
 need acceptance checks. See the [component's AR reference](https://modelviewer.dev/examples/augmentedreality/).
 
 The model depicts the magnetic enclosure from `models/magnetic/` with reference
-magnets and electronics (`appearance.py` for the hero, `exploded.py` for the
+magnets and electronics (`appearance.py` for the assembled preview, `exploded.py` for the
 explorer). Use the separate enclosure package for printing. Source hashes and
 bounds live in `assets/broglow-model.json`; regenerate both outputs rather than
 editing them. From a full checkout, run the export with the locked `cad` dependency group:
@@ -136,7 +139,7 @@ Without JavaScript, guide links work in their URL's language and prompts can be
 copied manually.
 
 The landing's Open Graph and Twitter cards use English text and our real
-`assets/photos/broglow-all-lights.jpg` lamp photo. Absolute canonical and preview URLs
+`assets/photos/broglow-all-lights.jpg` lamp photo, with all three LEDs glowing. Absolute canonical and preview URLs
 point to the published site; `pages.py` adjusts them for `--repository`.
 
 Both the landing and the guide follow the system color scheme and offer an
@@ -195,7 +198,8 @@ fit or delivery of agent events.
 
 Our asset sources:
 
-- `assets/photos/broglow-all-lights.jpg`: our main photo of the lamp and orange mascot with all three LEDs glowing, cropped to 7:5 at 1400×1000; used by the README and social previews, and as the poster until the 3D view loads.
+- `assets/photos/broglow-all-lights.jpg`: our main photo of the lamp and orange mascot with all three LEDs glowing, cropped to 7:5 at 1400×1000; permanently visible in the landing hero and used by the README and social previews.
+- `assets/photos/signal-green.jpg`: our green-light photo, cropped to 7:5 at 1400×1000; the 3D preview's initial poster and no-JavaScript fallback, matching **Working**.
 - `assets/broglow.jpg`: our photo of the built lamp with the LEDs off, cropped to 7:5 at 1400×1000; used by the signal demo's **Off** state.
 - `assets/photos/`: our photos of the built lamp (`state-*.jpg` squares and `signal-*.jpg` 7:5 crops with one LED lit, `inside-*.jpg` rear views with and without the LED retainer) and the `popover-dark.png` menu-bar screenshot, web-sized; originals stay untracked in `originals/`.
 - `assets/assembly.glb`: separated assembly from `models/magnetic/exploded.py`; source hashes and bounds in `assets/assembly-model.json`.

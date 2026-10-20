@@ -70,9 +70,16 @@
         <p class="intro" data-ru="Маленький светофор на столе показывает, чем занят ваш ИИ-агент: работает, ждёт или зовёт вас.">A small traffic light on your desk shows what your coding agent is doing: working, waiting, or asking for your attention.</p>
         <a class="button" href="#build"><span data-ru="Собрать свой BroGlow">Build your BroGlow</span> <span aria-hidden="true">↗</span></a>
       </div>
-      <figure class="hero-visual" id="view-in-space">
+      <figure class="hero-visual">
+        <img id="hero-photo" src="assets/photos/broglow-all-lights.jpg" width="1400" height="1000" alt="BroGlow’s orange mascot beside the black traffic light with all three LEDs glowing red, yellow and green" data-ru-alt="Оранжевый маскот BroGlow рядом с чёрным светофором с тремя горящими светодиодами: красным, жёлтым и зелёным" fetchpriority="high">
+      </figure>
+    </section>
+
+    <section class="explore wrap" id="explore" aria-labelledby="explore-title">
+      <h2 id="explore-title" data-ru="Посмотрите в 3D">Explore in 3D</h2>
+      <figure class="model-preview" id="view-in-space">
         <div class="model-stage" id="signals">
-          <img id="model-poster" src="assets/photos/broglow-all-lights.jpg" width="1400" height="1000" alt="Photo of the BroGlow lamp: the orange mascot beside the black traffic light" data-ru-alt="Фотография лампы BroGlow: оранжевый маскот рядом с чёрным светофором" fetchpriority="high">
+          <img id="model-poster" src="assets/photos/signal-green.jpg" width="1400" height="1000" alt="Photo of the BroGlow lamp: the orange mascot beside the black traffic light" data-ru-alt="Фотография лампы BroGlow: оранжевый маскот рядом с чёрным светофором" loading="lazy">
           <model-viewer id="lamp-model" data-model-src="assets/broglow.glb" alt="Our lamp's 3D model. Arrow keys rotate; Page Up and Page Down zoom." data-ru-alt="3D-модель нашей лампы. Стрелки вращают, Page Up и Page Down меняют масштаб." camera-controls touch-action="pan-y" camera-orbit="25deg 80deg 95%" shadow-intensity="0.8" exposure="0.85" interaction-prompt="none" loading="eager" ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" hidden>
             <effect-composer render-mode="quality" msaa="2">
               <bloom-effect strength="0.2" radius="0.6" threshold="0.9"></bloom-effect>
