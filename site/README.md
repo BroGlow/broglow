@@ -142,7 +142,11 @@ The landing's Open Graph and Twitter cards use English text and our real
 `assets/photos/broglow-all-lights.jpg` lamp photo, with all three LEDs glowing. Absolute canonical and preview URLs
 point to the published site; `pages.py` adjusts them for `--repository`.
 
-The GitHub badge beside the build button links to the repository and loads its
+The landing explicitly offers installation and session monitoring before building
+or getting a lamp. Its main button opens the installation guide; the physical lamp
+is an optional addition to the menu-bar app and terminal dashboard.
+
+The GitHub badge beside the install button links to the repository and loads its
 star and fork counts from GitHub's public API. Without JavaScript or when the
 request fails, it remains a source-code link. `pages.py` adjusts the repository
 link for `--repository` and includes `github.js` in the Pages artifact.

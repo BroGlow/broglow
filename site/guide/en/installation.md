@@ -4,6 +4,11 @@
 
 # Install and connect
 
+No lamp yet? Install and configure BroGlow now, before building or getting one.
+The app and terminal dashboard show your local agent sessions and their status
+without any hardware. Install below and [connect your coding agents](agents.md);
+pairing and lamp controls can wait until you have a device.
+
 <a name="homebrew"></a>
 
 ## Install with Homebrew
@@ -32,11 +37,12 @@ In Terminal, `broglow` opens the dashboard.
 
 ## What the colors mean
 
-The lamp mirrors all your local sessions at once: **green** while an agent is
+BroGlow shows your local session status: **green** while an agent is
 working, **yellow** when a session has finished its turn and waits for you, **red**
 when an agent asks a question or needs a permission. The popover marks each session
-with the same colors; **Settings → Mixed sessions** decides between green and yellow
-when sessions disagree.
+with these colors even without a lamp. A connected lamp mirrors their combined
+status; **Settings → Mixed sessions** decides between green and yellow when
+sessions disagree.
 
 ![Green: an agent is working]({{ repo_url }}/raw/HEAD/site/assets/photos/state-green.jpg)
 ![Yellow: a session waits for you]({{ repo_url }}/raw/HEAD/site/assets/photos/state-yellow.jpg)

@@ -5,7 +5,7 @@
   <meta name="author" content="Suren Khorenyan">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#181a19">
-  <meta name="description" content="BroGlow DIY — a desk traffic light for AI coding agents. Three colors, a SuperMini board, Bluetooth or USB, and a 3D-printable enclosure." data-ru-content="BroGlow DIY — настольный светофор для ИИ-агентов. Три цвета, плата SuperMini, Bluetooth или USB и корпус для 3D-печати.">
+  <meta name="description" content="Monitor your AI coding sessions and statuses in the menu bar or terminal. Use BroGlow without a lamp, and connect one later over Bluetooth or USB." data-ru-content="Сессии ИИ-агентов и их статусы в строке меню или терминале. Установите и настройте BroGlow без лампы; подключите её по Bluetooth или USB позже.">
   <title data-ru="BroGlow DIY — статус агента с одного взгляда">BroGlow DIY — your agent’s status at a glance</title>
   <link rel="canonical" href="https://broglow.github.io/broglow/">
   <meta property="og:type" content="website">
@@ -13,7 +13,7 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://broglow.github.io/broglow/">
   <meta property="og:title" content="BroGlow DIY — your agent’s status at a glance">
-  <meta property="og:description" content="A desk traffic light for AI coding agents. Three colors, Bluetooth or USB, and a 3D-printable enclosure.">
+  <meta property="og:description" content="Monitor your AI coding sessions and statuses in the menu bar or terminal. Use BroGlow without a lamp, and connect one later over Bluetooth or USB.">
   <meta property="og:image" content="https://broglow.github.io/broglow/assets/photos/broglow-all-lights.jpg">
   <meta property="og:image:type" content="image/jpeg">
   <meta property="og:image:width" content="1400">
@@ -21,7 +21,7 @@
   <meta property="og:image:alt" content="BroGlow’s orange mascot beside the black traffic light with all three LEDs glowing red, yellow and green.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="BroGlow DIY — your agent’s status at a glance">
-  <meta name="twitter:description" content="A desk traffic light for AI coding agents. Three colors, Bluetooth or USB, and a 3D-printable enclosure.">
+  <meta name="twitter:description" content="Monitor your AI coding sessions and statuses in the menu bar or terminal. Use BroGlow without a lamp, and connect one later over Bluetooth or USB.">
   <meta name="twitter:image" content="https://broglow.github.io/broglow/assets/photos/broglow-all-lights.jpg">
   <meta name="twitter:image:alt" content="BroGlow’s orange mascot beside the black traffic light with all three LEDs glowing red, yellow and green.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23181a19'/%3E%3Ccircle cx='16' cy='8' r='3' fill='%23f07c6b'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23e9c665'/%3E%3Ccircle cx='16' cy='24' r='3' fill='%239ccb8e'/%3E%3C/svg%3E">
@@ -67,9 +67,9 @@
       <div class="hero-copy">
         <p class="eyebrow" data-ru="Ваш агент — с одного взгляда.">Your agent. At a glance.</p>
         <h1 id="hero-title"><span data-ru="Меньше вкладок.">Fewer tabs.</span><br><span class="accent" data-ru="Больше ясности.">More clarity.</span></h1>
-        <p class="intro" data-ru="Маленький светофор на столе показывает, чем занят ваш ИИ-агент: работает, ждёт или зовёт вас.">A small traffic light on your desk shows what your coding agent is doing: working, waiting, or asking for your attention.</p>
+        <p class="intro" data-ru="Лампа не нужна для начала работы. Установите и настройте BroGlow: приложение в строке меню и терминальная панель показывают сессии агентов и их статусы. Лампу можно подключить позже.">No lamp required. Install and configure BroGlow now to see agent sessions and statuses in the menu-bar app or terminal dashboard. Add the physical lamp later.</p>
         <div class="hero-actions">
-          <a class="button" href="#build"><span data-ru="Собрать свой BroGlow">Build your BroGlow</span> <span aria-hidden="true">↗</span></a>
+          <a class="button" href="docs/installation/"><span data-ru="Установить BroGlow">Install BroGlow</span> <span aria-hidden="true">↗</span></a>
           <a class="repository-badge" href="https://github.com/broglow/broglow">
             <span class="repository-name">GitHub <span aria-hidden="true">↗</span></span>
             <span class="repository-description" data-ru="Исходный код">Source code</span>
@@ -168,7 +168,7 @@
       <div class="status-copy">
         <p class="eyebrow" data-ru="Что значат цвета">What the colors mean</p>
         <h2 id="status-title"><span data-ru="Три светодиода.">Three LEDs.</span><br><span data-ru="Один взгляд.">One glance.</span></h2>
-        <p data-ru="Лампа показывает сводный статус всех локальных сессий: зелёный — агент работает, жёлтый — сессия закончила ход и ждёт вас, красный — агент задал вопрос или ждёт разрешения.">The lamp mirrors all your local sessions at once: green while an agent is working, yellow when a session has finished its turn and waits for you, red when an agent asks a question or needs a permission.</p>
+        <p data-ru="Приложение в строке меню и терминальная панель показывают сессии агентов и их статусы даже без лампы. Дополнительная лампа отображает сводный статус: зелёный — работа, жёлтый — ожидание, красный — нужен ваш ответ.">The menu-bar app and terminal dashboard show your agent sessions and statuses even without a lamp. An optional lamp mirrors their combined status: green for working, yellow for waiting, red when your attention is needed.</p>
         <img class="status-app" src="assets/photos/popover-dark.png" width="768" height="652" loading="lazy" alt="The BroGlow menu-bar popover: three live sessions, one working and two paused, with Dashboard, Settings and Lamps controls" data-ru-alt="Окно BroGlow в строке меню: три активные сессии — одна работает, две на паузе — и кнопки Dashboard, Settings и Lamps">
       </div>
       <ul class="status-photos">

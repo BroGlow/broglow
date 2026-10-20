@@ -8,6 +8,10 @@ A three-LED status lamp (ESP32-C3 SuperMini with red, yellow and green LEDs) in 
 printed enclosure that mirrors your agent sessions. The mascot attaches with magnets,
 so you can swap it any time.
 
+You can [install and configure BroGlow](installation.md) while you wait for parts:
+the app and terminal dashboard already show local agent sessions and their status
+without a lamp.
+
 Already assembled? [Install BroGlow and connect the lamp](installation.md).
 
 <a name="parts"></a>
