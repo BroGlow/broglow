@@ -239,11 +239,54 @@ Workflow **Homebrew tap** (`.github/workflows/homebrew-tap.yaml`) запуска
 **Contents: read and write** только на `homebrew-tap`). Обновите токен до
 истечения его срока.
 
-Для локальной репетиции сформируйте формулу по архивам в `dist/` с
-`--url-base file:///путь/к/dist/`, скопируйте её в `brew tap-new broglow/tap`,
-выполните `brew style`, `brew audit --strict` и `brew install broglow/tap/broglow`,
-затем `brew uninstall broglow` и `brew untap broglow/tap`. Не запускайте
-`broglow install` из репетиционного бинарника на машине с рабочей установкой.
+<a name="homebrew-installation-order"></a>
+
+### Обязательный порядок установки
+
+Проверяйте изменения формул/workflow на чистом Mac без установленных формул BroGlow.
+Подготовку tap и проверки style/audit берите из [workflow](.github/workflows/homebrew-tap.yaml).
+Сначала устанавливайте последнюю формулу, затем закреплённую, отдельными командами:
+
+```bash
+LATEST=broglow/tap/broglow
+PINNED=broglow/tap/broglow@VERSION
+brew install "$LATEST"
+brew install "$PINNED"
+brew test "$LATEST" "$PINNED"
+"$(brew --prefix)/bin/broglow" --version
+"$(brew --prefix "$PINNED")/bin/broglow" --version
+```
+
+Оба бинарника должны показать VERSION.
+
+Объединение установок вызвало в v1.0.2 ошибку **последней формулы** `is not linked`.
+Предупреждение **installed but not linked** для закреплённой формулы ожидаемо:
+команда принадлежит последней. Сохраняйте оба теста; не выполняйте предложенный
+`brew link`, не пересоздавайте ссылки ради сокрытия ошибки и не скрывайте диагностику
+через `--quiet`.
+
+Для локальных архивов формируйте формулы с `--url-base file:///path/to/dist/`
+и используйте свободный временный tap; разные tap всё равно делят имена в Cellar.
+Удаляйте только тестовые пакеты/tap. Не запускайте репетиционный `broglow install`
+поверх рабочего приложения.
+
+<a name="homebrew-publication-acceptance"></a>
+
+### Приёмка публикации и повторный запуск
+
+1. Дождитесь успеха **Release**, **Homebrew tap** (включая `publish`) и **Website**;
+   успешная сборка сама по себе не подтверждает публикацию.
+2. В свежем окружении без репетиционного tap выполните `brew tap broglow/tap`.
+   Проверьте версии публичных формул, URL/контрольные суммы архивов и обе установки
+   командами выше. Вне исходников проверьте, что `command -v broglow` указывает
+   на Homebrew; Cargo может скрыть его в PATH.
+3. Сохраните результаты в игнорируемой `.recovery/` и укажите непроверенные платформы/оборудование.
+
+После исправления workflow создайте **новый** запуск Homebrew tap из **master**
+с существующим опубликованным **tag** и отмеченным **publish**. **Re-run jobs**
+сохраняет старый workflow. Генератор по-прежнему берётся из тега; исправления
+генератора/приложения требуют нового патч-релиза. Не перемещайте опубликованный
+тег и не заменяйте его файлы.
 
 <a name="publish-the-website"></a>
 

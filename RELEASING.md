@@ -219,11 +219,51 @@ ticked, it then pushes them to `broglow/homebrew-tap`'s `Formula/` using the
 **Contents: read and write** on `homebrew-tap` only). Renew the token before it
 expires.
 
-To rehearse locally, render the formula against archives in `dist/` with
-`--url-base file:///path/to/dist/`, copy it into `brew tap-new broglow/tap`,
-run `brew style`, `brew audit --strict` and `brew install broglow/tap/broglow`,
-then `brew uninstall broglow` and `brew untap broglow/tap`. Do not run
-`broglow install` from a rehearsal binary on a machine with a working install.
+<a name="homebrew-installation-order"></a>
+
+### Required installation order
+
+Rehearse formula/workflow changes on a clean Mac with no BroGlow formulae installed.
+Use [the workflow](.github/workflows/homebrew-tap.yaml) for staging and style/audit
+checks. Install latest first, then pinned, in separate commands:
+
+```bash
+LATEST=broglow/tap/broglow
+PINNED=broglow/tap/broglow@VERSION
+brew install "$LATEST"
+brew install "$PINNED"
+brew test "$LATEST" "$PINNED"
+"$(brew --prefix)/bin/broglow" --version
+"$(brew --prefix "$PINNED")/bin/broglow" --version
+```
+
+Both binaries must report VERSION.
+
+Combining the installs caused v1.0.2's fatal **latest formula** `is not linked`
+error. The pinned formula's **installed but not linked** warning is expected:
+latest owns the command. Keep both tests; do not follow the warning's `brew link`
+suggestion, relink to hide failures, or suppress diagnostics with `--quiet`.
+
+For local archives, render with `--url-base file:///path/to/dist/` and use an
+unused temporary tap; different taps still share Cellar names. Remove only test
+packages/taps. Never run rehearsal `broglow install` over a working app.
+
+<a name="homebrew-publication-acceptance"></a>
+
+### Publication acceptance and retry
+
+1. Require successful **Release**, **Homebrew tap** (including `publish`) and
+   **Website** runs; a successful build alone does not prove publication.
+2. In a fresh environment without the rehearsal tap, run `brew tap broglow/tap`.
+   Verify public formula versions, archive URLs/checksums and both installs above.
+   Outside the checkout, check `command -v broglow` resolves to Homebrew;
+   Cargo can shadow it on PATH.
+3. Save evidence under ignored `.recovery/` and report untested platforms/hardware.
+
+After a workflow fix, start a **new** Homebrew tap run from **master** with the
+existing released **tag** and **publish** ticked. **Re-run jobs** keeps the old
+workflow. The generator still comes from the tag; generator/app fixes need a new
+patch release. Never move a published tag or replace its assets.
 
 ## Publish the website
 
