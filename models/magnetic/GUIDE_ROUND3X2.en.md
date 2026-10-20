@@ -4,9 +4,11 @@
 
 [English](GUIDE_ROUND3X2.en.md) | [Русский](GUIDE_ROUND3X2.md)
 
-Download **broglow-models-vVERSION.zip** from the project's GitHub
-Releases; the website shows its SHA-256. The mascot holds on by magnets, so you
-can remove or swap it.
+Get the enclosure files on [Printables](https://www.printables.com/model/1884645) or
+[MakerWorld](https://makerworld.com/models/3468773). Alternatively, download
+**broglow-models-vVERSION.zip** from the project's [GitHub Releases](https://github.com/broglow/broglow/releases);
+the website shows its SHA-256. The mascot holds on by magnets, so you can remove
+or swap it.
 
 <a name="fit"></a>
 
@@ -19,8 +21,8 @@ two in the traffic light (tower). Pockets are **Ø3.05 × 2.30 mm**.
 
 ## What to print
 
-The archive has two folders, `stl/` with these five parts to print and `step/`
-with the same parts as STEP, plus `BUILD.json`.
+The GitHub release archive has two folders, `stl/` with these five parts to print
+and `step/` with the same parts as STEP, plus `BUILD.json`.
 
 | File | Quantity | Color |
 | --- | --- | --- |

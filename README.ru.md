@@ -78,7 +78,7 @@ BroGlow — отдельное, независимо поддерживаемо�
 - **Установка или обновление:** [руководство по установке](site/guide/ru/installation.md) (Homebrew), [другие способы установки](site/guide/ru/alternatives.md) (пакет для Mac, исходники, Windows, Linux) или поручите настройку coding-агенту по [инструкции для агента](site/guide/ru/hardware.md#agent-runbook).
 - **Подключение прошитой лампы:** [сопряжение](site/guide/ru/installation.md#pairing).
 - **Сборка и подключение лампы ESP32-C3:** [схема подключения](site/guide/ru/hardware.md#wiring-and-resistor-choice).
-- **Печать корпуса:** [печать и сборка](models/magnetic/GUIDE_ROUND3X2.md). Маскот держится на четырёх магнитах Ø3×2 мм N52 (два в маскоте, два в светофоре), и его можно заменить на любого другого.
+- **Печать корпуса:** скачайте модели на [Printables](https://www.printables.com/model/1884645) или [MakerWorld](https://makerworld.com/models/3468773), затем следуйте [инструкции по печати и сборке](models/magnetic/GUIDE_ROUND3X2.md). Маскот держится на четырёх магнитах Ø3×2 мм N52 (два в маскоте, два в светофоре), и его можно заменить на любого другого.
 - **Что-то не работает:** [решение проблем](site/guide/ru/troubleshooting.md).
 
 Для новой или непрошитой C3 следуйте [инструкции по прошивке и резервному копированию](site/guide/ru/hardware.md#flash-and-recover-usb-upload).
@@ -89,7 +89,7 @@ BroGlow — отдельное, независимо поддерживаемо�
 | Windows | Приложение в трее и CLI; без установщика, прошивки и руководств | USB |
 | Linux | Сборка из исходников | USB |
 
-Корпус скачивается отдельным архивом из того же релиза.
+Корпус также можно скачать отдельным архивом из GitHub Releases.
 
 <a name="install"></a>
 

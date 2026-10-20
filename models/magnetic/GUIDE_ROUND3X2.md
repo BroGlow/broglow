@@ -4,9 +4,11 @@
 
 [English](GUIDE_ROUND3X2.en.md) | [Русский](GUIDE_ROUND3X2.md)
 
-Скачайте **broglow-models-vVERSION.zip** из раздела Releases проекта
-на GitHub; его SHA-256 показан на сайте. Маскот держится на
-магнитах: его можно снять или заменить.
+Скачайте файлы корпуса на [Printables](https://www.printables.com/model/1884645) или
+[MakerWorld](https://makerworld.com/models/3468773). Другой вариант — архив
+**broglow-models-vVERSION.zip** из [GitHub Releases](https://github.com/broglow/broglow/releases) проекта;
+его SHA-256 показан на сайте. Маскот держится на магнитах: его можно снять или
+заменить.
 
 <a name="fit"></a>
 
@@ -19,8 +21,8 @@
 
 ## Что печатать
 
-В архиве две папки: `stl/` с этими пятью деталями для печати и `step/` с теми же
-деталями в STEP, а также `BUILD.json`.
+В архиве из GitHub Releases две папки: `stl/` с этими пятью деталями для печати и
+`step/` с теми же деталями в STEP, а также `BUILD.json`.
 
 | Файл | Количество | Цвет |
 | --- | --- | --- |

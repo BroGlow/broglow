@@ -18,6 +18,9 @@
 
 ## Выберите детали
 
+Файлы корпуса: [Printables](https://www.printables.com/model/1884645) или
+[MakerWorld](https://makerworld.com/models/3468773).
+
 <!-- model-download -->
 
 | Деталь | Кол-во | Нужна | Что выбрать |

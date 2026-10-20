@@ -243,6 +243,8 @@ jobs:
 
             Download `broglow-models-${{ github.ref_name }}.zip` for the five production parts 01–05 in `stl/` (print orientation) and `step/`, plus `BUILD.json`. Print two copies of eye 02. The swappable mascot attaches with four Ø3×2 mm N52 magnets (two in the mascot, two in the traffic light). Slice the STL files for your printer; machine-specific 3MF/G-code is not included. See the [printing and assembly guide](https://broglow.github.io/broglow/docs/printing/).
 
+            The enclosure is also available on [Printables](https://www.printables.com/model/1884645) and [MakerWorld](https://makerworld.com/models/3468773), with a shared print profile on MakerWorld. The model listings use CC BY 4.0; this repository retains its MIT license.
+
             GitHub's **Source code** downloads contain sources and instructions; ready-to-print files are in the separate enclosure ZIP.
 
             **Checksums and verification**

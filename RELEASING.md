@@ -8,8 +8,11 @@ These are maintainer instructions for a source checkout. The `site/` and
 `.github/` files referenced below are not included in prebuilt app packages.
 
 App/firmware releases and website deployment use separate GitHub Actions
-workflows. STL and STEP files ship only inside the enclosure ZIP attached to
-the release; keep all generated files ignored and out of Git (see
+workflows. GitHub releases distribute STL and STEP files inside the separate
+enclosure ZIP. The enclosure is also available on
+[Printables](https://www.printables.com/model/1884645) and
+[MakerWorld](https://makerworld.com/models/3468773); those listings use CC BY 4.0,
+while the repository retains its MIT license. Keep all generated files ignored and out of Git (see
 [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ## Distribution
@@ -51,31 +54,37 @@ checks on that platform.
 
 ## Build a draft release
 
-Set the version in `Cargo.toml` and run `cargo check` so `Cargo.lock` matches.
-The release tag is **vVERSION** and must point to the reviewed release commit.
-Check both the source and website using the commands in
+Review and commit all release changes first, then check both the source and
+website using the commands in
 [CONTRIBUTING.md](CONTRIBUTING.md#build-and-test) and
 [site/README.md](site/README.md#check-changes).
 
-After reviewing the commit and destination, tag and push explicitly. Replace
-`YOUR_REMOTE` with the GitHub remote's name (`git remote -v`):
+From that clean checkout, use the release helper to create **vVERSION**. It
+updates `Cargo.toml` and the root `broglow` entry in `Cargo.lock`, validates
+locked Cargo metadata offline, commits the version files if they changed and
+creates the matching annotated tag. It does not push. If the version already
+matches, it creates the tag without an empty commit.
+
+After reviewing the resulting commit and destination, check the tagged source
+and push explicitly. Replace `YOUR_REMOTE` with the GitHub remote's name
+(`git remote -v`):
 
 ```bash
-git tag vVERSION
+uv run --no-project --python 3.14 python scripts/release-tag.py vVERSION
 uv run --frozen python scripts/package-macos.py --release-tag vVERSION --check-only
 git push YOUR_REMOTE HEAD:master
 git push YOUR_REMOTE vVERSION
 ```
 
-If the check fails (dirty tree or version mismatch), delete the local tag with
-`git tag -d vVERSION`, fix the problem and repeat. Pushing `master` runs CI and,
-when it changes the site, docs, models or `Cargo.toml`, deploys the website
-automatically.
+Plain `git tag` does not run the helper or update Cargo versions; release CI
+rejects a tag/version mismatch. If the tagged-source check fails before pushing,
+delete only the unpublished local tag with `git tag -d vVERSION`, fix and commit
+the problem, then repeat the helper and check. Pushing `master` runs CI and, when
+it changes the site, docs, models or `Cargo.toml`, deploys the website automatically.
 
 Push only this tag, by name; never use `git push --tags`. Pushing a `v*` tag
-starts the **Release** workflow. For the next release, bump `version` in
-`Cargo.toml` and `Cargo.lock`, commit, then create and push its tag:
-`git push YOUR_REMOTE vX.Y.Z`.
+starts the **Release** workflow. For the next release, repeat this procedure with
+the next version. Never move a published tag.
 
 The **Release** workflow runs in this order:
 

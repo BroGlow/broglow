@@ -60,7 +60,7 @@ Open http://127.0.0.1:8080/site/ for the landing and
 http://127.0.0.1:8080/site/docs/ for the guide. Rebuild after Markdown edits;
 output goes to ignored `site/docs/` without cleaning the landing.
 Website builds need no generated STL, STEP/STP or ZIP files and do not run CAD.
-Keep those exports ignored; printable downloads are release assets.
+Keep those exports ignored; GitHub print packages are distributed as release assets.
 
 For automatic guide refresh, use
 `uv run --frozen --only-group docs mkdocs serve -f site/mkdocs.yaml`.
@@ -185,9 +185,14 @@ Keep the preview server running for the HTTP check.
 
 ## Local downloads and factual limits
 
-The only enclosure download is `broglow-models-vVERSION.zip`, with
+The GitHub enclosure download is `broglow-models-vVERSION.zip`, with
 `stl/` and `step/` folders and `BUILD.json`; `printing.md` includes
 its guide from `models/magnetic/`.
+
+The authored build pages and shared printing guides also link to the published
+[Printables](https://www.printables.com/model/1884645) and
+[MakerWorld](https://makerworld.com/models/3468773) models. Keep those links in the
+Markdown sources, alongside the generated GitHub download choices.
 
 `pages.py` expands `<!-- mac-downloads -->` and `<!-- model-download -->`:
 local previews link to the newest complete Mac archive in `dist/` (with its
@@ -199,7 +204,7 @@ current `Cargo.toml` version and shows it inline; when the
 checksum cannot be fetched the page points to the release page instead. Publishing a release restarts
 the Website workflow on the default branch so the checksum lands on the site. GitHub's automatic source ZIP contains editable
 source and instructions, without STL, STEP/STP or ready-to-print ZIPs; use the
-enclosure release asset or [generate it from source](../RELEASING.md).
+enclosure release asset, either model listing, or [generate it from source](../RELEASING.md).
 Previews neither rebuild nor copy archives; inspect a package's `BUILD.json` for
 its architecture, date and source.
 
@@ -240,7 +245,9 @@ settings; relative paths support both domain roots and repository prefixes.
 
 ### Downloads live in GitHub Releases
 
-Public downloads use this repository's Releases with a source-build fallback.
+App packages and versioned enclosure archives use this repository's Releases
+with a source-build fallback. Printables and MakerWorld provide additional
+enclosure downloads through the links in the build and printing guides.
 Publish full Mac/C3 bundles and the separate enclosure ZIP with matching checksums;
 Windows bundles include the graphical tray app and CLI but omit the installer,
 firmware and manuals. See the [release runbook](../RELEASING.md)

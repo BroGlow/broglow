@@ -18,6 +18,9 @@ Already assembled? [Install BroGlow and connect the lamp](installation.md).
 
 ## Choose your parts
 
+Enclosure files: [Printables](https://www.printables.com/model/1884645) or
+[MakerWorld](https://makerworld.com/models/3468773).
+
 <!-- model-download -->
 
 | Part | Qty | Needed | What to look for |
