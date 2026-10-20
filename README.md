@@ -12,7 +12,6 @@ sessions and their status without any hardware; add a lamp whenever you're ready
 
 <p align="center">
   <img src="site/assets/photos/broglow-all-lights.jpg" width="420" alt="The BroGlow lamp with all three lights glowing red, yellow and green, next to the orange mascot">
-  <img src="site/assets/photos/popover-dark.png" width="353" alt="The BroGlow menu-bar popover: three live sessions, one working and two paused, with Dashboard, Settings and Lamps controls">
 </p>
 
 **[Read the guide on the website](https://broglow.github.io/broglow/docs/)**: install,
@@ -20,13 +19,18 @@ build the lamp, connect Codex and fix problems.
 
 Maintained by **Suren Khorenyan**. Copyright notices are in [LICENSE](LICENSE).
 
+<p align="center">
+  <img src="site/assets/photos/signal-yellow.jpg" width="420" alt="The BroGlow lamp with only the yellow light glowing, matching the app's paused-session status">
+  <img src="site/assets/photos/popover-dark.png" width="353" alt="The BroGlow menu-bar popover: three live sessions, one working and two paused, with Dashboard, Settings and Lamps controls">
+</p>
+
 <a name="why-this-version"></a>
 
 ## How BroGlow differs from ClawLight
 
-BroGlow is a separate, independently maintained application based on
-[ClawLight](https://github.com/clawlight/clawlight-cli). It substantially reworks
-and extends the original:
+BroGlow is a separate, independently maintained application inspired by
+[ClawLight](https://github.com/clawlight/clawlight-cli). Most of the app has been
+rewritten, with a substantially redesigned interface and expanded capabilities:
 
 **Sessions**
 

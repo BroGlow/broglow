@@ -14,7 +14,6 @@
 
 <p align="center">
   <img src="site/assets/photos/broglow-all-lights.jpg" width="420" alt="Лампа BroGlow с тремя горящими огнями — красным, жёлтым и зелёным — рядом с оранжевым маскотом">
-  <img src="site/assets/photos/popover-dark.png" width="353" alt="Окно BroGlow в строке меню: три активные сессии — одна работает, две на паузе — и кнопки Dashboard, Settings и Lamps">
 </p>
 
 **[Руководство на сайте](https://broglow.github.io/broglow/docs/ru/)**: установка,
@@ -22,13 +21,18 @@
 
 Проект поддерживает **Suren Khorenyan**. Уведомления об авторских правах — в [LICENSE](LICENSE).
 
+<p align="center">
+  <img src="site/assets/photos/signal-yellow.jpg" width="420" alt="Лампа BroGlow с единственным горящим жёлтым огнём, соответствующим статусу приостановленных сессий в приложении">
+  <img src="site/assets/photos/popover-dark.png" width="353" alt="Окно BroGlow в строке меню: три активные сессии — одна работает, две на паузе — и кнопки Dashboard, Settings и Lamps">
+</p>
+
 <a name="why-this-version"></a>
 
 ## Чем BroGlow отличается от ClawLight
 
-BroGlow — отдельное, независимо поддерживаемое приложение на основе
-[ClawLight](https://github.com/clawlight/clawlight-cli). В нём существенно
-переработаны и расширены возможности оригинала:
+BroGlow — отдельное, независимо поддерживаемое приложение, вдохновлённое
+[ClawLight](https://github.com/clawlight/clawlight-cli). Большая часть приложения
+переписана, интерфейс существенно переработан, а возможности расширены:
 
 **Сессии**
 
