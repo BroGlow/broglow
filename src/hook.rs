@@ -361,6 +361,7 @@ pub fn run() -> anyhow::Result<()> {
                 terminal,
                 // Claude Code sessions carry no harness tag (absent = claude).
                 harness: None,
+                codex_background: false,
             },
         );
 
@@ -481,7 +482,7 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
         return update_state(|state| match state.sessions.get_mut(&session_id) {
             // opencode re-emits `session.updated` several times per turn with an
             // unchanged title; skip the write unless the name actually changed.
-            Some(s) if s.name.as_deref() != Some(title.as_str()) => {
+            Some(s) if !s.is_codex_background() && s.name.as_deref() != Some(title.as_str()) => {
                 s.name = Some(title.clone());
                 s.last_updated = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
                 true
@@ -501,6 +502,36 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
     };
 
     update_state(|state| {
+        // Keep this decision under the same lock as ingestion. Otherwise an
+        // in-flight tool hook can recreate a just-filtered background session.
+        if harness == "codex" {
+            let existing = state.sessions.get(&session_id);
+            if existing.is_some_and(SessionStatus::is_codex_background)
+                || v["codex_background"] == true
+            {
+                // A colliding ID is not authority to replace another agent.
+                if existing.is_some_and(|s| s.harness.as_deref() != Some("codex")) {
+                    return false;
+                }
+                if existing.is_some_and(|s| s.codex_background && s.status == Status::Done) {
+                    return false;
+                }
+                state.sessions.insert(
+                    session_id.clone(),
+                    SessionStatus {
+                        status: Status::Done,
+                        last_updated: Utc::now().to_rfc3339(),
+                        project_path: existing.and_then(|s| s.project_path.clone()),
+                        notification_type: None,
+                        name: existing.and_then(|s| s.name.clone()),
+                        terminal: None,
+                        harness: Some("codex".into()),
+                        codex_background: true,
+                    },
+                );
+                return true;
+            }
+        }
         // A rollout can identify a desktop host after the first hook captured
         // stale terminal variables. Repair it even on suppressed working events.
         let mut terminal_changed = false;
@@ -607,6 +638,7 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
                 name,
                 terminal,
                 harness: Some(harness.clone()),
+                codex_background: false,
             },
         );
         true
@@ -661,23 +693,9 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
     if crate::codex::rollout_thread_id(&transcript_path).is_some_and(|id| id != session_id) {
         return Ok(());
     }
-    if crate::codex::hook_is_background(&v) {
-        // Remove a row left by an older adapter without touching other agents.
-        return update_state(|state| {
-            if state
-                .sessions
-                .get(&session_id)
-                .is_some_and(|s| s.harness.as_deref() == Some("codex"))
-            {
-                state.sessions.remove(&session_id);
-                true
-            } else {
-                false
-            }
-        });
-    }
-
-    if hook_event == "PermissionRequest"
+    let background = crate::codex::hook_is_background(&v);
+    if !background
+        && hook_event == "PermissionRequest"
         && crate::codex::approval_is_automatic(&transcript_path, field("turn_id").as_deref())
     {
         return Ok(());
@@ -714,6 +732,7 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
         "event": event,
         "session_id": session_id,
         "hook_event_name": hook_event,
+        "codex_background": background,
     });
     if let Some(marker) = question_marker {
         ev["notification_type"] = Value::String(format!(
@@ -754,7 +773,11 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
             }
             let name = crate::session::truncate(&prompt, 50);
             update_state(|state| match state.sessions.get_mut(&session_id) {
-                Some(s) if s.name.is_none() => {
+                Some(s)
+                    if s.harness.as_deref() == Some("codex")
+                        && !s.is_codex_background()
+                        && s.name.is_none() =>
+                {
                     s.name = Some(name.clone());
                     true
                 }

@@ -42,6 +42,14 @@ fn ev_with_transcript(hook_event: &str, session_id: &str, transcript: &str) -> S
     .to_string()
 }
 
+fn assert_not_live(home: &TempDir, id: &str, event: &str) {
+    let row = session(&read_state(home), id);
+    assert!(
+        row.is_null() || row["status"] == "done",
+        "background run must not contribute live status after {event}: {row}"
+    );
+}
+
 #[test]
 fn codex_lifecycle_maps_onto_normalized_statuses() {
     let home = temp_home();
@@ -279,8 +287,8 @@ fn unmapped_codex_events_touch_nothing() {
 fn codex_transient_background_runs_do_not_become_paused_chats() {
     let home = temp_home();
     run_codex_hook(&home, &ev("SessionStart", "real-chat")).success();
-    let original = read_state(&home);
-    for transcript in [Value::Null, json!("")] {
+    let original = session(&read_state(&home), "real-chat");
+    for (id, transcript) in [("null-path", Value::Null), ("empty-path", json!(""))] {
         for event in [
             "SessionStart",
             "UserPromptSubmit",
@@ -291,47 +299,261 @@ fn codex_transient_background_runs_do_not_become_paused_chats() {
             run_codex_hook(
                 &home,
                 &json!({
-                    "hook_event_name": event, "session_id": "background",
+                    "hook_event_name": event, "session_id": id,
                     "transcript_path": transcript,
-                    "prompt": "This is an app-generated request for a suggested next task.",
                 })
                 .to_string(),
             )
             .success();
-            assert_eq!(read_state(&home), original, "{event}: {transcript}");
+            assert_not_live(&home, id, event);
         }
+        // Each hook runs in a separate process; later payloads may omit the
+        // evidence identifying the unsaved run.
+        for event in ["PreToolUse", "PostToolUse", "Stop"] {
+            run_codex_hook(&home, &ev(event, id)).success();
+            assert_not_live(&home, id, event);
+        }
+        assert_eq!(session(&read_state(&home), "real-chat"), original);
     }
-    // A row left by an older BroGlow is removed on its next real hook.
+    // A paused row left by an older BroGlow stops contributing live status.
     command(&home)
         .arg("event")
         .write_stdin(
-            json!({"harness": "codex", "event": "idle", "session_id": "background"}).to_string(),
+            json!({"harness": "codex", "event": "idle", "session_id": "legacy-background"})
+                .to_string(),
         )
         .assert()
         .success();
     run_codex_hook(
         &home,
-        &json!({"hook_event_name": "Stop", "session_id": "background", "transcript_path": null})
+        &json!({"hook_event_name": "Stop", "session_id": "legacy-background", "transcript_path": null})
             .to_string(),
     )
     .success();
-    assert_eq!(read_state(&home), original);
+    assert_not_live(&home, "legacy-background", "Stop");
+    assert_eq!(session(&read_state(&home), "real-chat"), original);
     // Subagent lifecycle events refer to the parent id and must not remove it.
+    let before = read_state(&home);
     run_codex_hook(&home, &json!({"hook_event_name": "SubagentStop", "session_id": "real-chat", "transcript_path": null}).to_string()).success();
+    assert_eq!(read_state(&home), before);
+}
+
+#[test]
+fn codex_saved_ambient_runs_stay_finished_after_metadata_arrives() {
+    for source in ["ambient_suggestions", "ambient_suggestion_safety"] {
+        let home = temp_home();
+        let id = "saved-ambient";
+        let rollout = home.path().join("saved-ambient.jsonl");
+        // SessionStart may arrive before the saved rollout is readable.
+        run_codex_hook(
+            &home,
+            &ev_with_transcript("SessionStart", id, rollout.to_str().unwrap()),
+        )
+        .success();
+        assert_eq!(session(&read_state(&home), id)["status"], "active");
+        std::fs::write(
+            &rollout,
+            json!({"type": "session_meta", "payload": {
+                "id": id, "source": "vscode", "thread_source": source,
+            }})
+            .to_string(),
+        )
+        .unwrap();
+        run_codex_hook(
+            &home,
+            &ev_with_transcript("PreToolUse", id, rollout.to_str().unwrap()),
+        )
+        .success();
+        assert_not_live(&home, id, "PreToolUse with metadata");
+        // Later hook processes do not need to repeat the transcript path.
+        for event in [
+            "SessionStart",
+            "UserPromptSubmit",
+            "PreToolUse",
+            "PostToolUse",
+            "PermissionRequest",
+            "Stop",
+            "Interrupt",
+            "SessionEnd",
+        ] {
+            run_codex_hook(&home, &ev(event, id)).success();
+            assert_not_live(&home, id, event);
+        }
+    }
+}
+
+#[test]
+fn codex_human_prompts_mentioning_app_requests_keep_normal_lifecycle() {
+    let home = temp_home();
+    for (id, prompt) in [
+        ("normal", "Fix the session light"),
+        (
+            "exact",
+            "This is an app-generated request for a suggested next task.",
+        ),
+        (
+            "quoted",
+            "\"This is an app-generated request for a suggested next task.\"",
+        ),
+        (
+            "embedded",
+            "Why does Codex say This is an app-generated request for a suggested next task.?",
+        ),
+    ] {
+        run_codex_hook(
+            &home,
+            &json!({
+                "hook_event_name": "UserPromptSubmit",
+                "session_id": id,
+                "prompt": prompt,
+            })
+            .to_string(),
+        )
+        .success();
+        assert_eq!(session(&read_state(&home), id)["status"], "active", "{id}");
+        run_codex_hook(&home, &ev("Stop", id)).success();
+        assert_eq!(
+            session(&read_state(&home), id)["status"],
+            "inactive",
+            "{id}"
+        );
+    }
+}
+
+#[test]
+fn codex_accepted_and_scheduled_tasks_keep_app_generated_prompt_and_title() {
+    let prompt = "This is an app-generated request for a suggested next task.";
+    for source in [
+        "ambient_suggestion_task",
+        "automation",
+        "agent_created_thread",
+        "agent_forked_thread",
+    ] {
+        let home = temp_home();
+        let id = "visible-task";
+        let rollout = home.path().join("visible-task.jsonl");
+        std::fs::write(
+            &rollout,
+            format!(
+                "{}\n{}\n",
+                json!({"type": "session_meta", "payload": {
+                    "id": id, "source": "vscode", "thread_source": source,
+                }}),
+                json!({"type": "event_msg", "payload": {"type": "user_message", "message": prompt}})
+            ),
+        )
+        .unwrap();
+        std::fs::create_dir_all(codex_home(&home)).unwrap();
+        std::fs::write(
+            codex_home(&home).join("session_index.jsonl"),
+            json!({"id": id, "thread_name": prompt}).to_string(),
+        )
+        .unwrap();
+        run_codex_hook(
+            &home,
+            &json!({
+                "hook_event_name": "UserPromptSubmit",
+                "session_id": id,
+                "transcript_path": rollout,
+                "prompt": prompt,
+            })
+            .to_string(),
+        )
+        .success();
+        assert_eq!(
+            session(&read_state(&home), id)["status"],
+            "active",
+            "{source}"
+        );
+        run_codex_hook(
+            &home,
+            &ev_with_transcript("Stop", id, rollout.to_str().unwrap()),
+        )
+        .success();
+        let row = session(&read_state(&home), id);
+        assert_eq!(row["status"], "inactive", "{source}");
+        assert_eq!(row["name"], prompt, "{source}");
+    }
+}
+
+#[test]
+fn codex_ambient_run_does_not_replace_another_harness_with_the_same_id() {
+    let home = temp_home();
+    let id = "shared-id";
+    command(&home)
+        .arg("event")
+        .write_stdin(json!({"harness": "opencode", "event": "idle", "session_id": id}).to_string())
+        .assert()
+        .success();
+    let original = read_state(&home);
+    let rollout = home.path().join("ambient.jsonl");
+    std::fs::write(
+        &rollout,
+        json!({"type": "session_meta", "payload": {
+            "id": id, "source": "vscode", "thread_source": "ambient_suggestions",
+        }})
+        .to_string(),
+    )
+    .unwrap();
+    run_codex_hook(
+        &home,
+        &ev_with_transcript("UserPromptSubmit", id, rollout.to_str().unwrap()),
+    )
+    .success();
     assert_eq!(read_state(&home), original);
+}
+
+#[test]
+fn codex_ambient_child_hooks_cannot_hide_a_parent_question() {
+    let home = temp_home();
+    let id = "parent-chat";
+    run_codex_hook(
+        &home,
+        &json!({
+            "hook_event_name": "PreToolUse", "session_id": id,
+            "tool_name": "request_user_input_async", "tool_use_id": "question",
+        })
+        .to_string(),
+    )
+    .success();
+    let pending = read_state(&home);
+    assert_eq!(session(&pending, id)["status"], "needs_help");
+    let rollout = home.path().join("app-child.jsonl");
+    for source in ["ambient_suggestions", "ambient_suggestion_safety"] {
+        std::fs::write(
+            &rollout,
+            json!({"type": "session_meta", "payload": {
+                "id": "child", "source": "vscode", "thread_source": source,
+            }})
+            .to_string(),
+        )
+        .unwrap();
+        for event in ["UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"] {
+            run_codex_hook(
+                &home,
+                &ev_with_transcript(event, id, rollout.to_str().unwrap()),
+            )
+            .success();
+            assert_eq!(read_state(&home), pending, "child {event}");
+        }
+    }
 }
 
 #[test]
 fn codex_internal_rollouts_do_not_become_paused_chats() {
     let home = temp_home();
     run_codex_hook(&home, &ev("SessionStart", "real-chat")).success();
-    let original = read_state(&home);
+    let original = session(&read_state(&home), "real-chat");
     let rollout = home.path().join("internal.jsonl");
-    for metadata in [
+    for (index, metadata) in [
         json!({"source": {"subagent": {"other": "guardian"}}, "thread_source": "guardian_review"}),
         json!({"source": {"subagent": {"thread_spawn": {"parent_thread_id": "real-chat", "depth": 1}}}}),
         json!({"source": "vscode", "thread_source": "subagent"}),
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let id = format!("internal-{index}");
         std::fs::write(
             &rollout,
             json!({"type": "session_meta", "payload": metadata}).to_string(),
@@ -346,10 +568,15 @@ fn codex_internal_rollouts_do_not_become_paused_chats() {
         ] {
             run_codex_hook(
                 &home,
-                &ev_with_transcript(event, "internal", rollout.to_str().unwrap()),
+                &ev_with_transcript(event, &id, rollout.to_str().unwrap()),
             )
             .success();
-            assert_eq!(read_state(&home), original, "{event}: {metadata}");
+            assert_not_live(&home, &id, event);
+            assert_eq!(
+                session(&read_state(&home), "real-chat"),
+                original,
+                "{event}: {metadata}"
+            );
         }
     }
 }

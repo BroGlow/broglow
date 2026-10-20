@@ -50,11 +50,15 @@ next prompt on.
    pauses it; ending the session removes it from live status. Other live sessions and
    the **Settings → Mixed sessions** choice also affect the lamp's color.
 
-Unsaved background jobs and internal subagents or approval reviewers do not appear
-as separate chats or affect the lamp. A subagent's activity does not clear its
-parent chat's unanswered question or change its status. Saved scheduled chats remain monitored.
-Dismiss any paused background entries left by an older BroGlow once; dismissing
-a BroGlow row does not delete the Codex chat.
+Unsaved background jobs, internal subagents, approval reviewers and temporary
+helpers that prepare app suggestions do not appear as separate chats or affect
+the lamp. A subagent's activity does not clear its parent chat's unanswered
+question or change its status. Saved scheduled chats, top-level chats created or
+forked by an agent and accepted suggestion tasks remain monitored, even when their
+title or prompt starts with `This is an app-generated request`. BroGlow uses
+session metadata to identify background work; that phrase alone is not enough.
+If an older stale row remains without identifying metadata, dismiss it once with
+its × button. This does not delete the Codex chat.
 
 <a name="codex-missing-hooks"></a>
 

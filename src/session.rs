@@ -236,6 +236,7 @@ mod tests {
             name: None,
             terminal: None,
             harness: None,
+            codex_background: false,
         }
     }
 

@@ -48,6 +48,16 @@ pub struct SessionStatus {
     /// Absent in state files written before this field existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub harness: Option<String>,
+    /// Remember app housekeeping across hook processes, including hooks with
+    /// no prompt/transcript. Readers hide these Done tombstones.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub codex_background: bool,
+}
+
+impl SessionStatus {
+    pub fn is_codex_background(&self) -> bool {
+        self.harness.as_deref() == Some("codex") && self.codex_background
+    }
 }
 
 /// Identity of the terminal window / host app running a session, recorded at
@@ -175,6 +185,9 @@ pub fn read_hook_state() -> HookState {
         .and_then(|content| serde_json::from_str(&content).ok())
         .unwrap_or_default();
 
+    // Apply before both display-name refresh and aggregate/LED computation.
+    // Keep the tombstones on disk so later hooks cannot resurrect these runs.
+    state.sessions.retain(|_, s| !s.is_codex_background());
     reap_ended_sessions(&mut state, Utc::now(), crate::terminal::is_alive);
     state
 }
@@ -311,6 +324,69 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn app_generated_codex_rows_do_not_reach_the_display_or_lamp() {
+        if std::env::var_os("BROGLOW_TEST_BACKGROUND").is_none() {
+            let home = tempfile::tempdir().unwrap();
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "state::tests::app_generated_codex_rows_do_not_reach_the_display_or_lamp",
+                ])
+                .env("HOME", home.path())
+                .env("CODEX_HOME", home.path().join("codex"))
+                .env("BROGLOW_TEST_BACKGROUND", "1")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            return;
+        }
+
+        let mut original = state_with(&[Status::Active]);
+        original.sessions.get_mut("s0").unwrap().last_updated = Utc::now().to_rfc3339();
+        for (id, flagged, harness) in [
+            ("ordinary-title", false, "codex"),
+            ("remembered", true, "codex"),
+            ("other-agent", false, "opencode"),
+        ] {
+            let mut row = original.sessions["s0"].clone();
+            row.harness = Some(harness.into());
+            row.codex_background = flagged;
+            row.name = Some(if flagged {
+                "A later title".into()
+            } else {
+                "This is an app-generated request for a suggeste...".into()
+            });
+            row.status = if flagged {
+                Status::Inactive
+            } else {
+                Status::Active
+            };
+            original.sessions.insert(id.into(), row);
+        }
+        write_state_atomic(&original).unwrap();
+        let disk = std::fs::read(state_file_path()).unwrap();
+        for snapshot in [read_hook_state(), read_display_state()] {
+            assert_eq!(snapshot.sessions.len(), 3);
+            assert!(snapshot.sessions.contains_key("s0"));
+            assert!(snapshot.sessions.contains_key("other-agent"));
+            assert!(snapshot.sessions.contains_key("ordinary-title"));
+            assert_eq!(
+                aggregate(&snapshot, YellowMode::AnyInactive),
+                Aggregate::Green
+            );
+            assert!(crate::session::load_all_sessions(&snapshot, true)
+                .iter()
+                .all(|s| s.session_id != "remembered"));
+        }
+        assert_eq!(std::fs::read(state_file_path()).unwrap(), disk);
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn codex_renames_refresh_without_hooks() {
         // Follow the existing child-process test pattern: never change the runner's HOME.
         if std::env::var_os("BROGLOW_TEST_RENAME").is_none() {
@@ -355,6 +431,7 @@ mod tests {
                     name: name.map(str::to_string),
                     terminal: None,
                     harness: harness.map(str::to_string),
+                    codex_background: false,
                 },
             );
         }
@@ -420,6 +497,7 @@ mod tests {
                     name: None,
                     terminal: None,
                     harness: None,
+                    codex_background: false,
                 },
             );
         }
@@ -477,6 +555,7 @@ mod tests {
                     ..Default::default()
                 }),
                 harness: None,
+                codex_background: false,
             },
         );
         state

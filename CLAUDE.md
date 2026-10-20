@@ -240,9 +240,17 @@ thin:
   to `session_meta.session_id`; missing or unknown IDs keep existing behavior.
   Hooks with an explicit null/empty `transcript_path` are unsaved runs and are
   ignored, as are rollouts with `source.subagent` or `thread_source` equal to
-  `subagent`/`guardian_review`. A subsequent hook removes any old Codex row for
-  that run. An omitted path or unreadable/unknown metadata stays compatible;
-  saved scheduled tasks and agent-created top-level chats remain monitored.
+  `subagent`, `guardian_review`, `ambient_suggestions` or
+  `ambient_suggestion_safety`. For every confirmed background run, persist a
+  hidden `Done` tombstone so later hooks without a prompt or path cannot revive
+  it. The rollout/parent ID mismatch guard applies before this filtering too.
+  An omitted path or unreadable/unknown metadata stays compatible. Prompt text
+  and titles, including `This is an app-generated request`, do not determine
+  whether a run is hidden. Saved `automation`, `agent_created_thread`,
+  `agent_forked_thread` and `ambient_suggestion_task` chats remain monitored:
+  the last source is an accepted suggestion task, distinct from the temporary
+  suggestion helpers. Old rows without structural evidence cannot be hidden
+  automatically; dismiss a stale row once with its × button.
   `Interrupt` → `idle`, `SessionEnd` → `ended`, and `Stop` → `idle` — or `ended` for
   one-shot `codex exec` rollouts. Older Codex versions retain the owner-pid reap backstop.
   On macOS, `session_meta.originator: Codex Desktop` repairs captured terminal identity

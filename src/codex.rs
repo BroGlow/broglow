@@ -320,7 +320,12 @@ pub fn hook_is_background(v: &Value) -> bool {
             meta["source"].get("subagent").is_some()
                 || matches!(
                     meta["thread_source"].as_str(),
-                    Some("subagent" | "guardian_review")
+                    Some(
+                        "subagent"
+                            | "guardian_review"
+                            | "ambient_suggestions"
+                            | "ambient_suggestion_safety"
+                    )
                 )
         }),
         _ => false,

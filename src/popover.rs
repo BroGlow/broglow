@@ -775,6 +775,7 @@ mod tests {
             name: Some("Task".into()),
             terminal: None,
             harness: None,
+            codex_background: false,
         };
         let mut state = HookState::default();
         state
