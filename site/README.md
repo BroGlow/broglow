@@ -147,6 +147,11 @@ star and fork counts from GitHub's public API. Without JavaScript or when the
 request fails, it remains a source-code link. `pages.py` adjusts the repository
 link for `--repository` and includes `github.js` in the Pages artifact.
 
+The language, GitHub and QR helper scripts use `defer`: they download without
+blocking HTML parsing and execute in order after it. The GitHub script has low
+download priority. The 3D module is deferred by default and follows the QR helper.
+Only `theme.js` runs before paint to apply the saved theme without a flash.
+
 Both the landing and the guide follow the system color scheme and offer an
 auto/light/dark switch: the landing's `theme.js` stores the choice under
 localStorage key `broglow-theme` and sets `data-theme` before the first paint;

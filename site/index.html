@@ -230,9 +230,9 @@
     <p id="ar-qr-error" class="ar-notice" role="status" data-ru="Не удалось создать QR-код. Открыть 3D-просмотр можно по ссылке ниже." hidden>The QR code could not load. You can still open the 3D view using the link below.</p>
     <a id="ar-link" class="model-button ar-link" href="#view-in-space" data-ru="Открыть на этом устройстве">Open on this device</a>
   </dialog>
-  <script src="i18n.js"></script>
-  <script src="github.js"></script>
-  <script src="vendor/qrcode-generator-2.0.4.js"></script>
+  <script src="i18n.js" defer></script>
+  <script src="github.js" defer fetchpriority="low"></script>
+  <script src="vendor/qrcode-generator-2.0.4.js" defer></script>
   <script type="module" src="model-preview.js"></script>
 </body>
 </html>

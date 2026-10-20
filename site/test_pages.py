@@ -60,7 +60,10 @@ def test_landing_preview_without_javascript(home: str, repo_url: str) -> None:
     image = metadata["og:image"].removeprefix(home)
     assert image.startswith("assets/") and (pages.SITE / image).is_file()
     assert ("a", {"class": "repository-badge", "href": repo_url}) in landing.elements
-    assert ("script", {"src": "github.js"}) in landing.elements
+    assert (
+        "script",
+        {"src": "github.js", "defer": None, "fetchpriority": "low"},
+    ) in landing.elements
     assert (pages.SITE / "github.js").is_file()
 
 
