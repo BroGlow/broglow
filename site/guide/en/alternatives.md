@@ -4,9 +4,8 @@
 
 # Alternative installations
 
-The recommended route is [Homebrew](installation.md#homebrew). Every route ends with
-`broglow install`, which registers the hooks in your coding agents and, on macOS,
-installs the menu-bar app and starts it at login.
+The recommended route is [Homebrew](installation.md#homebrew); every route ends with
+the same `broglow install`.
 
 <a name="mac-package"></a>
 

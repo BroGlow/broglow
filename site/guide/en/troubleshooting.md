@@ -17,8 +17,7 @@ Then check, in BroGlow's **Lamps** view:
 - **Updates paused** means lamp control is off: click **Enable lamp** (or **Enable lamps**).
 - Bluetooth is on and BroGlow is allowed under
   System Settings → Privacy & Security → Bluetooth.
-- On macOS, a new lamp is set up automatically when you connect only that lamp by USB.
-  Use **Add lamp** to retry, approve any macOS prompt and wait for **Connected**.
+- Not set up yet? Follow [pairing](installation.md#pairing) and wait for **Connected**.
 - Expand the intended lamp's row: at 0% **Light brightness** its LEDs stay dark even when
   connected. **Identify** briefly lights that lamp's LEDs one by one
   ([details](installation.md#controls)).

@@ -284,15 +284,10 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
                 mac += f"```text\n{checksum}\n```\n\n"
         if not all(checksum for _, checksum in mac_archives.values()):
             mac += (
-                "SHA-256 каждого пакета опубликован рядом с ним на странице релиза.\n\n"
+                "SHA-256 каждого пакета опубликован рядом с ним на странице релиза."
                 if ru
-                else "Each package's SHA-256 is published next to it on the release page.\n\n"
+                else "Each package's SHA-256 is published next to it on the release page."
             )
-        mac += (
-            f"Чтобы собрать приложение самостоятельно, [скачайте исходники]({source}) и соберите их по [инструкции](hardware.md#build-from-source)."
-            if ru
-            else f"To build the app yourself, [download the source]({source}) and [build from source](hardware.md#build-from-source)."
-        )
         guide = "printing.md"
         archive = f"broglow-models-v{version}.zip"
         checksum = published(archive)
