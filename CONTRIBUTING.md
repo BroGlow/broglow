@@ -100,6 +100,62 @@ For a local app update and live service checks, follow the
 [source installation procedure](site/guide/en/hardware.md#install-or-update-the-mac-service).
 A successful build alone does not verify Bluetooth permissions or physical LEDs.
 
+### GitHub Actions dependency caches
+
+The Python jobs in CI and Pages explicitly enable setup-uv's dependency cache,
+including their reuse by tagged releases. The cache uses the runner's OS and
+architecture, detected Python version, `pyproject.toml`, `uv.lock` and the
+`uv-0.12.17` suffix. Rust source and Cargo version changes retain it; Python,
+uv, dependency manifest/lockfile or platform changes invalidate it. Update the
+suffix when changing the pinned uv version.
+
+The CI `firmware` job is the only Linux writer, on pushes to the default branch
+(`master`); its `dev` group includes `test` and `docs`. Other CI/Pages jobs only
+restore, as does `firmware` on PRs or release tags. After an authorized merge
+or dependency change, the first successful `firmware` run on `master` seeds
+the cache for subsequent PR and tag checks. Wait for that run if warm caches
+are needed; no additional Linux warm-up job is required. Different tags cannot reuse
+caches saved under each other's refs, so release checks read the default-branch
+cache instead.
+
+A cache miss performs the normal frozen dependency installation; checks still
+run. Additional native uv/CAD caches remain deferred because their transfer and
+population costs have not justified them.
+
+#### Native release caches
+
+Native release jobs restore dependency caches populated by the optional
+[Warm release dependencies workflow](.github/workflows/cache-warm.yaml):
+
+| Cache | Producer and consumer | Boundaries |
+| --- | --- | --- |
+| Cargo release dependencies | Matching `macos-15` ARM64, `macos-15-intel` x86_64 or `windows-latest` MSVC x86_64 jobs. | Separate release-profile keys by runner/target; compiler, image version, build/SDK environment and dependency hashes are included. Compatible older dependency caches may be restored after dependency changes; Cargo rebuilds what changed. |
+| PlatformIO downloads | The two Mac jobs; Windows ships no firmware. | Only `~/.platformio/platforms` and `~/.platformio/packages`; exact key includes runner/architecture, Python version, `platformio.ini`, `pyproject.toml` and `uv.lock`. No broader fallback. |
+
+Rust source and app-version-only changes retain the Cargo dependency cache;
+firmware source changes retain the PlatformIO downloads. Final app binaries,
+virtual environments (`.venv`), `.pio` build outputs and packaged assets are
+not cached. Releases always run the locked app and firmware builds and preserve
+the source, version, freshness, license and checksum checks. Mac Rust and firmware
+builds remain separate steps.
+
+After an authorized merge, optionally populate caches on the default branch:
+
+```bash
+gh workflow run cache-warm.yaml --ref master
+```
+
+Wait for all three native jobs before expecting their caches in future tags.
+The workflow only runs on the default branch; it installs PlatformIO dependencies
+without flashing and saves them before compiling Rust. An exact Cargo cache hit
+skips compilation in the warm-up job. It does not package or publish a release.
+
+Warm-up consumes runner time and cache storage; it is not required before every
+release. Repeat it after a cache-key change or eviction only when expected reuse
+justifies that cost. Release jobs only restore; a miss downloads dependencies and
+builds normally. Local performance evidence belongs in ignored `.recovery/`;
+hosted runner timings and cache hit rates need separate GitHub Actions verification.
+
 ## Documentation and generated files
 
 Keep the README focused on the product, installation and everyday use. Put shared

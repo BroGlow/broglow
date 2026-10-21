@@ -1,0 +1,73 @@
+name: Warm release dependencies
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-dependency-cache-warm
+  cancel-in-progress: false
+
+jobs:
+  native:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        id: rust-cache
+        with:
+          shared-key: release-${{ matrix.os }}-${{ matrix.target }}
+          env-vars: ImageOS ImageVersion MACOSX_DEPLOYMENT_TARGET SDKROOT DEVELOPER_DIR
+      - uses: actions/setup-python@v7
+        if: runner.os == 'macOS'
+        id: python
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v10.3.0
+        if: runner.os == 'macOS'
+        with:
+          version: '0.12.17'
+          enable-cache: false
+      - if: runner.os == 'macOS'
+        run: uv sync --frozen
+      - name: Restore PlatformIO downloads
+        if: runner.os == 'macOS'
+        uses: actions/cache/restore@v4
+        id: platformio-cache
+        with:
+          path: |
+            ~/.platformio/platforms
+            ~/.platformio/packages
+          key: platformio-v1-${{ matrix.os }}-${{ runner.arch }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('firmware/esp32-c3-supermini/platformio.ini', 'pyproject.toml', 'uv.lock') }}
+      - name: Install PlatformIO dependencies
+        if: runner.os == 'macOS'
+        run: uv run --frozen python -m platformio pkg install --project-dir firmware/esp32-c3-supermini --environment esp32-c3-supermini
+      - name: Save PlatformIO downloads
+        if: runner.os == 'macOS' && steps.platformio-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.platformio/platforms
+            ~/.platformio/packages
+          key: ${{ steps.platformio-cache.outputs.cache-primary-key }}
+      # Install flaky registry downloads before spending time on Rust compilation.
+      - name: Compile Mac release dependencies
+        if: runner.os == 'macOS' && steps.rust-cache.outputs.cache-hit != 'true'
+        run: cargo build --release --locked
+      - name: Compile Windows release dependencies
+        if: runner.os == 'Windows' && steps.rust-cache.outputs.cache-hit != 'true'
+        run: cargo build --release --locked --target x86_64-pc-windows-msvc
