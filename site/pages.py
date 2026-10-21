@@ -272,11 +272,11 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
             ),
         }
         mac = (
-            f"[Приложение для Mac + прошивка C3 · релизы]({releases})\n\n"
-            "Выберите полный пакет для своего Mac и сверьте его SHA-256:\n\n"
+            f"Скачайте полный пакет для своего Mac из [GitHub Releases]({releases}) "
+            "и сверьте его SHA-256:\n\n"
             if ru
-            else f"[Mac app + C3 firmware · releases]({releases})\n\n"
-            "Choose the complete bundle for your Mac and verify its SHA-256:\n\n"
+            else f"Download the complete bundle for your Mac from [GitHub Releases]({releases}) "
+            "and verify its SHA-256:\n\n"
         )
         for archive, (chip, checksum) in mac_archives.items():
             mac += f"`{archive}` ({chip})\n\n"
@@ -297,15 +297,11 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
         archive = f"broglow-models-v{version}.zip"
         checksum = published(archive)
         if ru:
-            models = (
-                f"[Файлы корпуса для печати · релизы]({releases})\n\n"
-                f"Скачайте `{archive}` из релиза. В архиве папка `stl/` с пятью деталями "
-                "в ориентации для печати, папка `step/` с теми же деталями и `BUILD.json`.\n\n"
-            )
+            models = f"Скачайте `{archive}` из [GitHub Releases]({releases}) и сверьте его SHA-256"
             models += (
-                f"SHA-256:\n\n```text\n{checksum}\n```\n\n"
+                f":\n\n```text\n{checksum}\n```\n\n"
                 if checksum
-                else "SHA-256 архива опубликован рядом с ним на странице релиза.\n\n"
+                else ", опубликованный рядом с архивом.\n\n"
             )
             models += (
                 f"Чтобы сгенерировать комплект самостоятельно, [скачайте исходники]({source}) и "
@@ -313,15 +309,11 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
                 "ZIP исходников GitHub не содержит готовых STL и STEP."
             )
         else:
-            models = (
-                f"[Enclosure print files · releases]({releases})\n\n"
-                f"Download `{archive}` from the release. The archive has `stl/` with the five "
-                "parts in print orientation, `step/` with the same parts, and `BUILD.json`.\n\n"
-            )
+            models = f"Download `{archive}` from [GitHub Releases]({releases}) and verify its SHA-256"
             models += (
-                f"SHA-256:\n\n```text\n{checksum}\n```\n\n"
+                f":\n\n```text\n{checksum}\n```\n\n"
                 if checksum
-                else "The archive's SHA-256 is published next to it on the release page.\n\n"
+                else ", published next to the archive.\n\n"
             )
             models += (
                 f"To generate the package yourself, [download the source]({source}) and "
@@ -371,14 +363,7 @@ def on_page_markdown(markdown, *, page, config, **kwargs):
                 raise ValueError(f"Not a sha256sum line: {print_package.name}.sha256")
             models = (
                 f"[{label}]({prefix}dist/enclosure/{print_package.name}){{ download }}\n\n"
-                f"SHA-256:\n\n```text\n{checksum}\n```\n\n"
-            )
-            models += (
-                "В архиве папка `stl/` с пятью деталями в ориентации для печати, "
-                "папка `step/` с теми же деталями и `BUILD.json`."
-                if ru
-                else "The archive has `stl/` with the five parts in print orientation, "
-                "`step/` with the same parts, and `BUILD.json`."
+                f"SHA-256:\n\n```text\n{checksum}\n```"
             )
         else:
             models = (

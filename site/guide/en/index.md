@@ -18,10 +18,9 @@ Already assembled? [Install BroGlow and connect the lamp](installation.md).
 
 ## Choose your parts
 
-Enclosure files: [Printables](https://www.printables.com/model/1884645) or
-[MakerWorld](https://makerworld.com/models/3468773).
-
-<!-- model-download -->
+Enclosure files: [Printables](https://www.printables.com/model/1884645),
+[MakerWorld](https://makerworld.com/models/3468773) or
+[GitHub Releases]({{ repo_url }}/releases) (checksum in [Printing and assembly](printing.md)).
 
 | Part | Qty | Needed | What to look for |
 | --- | --- | --- | --- |
@@ -31,7 +30,7 @@ Enclosure files: [Printables](https://www.printables.com/model/1884645) or
 | Wires | — | ✅ | For the LEDs and a shared ground. |
 | USB cable | 1 | ✅ | A USB-C data cable (not charge-only) for setup and power. |
 | USB adapter | 1 | ➖ | macOS only: powers the lamp away from the Mac, which then talks to it over Bluetooth. |
-| Printed enclosure | 1 set | ✅ | Print package above: mascot, two eyes, traffic light and rear cover. PETG in orange and black. |
+| Printed enclosure | 1 set | ✅ | Enclosure files above: mascot, two eyes, traffic light and rear cover. PETG in orange and black. |
 | LED retainer | 1 | ⭐ | Printed with the enclosure. Without it the LEDs sit by friction only and can be pushed inside. |
 | Cover screws | 3 | ✅ | DIN 7982 ST2.2 × 6.5 mm countersunk self-tapping. |
 | Retainer screw | 1 | ⭐ | The same screw type; needed only with the LED retainer. |
