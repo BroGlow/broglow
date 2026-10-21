@@ -26,7 +26,8 @@ Then check, in BroGlow's **Lamps** view:
   shows the background service's recent lamp status.
 
 The lamp shows session status only while an awake Mac runs BroGlow: without updates for
-10 seconds it goes dark (a disconnected lamp may show a faint pulse every 30 seconds).
+10 seconds it goes dark. A bonded lamp stays dark while disconnected once its
+disconnect fade has finished and the pairing window is closed.
 
 Want a hand? Paste this prompt into Claude Code or Codex on this Mac.
 

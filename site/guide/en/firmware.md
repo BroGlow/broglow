@@ -31,11 +31,11 @@ circuitry that pulls this strapping pin low during reset.
 | `fading`: confirmed BLE disconnect while showing a status, or missing valid BLE updates for five seconds | Disconnect: fade immediately from the displayed color and brightness to black over three seconds. Connected watchdog: hold for five seconds, fade for five seconds, fully off at ten seconds. Serial expiry fades over 700 ms | Fades with the color if already lit; starts no new pulses |
 | `pairing`: window open, no fresh status | Red → yellow → green, 250 ms per step | One 100 ms pulse per step at 32/255 |
 | `unpaired`: no board bonds, window closed, no fresh status | All three one second on, one second off | Same cadence at 32/255 |
-| `waiting`: board has bonds, BLE disconnected, window closed, no fresh status | All three pulse for 100 ms at 8/255 every 30 seconds; first pulse after 30 seconds in this mode | Same quiet pulse |
+| `waiting`: board has bonds, BLE disconnected, window closed, no fresh status | Off | Off |
 | `stale`: BLE connected, no fresh status, and either recovering after disconnect, confirmed status expired, or the board has bonds and the window is closed | Off | Off |
 
 The duty values above are at **100% lamp brightness**. The saved setting scales
-every controlled output, including startup, connection and quiet waiting indications;
+every controlled output, including startup and connection indications;
 preview temporarily uses the slider's percentage instead; Identify uses its requested
 percentage (100% from the app). At 0% the controlled LEDs are dark.
 See [brightness control](hardware.md#brightness-control).
@@ -79,9 +79,7 @@ except 2, 8 and 9), and `STATUS_TIMEOUT_MS=10000` sets the stale timeout (must e
 2000 ms). `BUILTIN_LED_PIN=8` and
 `BUILTIN_LED_ACTIVE_LOW=1` select the usual onboard LED; set the pin to `-1` to
 disable that output on a different board. `BUILTIN_LED_BRIGHTNESS=32` controls its
-normal pulses, and `WAIT_LED_BRIGHTNESS=8` controls quiet waiting pulses on all
-four outputs before the runtime brightness percentage is applied. Set
-`WAIT_LED_BRIGHTNESS=0` to silence those quiet pulses. Rebuild
+normal pulses. Waiting remains dark on all four outputs. Rebuild
 and flash the identified board after changing these options; PWM values are
 commanded duty levels, not measured brightness.
 

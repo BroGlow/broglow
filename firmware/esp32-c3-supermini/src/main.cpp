@@ -51,8 +51,7 @@ static_assert(BUILTIN_LED_PIN == -1 ||
                    BUILTIN_LED_PIN != LED_YELLOW_PIN &&
                    BUILTIN_LED_PIN != LED_GREEN_PIN),
               "Builtin LED needs its own GPIO, or -1 to disable");
-static_assert(BUILTIN_LED_BRIGHTNESS >= 0 && BUILTIN_LED_BRIGHTNESS <= 255 &&
-                  WAIT_LED_BRIGHTNESS >= 0 && WAIT_LED_BRIGHTNESS <= 255,
+static_assert(BUILTIN_LED_BRIGHTNESS >= 0 && BUILTIN_LED_BRIGHTNESS <= 255,
               "Brightness range is 0..255");
 static_assert(BUILTIN_LED_ACTIVE_LOW == 0 || BUILTIN_LED_ACTIVE_LOW == 1,
               "Polarity must be 0 or 1");
@@ -516,13 +515,7 @@ void renderIndication() {
         builtin = BUILTIN_LED_BRIGHTNESS;
       }
       break;
-    case Indication::Waiting: {
-      const uint32_t elapsed = now - indicationStarted;
-      if (elapsed >= 30000 && elapsed % 30000 < 100) {
-        red = yellow = green = builtin = WAIT_LED_BRIGHTNESS;
-      }
-      break;
-    }
+    case Indication::Waiting:
     case Indication::Stale:
       break;
   }

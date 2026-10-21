@@ -564,16 +564,10 @@ void indicationChecks() {
   checkAt(62000, 255, 255, 255, blue);
   mockBonds = {{{1, 2, 3, 4, 5, 6}}};
   checkAt(63000, 0, 0, 0, 0);
-  // Waiting is dim and infrequent, without fixing its precise cadence.
-  unsigned litSamples = 0;
   for (uint32_t elapsed = 0; elapsed < 90000; elapsed += 50) {
-    at(63000 + elapsed);
-    const auto duty = pinDuty(0);
-    assert(duty <= 16 && pinDuty(1) == duty && pinDuty(3) == duty);
-    if (elapsed < 10000) assert(duty == 0);
-    if (duty > 0) ++litSamples;
+    checkAt(63000 + elapsed, 0, 0, 0, 0);
+    assert(indication == Indication::Waiting && advertising.active);
   }
-  assert(litSamples > 0 && litSamples <= 12);
   connectPeer();
   BLEDevice::security->onAuthenticationComplete({true, 0});
   checkAt(154000, 0, 0, 0, 0);  // Connection/encryption alone does not confirm.
@@ -822,8 +816,8 @@ void disconnectFadeChecks() {
   expectLamp(0, 191, 0, 0);
   checkAt(7500, 0, 95, 0, 0);
   checkAt(9000, 0, 0, 0, 0);
-  checkAt(39000, 6, 6, 6, BUILTIN_LED_PIN < 0 ? 0 : 6);
-  checkAt(39100, 0, 0, 0, 0);  // Quiet waiting retains its existing pulse.
+  checkAt(39000, 0, 0, 0, 0);
+  checkAt(39100, 0, 0, 0, 0);
   connectPeer();
   checkAt(40000, 0, 0, 0, 0);
   statusAt(40001, "R");
@@ -885,6 +879,20 @@ void disconnectFadeChecks() {
           0);  // An open pairing window cannot relight recovery.
   statusAt(28000, "N");
   expectLamp(0, 0, 0, 0);
+  now = 29000;
+  disconnectPeer();
+  loop();
+  const uint32_t waitingAt = pairingStarted.load() + PAIRING_MS;
+  at(waitingAt);
+  for (uint32_t elapsed = 0; elapsed <= 180000; elapsed += 50) {
+    checkAt(waitingAt + elapsed, 0, 0, 0, 0);
+    assert(indication == Indication::Waiting && advertising.active);
+  }
+  connectPeer();
+  statusAt(waitingAt + 180001, "N");
+  expectLamp(0, 0, 0, 0);
+  statusAt(waitingAt + 180002, "G");
+  expectLamp(0, 0, 128, BUILTIN_LED_BRIGHTNESS / 2);
 }
 
 void startupChecks(bool live) {

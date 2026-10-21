@@ -393,7 +393,7 @@ PY
 Expect red, yellow and green to light one at a time for one second each, for ten
 cycles, and then all to turn off (`N`). Interrupting the script also sends `N`. After
 the three-second startup breathing, fresh serial commands override the waiting or
-pairing animation. For a dark or faint LED, disconnect power and check polarity, GPIO,
+pairing indication. For a dark or faint LED, disconnect power and check polarity, GPIO,
 resistor and the shared GND. If all LEDs stay dark, also check the firmware, the port,
 the brightness and that Bluetooth is disconnected. Power-cycling with Bluetooth
 disabled restores 100% brightness.
@@ -867,8 +867,9 @@ write and by the `authenticated` and `bonds` diagnostics. Erasing is asynchronou
 ### Pairing feedback and diagnostics without external LEDs
 
 At startup all controlled LEDs breathe twice. During pairing the three colors chase;
-an unpaired lamp blinks; a bonded lamp without a connection gives a dim pulse every
-30 seconds. The first status write of each connection produces one short confirmation
+an unpaired lamp blinks; a bonded lamp without a connection stays dark once the
+disconnect fade has finished and the pairing window is closed.
+The first status write of each connection produces one short confirmation
 flash, and then the fresh session status takes over. The onboard LED shows green,
 yellow and red with one, two and three pulses.
 
@@ -943,8 +944,8 @@ Each lamp receives the current status when it connects, whenever the status chan
 and every **two seconds**. Reconnecting never replays an old queued color. Disabling
 tries to send `N`, then disconnects and stops scans and retries. If `N` was not
 delivered, the lamp [fades out](#pairing-feedback-and-diagnostics-without-external-leds).
-`N` cannot tell a disabled Mac from an absent one, so a disconnected bonded lamp
-eventually resumes its waiting pulse.
+After the disconnect fade, a bonded lamp stays dark while waiting for a connection,
+whether the Mac is absent or lamp control is disabled, unless pairing is opened.
 
 ### Brightness control
 

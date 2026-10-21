@@ -402,7 +402,7 @@ After normal boot, BOOT/GPIO9 held three seconds opens a 60-second pairing windo
 ten seconds requests deletion of all board bonds. No bonds at startup also opens
 the window. Just Works is not MITM-authenticated. Indications use 2 kHz/eight-bit
 PWM: pairing chases red/yellow/green; unpaired blinks all three; bonded waiting
-pulses dimly every 30 seconds. The first valid encrypted write per connection
+stays dark. The first valid encrypted write per connection
 causes one 250 ms confirmation flash, then fresh status (including `N`) wins;
 disconnect, lost authentication or stale expiry cancels the flash.
 GPIO8 defaults to an active-low single-color LED, using one/two/three pulses for
@@ -410,9 +410,10 @@ green/yellow/red; build flags configure its pin/polarity/brightness, or disable 
 with `BUILTIN_LED_PIN=-1`. The user confirmed rapid blue pairing blinking;
 other visible patterns remain unverified. A `?` serial diagnostic reports stored
 state, commanded on/off and PWM duties, mode, pin and
-pairing/bonds; these are not pin readback or proof of visible light. `N` cannot
-distinguish disabled from absent Mac, so disconnected waiting pulses may resume;
-`WAIT_LED_BRIGHTNESS=0` silences them. The hardware guide owns pattern timing and setup.
+pairing/bonds; these are not pin readback or proof of visible light. After its
+disconnect fade, a bonded lamp stays dark while waiting with pairing closed,
+whether the Mac is absent or lamp control is disabled.
+The hardware guide owns pattern timing and setup.
 
 ## CI
 
