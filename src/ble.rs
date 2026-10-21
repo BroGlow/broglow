@@ -1346,6 +1346,10 @@ mod mac {
         let last_brightness = Cell::new(initial[0]);
         let last_preview = Cell::new(None::<(BrightnessPreview, StdInstant)>);
         let last_name = RefCell::new(None::<Vec<u8>>);
+        let pulse = RefCell::new(crate::led::ExpiryPulse::new(
+            crate::state::read_hook_state().question_expiry.as_ref(),
+        ));
+        let pulse = &pulse;
         let setting = &brightness_characteristic;
         let characteristic = &characteristic;
         let last_brightness = &last_brightness;
@@ -1353,7 +1357,7 @@ mod mac {
         let last_name = &last_name;
         let name_characteristic = &name_characteristic;
         let result = send_updates(
-            |(byte, brightness, preview, name): (_, _, _, Vec<u8>), _first| async move {
+            |((byte, phase), brightness, preview, name): (_, _, _, Vec<u8>), _first| async move {
                 wait_for(
                     async {
                         if last_brightness.get() != brightness {
@@ -1376,6 +1380,7 @@ mod mac {
                         }
                         p.write(characteristic, &[byte], WriteType::WithResponse)
                             .await?;
+                        pulse.borrow_mut().acknowledged(phase, StdInstant::now());
                         if last_name.borrow().as_ref() != Some(&name) {
                             p.write(name_characteristic, &name, WriteType::WithResponse)
                                 .await
@@ -1408,13 +1413,23 @@ mod mac {
             },
             || {
                 let cfg = config::read_config();
+                let state = crate::state::read_hook_state();
+                let preview = current_preview(id);
+                // Firmware starts the preview duration when its write succeeds.
+                let masked = preview.is_some()
+                    || last_preview
+                        .get()
+                        .is_some_and(|(preview, written)| written.elapsed() < preview.duration());
                 (
-                    crate::led::status_byte(crate::state::aggregate(
-                        &crate::state::read_hook_state(),
-                        cfg.yellow_mode,
-                    )),
+                    pulse.borrow_mut().sample(
+                        state.question_expiry.as_ref(),
+                        crate::led::status_byte(crate::state::aggregate(&state, cfg.yellow_mode)),
+                        masked,
+                        StdInstant::now(),
+                        chrono::Utc::now(),
+                    ),
                     cfg.lamp_brightness_percent(&target),
-                    current_preview(id),
+                    preview,
                     name_payload(&cfg, &target),
                 )
             },
@@ -1467,6 +1482,62 @@ mod mac {
     #[cfg(test)]
     mod tests {
         use super::*;
+        #[test]
+        fn expiry_pulse_through_ble_writer_without_radio() {
+            runtime().unwrap().block_on(async {
+                for (brightness, stop_after, fail) in
+                    [(0, 7, false), (37, 4, false), (100, 4, true)]
+                {
+                    let wall = chrono::Utc::now();
+                    let event = crate::state::QuestionExpiry {
+                        id: "expired".into(),
+                        occurred_at: wall.to_rfc3339(),
+                    };
+                    let pulse = RefCell::new(crate::led::ExpiryPulse::new(None));
+                    let clock = Cell::new(StdInstant::now());
+                    let writes = RefCell::new(Vec::new());
+                    let result = send_updates(
+                        |(output, applied_brightness): ((u8, Option<u8>), u8), _| {
+                            assert_eq!(applied_brightness, brightness);
+                            writes.borrow_mut().push(output.0);
+                            // Simulate a slow acknowledged write with a fake clock.
+                            clock.set(clock.get() + Duration::from_secs(1));
+                            let result = if fail && writes.borrow().len() == stop_after {
+                                Err(anyhow::anyhow!("injected write failure"))
+                            } else {
+                                pulse.borrow_mut().acknowledged(output.1, clock.get());
+                                Ok(())
+                            };
+                            std::future::ready(result)
+                        },
+                        || {
+                            clock.set(clock.get() + Duration::from_millis(500));
+                            (
+                                pulse.borrow_mut().sample(
+                                    Some(&event),
+                                    b'Y',
+                                    false,
+                                    clock.get(),
+                                    wall,
+                                ),
+                                brightness,
+                            )
+                        },
+                        &|| writes.borrow().len() < stop_after,
+                    )
+                    .await;
+                    assert_eq!(result.is_err(), fail);
+                    assert_eq!(*writes.borrow(), b"NRNRNRY"[..stop_after]);
+                    // Disable/failure drops the connection-local animation; reconnect consumes it.
+                    let mut reconnect = crate::led::ExpiryPulse::new(Some(&event));
+                    assert_eq!(
+                        reconnect.sample(Some(&event), b'Y', false, clock.get(), wall),
+                        (b'Y', None)
+                    );
+                }
+            });
+        }
+
         #[test]
         fn bluetooth_name_payload_fits_scan_response_without_splitting_unicode() {
             let mut cfg = Config::default();

@@ -28,6 +28,63 @@ const POLL_INTERVAL: Duration = Duration::from_millis(500);
 const HEARTBEAT: Duration = Duration::from_secs(2);
 const RESCAN_INTERVAL: Duration = Duration::from_secs(2);
 
+/// Connection-local animation; a reconnect consumes the current event as its baseline.
+pub(crate) struct ExpiryPulse {
+    seen: Option<String>,
+    phase: Option<(u8, Option<Instant>)>,
+}
+
+impl ExpiryPulse {
+    pub(crate) fn new(event: Option<&state::QuestionExpiry>) -> Self {
+        Self {
+            seen: event.map(|event| event.id.clone()),
+            phase: None,
+        }
+    }
+
+    pub(crate) fn sample(
+        &mut self,
+        event: Option<&state::QuestionExpiry>,
+        aggregate: u8,
+        masked: bool,
+        now: Instant,
+        wall: chrono::DateTime<chrono::Utc>,
+    ) -> (u8, Option<u8>) {
+        if let Some(event) = event.filter(|event| self.seen.as_ref() != Some(&event.id)) {
+            self.seen = Some(event.id.clone());
+            let fresh =
+                chrono::DateTime::parse_from_rfc3339(&event.occurred_at).is_ok_and(|time| {
+                    let age = wall.signed_duration_since(time);
+                    age >= chrono::Duration::zero() && age <= chrono::Duration::seconds(5)
+                });
+            if fresh && aggregate != b'R' && !masked {
+                // Start dark so the first flash is distinct from the former help signal.
+                self.phase = Some((0, None));
+            }
+        }
+        if aggregate == b'R' || masked {
+            self.phase = None;
+        }
+        if let Some((phase, Some(written))) = self.phase {
+            if now.duration_since(written) >= Duration::from_millis(500) {
+                self.phase = (phase < 5).then_some((phase + 1, None));
+            }
+        }
+        match self.phase {
+            Some((phase, _)) => (if phase % 2 == 0 { b'N' } else { b'R' }, Some(phase)),
+            None => (aggregate, None),
+        }
+    }
+
+    pub(crate) fn acknowledged(&mut self, phase: Option<u8>, now: Instant) {
+        if let Some((current, written)) = self.phase.as_mut() {
+            if Some(*current) == phase && written.is_none() {
+                *written = Some(now);
+            }
+        }
+    }
+}
+
 /// Espressif's native USB vendor ID, used by the ESP32-C3 SuperMini.
 /// This identifies candidates, not the board model or installed firmware.
 const ESPRESSIF_VID: u16 = 0x303A;
@@ -224,7 +281,8 @@ fn drive(
     // Native USB CDC stacks use DTR to learn that a host is listening.
     let _ = port.write_data_terminal_ready(true);
 
-    let mut last_sent: Option<u8> = None;
+    let mut pulse = ExpiryPulse::new(read_hook_state().question_expiry.as_ref());
+    let mut last_sent = None;
     let mut last_write = Instant::now();
 
     loop {
@@ -236,22 +294,28 @@ fn drive(
 
         // Re-read the config each poll so a yellow-mode change from the
         // popover's Settings view takes effect without reconnecting.
-        let byte = status_byte(aggregate(
-            &read_hook_state(),
-            config::read_config().yellow_mode,
-        ));
-        let changed = last_sent != Some(byte);
+        let state = read_hook_state();
+        let output = pulse.sample(
+            state.question_expiry.as_ref(),
+            status_byte(aggregate(&state, config::read_config().yellow_mode)),
+            false,
+            Instant::now(),
+            chrono::Utc::now(),
+        );
+        let (byte, phase) = output;
+        let changed = last_sent != Some(output);
 
         if changed || last_write.elapsed() >= HEARTBEAT {
             port.write_all(&[byte, b'\n'])?;
             port.flush()?;
+            pulse.acknowledged(phase, Instant::now());
             if let Some(cfg) = status_config {
                 publish_status(cfg, "connected", "USB write succeeded");
             }
             if changed {
                 println!("state -> {}", byte as char);
             }
-            last_sent = Some(byte);
+            last_sent = Some(output);
             last_write = Instant::now();
         }
 
@@ -434,6 +498,103 @@ fn status_for(cfg: &config::Config, record: Option<StatusRecord>, now: u64) -> C
 
 #[cfg(test)]
 mod transport_tests {
+    #[test]
+    fn expiry_pulse_preserves_every_phase_until_acknowledged() {
+        use super::*;
+        let wall = chrono::Utc::now();
+        let event = state::QuestionExpiry {
+            id: "new".into(),
+            occurred_at: wall.to_rfc3339(),
+        };
+        let mut pulse = ExpiryPulse::new(None);
+        let start = Instant::now();
+        let mut now = start;
+        let mut writes = Vec::new();
+        for phase in 0..6 {
+            let expected = (if phase % 2 == 0 { b'N' } else { b'R' }, Some(phase));
+            let output = pulse.sample(Some(&event), b'G', false, now, wall);
+            assert_eq!(output, expected);
+            // A failed/pending write must never advance the animation, even after seconds.
+            now += Duration::from_secs(3);
+            assert_eq!(pulse.sample(Some(&event), b'Y', false, now, wall), expected);
+            writes.push(output.0);
+            pulse.acknowledged(output.1, now);
+            now += Duration::from_millis(499);
+            assert_eq!(pulse.sample(Some(&event), b'Y', false, now, wall), expected);
+            // Duplicate ACK/heartbeat must not extend the phase.
+            pulse.acknowledged(output.1, now);
+            now += Duration::from_millis(1);
+        }
+        assert_eq!(writes, b"NRNRNR");
+        assert_eq!(
+            pulse.sample(Some(&event), b'Y', false, now, wall),
+            (b'Y', None)
+        );
+        assert_eq!(
+            pulse.sample(Some(&event), b'G', false, now, wall),
+            (b'G', None)
+        );
+    }
+
+    #[test]
+    fn expiry_pulse_consumes_startup_stale_and_suppressed_events() {
+        use super::*;
+        let wall = chrono::Utc::now();
+        let now = Instant::now();
+        let event = state::QuestionExpiry {
+            id: "new".into(),
+            occurred_at: wall.to_rfc3339(),
+        };
+        let mut startup = ExpiryPulse::new(Some(&event));
+        assert_eq!(
+            startup.sample(Some(&event), b'G', false, now, wall),
+            (b'G', None)
+        );
+        for timestamp in [
+            (wall - chrono::Duration::seconds(6)).to_rfc3339(),
+            (wall + chrono::Duration::seconds(1)).to_rfc3339(),
+            "invalid".into(),
+        ] {
+            let stale = state::QuestionExpiry {
+                occurred_at: timestamp,
+                ..event.clone()
+            };
+            let mut pulse = ExpiryPulse::new(None);
+            assert_eq!(
+                pulse.sample(Some(&stale), b'G', false, now, wall),
+                (b'G', None)
+            );
+        }
+        for (aggregate, masked) in [(b'R', false), (b'G', true)] {
+            let mut pulse = ExpiryPulse::new(None);
+            assert_eq!(
+                pulse.sample(Some(&event), aggregate, masked, now, wall),
+                (aggregate, None)
+            );
+            assert_eq!(
+                pulse.sample(Some(&event), b'G', false, now, wall),
+                (b'G', None)
+            );
+            let second = state::QuestionExpiry {
+                id: "second".into(),
+                ..event.clone()
+            };
+            assert_eq!(
+                pulse.sample(Some(&second), b'G', false, now, wall),
+                (b'N', Some(0))
+            );
+            pulse.acknowledged(Some(0), now);
+            assert_eq!(
+                pulse.sample(Some(&second), aggregate, masked, now, wall),
+                (aggregate, None)
+            );
+            assert_eq!(
+                pulse.sample(Some(&second), b'G', false, now, wall),
+                (b'G', None)
+            );
+        }
+    }
+
     use super::*;
 
     #[test]

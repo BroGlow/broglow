@@ -232,8 +232,17 @@ thin:
   `request_user_input` also turns red; its `tool_use_id` keeps unrelated completions
   from clearing the question. Matching completion or `UserPromptSubmit` resumes it;
   other `PostToolUse` events resume permission waits. `request_user_input_async`
-  returns as soon as the question is displayed, so it stays red through tool
-  completion and `Stop` until `UserPromptSubmit`, `Interrupt` or `SessionEnd`.
+  returns as soon as the question is displayed, so tool completion and an
+  unconfirmed `Stop` keep it red. Track its turn, call and rollout path; polling
+  reconciles confirmed terminal records for that same turn, including records
+  written after `Stop`. An unanswered question then expires and clears red;
+  answers and failed question creation clear without an expiry effect. Unknown
+  rollout formats and old rows without tracking metadata retain the conservative
+  behavior. Keep this compatibility parser inside the Codex adapter.
+  A fresh expiry produces three 500 ms red lamp pulses separated by dark phases,
+  then restores the current aggregate. Existing USB/BLE workers own the effect;
+  another needs-help session suppresses it. Startup/reconnect never replays old
+  effects, and brightness and Identify controls keep their existing priority.
   Before filtering or changing state, the shim ignores hooks whose rollout thread
   ID differs from the hook's `session_id`: subagent hooks can carry their parent's
   ID and must not clear its question or status. Use `session_meta.id`, falling back
