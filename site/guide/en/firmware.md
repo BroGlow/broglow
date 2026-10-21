@@ -52,16 +52,14 @@ The firmware picks the first matching mode in this order:
    canceling or restarting the flash. Disconnect, lost authentication or status
    expiry cancels it, so even a delayed first write cannot light the LEDs past the
    ten-second stale deadline.
-4. Fade: a confirmed BLE disconnect starts one three-second fade immediately from
-   the displayed status color and brightness. Diagnostics already report `state=N`.
+4. Fade (durations in the `fading` row): a confirmed BLE disconnect starts one fade
+   immediately from the displayed status color and brightness; a connection that
+   stays up without valid updates also fades before the stale deadline.
    Reconnection alone does not restore status or restart the fade. A fresh valid
    status cancels the fade and shows the latest color at the configured brightness;
    `N` stays off. Recovery skips the connection flash, including after the fade has
    finished. Queued pre-disconnect colors are discarded; an acknowledged `N` can
-   still turn the lamp off. A connection that stays up without valid updates holds
-   its status for five seconds, then fades for five seconds to black at the
-   ten-second deadline. Its logical status remains until that deadline. Fading
-   never changes the brightness setting.
+   still turn the lamp off. Fading never changes the brightness setting.
    A fade starts from the current output capped at the configured brightness,
    including a brightness reduction received at fade entry.
    Off status, preview and connection flash do not start a fade. Timing follows the
@@ -71,15 +69,13 @@ The firmware picks the first matching mode in this order:
    status expired, even if the pairing window is open.
 7. `pairing`, then `unpaired`, then `stale` (connected), then `waiting`.
 
-For BLE, the watchdog fade takes the second half of the stale timeout.
-
 Outputs use 2 kHz, eight-bit PWM. In `platformio.ini`, `LED_RED_PIN=0`,
 `LED_YELLOW_PIN=1` and `LED_GREEN_PIN=3` select the external LED pins (GPIO0..10,
 except 2, 8 and 9), and `STATUS_TIMEOUT_MS=10000` sets the stale timeout (must exceed
 2000 ms). `BUILTIN_LED_PIN=8` and
 `BUILTIN_LED_ACTIVE_LOW=1` select the usual onboard LED; set the pin to `-1` to
 disable that output on a different board. `BUILTIN_LED_BRIGHTNESS=32` controls its
-normal pulses. Waiting remains dark on all four outputs. Rebuild
+normal pulses. Rebuild
 and flash the identified board after changing these options; PWM values are
 commanded duty levels, not measured brightness.
 
