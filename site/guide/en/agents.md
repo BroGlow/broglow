@@ -43,8 +43,10 @@ next prompt on.
 3. Send a prompt in a new local Codex task, in the CLI or desktop app.
    In BroGlow's session list, check that this task shows **Working** while it runs and
    **Paused** after the response. A human approval request or question shows
-   **Needs help**. An unanswered quiz stays red even after Codex finishes its response,
-   until you reply, interrupt the turn or end the session.
+   **Needs help**. An unanswered async question expires when Codex confirms that
+   its turn has ended. BroGlow clears the alert and flashes a connected lamp red
+   three times, unless another session still needs help. Answering clears the alert
+   without flashing. See [question expiry](sessions.md#question-expiry).
    Automatic approval review stays **Working** if Codex records the
    reviewer; otherwise permission requests show **Needs help**. Interrupting a turn
    pauses it; ending the session removes it from live status. Other live sessions and

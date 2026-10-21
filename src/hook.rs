@@ -37,7 +37,7 @@ enum LoadedState {
 /// `mutate`. Writes the result back atomically only when `mutate` returns
 /// `true`. The lock is held for the whole span and released when this returns.
 /// If locking fails, skip this update rather than risk clobbering another writer.
-fn update_state(mutate: impl FnOnce(&mut HookState) -> bool) -> anyhow::Result<()> {
+pub(crate) fn update_state(mutate: impl FnOnce(&mut HookState) -> bool) -> anyhow::Result<()> {
     let Some(_lock) = acquire_state_lock() else {
         return Ok(());
     };
@@ -45,7 +45,15 @@ fn update_state(mutate: impl FnOnce(&mut HookState) -> bool) -> anyhow::Result<(
         LoadedState::Fresh(s) | LoadedState::Ok(s) => s,
         LoadedState::Unreadable => return Ok(()),
     };
-    if mutate(&mut state) {
+    let changed = mutate(&mut state);
+    let count = state.codex_questions.len();
+    state.codex_questions.retain(|id, _| {
+        state
+            .sessions
+            .get(id)
+            .is_some_and(|s| s.harness.as_deref() == Some("codex") && !s.codex_background)
+    });
+    if changed || state.codex_questions.len() != count {
         write_state_atomic(&state)?;
     }
     Ok(())
@@ -541,16 +549,151 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
                 terminal_changed = true;
             }
         }
+        let mut question_rejected = harness == "codex"
+            && v["hook_event_name"] == "PostToolUse"
+            && v["question_rejected"] == true
+            && state
+                .sessions
+                .get(&session_id)
+                .and_then(|s| s.notification_type.as_deref())
+                == notification_type.as_deref();
+        if harness == "codex" {
+            if let Some(pending) = state.codex_questions.get(&session_id) {
+                let turn = v["turn_id"].as_str();
+                if v["hook_event_name"] == "PreToolUse" && v["codex_question"].is_object() {
+                    let call = v["codex_question"]["call_id"].as_str().unwrap_or_default();
+                    if (turn == Some(&pending.turn_id)
+                        && (pending.terminal_at.is_some()
+                            || pending.superseded
+                            || pending.contains_call(call)))
+                        || (turn != Some(&pending.turn_id)
+                            && pending.next_turn_id.as_deref() != turn
+                            && !crate::codex::current_rollout_turn(
+                                v["codex_question"]["transcript_path"]
+                                    .as_str()
+                                    .unwrap_or_default(),
+                            )
+                            .is_some_and(|(id, position)| {
+                                Some(id.as_str()) == turn && position > pending.created_offset
+                            }))
+                    {
+                        return terminal_changed;
+                    }
+                }
+                if pending.terminal_at.is_some()
+                    && turn == Some(&pending.turn_id)
+                    && matches!(
+                        v["hook_event_name"].as_str(),
+                        Some("PostToolUse" | "Stop" | "Interrupt")
+                    )
+                {
+                    return terminal_changed;
+                }
+            }
+            if let Some(pending) = state.codex_questions.get_mut(&session_id) {
+                if v["turn_id"]
+                    .as_str()
+                    .is_some_and(|turn| turn != pending.turn_id)
+                    && pending.terminal_at.is_none()
+                    && !pending.superseded
+                    && matches!(
+                        v["hook_event_name"].as_str(),
+                        Some("PostToolUse" | "Stop" | "Interrupt" | "SessionEnd")
+                    )
+                {
+                    return terminal_changed;
+                }
+                if v["hook_event_name"] == "SessionEnd" && !pending.exec {
+                    pending.exec = true;
+                    terminal_changed = true;
+                }
+                if v["hook_event_name"] == "PostToolUse"
+                    && notification_type
+                        .as_deref()
+                        .and_then(|n| n.strip_prefix("codex_question_async:"))
+                        .is_some_and(|call| pending.contains_call(call))
+                {
+                    pending.accept_call(
+                        notification_type
+                            .as_deref()
+                            .unwrap()
+                            .strip_prefix("codex_question_async:")
+                            .unwrap(),
+                        v["question_accepted"] == true,
+                        v["question_rejected"] == true,
+                    );
+                    terminal_changed = true;
+                    question_rejected = !pending.outstanding();
+                }
+                if v["hook_event_name"] == "UserPromptSubmit" {
+                    if let Some(turn) = v["turn_id"]
+                        .as_str()
+                        .filter(|turn| *turn != pending.turn_id)
+                    {
+                        pending.next_turn_id = Some(turn.to_string());
+                    }
+                    pending.superseded |= v["turn_id"]
+                        .as_str()
+                        .is_some_and(|turn| turn != pending.turn_id);
+                    pending.resolved = true;
+                    for call in pending.other_calls.values_mut() {
+                        call.resolved = true;
+                    }
+                    terminal_changed = true;
+                }
+            }
+            if v["hook_event_name"] == "PreToolUse"
+                || (v["hook_event_name"] == "PostToolUse"
+                    && !state.codex_questions.contains_key(&session_id)
+                    && notification_type.as_deref().is_some_and(|marker| {
+                        state
+                            .sessions
+                            .get(&session_id)
+                            .and_then(|s| s.notification_type.as_deref())
+                            == Some(marker)
+                    }))
+            {
+                if let Ok(pending) = serde_json::from_value::<crate::codex::PendingQuestion>(
+                    v["codex_question"].clone(),
+                ) {
+                    if let Some(old) = state
+                        .codex_questions
+                        .get_mut(&session_id)
+                        .filter(|old| old.turn_id == pending.turn_id)
+                    {
+                        old.other_calls.entry(pending.call_id).or_insert(
+                            crate::codex::QuestionCall {
+                                accepted: pending.accepted,
+                                question_count: pending.question_count,
+                                answered: pending.answered,
+                                resolved: false,
+                            },
+                        );
+                        terminal_changed = true;
+                    } else {
+                        state.codex_questions.insert(session_id.clone(), pending);
+                        terminal_changed = true;
+                    }
+                }
+            }
+        }
         let existing = state.sessions.get(&session_id);
 
-        // Async questions return before the answer and can outlive the turn.
+        // Async completion acknowledges display, not an answer. A raw Stop
+        // can be blocked; only confirmed terminal rollout evidence expires it.
         // Blocking questions resolve only on their own completion.
         if harness == "codex"
             && existing
                 .and_then(|s| s.notification_type.as_deref())
                 .is_some_and(|pending| {
                     (pending.starts_with("codex_question_async:")
-                        && matches!(v["hook_event_name"].as_str(), Some("PostToolUse" | "Stop")))
+                        && !question_rejected
+                        && (matches!(v["hook_event_name"].as_str(), Some("PostToolUse" | "Stop"))
+                            || (state.codex_questions.contains_key(&session_id)
+                                && matches!(
+                                    v["hook_event_name"].as_str(),
+                                    Some("Interrupt" | "SessionEnd")
+                                ))))
                         || (pending.starts_with("codex_question:")
                             && v["hook_event_name"] == "PostToolUse"
                             && Some(pending) != notification_type.as_deref())
@@ -656,8 +799,8 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
 /// - `PermissionRequest` → `needs_input` unless this turn explicitly uses
 ///   automatic approval review; those requests do not wait for the user.
 /// - `PreToolUse` of `request_user_input` → `needs_input` until it completes;
-///   `request_user_input_async` stays red through completion and `Stop` until
-///   the user replies, interrupts, or ends the session.
+///   `request_user_input_async` stays red until every question is resolved or
+///   its originating turn has confirmed terminal evidence; raw Stop is insufficient.
 /// - `PostToolUse` → `resumed`: the first tool completion after an approval is
 ///   what clears the red; a plain `working` deliberately would not.
 /// - `UserPromptSubmit` → `resumed`: the user typing is also them dealing
@@ -733,7 +876,55 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
         "session_id": session_id,
         "hook_event_name": hook_event,
         "codex_background": background,
+        "turn_id": field("turn_id"),
     });
+    if question_marker == Some("codex_question_async") {
+        if matches!(hook_event.as_str(), "PreToolUse" | "PostToolUse")
+            && !transcript_path.is_empty()
+        {
+            if let (Some(turn_id), Some(call_id)) = (field("turn_id"), field("tool_use_id")) {
+                ev["codex_question"] = serde_json::to_value(crate::codex::PendingQuestion {
+                    turn_id,
+                    call_id,
+                    // A later matching Post can recover pre-upgrade metadata.
+                    // Its exact turn/call identity makes starting at zero safe.
+                    offset: if hook_event == "PreToolUse" {
+                        std::fs::metadata(&transcript_path)
+                            .map(|m| m.len())
+                            .unwrap_or(0)
+                    } else {
+                        0
+                    },
+                    created_offset: std::fs::metadata(&transcript_path)
+                        .map(|m| m.len())
+                        .unwrap_or(0),
+                    accepted: false,
+                    exec: crate::codex::rollout_is_exec(&transcript_path),
+                    question_count: v["tool_input"]["questions"].as_array().map_or(0, Vec::len),
+                    answered: Vec::new(),
+                    transcript_path: transcript_path.clone(),
+                    discard_line: false,
+                    other_calls: Default::default(),
+                    resolved: false,
+                    terminal_at: None,
+                    superseded: false,
+                    next_turn_id: None,
+                })?;
+            }
+        }
+        if hook_event == "PostToolUse" {
+            let response = v["tool_response"]
+                .as_str()
+                .and_then(|s| serde_json::from_str::<Value>(s).ok())
+                .unwrap_or_else(|| v["tool_response"].clone());
+            ev["question_accepted"] = Value::Bool(response["accepted"] == true);
+            if ev["codex_question"].is_object() {
+                ev["codex_question"]["accepted"] = ev["question_accepted"].clone();
+            }
+            ev["question_rejected"] =
+                Value::Bool(response["accepted"] == false || response["isError"] == true);
+        }
+    }
     if let Some(marker) = question_marker {
         ev["notification_type"] = Value::String(format!(
             "{marker}:{}",
@@ -755,6 +946,7 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
     #[cfg(not(target_os = "macos"))]
     let terminal = None;
     ingest_event(&ev, terminal)?;
+    update_state(crate::codex::reconcile_questions)?;
 
     // Prompt hooks can name a saved chat before its rollout is readable.
     // Name once; later Codex titles still win through the title path above.

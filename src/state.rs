@@ -123,6 +123,16 @@ pub struct Ancestor {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct HookState {
     pub sessions: HashMap<String, SessionStatus>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub question_expiry: Option<QuestionExpiry>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub codex_questions: HashMap<String, crate::codex::PendingQuestion>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct QuestionExpiry {
+    pub id: String,
+    pub occurred_at: String,
 }
 
 /// Aggregate health across all live sessions. Any needs-help session always
@@ -184,6 +194,17 @@ pub fn read_hook_state() -> HookState {
         .ok()
         .and_then(|content| serde_json::from_str(&content).ok())
         .unwrap_or_default();
+
+    if !state.codex_questions.is_empty() {
+        // Stop can precede the terminal record; readers retry without a hook.
+        let _ = crate::hook::update_state(crate::codex::reconcile_questions);
+        if let Some(updated) = std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+        {
+            state = updated;
+        }
+    }
 
     // Apply before both display-name refresh and aggregate/LED computation.
     // Keep the tombstones on disk so later hooks cannot resurrect these runs.
@@ -275,6 +296,9 @@ fn clear_sessions_matching(matches: impl Fn(&str, &SessionStatus) -> bool) -> an
     let mut state: HookState = serde_json::from_str(&content)?;
     let count = state.sessions.len();
     state.sessions.retain(|id, session| !matches(id, session));
+    state
+        .codex_questions
+        .retain(|id, _| state.sessions.contains_key(id));
     if state.sessions.len() == count {
         return Ok(());
     }
@@ -321,6 +345,131 @@ pub fn write_state_atomic(state: &HookState) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use crate::config::YellowMode;
+
+    #[cfg(unix)]
+    #[test]
+    fn reader_reconciles_expiry_after_stop_and_restart() {
+        if std::env::var_os("BROGLOW_TEST_EXPIRY").is_none() {
+            let home = tempfile::tempdir().unwrap();
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "state::tests::reader_reconciles_expiry_after_stop_and_restart",
+                ])
+                .env("HOME", home.path())
+                .env("BROGLOW_TEST_EXPIRY", "1")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            return;
+        }
+        let rollout = tempfile::NamedTempFile::new().unwrap();
+        let mut state = state_with(&[Status::NeedsHelp, Status::NeedsHelp]);
+        for s in state.sessions.values_mut() {
+            s.last_updated = Utc::now().to_rfc3339();
+        }
+        let session = state.sessions.get_mut("s0").unwrap();
+        session.harness = Some("codex".into());
+        session.notification_type = Some("codex_question_async:call".into());
+        state.codex_questions.insert(
+            "s0".into(),
+            crate::codex::PendingQuestion {
+                turn_id: "new-turn".into(),
+                call_id: "call".into(),
+                transcript_path: rollout.path().to_string_lossy().into_owned(),
+                offset: 0,
+                created_offset: 0,
+                accepted: true,
+                exec: false,
+                question_count: 1,
+                answered: Vec::new(),
+                discard_line: false,
+                other_calls: Default::default(),
+                resolved: false,
+                terminal_at: None,
+                superseded: false,
+                next_turn_id: None,
+            },
+        );
+        write_state_atomic(&state).unwrap();
+        let old = serde_json::json!({"type":"event_msg", "timestamp": Utc::now().to_rfc3339(),
+            "payload":{"type":"task_complete","turn_id":"old-turn"}})
+        .to_string()
+            + "\n";
+        let terminal = serde_json::json!({"type":"event_msg", "timestamp": Utc::now().to_rfc3339(),
+            "payload":{"type":"turn_aborted","turn_id":"new-turn"}})
+        .to_string();
+        std::fs::write(rollout.path(), &old).unwrap();
+        assert_eq!(read_hook_state().sessions["s0"].status, Status::NeedsHelp);
+        // A partially flushed line must be retried, not consumed as malformed.
+        std::fs::write(rollout.path(), format!("{old}{terminal}")).unwrap();
+        assert_eq!(read_hook_state().sessions["s0"].status, Status::NeedsHelp);
+        std::fs::write(rollout.path(), format!("{old}{terminal}\n")).unwrap();
+        let reconciled = read_hook_state();
+        assert_eq!(reconciled.sessions["s0"].status, Status::Inactive);
+        assert!(reconciled.codex_questions["s0"].terminal_at.is_some());
+        assert_eq!(
+            reconciled.question_expiry.as_ref().unwrap().id,
+            "s0:new-turn:call"
+        );
+        assert_eq!(
+            aggregate(&reconciled, YellowMode::AnyInactive),
+            Aggregate::Red
+        );
+        let disk = std::fs::read(state_file_path()).unwrap();
+        assert_eq!(
+            read_hook_state().question_expiry,
+            reconciled.question_expiry
+        );
+        assert_eq!(std::fs::read(state_file_path()).unwrap(), disk);
+        // Two calls share the turn: answering the newest must retain the older
+        // request. After all answers, keep polling for a terminal flushed later.
+        for answer_all in [false, true] {
+            let mut waiting = state.clone();
+            let pending = waiting.codex_questions.get_mut("s0").unwrap();
+            pending.other_calls.insert(
+                "second".into(),
+                crate::codex::QuestionCall {
+                    accepted: true,
+                    question_count: 1,
+                    answered: Vec::new(),
+                    resolved: false,
+                },
+            );
+            std::fs::write(rollout.path(), "").unwrap();
+            write_state_atomic(&waiting).unwrap();
+            let reply = |call: &str| {
+                let answer = serde_json::json!([{"questionItemId": serde_json::json!(["request_user_input_async", call, 0]).to_string(), "answer":"yes"}]);
+                serde_json::json!({"type":"response_item", "payload":{"type":"message", "role":"user", "content":[{
+                    "type":"input_text", "text":format!("<send_user_message_question_reply>{answer}</send_user_message_question_reply>")
+                }]}}).to_string() + "\n"
+            };
+            let mut contents = reply("second");
+            std::fs::write(rollout.path(), &contents).unwrap();
+            assert_eq!(read_hook_state().sessions["s0"].status, Status::NeedsHelp);
+            if answer_all {
+                contents += &reply("call");
+                std::fs::write(rollout.path(), &contents).unwrap();
+                assert_eq!(read_hook_state().sessions["s0"].status, Status::Active);
+            }
+            contents += &(terminal.clone() + "\n");
+            std::fs::write(rollout.path(), &contents).unwrap();
+            let completed = read_hook_state();
+            assert_eq!(completed.sessions["s0"].status, Status::Inactive);
+            assert_eq!(completed.question_expiry.is_none(), answer_all);
+            assert!(completed.codex_questions["s0"].terminal_at.is_some());
+        }
+        std::fs::write(state_file_path(), "broken state").unwrap();
+        read_hook_state();
+        assert_eq!(
+            std::fs::read_to_string(state_file_path()).unwrap(),
+            "broken state"
+        );
+    }
 
     #[cfg(unix)]
     #[test]
