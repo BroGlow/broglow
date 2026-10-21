@@ -14,13 +14,14 @@ Edit Markdown sources; never edit or commit generated HTML.
 | --- | --- | --- |
 | Parts, models and wiring | `guide/en/index.md` | `guide/ru/index.md` |
 | Homebrew installation, PATH and Bluetooth | `guide/en/installation.md` | `guide/ru/installation.md` |
+| Why BroGlow | `guide/en/why.md` | `guide/ru/why.md` |
 | Mac package, source builds, Windows and Linux | `guide/en/alternatives.md` | `guide/ru/alternatives.md` |
 | Coding agents (Claude Code, Codex, opencode, Copilot) | `guide/en/agents.md` | `guide/ru/agents.md` |
 | Sessions: return, names, dismiss | `guide/en/sessions.md` | `guide/ru/sessions.md` |
 | Troubleshooting and agent prompt | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
 | Hardware reference | `guide/en/hardware.md` | `guide/ru/hardware.md` |
-| Firmware, releases, images, enclosure design | `guide/en/NAME.md` | `guide/ru/NAME.md` |
-| Printing and assembly | `../models/magnetic/GUIDE_ROUND3X2.en.md` | `../models/magnetic/GUIDE_ROUND3X2.md` |
+| Printing and assembly (includes `../models/magnetic/GUIDE_ROUND3X2*.md`) | `guide/en/printing.md` | `guide/ru/printing.md` |
+| Firmware reference | `guide/en/firmware.md` | `guide/ru/firmware.md` |
 
 To add a page, create matching filenames in both language folders and update
 `nav` and `nav_translations` in `mkdocs.yaml`. Use fenced `text` blocks for
@@ -69,13 +70,13 @@ landing and local downloads.
 
 ## Interactive 3D and AR
 
-The hero keeps the main photo visible, with all three LEDs glowing. Directly below,
-**Explore in 3D** hosts the assembled lamp preview with signal effects and AR.
+The hero keeps the main photo visible. Directly below, **Explore in 3D** hosts the
+assembled lamp preview with signal effects and AR.
 The build section has a rotatable assembly explorer using the same self-hosted
 model-viewer with `assets/assembly.glb`, loaded lazily; it supports drag,
 keyboard rotation, zoom, Reset view and retry after loading errors. Its separated
 parts expose the LED retainer and mounting points. Without JavaScript, the hero
-photo remains visible and the 3D preview shows the green-light photo.
+photo and the 3D preview's poster remain visible.
 
 The 3D preview starts automatically with **Working** selected; its initial poster
 is `assets/photos/signal-green.jpg`. Self-hosted
@@ -139,7 +140,7 @@ Without JavaScript, guide links work in their URL's language and prompts can be
 copied manually.
 
 The landing's Open Graph and Twitter cards use English text and our real
-`assets/photos/broglow-all-lights.jpg` lamp photo, with all three LEDs glowing. Absolute canonical and preview URLs
+`assets/photos/broglow-all-lights.jpg` lamp photo. Absolute canonical and preview URLs
 point to the published site; `pages.py` adjusts them for `--repository`.
 
 The landing explicitly offers installation and session monitoring before building
@@ -185,8 +186,8 @@ Keep the preview server running for the HTTP check.
 
 ## Local downloads and factual limits
 
-The GitHub enclosure download is `broglow-models-vVERSION.zip`, with
-`stl/` and `step/` folders and `BUILD.json`; `printing.md` includes
+The GitHub enclosure download is described in the
+[release runbook](../RELEASING.md#distribution); `printing.md` includes
 its guide from `models/magnetic/`.
 
 The authored build pages and shared printing guides also link to the published
@@ -204,34 +205,27 @@ current `Cargo.toml` version and shows it inline; when the
 checksum cannot be fetched the page points to the release page instead. Publishing a release restarts
 the Website workflow on the default branch so the checksum lands on the site. GitHub's automatic source ZIP contains editable
 source and instructions, without STL, STEP/STP or ready-to-print ZIPs; use the
-enclosure release asset, either model listing, or [generate it from source](../RELEASING.md).
+enclosure release asset, either model listing, or [generate it from source](../RELEASING.md#package-magnetic-enclosure).
 Previews neither rebuild nor copy archives; inspect a package's `BUILD.json` for
 its architecture, date and source.
 
 Unknown or missing source links in included guides fail the build. Keep the
-generation procedure in the [release runbook](../RELEASING.md) aligned
-with the release workflow.
+release runbook's generation procedure aligned with the release workflow.
 
 Use the [hardware manual](guide/en/hardware.md) for supported hardware and
 acceptance checks. Website tests and renders verify presentation, not physical
 fit or delivery of agent events.
 
-Our asset sources:
+The [media policy](../MEDIA.md) lists the landing photos and 3D outputs;
+`photos/broglow-all-lights.jpg`, `photos/signal-green.jpg` and `broglow.jpg` are
+7:5 crops at 1400×1000. Other asset sources:
 
-- `assets/photos/broglow-all-lights.jpg`: our main photo of the lamp and orange mascot with all three LEDs glowing, cropped to 7:5 at 1400×1000; permanently visible in the landing hero and used by the README and social previews.
-- `assets/photos/signal-green.jpg`: our green-light photo, cropped to 7:5 at 1400×1000; the 3D preview's initial poster and no-JavaScript fallback, matching **Working**.
-- `assets/broglow.jpg`: our photo of the built lamp with the LEDs off, cropped to 7:5 at 1400×1000; used by the signal demo's **Off** state.
 - `assets/photos/`: our photos of the built lamp (`state-*.jpg` squares and `signal-*.jpg` 7:5 crops with one LED lit, `inside-*.jpg` rear views with and without the LED retainer) and the `popover-dark.png` menu-bar screenshot, web-sized; originals stay untracked in `originals/`.
-- `assets/assembly.glb`: separated assembly from `models/magnetic/exploded.py`; source hashes and bounds in `assets/assembly-model.json`.
 - `guide/assets/favicon.svg`: our three-circle lamp artwork, also used by the landing favicon. Tray icons come from `assets/icons/` in the repository root.
-
-Follow the [media policy](../MEDIA.md). Keep render/photo
-labels accurate and theme/library license notices intact.
 
 ## Publish to GitHub Pages
 
-1. Follow the [release runbook](../RELEASING.md) and push the intended sources,
-   including CAD, to your repository's default branch.
+1. Push the intended sources, including CAD, to your repository's default branch.
 2. Select **Settings → Pages → Build and deployment → Source → GitHub Actions**.
 3. Run **Actions → Website → Run workflow** on the default branch.
 4. Open the `deploy` job's URL. If required, allow the default branch and approve
@@ -243,16 +237,7 @@ Pushes to `master` that touch the site, docs, models or other paths listed in th
 default branch. PRs check without deploying. Configure custom domains in Pages
 settings; relative paths support both domain roots and repository prefixes.
 
-### Downloads live in GitHub Releases
-
-App packages and versioned enclosure archives use this repository's Releases
-with a source-build fallback. Printables and MakerWorld provide additional
-enclosure downloads through the links in the build and printing guides.
-Publish full Mac/C3 bundles and the separate enclosure ZIP with matching checksums;
-Windows bundles include the graphical tray app and CLI but omit the installer,
-firmware and manuals. See the [release runbook](../RELEASING.md)
-for filenames, checks and publication steps. Preserve archive names and state
-pending physical checks in release notes.
+Downloads live in GitHub Releases; see the [release distribution](../RELEASING.md#distribution).
 
 ### Check the exact Pages artifact locally
 

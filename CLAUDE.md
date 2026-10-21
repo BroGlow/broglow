@@ -2,10 +2,7 @@
 
 # broglow
 
-Follow the standalone product scope in [AGENTS.md](AGENTS.md).
-
-For installation from a package or source, connecting a board, and checking a
-running Mac service, start with the [agent runbook](site/guide/en/hardware.md#agent-runbook).
+Follow the standalone product scope and routing in [AGENTS.md](AGENTS.md).
 
 A single Rust binary that monitors [Claude Code](https://claude.ai/code) sessions
 in real time. It ships three faces of the same executable:
@@ -17,9 +14,10 @@ in real time. It ships three faces of the same executable:
   record per-session status.
 
 Optionally mirrors aggregate state over USB serial, or from macOS over BLE to the
-ESP32-C3 SuperMini firmware in this repository. For hardware changes, flashing,
-Bluetooth setup and deployment, read
-[site/guide/en/hardware.md](site/guide/en/hardware.md).
+ESP32-C3 SuperMini firmware in this repository. For installation, hardware
+changes, flashing, Bluetooth setup and deployment, read
+[the hardware manual](site/guide/en/hardware.md) and its
+[agent runbook](site/guide/en/hardware.md#agent-runbook).
 
 Cross-platform: macOS, Windows, Linux. MIT licensed.
 
@@ -39,7 +37,7 @@ When a change must be verified in the app already running on this machine, and
 replacing that installation is intended, update it:
 
 ```bash
-cargo install --path . && broglow install
+cargo install --locked --path . && broglow install
 ```
 
 A process-lifetime lock rejects a second tray instance (a lock file on

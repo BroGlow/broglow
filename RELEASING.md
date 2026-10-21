@@ -22,7 +22,7 @@ while the repository retains its MIT license. Keep all generated files ignored a
 | `broglow-vVERSION-aarch64-apple-darwin.tar.gz` | Apple Silicon app, C3 firmware and source, operating manual, licenses and checksums. |
 | `broglow-vVERSION-x86_64-apple-darwin.tar.gz` | The same bundle, with a native Intel Mac app. |
 | `broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz` | Windows graphical tray app and CLI in `broglow.exe`, with USB lamp support, license and third-party notices; no installer, BLE, firmware or manuals. |
-| `broglow-models-vVERSION.zip` | Enclosure print files: the five production parts 01–05 in `stl/` (print orientation) and `step/`, plus `BUILD.json`. The mascot attaches with four Ø3×2 mm N52 magnets (two in the mascot, two in the traffic light). |
+| `broglow-models-vVERSION.zip` | Enclosure print files: the five production parts 01–05 in `stl/` (print orientation) and `step/`, plus `BUILD.json`. |
 | Matching `.sha256` | Checksum of each archive, with its original filename. |
 
 Mac bundles also contain `BUILD.json`, an internal `SHA256SUMS`, flash offsets
@@ -84,7 +84,7 @@ it changes the site, docs, models or `Cargo.toml`, deploys the website automatic
 
 Push only this tag, by name; never use `git push --tags`. Pushing a `v*` tag
 starts the **Release** workflow. For the next release, repeat this procedure with
-the next version. Never move a published tag.
+the next version.
 
 The **Release** workflow runs in this order:
 
@@ -114,19 +114,17 @@ Before selecting **Publish release** in GitHub:
 - Check `BUILD.json`, archive contents and checksums. App bundles and the enclosure
   ZIP are separate downloads; exclude reference media, recovery files and local
   user settings from every artifact.
-- State which machines and lamp behavior were actually tested. Local acceptance
-  currently covers Apple Silicon; a successful Intel build is not an Intel
-  hardware test. Keep unverified platforms visible.
+- Check on real hardware: reconnect, all LED colors and brightness, stale-status
+  blanking within ten seconds and enclosure fit; never reflash a working board
+  just to test the release workflow. State which machines and lamp behavior were
+  actually tested. Local acceptance currently covers Apple Silicon; a successful
+  Intel build is not an Intel hardware test. Keep unverified platforms visible.
 - Review the generated notes and choose the appropriate release/prerelease label.
   Publishing the draft makes the downloads public and reruns the **Website**
   workflow so the guide shows the enclosure archive's SHA-256.
 
 Never delete a published release or move its tag: the tap's formulae point at its
 downloads and checksums. Ship the next patch version instead.
-
-Also check on real hardware: reconnect, all LED colors and brightness,
-stale-status blanking within ten seconds and enclosure fit. Never reflash a
-working board just to test the release workflow.
 
 ## Package locally without publishing
 
@@ -158,10 +156,6 @@ with **Stale magnetic slicer evidence** by design: the ZIP is only built from ST
 that match the reviewed slicing results. The regenerated parts stay in
 `dist/enclosure/magnetic-build/source/models/magnetic/` (`stl/`, `step/`,
 `validation.json`); slice and test-print them before updating the evidence.
-
-Keep the entire `models/broglow/preview/` directory ignored and untracked, including
-renders, dimension diagrams and render recipes. Keep selected app/site assets and
-reviewed validation data in Git.
 
 Ad hoc CAD inspection reports and revision-specific snapshot job files are not
 build inputs; keep them under ignored `dist/enclosure/`, outside Git. The build
@@ -263,7 +257,7 @@ packages/taps. Never run rehearsal `broglow install` over a working app.
 After a workflow fix, start a **new** Homebrew tap run from **master** with the
 existing released **tag** and **publish** ticked. **Re-run jobs** keeps the old
 workflow. The generator still comes from the tag; generator/app fixes need a new
-patch release. Never move a published tag or replace its assets.
+patch release, not replaced assets.
 
 ## Publish the website
 

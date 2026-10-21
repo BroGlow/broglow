@@ -93,7 +93,7 @@ also run `node --test tests/js/*.test.mjs` after `cargo build --locked`
 
 The [CI workflow](.github/workflows/ci.yaml) has the firmware host, packaging
 and platform checks. For icon changes, also run `assets/icons/render.py --check`.
-CI does not build the firmware: for firmware changes, run `uv run --frozen flash --build-only`
+CI does not build the firmware: for firmware changes, run the build above
 and the [`led-test` build](site/guide/en/hardware.md#standalone-led-test-firmware) locally.
 
 For a local app update and live service checks, follow the
@@ -139,7 +139,7 @@ not cached. Releases always run the locked app and firmware builds and preserve
 the source, version, freshness, license and checksum checks. Mac Rust and firmware
 builds remain separate steps.
 
-After an authorized merge, optionally populate caches on the default branch:
+Optionally populate these caches on the default branch:
 
 ```bash
 gh workflow run cache-warm.yaml --ref master
@@ -152,9 +152,9 @@ skips compilation in the warm-up job. It does not package or publish a release.
 
 Warm-up consumes runner time and cache storage; it is not required before every
 release. Repeat it after a cache-key change or eviction only when expected reuse
-justifies that cost. Release jobs only restore; a miss downloads dependencies and
-builds normally. Local performance evidence belongs in ignored `.recovery/`;
-hosted runner timings and cache hit rates need separate GitHub Actions verification.
+justifies that cost. Release jobs only restore. Local performance evidence belongs
+in ignored `.recovery/`; hosted runner timings and cache hit rates need separate
+GitHub Actions verification.
 
 ## Documentation and generated files
 
@@ -162,9 +162,9 @@ Keep the README focused on the product, installation and everyday use. Put share
 development instructions here; [CLAUDE.md](CLAUDE.md) holds the code map and
 implementation notes.
 
-Update English and Russian documents together, preserving section IDs, commands
-and technical values. Follow the [website documentation guide](site/README.md#keep-the-instructions-in-sync)
-for translation checks, local and Pages builds, and link checks.
+Keep English and Russian documents in sync as described in the
+[website documentation guide](site/README.md#keep-the-instructions-in-sync), and run
+`uv run --frozen --only-group docs python site/check-translations.py`.
 
 Keep generated STL, STEP/STP, 3MF and ZIP files ignored and untracked, regardless
 of filename case. Write enclosure deliverables under `dist/enclosure/`, which is

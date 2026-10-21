@@ -15,7 +15,7 @@ single source of operating commands and completion criteria.
 For **source changes, builds, or tests**, also read [CLAUDE.md](CLAUDE.md). Work from
 this repository's root. Preserve existing user changes and Git history.
 
-**Generated artifacts — applies to every change:** Keep STL, STEP/STP and ZIP
+**Generated artifacts — applies to every change:** Keep STL, STEP/STP, 3MF and ZIP
 files untracked and ignored everywhere, regardless of filename case. Preserve
 their `.gitignore` rules; never force-add these files or put them in Git LFS.
 Keep editable sources and reviewed evidence in Git; distribute generated files
@@ -23,14 +23,9 @@ as release assets with checksums. After generation, verify output paths with
 `git check-ignore`; before committing, run
 `uv run --frozen python scripts/check-generated-artifacts.py`.
 
-Keep the entire `models/broglow/preview/` directory ignored and untracked, including
-renders, dimension diagrams and render recipes; selected app/site assets stay in Git.
-
 For **enclosure generation, release packaging, distribution, or website publication**,
 follow [the release runbook](RELEASING.md) and its manual/agent generation
 procedure. Generate enclosure deliverables under ignored `dist/enclosure/`.
-GitHub source archives contain sources and instructions; ready-to-print files
-come from the separate enclosure release download.
 
 For **images, screenshots, or other media**, use only our own assets and follow
 [the media policy](MEDIA.md). Label CAD renders accurately.
@@ -44,10 +39,8 @@ a working board.
 For **hardware-guide edits or changes to setup, wiring, controls, or status behavior**,
 follow [website documentation maintenance](site/README.md#keep-the-instructions-in-sync)
 in the same change. Keep English and Russian versions of every project guide and
-developer document in sync, with the same section IDs, commands and technical
-values. Run `uv run --frozen --only-group docs python site/check-translations.py`,
-then build and check local and Pages documentation before finishing. Dependency
-license texts remain verbatim.
+developer document in sync, then run
+`uv run --frozen --only-group docs python site/check-translations.py`.
 
 For **YAML edits**, use block-style sequences throughout the project: one item per
 line, including `needs` and workflow matrices.

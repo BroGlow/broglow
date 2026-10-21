@@ -32,8 +32,5 @@ magnets and electronics. Tracked outputs in `site/assets/`:
 - `broglow.jpg`: the photo of the built lamp with the LEDs off, used by the
   signal demo's **Off** state.
 
-The JSON files record source hashes and bounds. Regenerate the outputs instead of
-editing them: run [`scripts/export-web-model.py`](scripts/export-web-model.py)
-when the CAD changes (add `--exploded` for the assembly) and verify with `--check`.
-Use the enclosure release package for printing. Commands and requirements:
+Regenerate the GLB/JSON outputs instead of editing them; commands and requirements:
 [website README](site/README.md#interactive-3d-and-ar).
