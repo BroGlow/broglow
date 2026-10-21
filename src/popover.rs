@@ -5,7 +5,7 @@
 //! Linux is excluded — libappindicator emits no tray click events, so there
 //! is nothing to anchor to; the tray keeps its native menu there.
 
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
@@ -89,6 +89,13 @@ pub enum PopoverMsg {
     SetGroupByProject {
         enabled: bool,
     },
+    SetPopoverReset {
+        enabled: bool,
+    },
+    SetPopoverResetMinutes {
+        #[serde(deserialize_with = "deserialize_popover_reset_minutes")]
+        minutes: u16,
+    },
     /// Add forgotten lamps when their USB cable is reconnected (macOS only).
     SetAutoAddForgottenUsb {
         enabled: bool,
@@ -131,6 +138,18 @@ pub enum PopoverMsg {
         #[serde(deserialize_with = "deserialize_brightness_percent")]
         percent: u8,
     },
+}
+
+fn deserialize_popover_reset_minutes<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<u16, D::Error> {
+    let minutes = u16::deserialize(deserializer)?;
+    if !(1..=1440).contains(&minutes) {
+        return Err(serde::de::Error::custom(
+            "Minutes must be between 1 and 1440",
+        ));
+    }
+    Ok(minutes)
 }
 
 fn deserialize_brightness_percent<'de, D: serde::Deserializer<'de>>(
@@ -211,6 +230,10 @@ struct SettingsPayload {
     show_agent_names: bool,
     #[serde(rename = "groupByProject")]
     group_by_project: bool,
+    #[serde(rename = "popoverResetEnabled")]
+    popover_reset_enabled: bool,
+    #[serde(rename = "popoverResetMinutes")]
+    popover_reset_minutes: u16,
     #[serde(rename = "autoAddForgottenUsb")]
     auto_add_forgotten_usb: bool,
     #[serde(rename = "yellowMode")]
@@ -260,6 +283,8 @@ pub struct Popover {
     /// so the window never flashes at a stale size.
     pending_show: bool,
     hidden_at: Option<Instant>,
+    /// Wall time includes time asleep; Instant remains the tray-click debounce clock.
+    closed_at: Option<SystemTime>,
     shown_at: Option<Instant>,
     /// Windows: the physical size last applied from the page's reported
     /// devicePixelRatio — re-asserted when tao tries to rescale the window
@@ -322,6 +347,7 @@ impl Popover {
             anchor: None,
             pending_show: false,
             hidden_at: None,
+            closed_at: None,
             shown_at: None,
             #[cfg(target_os = "windows")]
             wanted: None,
@@ -348,15 +374,19 @@ impl Popover {
 
     /// Anchor to the tray icon and show once the page reports its height.
     pub fn open_at(&mut self, anchor: Rect, state: &HookState) {
+        let cfg = config::read_config();
+        let reset_navigation =
+            !self.is_visible() && should_reset_navigation(self.closed_at, SystemTime::now(), &cfg);
         self.anchor = Some(anchor);
         self.pending_show = true;
-        self.push_state(state);
+        self.render_state(state, &cfg, reset_navigation);
     }
 
     pub fn hide(&mut self) {
         if self.window.is_visible() {
             self.window.set_visible(false);
             self.hidden_at = Some(Instant::now());
+            self.closed_at = Some(SystemTime::now());
         }
         self.pending_show = false;
     }
@@ -376,10 +406,14 @@ impl Popover {
     /// Re-render the page from fresh hook state. If the popover is open (or
     /// opening), the page answers with a Resize that re-applies geometry.
     pub fn push_state(&self, state: &HookState) {
-        let payload = build_payload(state, self.setup_busy);
+        self.render_state(state, &config::read_config(), false);
+    }
+
+    fn render_state(&self, state: &HookState, cfg: &config::Config, reset_navigation: bool) {
+        let payload = build_payload(state, self.setup_busy, cfg);
         let _ = self
             .webview
-            .evaluate_script(&format!("window.__setState({payload})"));
+            .evaluate_script(&format!("window.__setState({payload}, {reset_navigation})"));
     }
 
     pub fn config_action_result(&self, error: Option<String>) {
@@ -445,6 +479,7 @@ impl Popover {
             self.window.set_visible(true);
             self.window.set_focus();
             self.shown_at = Some(Instant::now());
+            self.closed_at = None;
         }
     }
 
@@ -582,6 +617,19 @@ impl Popover {
     }
 }
 
+fn should_reset_navigation(
+    closed_at: Option<SystemTime>,
+    now: SystemTime,
+    cfg: &config::Config,
+) -> bool {
+    cfg.popover_reset_enabled
+        && closed_at
+            .and_then(|closed| now.duration_since(closed).ok())
+            .is_some_and(|elapsed| {
+                elapsed >= Duration::from_secs(u64::from(cfg.popover_reset_minutes) * 60)
+            })
+}
+
 fn agg_str(agg: Aggregate) -> &'static str {
     match agg {
         Aggregate::Red => "red",
@@ -625,8 +673,7 @@ fn session_payloads(state: &HookState) -> Vec<SessionPayload<'_>> {
         .collect()
 }
 
-fn build_payload(state: &HookState, setup_busy: bool) -> String {
-    let cfg = config::read_config();
+fn build_payload(state: &HookState, setup_busy: bool, cfg: &config::Config) -> String {
     let connection = crate::led::connection_status();
     let payload = StatePayload {
         aggregate: agg_str(aggregate(state, cfg.yellow_mode)),
@@ -635,6 +682,8 @@ fn build_payload(state: &HookState, setup_busy: bool) -> String {
             show_dashboard_button: cfg.show_dashboard_button,
             show_agent_names: cfg.show_agent_names,
             group_by_project: cfg.group_by_project,
+            popover_reset_enabled: cfg.popover_reset_enabled,
+            popover_reset_minutes: cfg.popover_reset_minutes,
             auto_add_forgotten_usb: cfg.auto_add_forgotten_usb,
             yellow_mode: cfg.yellow_mode,
             usage_enabled: cfg.usage_enabled,
@@ -762,8 +811,76 @@ fn base64(data: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{base64, session_payloads, PopoverMsg};
+    use super::{base64, session_payloads, should_reset_navigation, PopoverMsg};
+    use crate::config::Config;
     use crate::state::{HookState, SessionStatus, Status};
+    use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn popover_reset_requires_a_full_closed_interval_and_respects_opt_out() {
+        let closed = SystemTime::UNIX_EPOCH + Duration::from_secs(1000);
+        let mut cfg = Config::default();
+        let after = |seconds| closed + Duration::from_secs(seconds);
+        assert!(!should_reset_navigation(None, after(3600), &cfg));
+        assert!(!should_reset_navigation(Some(closed), after(299), &cfg));
+        assert!(should_reset_navigation(Some(closed), after(300), &cfg));
+        assert!(should_reset_navigation(Some(closed), after(3600), &cfg));
+        // Reopening and closing starts a new interval, rather than accumulating time.
+        assert!(!should_reset_navigation(Some(after(299)), after(300), &cfg));
+        cfg.popover_reset_minutes = 60;
+        assert!(!should_reset_navigation(Some(closed), after(3599), &cfg));
+        assert!(should_reset_navigation(Some(closed), after(3600), &cfg));
+        cfg.popover_reset_enabled = false;
+        assert!(!should_reset_navigation(Some(closed), after(86400), &cfg));
+    }
+
+    #[test]
+    fn popover_reset_handles_sleep_and_backward_clock_changes() {
+        let closed = SystemTime::UNIX_EPOCH + Duration::from_secs(1000);
+        let cfg = Config::default();
+        // Only wall time matters: no timer ticks are required while asleep.
+        assert!(should_reset_navigation(
+            Some(closed),
+            closed + Duration::from_secs(3600),
+            &cfg
+        ));
+        assert!(!should_reset_navigation(
+            Some(closed),
+            closed - Duration::from_secs(1),
+            &cfg
+        ));
+    }
+
+    #[test]
+    fn popover_reset_ipc_accepts_only_whole_minutes_in_range() {
+        for minutes in [1, 5, 60, 1440] {
+            let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
+                "cmd": "set_popover_reset_minutes", "minutes": minutes
+            }))
+            .unwrap();
+            assert!(
+                matches!(msg, PopoverMsg::SetPopoverResetMinutes { minutes: value } if value == minutes)
+            );
+        }
+        for value in ["0", "-1", "1441", "65536", "1.5", "null", "\"5\""] {
+            assert!(
+                serde_json::from_str::<PopoverMsg>(&format!(
+                    r#"{{"cmd":"set_popover_reset_minutes","minutes":{value}}}"#
+                ))
+                .is_err(),
+                "{value}"
+            );
+        }
+        for enabled in [false, true] {
+            let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
+                "cmd": "set_popover_reset", "enabled": enabled
+            }))
+            .unwrap();
+            assert!(
+                matches!(msg, PopoverMsg::SetPopoverReset { enabled: value } if value == enabled)
+            );
+        }
+    }
 
     #[test]
     fn session_payloads_carry_the_project_path_and_a_label_over_live_sessions() {

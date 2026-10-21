@@ -376,6 +376,11 @@ thin:
   subtree through pointerdown/pointerup/click, then applies the latest host state.
   Replacing rows mid-gesture discards Focus and dismiss clicks. Cancel/blur/hide release
   the hold so reopening shows fresh sessions.
+- **Popover return timeout counts closed time only.** On macOS/Windows, reopening
+  after `popover_reset_minutes` (default 5, whole minutes 1–1440) returns to sessions
+  when `popover_reset_enabled` is on (the default). Count continuous closure, including
+  sleep; preserve the current page for shorter closures or when disabled. Visible idle
+  time never resets navigation. Preserve lamp settings and background setup.
 - **Escape before shelling out.** The macOS notification path builds an AppleScript
   string — escape `\` before `"`.
 - Platform-specific code is `#[cfg(...)]`-gated in place (autostart in main.rs, console

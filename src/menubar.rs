@@ -795,6 +795,26 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                     popover.push_state(&read_display_state());
                     popover.config_action_result(error);
                 }
+                PopoverMsg::SetPopoverReset { enabled } => {
+                    let error = config::update_config(|cfg| {
+                        cfg.popover_reset_enabled = enabled;
+                        Ok(())
+                    })
+                    .err()
+                    .map(|error| format!("Could not save popover reset setting: {error}"));
+                    popover.push_state(&read_display_state());
+                    popover.config_action_result(error);
+                }
+                PopoverMsg::SetPopoverResetMinutes { minutes } => {
+                    let error = config::update_config(|cfg| {
+                        cfg.popover_reset_minutes = minutes;
+                        Ok(())
+                    })
+                    .err()
+                    .map(|error| format!("Could not save popover reset timeout: {error}"));
+                    popover.push_state(&read_display_state());
+                    popover.config_action_result(error);
+                }
                 PopoverMsg::SetAutoAddForgottenUsb { enabled } => {
                     let error = config::update_config(|cfg| {
                         cfg.auto_add_forgotten_usb = enabled;

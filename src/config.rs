@@ -42,6 +42,10 @@ pub struct Config {
     /// of under their status. Off by default; set from the popover's
     /// Settings view, or by hand on Linux.
     pub group_by_project: bool,
+    /// Return to chats after the popover stays closed for the configured interval.
+    pub popover_reset_enabled: bool,
+    #[serde(deserialize_with = "deserialize_popover_reset_minutes")]
+    pub popover_reset_minutes: u16,
     /// Whether the menu bar daemon should mirror session state to an ESP32 over
     /// serial. Off by default; macOS USB setup can enable a newly added lamp.
     pub led_enabled: bool,
@@ -89,6 +93,8 @@ impl Default for Config {
             show_dashboard_button: false,
             show_agent_names: true,
             group_by_project: false,
+            popover_reset_enabled: true,
+            popover_reset_minutes: 5,
             led_enabled: false,
             led_port: None,
             led_transport: LedTransport::default(),
@@ -103,6 +109,17 @@ impl Default for Config {
             extra: Default::default(),
         }
     }
+}
+
+fn deserialize_popover_reset_minutes<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<u16, D::Error> {
+    // Invalid hand edits must not reset unrelated preferences.
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(value
+        .as_u64()
+        .filter(|minutes| (1..=1440).contains(minutes))
+        .unwrap_or(5) as u16)
 }
 
 fn deserialize_led_brightness<'de, D: serde::Deserializer<'de>>(
@@ -238,6 +255,42 @@ pub fn write_config(cfg: &Config) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::Config;
+
+    #[test]
+    fn popover_reset_defaults_on_and_preserves_custom_preferences() {
+        for cfg in [Config::default(), serde_json::from_str("{}").unwrap()] {
+            assert!(cfg.popover_reset_enabled);
+            assert_eq!(cfg.popover_reset_minutes, 5);
+        }
+        let cfg: Config = serde_json::from_str(
+            r#"{"popover_reset_enabled":false,"popover_reset_minutes":60,"custom":42}"#,
+        )
+        .unwrap();
+        let saved = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(saved["popover_reset_enabled"], false);
+        assert_eq!(saved["popover_reset_minutes"], 60);
+        assert_eq!(saved["custom"], 42);
+    }
+
+    #[test]
+    fn invalid_popover_minutes_preserve_other_settings() {
+        for value in ["0", "-1", "1441", "1.5", "null", "\"invalid\""] {
+            let cfg: Config = serde_json::from_str(&format!(
+                r#"{{"popover_reset_minutes":{value},"popover_reset_enabled":false,"custom":42}}"#,
+            ))
+            .unwrap();
+            assert_eq!(cfg.popover_reset_minutes, 5, "{value}");
+            assert!(!cfg.popover_reset_enabled);
+            assert_eq!(cfg.extra["custom"], 42);
+        }
+        for minutes in [1, 5, 60, 1440] {
+            let cfg: Config = serde_json::from_value(serde_json::json!({
+                "popover_reset_minutes": minutes,
+            }))
+            .unwrap();
+            assert_eq!(cfg.popover_reset_minutes, minutes);
+        }
+    }
 
     #[test]
     fn forgotten_usb_preference_defaults_on_and_round_trips() {

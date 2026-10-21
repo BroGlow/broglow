@@ -133,6 +133,12 @@ body.win .optrow:hover { background: rgba(255,255,255,.06); }
 #usblampsettings .sname { white-space: normal; }
 .optrow input { margin-top: 2px; accent-color: #3577f6; }
 body.win .optrow input { accent-color: #4cc2ff; }
+.resetsetting { display: block; }
+.resetline { display: flex; align-items: center; gap: 6px; }
+.resetlabel { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.resetlabel input { margin: 0; }
+.resetsetting .setdesc { display: block; margin: 3px 0 0 23px; }
+#popoverresetminutes:disabled { opacity: .5; }
 
 /* Usage section (design 1a/1c) — sits between the session groups and the
    footer: 5h-block + week bars, or today's tokens alone. */
@@ -217,7 +223,8 @@ summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outl
 .lampnameedit { padding: 0 10px 10px; font-size: 12px; color: rgba(255,255,255,.8); }
 .lampnameedit label { display: block; margin-bottom: 5px; }
 .lampnamefields { display: flex; gap: 6px; }
-.lampnamefields input { min-width: 0; width: 100%; padding: 5px 7px; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; background: rgba(255,255,255,.05); color: inherit; font: inherit; }
+.lampnamefields input, #popoverresetminutes { min-width: 0; width: 100%; padding: 5px 7px; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; background: rgba(255,255,255,.05); color: inherit; font: inherit; }
+#popoverresetminutes { width: 64px; flex-shrink: 0; margin: 0; padding: 4px 6px; font-size: 13px; }
 .lampnamesaved { margin-top: 5px; color: #66d987; font-size: 11px; }
 .lamperror { margin: 0 10px 12px; color: #ff8a80; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 .lamptechnical { margin: 0 10px 12px; font-size: 11px; color: rgba(255,255,255,.6); }
@@ -347,9 +354,8 @@ let pendingForgetId = null, pendingRenameId = null, pendingIdentifyId = null, co
 let savedRenameId = null;
 const lampNameDrafts = new Map();
 function lampActionPending() { return pendingForgetId !== null || pendingRenameId !== null || pendingIdentifyId !== null; }
-// Settings checkboxes the user just clicked, keyed by the settings field:
-// shown as clicked until the host reports the config write, so a state push
-// that races the write (every hook event pushes one) can't flip them back.
+// Keep submitted settings until the host reports the write; racing state
+// pushes must not undo an edit before it has been saved.
 let pendingSettings = {};
 window.__configActionResult = error => {
   if (!error && pendingRenameId !== null) {
@@ -360,6 +366,9 @@ window.__configActionResult = error => {
   pendingForgetId = null;
   pendingRenameId = null;
   pendingIdentifyId = null;
+  if (error && 'popoverResetMinutes' in pendingSettings && view === 'settings') {
+    document.getElementById('popoverresetminutes').value = String(state.settings?.popoverResetMinutes ?? 5);
+  }
   pendingSettings = {};
   configActionError = error || '';
   render();
@@ -686,6 +695,13 @@ function render() {
       `<input type="checkbox" id="groupbyproject" aria-describedby="groupbyprojecthint">` +
       `<span class="sinfo"><span class="sname">Group by project</span>` +
       `<span class="smeta setdesc" id="groupbyprojecthint">List sessions by working directory, not by status.</span></span></label>` +
+      `<div class="optrow resetsetting" role="group" aria-label="Return to chats after closing">` +
+      `<div class="resetline"><label class="resetlabel" for="popoverreset">` +
+      `<input type="checkbox" id="popoverreset" aria-describedby="popoverresethint">` +
+      `<span class="sname">Return to chats after</span></label>` +
+      `<input type="number" id="popoverresetminutes" min="1" max="1440" step="1" aria-label="Minutes closed before returning to chats" aria-describedby="popoverresethint">` +
+      `<span class="smeta" aria-hidden="true">min</span></div>` +
+      `<span class="smeta setdesc" id="popoverresethint">While the popover is closed.</span></div>` +
       `<p class="lamperror" id="settingserror" role="alert" hidden></p>` +
       `<div class="grplabel" id="mixedlabel">Mixed sessions</div>` +
       `<div role="radiogroup" aria-labelledby="mixedlabel">` +
@@ -710,6 +726,13 @@ function render() {
     document.getElementById('showdashboard').checked = setting('showDashboardButton', state.settings?.showDashboardButton === true);
     document.getElementById('showagentnames').checked = setting('showAgentNames', state.settings?.showAgentNames !== false);
     document.getElementById('groupbyproject').checked = setting('groupByProject', state.settings?.groupByProject === true);
+    const resetEnabled = setting('popoverResetEnabled', state.settings?.popoverResetEnabled !== false);
+    document.getElementById('popoverreset').checked = resetEnabled;
+    const resetMinutes = document.getElementById('popoverresetminutes');
+    resetMinutes.disabled = !resetEnabled;
+    if (document.activeElement !== resetMinutes) {
+      resetMinutes.value = String(setting('popoverResetMinutes', state.settings?.popoverResetMinutes ?? 5));
+    }
     document.getElementById('usblampsettings').hidden = !state.lamp?.bluetooth_supported;
     document.getElementById('autoaddforgottenusb').checked = setting('autoAddForgottenUsb', state.settings?.autoAddForgottenUsb !== false);
     document.getElementById(`yellow-${mode}`).checked = true;
@@ -802,7 +825,15 @@ function render() {
          dpr: window.devicePixelRatio });
 }
 
-window.__setState = payload => { state = payload; render(); };
+window.__setState = (payload, resetNavigation = false) => {
+  state = payload;
+  if (resetNavigation) {
+    stopBrightnessPreview();
+    sessionPointer = null;
+    view = 'sessions';
+  }
+  render();
+};
 
 document.addEventListener('toggle', ev => {
   if (ev.target.matches('details')) {
@@ -861,13 +892,29 @@ document.addEventListener('change', ev => {
     showagentnames: ['showAgentNames', 'set_agent_names'],
     groupbyproject: ['groupByProject', 'set_group_by_project'],
     autoaddforgottenusb: ['autoAddForgottenUsb', 'set_auto_add_forgotten_usb'],
+    popoverreset: ['popoverResetEnabled', 'set_popover_reset'],
   };
   if (ev.target.id in toggles) {
     const [key, cmd] = toggles[ev.target.id];
     configActionError = '';
     document.getElementById('settingserror').hidden = true;
     pendingSettings[key] = ev.target.checked;
+    if (ev.target.id === 'popoverreset') render();
     post({ cmd, enabled: ev.target.checked });
+    return;
+  }
+  if (ev.target.id === 'popoverresetminutes') {
+    if (ev.target.disabled) return;
+    const minutes = Number(ev.target.value);
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+      configActionError = 'Use a whole number of minutes from 1 to 1440.';
+      render();
+      return;
+    }
+    configActionError = '';
+    document.getElementById('settingserror').hidden = true;
+    pendingSettings.popoverResetMinutes = minutes;
+    post({ cmd: 'set_popover_reset_minutes', minutes });
     return;
   }
   // Update optimistically; the host confirms with a fresh __setState after
@@ -894,6 +941,7 @@ document.addEventListener('change', ev => {
   post(id === undefined ? { cmd: 'set_brightness', percent } : { cmd: 'set_lamp_brightness', id, percent });
 });
 document.addEventListener('focusout', ev => {
+  if (ev.target.id === 'popoverresetminutes' && view === 'settings') render();
   if (isBrightnessSlider(ev.target) && view === 'lamp') {
     if (previewPointer === null && previewSlider === ev.target) stopBrightnessPreview();
     renderLamp();

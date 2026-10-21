@@ -63,7 +63,8 @@ function popoverPage() {
     return selector === '[data-local]' && el.dataset.local ? el :
       selector === '[data-cmd]' && el.dataset.cmd ? el : null;
   } } });
-  const pushState = changes => context.window.__setState({ aggregate: 'none', sessions: [], settings: {}, lamp: lamp(), ...changes });
+  const pushState = (changes, resetNavigation = false) => context.window.__setState(
+    { aggregate: 'none', sessions: [], settings: {}, lamp: lamp(), ...changes }, resetNavigation);
   const update = lamp => pushState({ lamp });
   const commands = name => messages.filter(message => message.cmd === name);
   return { context, element, listeners, windowListeners, capture, messages, click, pushState, update, commands, advance };
@@ -117,6 +118,43 @@ test('a state push cannot replace Focus before its pointer click is delivered', 
   assert.match(element('groups').innerHTML, /After cancellation/);
   down(); refresh('After blur'); windowListeners.blur();
   assert.match(element('groups').innerHTML, /After blur/, 'A hidden popover must not retain a stale pointer');
+});
+
+test('only the host reset flag returns Lamps and Settings to current chats', () => {
+  for (const [button, view] of [['lampbtn', 'lamp'], ['settingsbtn', 'settings']]) {
+    const { element, click, pushState, windowListeners, advance, commands } = popoverPage();
+    pushState({ sessions: [session('old')] });
+    click(button);
+    windowListeners.blur();
+    advance(60 * 60 * 1000);
+    pushState({ sessions: [session('while-closed')] });
+    assert.equal(element('groups').dataset.view, view, 'JS never decides the close timeout');
+    pushState({ sessions: [session('current')] }, true);
+    assert.equal(element('groups').dataset.view, 'sessions');
+    assert.equal(element('settingsbtn').textContent, 'Settings');
+    assert.match(element('groups').innerHTML, /Task current/);
+    assert.doesNotMatch(element('groups').innerHTML, /Task old|Task while-closed/);
+    click(button);
+    pushState({ sessions: [session('later')] });
+    assert.equal(element('groups').dataset.view, view, 'Reset applies only to that host push');
+    assert.equal(commands('set_led').length, 0);
+    assert.equal(commands('set_brightness').length, 0);
+  }
+});
+
+test('a host navigation reset releases a stale session pointer before rendering fresh chats', () => {
+  const { element, listeners, pushState } = popoverPage();
+  pushState({ sessions: [session('old')] });
+  const row = element('focus-old');
+  row.dataset = { cmd: 'focus', id: 'old' };
+  row.closest = () => row;
+  listeners.pointerdown({ target: row, button: 0, pointerId: 1 });
+  pushState({ sessions: [session('held')] });
+  assert.match(element('groups').innerHTML, /Task old/);
+  pushState({ sessions: [session('current')] }, true);
+  assert.match(element('groups').innerHTML, /Task current/);
+  pushState({ sessions: [session('later')] });
+  assert.match(element('groups').innerHTML, /Task later/);
 });
 
 test('sessions dismiss without focusing, show failures, and return on fresh host activity', () => {
@@ -282,6 +320,7 @@ for (const { id, key, command, defaultValue } of [
   { id: 'showagentnames', key: 'showAgentNames', command: 'set_agent_names', defaultValue: true },
   { id: 'groupbyproject', key: 'groupByProject', command: 'set_group_by_project', defaultValue: false },
   { id: 'autoaddforgottenusb', key: 'autoAddForgottenUsb', command: 'set_auto_add_forgotten_usb', defaultValue: true },
+  { id: 'popoverreset', key: 'popoverResetEnabled', command: 'set_popover_reset', defaultValue: true },
 ]) {
   test(`Settings saves ${key} while preserving the pending choice and keyboard focus`, () => {
     const { context, element, click, listeners, commands, pushState } = popoverPage();
@@ -313,6 +352,95 @@ for (const { id, key, command, defaultValue } of [
     assert.equal(element('groups').writes, builds, 'Keep the control attached during host refreshes');
   });
 }
+
+test('popover return time defaults to five minutes and follows the enabled checkbox immediately', () => {
+  const { context, element, click, listeners, pushState } = popoverPage();
+  click('settingsbtn');
+  const html = element('groups').innerHTML;
+  assert.match(html, /role="group" aria-label="Return to chats after closing"/);
+  assert.match(html, /While the popover is closed\./);
+  assert.match(html, /Return to chats after<\/span><\/label><input type="number"[^>]*min="1" max="1440" step="1" aria-label="Minutes closed before returning to chats"/,
+    'The inline number has its own accessible name and is outside the checkbox label');
+  const toggle = element('popoverreset'), minutes = element('popoverresetminutes');
+  assert.equal(toggle.checked, true);
+  assert.equal(minutes.value, '5');
+  assert.equal(minutes.disabled, false);
+  toggle.checked = false;
+  listeners.change({ target: toggle });
+  assert.equal(minutes.disabled, true);
+  pushState({ settings: { popoverResetEnabled: true, popoverResetMinutes: 15 } });
+  assert.equal(minutes.disabled, true, 'Racing saved state preserves the pending opt-out');
+  context.window.__configActionResult('Could not save setting');
+  assert.equal(minutes.disabled, false, 'Rejected opt-out restores the saved enabled state');
+  assert.equal(minutes.value, '15');
+  pushState({ settings: { popoverResetEnabled: false, popoverResetMinutes: 15 } });
+  assert.equal(toggle.checked, false);
+  assert.equal(minutes.disabled, true);
+  toggle.checked = true;
+  listeners.change({ target: toggle });
+  assert.equal(minutes.disabled, false);
+  assert.equal(minutes.value, '15', 'Opting out retains the configured duration');
+});
+
+test('popover minutes preserve focused drafts and pending saves, and restore rejected values', () => {
+  const { context, element, click, listeners, pushState, commands } = popoverPage();
+  click('settingsbtn');
+  const input = element('popoverresetminutes');
+  const builds = element('groups').writes;
+  input.focus();
+  input.value = '';
+  pushState({ settings: { popoverResetMinutes: 5 } });
+  assert.equal(input.value, '', 'A refresh cannot replace a half-typed draft');
+  assert.equal(commands('set_popover_reset_minutes').length, 0);
+  input.value = '15';
+  listeners.change({ target: input });
+  assert.deepEqual(commands('set_popover_reset_minutes').at(-1), { cmd: 'set_popover_reset_minutes', minutes: 15 });
+  pushState({ settings: { popoverResetMinutes: 5 } });
+  assert.equal(input.value, '15');
+  assert.equal(context.document.activeElement, input);
+  input.blur();
+  listeners.focusout({ target: input });
+  assert.equal(input.value, '15', 'Pending value survives blur before the write completes');
+  pushState({ settings: { popoverResetMinutes: 15 } });
+  context.window.__configActionResult(null);
+  assert.equal(input.value, '15');
+  input.focus();
+  input.value = '20';
+  listeners.change({ target: input });
+  pushState({ settings: { popoverResetMinutes: 15 } });
+  context.window.__configActionResult('Could not save return time: <locked>');
+  assert.equal(input.value, '15', 'A rejected save restores the saved value even while focused');
+  assert.equal(context.document.activeElement, input);
+  assert.equal(element('settingserror').textContent, 'Could not save return time: <locked>');
+  assert.equal(element('settingserror').innerHTML, '');
+  assert.equal(element('settingserror').hidden, false);
+  assert.equal(element('groups').writes, builds);
+});
+
+test('popover minutes accept only whole minutes from one through 1440 and cannot save while disabled', () => {
+  const { context, element, click, listeners, pushState, commands } = popoverPage();
+  click('settingsbtn');
+  const input = element('popoverresetminutes');
+  input.focus();
+  for (const value of ['', '0', '-1', '1441', '1.5', 'invalid']) {
+    input.value = value;
+    listeners.change({ target: input });
+    assert.equal(commands('set_popover_reset_minutes').length, 0);
+    assert.equal(element('settingserror').textContent, 'Use a whole number of minutes from 1 to 1440.');
+  }
+  for (const minutes of [1, 1440, 10]) {
+    input.value = String(minutes);
+    listeners.change({ target: input });
+    assert.deepEqual(commands('set_popover_reset_minutes').at(-1), { cmd: 'set_popover_reset_minutes', minutes });
+    assert.equal(element('settingserror').hidden, true, 'A valid retry clears the error');
+    pushState({ settings: { popoverResetMinutes: minutes } });
+    context.window.__configActionResult(null);
+  }
+  pushState({ settings: { popoverResetEnabled: false, popoverResetMinutes: 10 } });
+  input.value = '25';
+  listeners.change({ target: input });
+  assert.equal(commands('set_popover_reset_minutes').length, 3);
+});
 
 test('USB re-add preference is shown only on platforms with Bluetooth setup', () => {
   const { click, element, pushState } = popoverPage();
@@ -1087,8 +1215,8 @@ test('stationary pointer renews preview and keeps its value when focus or host s
 
 test('popup blur, hiding and leaving the lamp view end preview timers with the final value', () => {
   for (const sliderId of ['brightness', 'lampbrightness-0']) {
-    for (const end of ['blur', 'hidden', 'Escape', 'Back']) {
-      const { context, element, listeners, windowListeners, click, commands, advance } = lampPage();
+    for (const end of ['blur', 'hidden', 'Escape', 'Back', 'reset']) {
+      const { context, element, listeners, windowListeners, click, commands, advance, pushState } = lampPage();
       const slider = element(sliderId);
       listeners.pointerdown({ target: slider, pointerId: 1 });
       slider.value = '23';
@@ -1096,6 +1224,7 @@ test('popup blur, hiding and leaving the lamp view end preview timers with the f
       if (end === 'blur') windowListeners.blur();
       else if (end === 'hidden') { context.document.hidden = true; listeners.visibilitychange(); }
       else if (end === 'Escape') listeners.keydown({ key: 'Escape' });
+      else if (end === 'reset') pushState({}, true);
       else click('settingsbtn');
       assert.equal(commands('preview_brightness').at(-1).percent, 23, end);
       assert.equal(commands('preview_brightness').at(-1).id, sliderId === 'brightness' ? undefined : 'saved-lamp');

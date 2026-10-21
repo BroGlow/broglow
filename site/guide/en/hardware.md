@@ -598,6 +598,14 @@ The footer button (**Lamp**, **Lamps 1/2** or **Lamp off**) opens **Lamps**, whi
 shows the transport and the status of each lamp. Expand a lamp's row for its controls;
 open **Connection details** for its ID and diagnostics.
 
+On macOS and Windows, reopening the popover after it has been closed for **5 minutes**
+returns to the main chat list. **Settings → Appearance → Return to chats after**
+is checked by default; clear it to keep the current page indefinitely, or set
+the inline **min** field to a whole number in **1–1440**. Shorter closures keep the current page;
+time spent with the popover open does not count, and sleep while it is closed does.
+This saves `popover_reset_enabled` and `popover_reset_minutes`. Returning to chats
+preserves lamp settings and any background setup.
+
 Dashboard shortcuts are hidden by default. Turn on **Settings → Appearance → Show
 Dashboard button**, or run:
 
