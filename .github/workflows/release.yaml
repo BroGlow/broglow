@@ -97,7 +97,7 @@ jobs:
           version: '0.12.17'
       - run: uv sync --frozen
       - name: Restore PlatformIO downloads
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.platformio/platforms

@@ -46,7 +46,7 @@ jobs:
         run: uv sync --frozen
       - name: Restore PlatformIO downloads
         if: runner.os == 'macOS'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         id: platformio-cache
         with:
           path: |
@@ -58,7 +58,7 @@ jobs:
         run: uv run --frozen python -m platformio pkg install --project-dir firmware/esp32-c3-supermini --environment esp32-c3-supermini
       - name: Save PlatformIO downloads
         if: runner.os == 'macOS' && steps.platformio-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: |
             ~/.platformio/platforms
