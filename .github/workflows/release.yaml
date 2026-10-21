@@ -83,17 +83,30 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-${{ matrix.os }}-${{ matrix.target }}
+          env-vars: ImageOS ImageVersion MACOSX_DEPLOYMENT_TARGET SDKROOT DEVELOPER_DIR
+          save-if: false
       - uses: actions/setup-python@v7
+        id: python
         with:
           python-version: '3.14'
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           version: '0.12.17'
       - run: uv sync --frozen
-      - name: Build native Mac app and C3 firmware
-        run: |
-          cargo build --release --locked
-          uv run --frozen flash --build-only
+      - name: Restore PlatformIO downloads
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.platformio/platforms
+            ~/.platformio/packages
+          key: platformio-v1-${{ matrix.os }}-${{ runner.arch }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('firmware/esp32-c3-supermini/platformio.ini', 'pyproject.toml', 'uv.lock') }}
+      - name: Build native Mac app
+        run: cargo build --release --locked
+      - name: Build C3 firmware
+        run: uv run --frozen flash --build-only
       - name: Package app, firmware and manual
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -114,6 +127,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-windows-latest-x86_64-pc-windows-msvc
+          env-vars: ImageOS ImageVersion MACOSX_DEPLOYMENT_TARGET SDKROOT DEVELOPER_DIR
+          save-if: false
       - uses: actions/setup-python@v7
         with:
           python-version: '3.14'

@@ -27,6 +27,9 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           version: '0.12.17'
+          enable-cache: true
+          cache-suffix: uv-0.12.17
+          save-cache: false
       - name: uv.lock matches pyproject.toml
         run: uv lock --check
       - run: uv sync --frozen --group dev
@@ -46,6 +49,10 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           version: '0.12.17'
+          enable-cache: true
+          cache-suffix: uv-0.12.17
+          # This job installs the full Linux dependency union; PRs and tags only restore.
+          save-cache: ${{ github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
       - run: uv sync --frozen --group dev
       - name: Firmware formatting (Google)
         run: uv run --frozen --group dev clang-format --dry-run --Werror firmware/esp32-c3-supermini/src/*.cpp firmware/esp32-c3-supermini/tests/*.cpp
