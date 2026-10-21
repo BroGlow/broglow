@@ -25,11 +25,219 @@
 
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use serde_json::Value;
+
+/// Persist the generation and cursor so idle/restarted readers can reconcile
+/// only the question that owns this marker, without rescanning old rollouts.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PendingQuestion {
+    pub turn_id: String,
+    pub call_id: String,
+    pub transcript_path: String,
+    pub offset: u64,
+    pub accepted: bool,
+    pub exec: bool,
+    #[serde(default)]
+    pub question_count: usize,
+    #[serde(default)]
+    pub answered: Vec<usize>,
+    #[serde(default)]
+    pub discard_line: bool,
+}
+
+impl PendingQuestion {
+    pub fn marker(&self) -> String {
+        format!("codex_question_async:{}", self.call_id)
+    }
+}
+
+/// Called under the state lock. Missing/malformed files cannot clear a request.
+pub(crate) fn reconcile_questions(state: &mut crate::state::HookState) -> bool {
+    use crate::state::{QuestionExpiry, Status};
+    let mut changed = false;
+    let mut resolved = Vec::new();
+    for (id, pending) in &mut state.codex_questions {
+        let Some(session) = state.sessions.get_mut(id).filter(|s| {
+            s.harness.as_deref() == Some("codex")
+                && !s.codex_background
+                && s.status == Status::NeedsHelp
+                && s.notification_type.as_deref() == Some(pending.marker().as_str())
+        }) else {
+            resolved.push(id.clone());
+            continue;
+        };
+        let offset = pending.offset;
+        if let Some(resolution) = question_resolution(pending) {
+            session.status = Status::Active;
+            session.notification_type = None;
+            if let QuestionResolution::Terminal(timestamp) = resolution {
+                session.status = if pending.exec {
+                    Status::Done
+                } else {
+                    Status::Inactive
+                };
+                session.last_updated.clone_from(&timestamp);
+                if pending.accepted
+                    && (pending.question_count == 0
+                        || pending.answered.len() < pending.question_count)
+                {
+                    let expiry = QuestionExpiry {
+                        id: format!("{id}:{}:{}", pending.turn_id, pending.call_id),
+                        occurred_at: timestamp,
+                    };
+                    let previous = state.question_expiry.as_ref().and_then(|old| {
+                        chrono::DateTime::parse_from_rfc3339(&old.occurred_at).ok()
+                    });
+                    if previous.is_none_or(|old| {
+                        chrono::DateTime::parse_from_rfc3339(&expiry.occurred_at).unwrap() > old
+                    }) {
+                        state.question_expiry = Some(expiry);
+                    }
+                }
+            }
+            resolved.push(id.clone());
+        }
+        changed |= pending.offset != offset;
+    }
+    changed |= !resolved.is_empty();
+    for id in resolved {
+        state.codex_questions.remove(&id);
+    }
+    changed
+}
+
+enum QuestionResolution {
+    Answered,
+    Rejected,
+    Terminal(String),
+}
+
+fn question_resolution(pending: &mut PendingQuestion) -> Option<QuestionResolution> {
+    // Bound each tick, including an unexpectedly enormous or incomplete JSON line.
+    const BUDGET: u64 = 256 * 1024;
+    let mut file = File::open(&pending.transcript_path).ok()?;
+    if file.metadata().ok()?.len() < pending.offset {
+        // A rewritten/truncated transcript no longer proves this generation.
+        return None;
+    }
+    file.seek(SeekFrom::Start(pending.offset)).ok()?;
+    let mut bytes = Vec::new();
+    file.take(BUDGET).read_to_end(&mut bytes).ok()?;
+    let complete = bytes.iter().rposition(|b| *b == b'\n').map(|i| i + 1);
+    let Some(complete) = complete else {
+        if bytes.len() as u64 == BUDGET {
+            pending.offset += BUDGET;
+            pending.discard_line = true;
+        }
+        return None;
+    };
+    pending.offset += complete as u64;
+    for line in bytes[..complete].split(|b| *b == b'\n') {
+        if pending.discard_line {
+            pending.discard_line = false;
+            continue;
+        }
+        let Ok(record) = serde_json::from_slice::<Value>(line) else {
+            continue;
+        };
+        let payload = &record["payload"];
+        if record["type"] == "event_msg"
+            && payload["type"] == "item_completed"
+            && payload["turn_id"].as_str() == Some(&pending.turn_id)
+            && payload["item"]["type"] == "AgentMessage"
+            && payload["item"]["id"].as_str() == Some(&pending.call_id)
+        {
+            if let Some(questions) = payload["item"]["questions"]
+                .as_array()
+                .filter(|q| !q.is_empty())
+            {
+                pending.accepted = true;
+                pending.question_count = questions.len();
+            }
+        }
+        if record["type"] == "response_item" {
+            if payload["type"] == "function_call_output"
+                && payload["call_id"].as_str() == Some(&pending.call_id)
+            {
+                let output = payload["output"]
+                    .as_str()
+                    .and_then(|s| serde_json::from_str::<Value>(s).ok())
+                    .unwrap_or_else(|| payload["output"].clone());
+                if output["accepted"] == false || output["isError"] == true {
+                    return Some(QuestionResolution::Rejected);
+                }
+                pending.accepted |= output["accepted"] == true;
+            }
+            if payload["type"] == "message" && payload["role"] == "user" {
+                if let Some(content) = payload["content"].as_array() {
+                    for part in content {
+                        if part["type"] == "input_text" {
+                            record_question_answers(
+                                pending,
+                                part["text"].as_str().unwrap_or_default(),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        if record["type"] == "event_msg"
+            && matches!(
+                payload["type"].as_str(),
+                Some("task_complete" | "turn_aborted")
+            )
+            && payload["turn_id"].as_str() == Some(&pending.turn_id)
+        {
+            if let Some(timestamp) = record["timestamp"]
+                .as_str()
+                .filter(|s| chrono::DateTime::parse_from_rfc3339(s).is_ok())
+            {
+                return Some(QuestionResolution::Terminal(timestamp.to_string()));
+            }
+        }
+    }
+    (pending.question_count > 0 && pending.answered.len() == pending.question_count)
+        .then_some(QuestionResolution::Answered)
+}
+
+fn record_question_answers(pending: &mut PendingQuestion, text: &str) {
+    let Some(reply) = text
+        .trim()
+        .strip_prefix("<send_user_message_question_reply>")
+        .and_then(|s| s.strip_suffix("</send_user_message_question_reply>"))
+    else {
+        return;
+    };
+    let answers = match serde_json::from_str::<Value>(reply) {
+        Ok(Value::Array(answers)) => answers,
+        Ok(answer @ Value::Object(_)) => vec![answer],
+        _ => return,
+    };
+    for answer in answers {
+        let Some(key) = answer["questionItemId"]
+            .as_str()
+            .and_then(|s| serde_json::from_str::<Value>(s).ok())
+        else {
+            continue;
+        };
+        if key.as_array().is_none_or(|key| key.len() != 3)
+            || key[0] != "request_user_input_async"
+            || key[1].as_str() != Some(&pending.call_id)
+            || !answer["answer"].is_string()
+        {
+            continue;
+        }
+        if let Some(index) = key[2].as_u64().and_then(|i| usize::try_from(i).ok()) {
+            if index < pending.question_count && !pending.answered.contains(&index) {
+                pending.answered.push(index);
+            }
+        }
+    }
+}
 
 /// Codex's home directory: `$CODEX_HOME` when set (tests, relocated installs),
 /// else `~/.codex`.
@@ -479,6 +687,105 @@ fn session_meta_is_exec(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn question_expiry_keeps_the_newest_terminal_across_sessions() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = crate::state::HookState::default();
+        for (id, timestamp) in [
+            ("fresh", "2026-10-21T10:00:00Z"),
+            ("old", "2026-10-21T09:00:00Z"),
+        ] {
+            let path = dir.path().join(id);
+            std::fs::write(
+                &path,
+                serde_json::json!({"type":"event_msg", "timestamp":timestamp,
+                "payload":{"type":"task_complete", "turn_id":"turn"}})
+                .to_string()
+                    + "\n",
+            )
+            .unwrap();
+            state.sessions.insert(
+                id.into(),
+                serde_json::from_value(serde_json::json!({
+                    "status":"needs_help", "last_updated":timestamp, "harness":"codex",
+                    "notification_type":"codex_question_async:call"
+                }))
+                .unwrap(),
+            );
+            state.codex_questions.insert(
+                id.into(),
+                PendingQuestion {
+                    turn_id: "turn".into(),
+                    call_id: "call".into(),
+                    transcript_path: path.to_string_lossy().into_owned(),
+                    offset: 0,
+                    accepted: true,
+                    exec: false,
+                    question_count: 1,
+                    answered: Vec::new(),
+                    discard_line: false,
+                },
+            );
+        }
+        assert!(reconcile_questions(&mut state));
+        assert_eq!(state.question_expiry.unwrap().id, "fresh:turn:call");
+    }
+
+    #[test]
+    fn question_parser_bounds_work_and_requires_exact_terminal_evidence() {
+        let rollout = tempfile::NamedTempFile::new().unwrap();
+        let mut pending = PendingQuestion {
+            turn_id: "turn".into(),
+            call_id: "call".into(),
+            transcript_path: rollout.path().to_string_lossy().into_owned(),
+            offset: 0,
+            accepted: false,
+            exec: false,
+            question_count: 1,
+            answered: Vec::new(),
+            discard_line: false,
+        };
+        let mut contents = "x".repeat(300 * 1024) + "\n";
+        for (turn, timestamp) in [
+            ("old", Some("2026-10-21T10:00:00Z")),
+            ("turn", None),
+            ("turn", Some("unknown")),
+        ] {
+            contents += &(serde_json::json!({"type":"event_msg", "timestamp":timestamp,
+                "payload":{"type":"task_complete", "turn_id":turn}})
+            .to_string()
+                + "\n");
+        }
+        std::fs::write(rollout.path(), &contents).unwrap();
+        assert!(question_resolution(&mut pending).is_none());
+        assert_eq!(pending.offset, 256 * 1024);
+        assert!(question_resolution(&mut pending).is_none());
+        assert_eq!(pending.offset, contents.len() as u64);
+        contents += &(serde_json::json!({"type":"response_item", "payload":{
+            "type":"function_call_output", "call_id":"call", "output":"{\"accepted\":true}"
+        }})
+        .to_string()
+            + "\n");
+        contents += &(serde_json::json!({"type":"event_msg", "timestamp":"2026-10-21T10:00:00Z",
+            "payload":{"type":"task_complete", "turn_id":"turn"}})
+        .to_string()
+            + "\n");
+        std::fs::write(rollout.path(), &contents).unwrap();
+        assert!(matches!(
+            question_resolution(&mut pending),
+            Some(QuestionResolution::Terminal(_))
+        ));
+        assert!(pending.accepted);
+        let answer = serde_json::json!({"questionItemId": "[\"request_user_input_async\",\"call\",0]", "answer":"yes"});
+        let reply = format!(
+            "<send_user_message_question_reply>{answer}</send_user_message_question_reply>"
+        );
+        record_question_answers(&mut pending, &format!("Example: {reply}"));
+        assert!(pending.answered.is_empty());
+        record_question_answers(&mut pending, &format!("  {reply}\n"));
+        assert_eq!(pending.answered, vec![0]);
+    }
 
     // Real line shapes captured from a Codex 0.144/0.145 install.
     const EVENT_USER: &str = r#"{"timestamp":"2026-07-20T13:08:52.681Z","type":"event_msg","payload":{"type":"user_message","client_id":"0bd480da","message":"how does codex differ from claude code?\n","images":[]}}"#;
