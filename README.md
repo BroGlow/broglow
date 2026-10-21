@@ -24,54 +24,16 @@ Maintained by **Suren Khorenyan**. Copyright notices are in [LICENSE](LICENSE).
   <img src="site/assets/photos/popover-dark.png" width="353" alt="The BroGlow menu-bar popover: three live sessions, one working and two paused, with Dashboard, Settings and Lamps controls">
 </p>
 
-<a name="why-this-version"></a>
+<a name="clawlight"></a>
 
 ## How BroGlow differs from ClawLight
 
 BroGlow is a separate, independently maintained application inspired by
 [ClawLight](https://github.com/clawlight/clawlight-cli). Most of the app has been
 rewritten, with a substantially redesigned interface and expanded capabilities:
-
-**Sessions**
-
-| What's better | What you gain |
-| --- | --- |
-| **Open the right conversation** | Click a session to land in its Claude desktop chat, Codex desktop task or terminal window. |
-| **Real session names** | Sessions carry Claude's own titles and renamed Codex tasks instead of "Session abc123". |
-| **Agent and host at a glance** | Each row shows which agent is working (Claude, Codex, opencode, Copilot) and where (desktop app, terminal, IDE). |
-| **Group by project** | Sessions sit under one heading per working directory; same-named folders are told apart. |
-| **Improved status handling** | Working, idle and needs-input states follow what the agent is doing more closely, for Claude and Codex alike. |
-| **Clear paused sessions** | Remove clutter in one click while keeping active work and approval requests visible. |
-
-**Lamp**
-
-| What's better | What you gain |
-| --- | --- |
-| **Wireless lamp connection** | Put the lamp anywhere in Bluetooth range; no data cable to the Mac. |
-| **Plug in, paired** | A new USB-attached lamp pairs itself on macOS; **Add lamp** retries manually. |
-| **Lamps managed one at a time** | Name or forget one lamp; the others stay connected, with status for each. |
-| **Brightness with live preview** | Adjust each lamp to a comfortable level and see the result before saving. |
-| **Identify a lamp** | A three-pass scan on the selected lamp shows which one it is. |
-| **Safe firmware flashing** | One locked toolchain flashes and backs up the board the same way on every machine. |
-
-**Install and upkeep**
-
-| What's better | What you gain |
-| --- | --- |
-| **Homebrew install** | `brew install broglow/tap/broglow`, then `broglow install`; upgrades the same way. |
-| **Upgrades that don't break** | Config writes are atomic, a failed macOS upgrade rolls back, dotfile symlinks survive, uninstall removes every hook. |
-| **Track token usage** | Opt-in view of your plan's 5-hour and weekly percentages and today's tokens, Claude and Codex together. |
-| **120 fps popover** | The menu-bar interface renders at your display's full refresh rate. |
-
-**Build and docs**
-
-| What's better | What you gain |
-| --- | --- |
-| **Print the enclosure, swap the mascot** | The mascot holds on by magnets: attach any mascot you like and change it anytime. |
-| **Interactive assembly guide** | Rotate and zoom the separated parts. |
-
-Bluetooth lamp features (including naming, brightness and **Identify**) and
-direct opening of desktop sessions are macOS-only.
+sessions open their own chat and carry real names, wireless lamps are managed one
+at a time, Homebrew installs and upgrades it, and the magnetic mascot is swappable.
+See [Why BroGlow](site/guide/en/why.md) for the full comparison.
 
 ## Start here
 
@@ -104,29 +66,9 @@ broglow install
 To install a specific release instead, use `broglow/tap/broglow@VERSION`, for example
 `brew install broglow/tap/broglow@1.0.0`; brew prints how to put it first on your `PATH`.
 
-Alternatively, download the full Mac package for your architecture and its matching `.sha256`
-file from [Releases](https://github.com/broglow/broglow/releases/latest). Follow the
-[checksum and installation steps](site/guide/en/hardware.md#install-a-prebuilt-package).
-Builds are not signed with a Developer ID or notarized by Apple; the manual describes
-macOS's normal per-app approval flow.
-
-On Windows, extract `broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz` from Releases
-into a permanent folder (for example, `tar -xf <file>` in PowerShell).
-In PowerShell from that folder, run `.\broglow.exe install` to register hooks,
-enable startup at login and launch the tray app. `.\broglow.exe menubar` launches
-the graphical tray interface directly; `.\broglow.exe` opens the terminal dashboard.
-
-To build the app from a source checkout instead (Rust 1.90+):
-
-```bash
-cargo install --locked --path .
-"$HOME/.cargo/bin/broglow" install
-```
-
-On Linux, install the [system development libraries](CONTRIBUTING.md#development-setup)
-before compiling; the tray's GTK 3 bindings have known advisories. On Windows, use the Rust MSVC
-toolchain, run `cargo install --locked --path .`, then `broglow install`.
-No board is flashed by app installation.
+For the Mac package from Releases, Windows, Linux or a build from source, see
+[alternative installations](site/guide/en/alternatives.md). No board is flashed by
+app installation.
 
 On macOS, press **⌘ Space**, search **BroGlow** and press Return to open its
 controls. The app lives in `~/Applications/BroGlow.app`.
