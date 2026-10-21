@@ -244,6 +244,7 @@ fn async_question_creation_failure_and_confirmed_terminal_are_distinct() {
     assert!(read_state(&home)["question_expiry"].is_null());
 
     event["hook_event_name"] = json!("PreToolUse");
+    event["tool_use_id"] = json!("retry-call");
     run_codex_hook(&home, &event.to_string()).success();
     event["hook_event_name"] = json!("PostToolUse");
     event["tool_response"] = json!({"accepted": true});
@@ -284,11 +285,19 @@ fn answered_question_is_quiet_and_old_turn_hooks_cannot_clear_a_new_question() {
     run_codex_hook(&home, &event.to_string()).success();
     run_codex_hook(&home, &ev("UserPromptSubmit", "question")).success();
     assert_eq!(session(&read_state(&home), "question")["status"], "active");
-    assert!(read_state(&home)["codex_questions"].is_null());
+    assert_eq!(
+        read_state(&home)["codex_questions"]["question"]["resolved"],
+        true
+    );
     assert!(read_state(&home)["question_expiry"].is_null());
     event["hook_event_name"] = json!("PreToolUse");
     event["turn_id"] = json!("new");
     event["tool_use_id"] = json!("new-call");
+    std::fs::write(
+        &rollout,
+        "{\"type\":\"event_msg\",\"payload\":{\"type\":\"task_started\",\"turn_id\":\"new\"}}\n",
+    )
+    .unwrap();
     run_codex_hook(&home, &event.to_string()).success();
     std::fs::write(&rollout, "{\"timestamp\":\"2026-10-21T10:00:00Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"task_complete\",\"turn_id\":\"old\"}}\n").unwrap();
     for hook in ["PostToolUse", "Stop", "Interrupt", "SessionEnd"] {
@@ -345,6 +354,149 @@ fn structured_answers_resolve_all_question_indices_without_a_prompt_hook() {
         assert_eq!(session(&read_state(&home), "question")["status"], expected);
         assert!(read_state(&home)["question_expiry"].is_null());
     }
+}
+
+#[test]
+fn terminal_tombstone_blocks_replayed_hooks_but_allows_a_proven_new_turn() {
+    let home = temp_home();
+    let rollout = home.path().join("question.jsonl");
+    let mut contents = String::new();
+    std::fs::write(&rollout, &contents).unwrap();
+    let mut event = json!({"hook_event_name":"PreToolUse", "session_id":"q", "turn_id":"old",
+        "tool_name":"request_user_input_async", "tool_use_id":"old-call", "transcript_path":rollout,
+        "tool_input":{"questions":[{"title":"Choice?"}]}, "tool_response":{"accepted":true}});
+    for hook in ["PreToolUse", "PostToolUse"] {
+        event["hook_event_name"] = json!(hook);
+        run_codex_hook(&home, &event.to_string()).success();
+    }
+    contents += "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-21T10:00:00Z\",\"payload\":{\"type\":\"task_complete\",\"turn_id\":\"old\"}}\n";
+    std::fs::write(&rollout, &contents).unwrap();
+    event["hook_event_name"] = json!("Stop");
+    run_codex_hook(&home, &event.to_string()).success();
+    let expiry = read_state(&home)["question_expiry"].clone();
+    for hook in ["PreToolUse", "PostToolUse", "Stop"] {
+        event["hook_event_name"] = json!(hook);
+        run_codex_hook(&home, &event.to_string()).success();
+        assert_eq!(session(&read_state(&home), "q")["status"], "inactive");
+        assert_eq!(read_state(&home)["question_expiry"], expiry);
+    }
+    event["hook_event_name"] = json!("SessionEnd");
+    run_codex_hook(&home, &event.to_string()).success();
+    assert_eq!(session(&read_state(&home), "q")["status"], "done");
+    let mut ordinary = json!({"session_id":"q", "turn_id":"ordinary", "tool_name":"Bash"});
+    for hook in ["UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"] {
+        ordinary["hook_event_name"] = json!(hook);
+        run_codex_hook(&home, &ordinary.to_string()).success();
+    }
+    assert_eq!(session(&read_state(&home), "q")["status"], "inactive");
+    contents += "{\"type\":\"turn_context\",\"payload\":{\"turn_id\":\"new\"}}\n";
+    std::fs::write(&rollout, &contents).unwrap();
+    event["turn_id"] = json!("new");
+    event["tool_use_id"] = json!("new-call");
+    event["hook_event_name"] = json!("PreToolUse");
+    run_codex_hook(&home, &event.to_string()).success();
+    assert_eq!(
+        session(&read_state(&home), "q")["notification_type"],
+        "codex_question_async:new-call"
+    );
+    event["turn_id"] = json!("old");
+    event["tool_use_id"] = json!("old-call");
+    run_codex_hook(&home, &event.to_string()).success();
+    assert_eq!(
+        session(&read_state(&home), "q")["notification_type"],
+        "codex_question_async:new-call"
+    );
+    assert_eq!(
+        read_state(&home)["codex_questions"]
+            .as_object()
+            .unwrap()
+            .len(),
+        1
+    );
+    ordinary["turn_id"] = json!("prompt-proven");
+    ordinary["hook_event_name"] = json!("UserPromptSubmit");
+    run_codex_hook(&home, &ordinary.to_string()).success();
+    event["turn_id"] = json!("prompt-proven");
+    event["tool_use_id"] = json!("prompt-call");
+    run_codex_hook(&home, &event.to_string()).success();
+    event["turn_id"] = json!("new");
+    event["tool_use_id"] = json!("new-call");
+    run_codex_hook(&home, &event.to_string()).success();
+    assert_eq!(
+        session(&read_state(&home), "q")["notification_type"],
+        "codex_question_async:prompt-call"
+    );
+    ordinary["turn_id"] = json!("long-turn");
+    ordinary["hook_event_name"] = json!("UserPromptSubmit");
+    run_codex_hook(&home, &ordinary.to_string()).success();
+    contents += &"x".repeat(300 * 1024);
+    contents.push('\n');
+    std::fs::write(&rollout, &contents).unwrap();
+    event["turn_id"] = json!("long-turn");
+    event["tool_use_id"] = json!("long-call");
+    run_codex_hook(&home, &event.to_string()).success();
+    assert_eq!(
+        session(&read_state(&home), "q")["notification_type"],
+        "codex_question_async:long-call"
+    );
+}
+
+#[test]
+fn a_late_new_call_from_a_superseded_turn_cannot_restore_red() {
+    let home = temp_home();
+    let rollout = home.path().join("question.jsonl");
+    std::fs::write(&rollout, "").unwrap();
+    let mut event = json!({"session_id":"q", "turn_id":"old", "transcript_path":rollout,
+        "tool_name":"request_user_input_async", "tool_use_id":"first",
+        "tool_input":{"questions":[{"title":"Choice?"}]}, "tool_response":{"accepted":true}});
+    for hook in ["PreToolUse", "PostToolUse"] {
+        event["hook_event_name"] = json!(hook);
+        run_codex_hook(&home, &event.to_string()).success();
+    }
+    let mut next = json!({"session_id":"q", "turn_id":"new", "hook_event_name":"UserPromptSubmit"});
+    run_codex_hook(&home, &next.to_string()).success();
+    event["tool_use_id"] = json!("delayed-call");
+    for hook in ["PreToolUse", "PostToolUse"] {
+        event["hook_event_name"] = json!(hook);
+        run_codex_hook(&home, &event.to_string()).success();
+        assert_eq!(session(&read_state(&home), "q")["status"], "active");
+    }
+    std::fs::write(&rollout, "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-21T10:00:00Z\",\"payload\":{\"type\":\"task_complete\",\"turn_id\":\"old\"}}\n").unwrap();
+    next["hook_event_name"] = json!("Stop");
+    run_codex_hook(&home, &next.to_string()).success();
+    let state = read_state(&home);
+    assert_eq!(session(&state, "q")["status"], "inactive");
+    assert!(state["question_expiry"].is_null());
+}
+
+#[test]
+fn answering_the_latest_call_keeps_an_older_call_pending() {
+    let home = temp_home();
+    let rollout = home.path().join("question.jsonl");
+    std::fs::write(&rollout, "").unwrap();
+    let mut event = json!({"session_id":"q", "turn_id":"turn", "transcript_path":rollout,
+        "tool_name":"request_user_input_async", "tool_input":{"questions":[{"title":"Choice?"}]},
+        "tool_response":{"accepted":true}});
+    for call in ["first", "second"] {
+        event["tool_use_id"] = json!(call);
+        for hook in ["PreToolUse", "PostToolUse"] {
+            event["hook_event_name"] = json!(hook);
+            run_codex_hook(&home, &event.to_string()).success();
+        }
+    }
+    let answer = json!([{"questionItemId":json!(["request_user_input_async", "second", 0]).to_string(), "answer":"yes"}]);
+    let mut contents = json!({"type":"response_item", "payload":{"type":"message", "role":"user", "content":[{
+        "type":"input_text", "text":format!("<send_user_message_question_reply>{answer}</send_user_message_question_reply>")
+    }]}}).to_string() + "\n";
+    std::fs::write(&rollout, &contents).unwrap();
+    event["hook_event_name"] = json!("Stop");
+    run_codex_hook(&home, &event.to_string()).success();
+    assert_eq!(session(&read_state(&home), "q")["status"], "needs_help");
+    contents += "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-21T10:00:00Z\",\"payload\":{\"type\":\"task_complete\",\"turn_id\":\"turn\"}}\n";
+    std::fs::write(&rollout, &contents).unwrap();
+    run_codex_hook(&home, &event.to_string()).success();
+    assert_eq!(session(&read_state(&home), "q")["status"], "inactive");
+    assert!(!read_state(&home)["question_expiry"].is_null());
 }
 
 #[cfg(target_os = "macos")]

@@ -39,6 +39,8 @@ pub struct PendingQuestion {
     pub call_id: String,
     pub transcript_path: String,
     pub offset: u64,
+    #[serde(default)]
+    pub created_offset: u64,
     pub accepted: bool,
     pub exec: bool,
     #[serde(default)]
@@ -47,12 +49,80 @@ pub struct PendingQuestion {
     pub answered: Vec<usize>,
     #[serde(default)]
     pub discard_line: bool,
+    #[serde(default)]
+    pub other_calls: HashMap<String, QuestionCall>,
+    #[serde(default)]
+    pub resolved: bool,
+    #[serde(default)]
+    pub terminal_at: Option<String>,
+    #[serde(default)]
+    pub superseded: bool,
+    #[serde(default)]
+    pub next_turn_id: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct QuestionCall {
+    pub accepted: bool,
+    pub question_count: usize,
+    pub answered: Vec<usize>,
+    pub resolved: bool,
 }
 
 impl PendingQuestion {
-    pub fn marker(&self) -> String {
-        format!("codex_question_async:{}", self.call_id)
+    pub fn outstanding(&self) -> bool {
+        !self.resolved || self.other_calls.values().any(|call| !call.resolved)
     }
+
+    pub fn contains_call(&self, id: &str) -> bool {
+        id == self.call_id || self.other_calls.contains_key(id)
+    }
+
+    pub fn accept_call(&mut self, id: &str, accepted: bool, rejected: bool) {
+        if id == self.call_id {
+            self.accepted |= accepted;
+            self.resolved |= rejected;
+        } else if let Some(call) = self.other_calls.get_mut(id) {
+            call.accepted |= accepted;
+            call.resolved |= rejected;
+        }
+    }
+}
+
+/// A late hook cannot establish turn ordering. Read only the newest complete
+/// rollout context, with a fixed budget; missing evidence leaves tracking intact.
+pub(crate) fn current_rollout_turn(path: &str) -> Option<(String, u64)> {
+    let mut file = File::open(path).ok()?;
+    let len = file.metadata().ok()?.len();
+    let file_start = len.saturating_sub(256 * 1024);
+    file.seek(SeekFrom::Start(file_start)).ok()?;
+    let mut bytes = Vec::new();
+    file.take(256 * 1024).read_to_end(&mut bytes).ok()?;
+    let end = bytes.iter().rposition(|b| *b == b'\n')?;
+    let start = if file_start > 0 {
+        bytes.iter().position(|b| *b == b'\n')? + 1
+    } else {
+        0
+    };
+    if start > end {
+        return None;
+    }
+    let mut line_end = file_start + end as u64 + 1;
+    for line in bytes[start..end].rsplit(|b| *b == b'\n') {
+        let position = line_end;
+        line_end = line_end.saturating_sub(line.len() as u64 + 1);
+        let Ok(record) = serde_json::from_slice::<Value>(line) else {
+            continue;
+        };
+        if record["type"] == "turn_context"
+            || (record["type"] == "event_msg" && record["payload"]["type"] == "task_started")
+        {
+            return record["payload"]["turn_id"]
+                .as_str()
+                .map(|id| (id.to_string(), position));
+        }
+    }
+    None
 }
 
 /// Called under the state lock. Missing/malformed files cannot clear a request.
@@ -61,29 +131,33 @@ pub(crate) fn reconcile_questions(state: &mut crate::state::HookState) -> bool {
     let mut changed = false;
     let mut resolved = Vec::new();
     for (id, pending) in &mut state.codex_questions {
-        let Some(session) = state.sessions.get_mut(id).filter(|s| {
-            s.harness.as_deref() == Some("codex")
-                && !s.codex_background
-                && s.status == Status::NeedsHelp
-                && s.notification_type.as_deref() == Some(pending.marker().as_str())
-        }) else {
+        let Some(session) = state
+            .sessions
+            .get_mut(id)
+            .filter(|s| s.harness.as_deref() == Some("codex") && !s.codex_background)
+        else {
             resolved.push(id.clone());
             continue;
         };
+        if pending.terminal_at.is_some() || pending.superseded {
+            continue;
+        }
         let offset = pending.offset;
         if let Some(resolution) = question_resolution(pending) {
-            session.status = Status::Active;
-            session.notification_type = None;
             if let QuestionResolution::Terminal(timestamp) = resolution {
+                pending.terminal_at = Some(timestamp.clone());
                 session.status = if pending.exec {
                     Status::Done
                 } else {
                     Status::Inactive
                 };
+                session.notification_type = None;
                 session.last_updated.clone_from(&timestamp);
-                if pending.accepted
-                    && (pending.question_count == 0
-                        || pending.answered.len() < pending.question_count)
+                if (pending.accepted && !pending.resolved)
+                    || pending
+                        .other_calls
+                        .values()
+                        .any(|call| call.accepted && !call.resolved)
                 {
                     let expiry = QuestionExpiry {
                         id: format!("{id}:{}:{}", pending.turn_id, pending.call_id),
@@ -98,8 +172,17 @@ pub(crate) fn reconcile_questions(state: &mut crate::state::HookState) -> bool {
                         state.question_expiry = Some(expiry);
                     }
                 }
+            } else if !pending.outstanding()
+                && session.status == Status::NeedsHelp
+                && session
+                    .notification_type
+                    .as_deref()
+                    .is_some_and(|n| n.starts_with("codex_question_async:"))
+            {
+                session.status = Status::Active;
+                session.notification_type = None;
             }
-            resolved.push(id.clone());
+            changed = true;
         }
         changed |= pending.offset != offset;
     }
@@ -112,7 +195,6 @@ pub(crate) fn reconcile_questions(state: &mut crate::state::HookState) -> bool {
 
 enum QuestionResolution {
     Answered,
-    Rejected,
     Terminal(String),
 }
 
@@ -149,28 +231,38 @@ fn question_resolution(pending: &mut PendingQuestion) -> Option<QuestionResoluti
             && payload["type"] == "item_completed"
             && payload["turn_id"].as_str() == Some(&pending.turn_id)
             && payload["item"]["type"] == "AgentMessage"
-            && payload["item"]["id"].as_str() == Some(&pending.call_id)
         {
             if let Some(questions) = payload["item"]["questions"]
                 .as_array()
                 .filter(|q| !q.is_empty())
             {
-                pending.accepted = true;
-                pending.question_count = questions.len();
+                if payload["item"]["id"].as_str() == Some(&pending.call_id) {
+                    pending.accepted = true;
+                    pending.question_count = questions.len();
+                } else if let Some(call) = payload["item"]["id"]
+                    .as_str()
+                    .and_then(|id| pending.other_calls.get_mut(id))
+                {
+                    call.accepted = true;
+                    call.question_count = questions.len();
+                }
             }
         }
         if record["type"] == "response_item" {
             if payload["type"] == "function_call_output"
-                && payload["call_id"].as_str() == Some(&pending.call_id)
+                && payload["call_id"]
+                    .as_str()
+                    .is_some_and(|id| pending.contains_call(id))
             {
                 let output = payload["output"]
                     .as_str()
                     .and_then(|s| serde_json::from_str::<Value>(s).ok())
                     .unwrap_or_else(|| payload["output"].clone());
-                if output["accepted"] == false || output["isError"] == true {
-                    return Some(QuestionResolution::Rejected);
-                }
-                pending.accepted |= output["accepted"] == true;
+                pending.accept_call(
+                    payload["call_id"].as_str().unwrap(),
+                    output["accepted"] == true,
+                    output["accepted"] == false || output["isError"] == true,
+                );
             }
             if payload["type"] == "message" && payload["role"] == "user" {
                 if let Some(content) = payload["content"].as_array() {
@@ -200,8 +292,7 @@ fn question_resolution(pending: &mut PendingQuestion) -> Option<QuestionResoluti
             }
         }
     }
-    (pending.question_count > 0 && pending.answered.len() == pending.question_count)
-        .then_some(QuestionResolution::Answered)
+    (!pending.outstanding()).then_some(QuestionResolution::Answered)
 }
 
 fn record_question_answers(pending: &mut PendingQuestion, text: &str) {
@@ -226,14 +317,28 @@ fn record_question_answers(pending: &mut PendingQuestion, text: &str) {
         };
         if key.as_array().is_none_or(|key| key.len() != 3)
             || key[0] != "request_user_input_async"
-            || key[1].as_str() != Some(&pending.call_id)
             || !answer["answer"].is_string()
         {
             continue;
         }
+        let (count, answered, resolved) = if key[1].as_str() == Some(&pending.call_id) {
+            (
+                pending.question_count,
+                &mut pending.answered,
+                &mut pending.resolved,
+            )
+        } else if let Some(call) = key[1]
+            .as_str()
+            .and_then(|id| pending.other_calls.get_mut(id))
+        {
+            (call.question_count, &mut call.answered, &mut call.resolved)
+        } else {
+            continue;
+        };
         if let Some(index) = key[2].as_u64().and_then(|i| usize::try_from(i).ok()) {
-            if index < pending.question_count && !pending.answered.contains(&index) {
-                pending.answered.push(index);
+            if index < count && !answered.contains(&index) {
+                answered.push(index);
+                *resolved = answered.len() == count;
             }
         }
     }
@@ -720,11 +825,17 @@ mod tests {
                     call_id: "call".into(),
                     transcript_path: path.to_string_lossy().into_owned(),
                     offset: 0,
+                    created_offset: 0,
                     accepted: true,
                     exec: false,
                     question_count: 1,
                     answered: Vec::new(),
                     discard_line: false,
+                    other_calls: Default::default(),
+                    resolved: false,
+                    terminal_at: None,
+                    superseded: false,
+                    next_turn_id: None,
                 },
             );
         }
@@ -740,11 +851,17 @@ mod tests {
             call_id: "call".into(),
             transcript_path: rollout.path().to_string_lossy().into_owned(),
             offset: 0,
+            created_offset: 0,
             accepted: false,
             exec: false,
             question_count: 1,
             answered: Vec::new(),
             discard_line: false,
+            other_calls: Default::default(),
+            resolved: false,
+            terminal_at: None,
+            superseded: false,
+            next_turn_id: None,
         };
         let mut contents = "x".repeat(300 * 1024) + "\n";
         for (turn, timestamp) in [

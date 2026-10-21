@@ -382,11 +382,17 @@ mod tests {
                 call_id: "call".into(),
                 transcript_path: rollout.path().to_string_lossy().into_owned(),
                 offset: 0,
+                created_offset: 0,
                 accepted: true,
                 exec: false,
                 question_count: 1,
                 answered: Vec::new(),
                 discard_line: false,
+                other_calls: Default::default(),
+                resolved: false,
+                terminal_at: None,
+                superseded: false,
+                next_turn_id: None,
             },
         );
         write_state_atomic(&state).unwrap();
@@ -405,7 +411,7 @@ mod tests {
         std::fs::write(rollout.path(), format!("{old}{terminal}\n")).unwrap();
         let reconciled = read_hook_state();
         assert_eq!(reconciled.sessions["s0"].status, Status::Inactive);
-        assert!(reconciled.codex_questions.is_empty());
+        assert!(reconciled.codex_questions["s0"].terminal_at.is_some());
         assert_eq!(
             reconciled.question_expiry.as_ref().unwrap().id,
             "s0:new-turn:call"
@@ -420,6 +426,43 @@ mod tests {
             reconciled.question_expiry
         );
         assert_eq!(std::fs::read(state_file_path()).unwrap(), disk);
+        // Two calls share the turn: answering the newest must retain the older
+        // request. After all answers, keep polling for a terminal flushed later.
+        for answer_all in [false, true] {
+            let mut waiting = state.clone();
+            let pending = waiting.codex_questions.get_mut("s0").unwrap();
+            pending.other_calls.insert(
+                "second".into(),
+                crate::codex::QuestionCall {
+                    accepted: true,
+                    question_count: 1,
+                    answered: Vec::new(),
+                    resolved: false,
+                },
+            );
+            std::fs::write(rollout.path(), "").unwrap();
+            write_state_atomic(&waiting).unwrap();
+            let reply = |call: &str| {
+                let answer = serde_json::json!([{"questionItemId": serde_json::json!(["request_user_input_async", call, 0]).to_string(), "answer":"yes"}]);
+                serde_json::json!({"type":"response_item", "payload":{"type":"message", "role":"user", "content":[{
+                    "type":"input_text", "text":format!("<send_user_message_question_reply>{answer}</send_user_message_question_reply>")
+                }]}}).to_string() + "\n"
+            };
+            let mut contents = reply("second");
+            std::fs::write(rollout.path(), &contents).unwrap();
+            assert_eq!(read_hook_state().sessions["s0"].status, Status::NeedsHelp);
+            if answer_all {
+                contents += &reply("call");
+                std::fs::write(rollout.path(), &contents).unwrap();
+                assert_eq!(read_hook_state().sessions["s0"].status, Status::Active);
+            }
+            contents += &(terminal.clone() + "\n");
+            std::fs::write(rollout.path(), &contents).unwrap();
+            let completed = read_hook_state();
+            assert_eq!(completed.sessions["s0"].status, Status::Inactive);
+            assert_eq!(completed.question_expiry.is_none(), answer_all);
+            assert!(completed.codex_questions["s0"].terminal_at.is_some());
+        }
         std::fs::write(state_file_path(), "broken state").unwrap();
         read_hook_state();
         assert_eq!(
