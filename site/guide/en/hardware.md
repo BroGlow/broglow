@@ -925,6 +925,10 @@ while any session is working** (`active_wins`). With no live sessions the lamp g
 fresh `N` and stays dark after the connection flash. Changing this setting needs no
 reconnect.
 
+When a Codex turn fails because its model is at capacity, the lamp gives
+five fast red flashes, then stays red. The menu-bar
+icon stays red throughout; the session row explains how to return to Codex.
+
 Each lamp receives the current status when it connects, whenever the status changes,
 and every **two seconds**. Reconnecting never replays an old queued color. Disabling
 tries to send `N`, then disconnects and stops scans and retries. If `N` was not

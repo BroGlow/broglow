@@ -241,6 +241,13 @@ thin:
   then restores the current aggregate. Existing USB/BLE workers own the effect;
   another needs-help session suppresses it. Startup/reconnect never replays old
   effects, and brightness and Identify controls keep their existing priority.
+  A terminal `task_complete.error.codex_error_info: server_overloaded` instead
+  keeps the session in `NeedsHelp` with `codex_capacity` until a new attempt or
+  dismissal. Track ordinary foreground turns independently of usage collection;
+  late hooks and question reconciliation must preserve this failure. A new failed
+  turn gives five 150 ms dark/red lamp cycles even over an already-red aggregate,
+  then restores the aggregate. Consume effects on startup, reconnect or preview
+  masking. Keep the tray steady and show the capacity reason with **Open Codex**.
   Before filtering or changing state, the shim ignores hooks whose rollout thread
   ID differs from the hook's `session_id`: subagent hooks can carry their parent's
   ID and must not clear its question or status. Use `session_meta.id`, falling back

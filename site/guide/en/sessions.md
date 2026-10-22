@@ -45,6 +45,23 @@ If completion cannot be confirmed, or the question was recorded by an older
 BroGlow without tracking details, the alert remains. Use **×** to dismiss that row;
 this does not answer the question or delete the chat.
 
+<a name="model-capacity"></a>
+
+## Codex model at capacity
+
+When Codex confirms that a turn failed because the selected model is at capacity,
+BroGlow shows **Needs help** with **Model at capacity** in the session row.
+Choose **Open Codex**, then select another model or retry in Codex.
+
+A connected lamp gives five fast red flashes, about **150 ms on / 150 ms off**,
+then stays red while the session needs help. The menu-bar icon stays red throughout.
+Each failed turn triggers one burst, even when the lamp was already red. Opening
+the list, restarting BroGlow or reconnecting a lamp does not replay it.
+
+A new attempt clears the warning. **×** dismisses it without changing the chat.
+Brightness and Identify keep their normal priority; a masked or cancelled burst
+does not play later. Bluetooth write latency can lengthen the flashes.
+
 <a name="dismiss"></a>
 
 ## Dismiss a session
