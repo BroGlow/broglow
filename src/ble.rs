@@ -950,10 +950,14 @@ mod mac {
         );
         let _lock = radio_lock()?;
         runtime()?.block_on(async {
+            let keep_config = RefCell::new((StdInstant::now(), cfg.clone()));
             let keep = || {
-                let current = config::read_config();
+                let mut cached = keep_config.borrow_mut();
+                if cached.0.elapsed() >= POLL {
+                    *cached = (StdInstant::now(), config::read_config());
+                }
                 // With no lamp left to drive, stop scanning instead of idling.
-                crate::led::same_target(cfg, &current) && !current.ble_ids().is_empty()
+                crate::led::same_target(cfg, &cached.1) && !cached.1.ble_ids().is_empty()
             };
             crate::led::publish_status(cfg, "searching", "Initializing Bluetooth");
             let adapter = adapter(&keep).await?;
@@ -1346,9 +1350,18 @@ mod mac {
         let last_brightness = Cell::new(initial[0]);
         let last_preview = Cell::new(None::<(BrightnessPreview, StdInstant)>);
         let last_name = RefCell::new(None::<Vec<u8>>);
-        let pulse = RefCell::new(crate::led::ExpiryPulse::new(
-            crate::state::read_hook_state().question_expiry.as_ref(),
+        let snapshot = RefCell::new((
+            crate::state::read_hook_state(),
+            config::read_config(),
+            StdInstant::now(),
         ));
+        let pulse = RefCell::new({
+            let cached = snapshot.borrow();
+            crate::led::ExpiryPulse::new(
+                cached.0.question_expiry.as_ref(),
+                crate::led::current_capacity(&cached.0),
+            )
+        });
         let pulse = &pulse;
         let setting = &brightness_characteristic;
         let characteristic = &characteristic;
@@ -1412,8 +1425,16 @@ mod mac {
                 Ok(())
             },
             || {
-                let cfg = config::read_config();
-                let state = crate::state::read_hook_state();
+                // Effect ticks reuse the snapshot; state/config polling keeps its normal rate.
+                let mut cached = snapshot.borrow_mut();
+                if cached.2.elapsed() >= POLL {
+                    *cached = (
+                        crate::state::read_hook_state(),
+                        config::read_config(),
+                        StdInstant::now(),
+                    );
+                }
+                let (state, cfg, _) = &*cached;
                 let preview = current_preview(id);
                 // Firmware starts the preview duration when its write succeeds.
                 let masked = preview.is_some()
@@ -1423,17 +1444,24 @@ mod mac {
                 (
                     pulse.borrow_mut().sample(
                         state.question_expiry.as_ref(),
-                        crate::led::status_byte(crate::state::aggregate(&state, cfg.yellow_mode)),
+                        crate::led::current_capacity(state),
+                        crate::led::status_byte(crate::state::aggregate(state, cfg.yellow_mode)),
                         masked,
                         StdInstant::now(),
                         chrono::Utc::now(),
                     ),
                     cfg.lamp_brightness_percent(&target),
                     preview,
-                    name_payload(&cfg, &target),
+                    name_payload(cfg, &target),
                 )
             },
             keep,
+            || {
+                pulse
+                    .borrow()
+                    .poll_interval(POLL, StdInstant::now())
+                    .min(POLL.saturating_sub(snapshot.borrow().2.elapsed()))
+            },
         )
         .await;
         let _ = timeout(
@@ -1448,6 +1476,7 @@ mod mac {
         mut write: impl FnMut(T, bool) -> F,
         read: impl Fn() -> T,
         keep: &impl Fn() -> bool,
+        poll_interval: impl Fn() -> Duration,
     ) -> Result<()> {
         let mut last = None;
         let mut written = Instant::now();
@@ -1465,7 +1494,7 @@ mod mac {
             }
             tokio::select! {
                 _ = &mut changed => {},
-                _ = sleep(POLL) => {},
+                _ = sleep(poll_interval()) => {},
             }
         }
         Ok(())
@@ -1493,11 +1522,11 @@ mod mac {
                         id: "expired".into(),
                         occurred_at: wall.to_rfc3339(),
                     };
-                    let pulse = RefCell::new(crate::led::ExpiryPulse::new(None));
+                    let pulse = RefCell::new(crate::led::ExpiryPulse::new(None, None));
                     let clock = Cell::new(StdInstant::now());
                     let writes = RefCell::new(Vec::new());
                     let result = send_updates(
-                        |(output, applied_brightness): ((u8, Option<u8>), u8), _| {
+                        |(output, applied_brightness): ((u8, Option<(u64, u8)>), u8), _| {
                             assert_eq!(applied_brightness, brightness);
                             writes.borrow_mut().push(output.0);
                             // Simulate a slow acknowledged write with a fake clock.
@@ -1515,6 +1544,7 @@ mod mac {
                             (
                                 pulse.borrow_mut().sample(
                                     Some(&event),
+                                    None,
                                     b'Y',
                                     false,
                                     clock.get(),
@@ -1524,17 +1554,81 @@ mod mac {
                             )
                         },
                         &|| writes.borrow().len() < stop_after,
+                        || POLL,
                     )
                     .await;
                     assert_eq!(result.is_err(), fail);
                     assert_eq!(*writes.borrow(), b"NRNRNRY"[..stop_after]);
                     // Disable/failure drops the connection-local animation; reconnect consumes it.
-                    let mut reconnect = crate::led::ExpiryPulse::new(Some(&event));
+                    let mut reconnect = crate::led::ExpiryPulse::new(Some(&event), None);
                     assert_eq!(
-                        reconnect.sample(Some(&event), b'Y', false, clock.get(), wall),
+                        reconnect.sample(Some(&event), None, b'Y', false, clock.get(), wall),
                         (b'Y', None)
                     );
                 }
+            });
+        }
+
+        #[test]
+        fn capacity_burst_uses_fast_acknowledged_ticks_without_changing_brightness() {
+            runtime().unwrap().block_on(async {
+                let wall = chrono::Utc::now();
+                let event = crate::state::CapacityAlert {
+                    id: "session:turn".into(),
+                    session_id: "session".into(),
+                    occurred_at: wall.to_rfc3339(),
+                };
+                let pulse = RefCell::new(crate::led::ExpiryPulse::new(None, None));
+                let writes = RefCell::new(Vec::new());
+                let acknowledged = Cell::new(None::<StdInstant>);
+                let intervals = RefCell::new(Vec::new());
+                let (pulse, writes, acknowledged) = (&pulse, &writes, &acknowledged);
+                send_updates(
+                    |(output, brightness): ((u8, Option<(u64, u8)>), u8), _| async move {
+                        assert_eq!(brightness, 37);
+                        if let Some(at) = acknowledged.get() {
+                            assert!(at.elapsed() >= Duration::from_millis(150));
+                        }
+                        writes.borrow_mut().push(output.0);
+                        // A longer write must not skip or shorten the following phase.
+                        sleep(if writes.borrow().len() == 3 {
+                            Duration::from_millis(220)
+                        } else {
+                            Duration::from_millis(5)
+                        })
+                        .await;
+                        let at = StdInstant::now();
+                        pulse.borrow_mut().acknowledged(output.1, at);
+                        acknowledged.set(Some(at));
+                        Ok(())
+                    },
+                    || {
+                        (
+                            pulse.borrow_mut().sample(
+                                None,
+                                Some(&event),
+                                b'R',
+                                false,
+                                StdInstant::now(),
+                                wall,
+                            ),
+                            37,
+                        )
+                    },
+                    &|| writes.borrow().len() < 12,
+                    || {
+                        let interval = pulse.borrow().poll_interval(POLL, StdInstant::now());
+                        intervals.borrow_mut().push(interval);
+                        interval
+                    },
+                )
+                .await
+                .unwrap();
+                assert_eq!(*writes.borrow(), b"NRNRNRNRNRNR");
+                assert!(intervals.borrow()[..11]
+                    .iter()
+                    .all(|interval| *interval <= Duration::from_millis(150)));
+                assert_eq!(intervals.borrow().last(), Some(&POLL));
             });
         }
 
@@ -1589,6 +1683,7 @@ mod mac {
                     },
                     || (b'G', name_payload(&cfg.borrow(), "home")),
                     &|| active.get(),
+                    || POLL,
                 )
                 .await
                 .unwrap();
@@ -1615,6 +1710,7 @@ mod mac {
                     },
                     || (b'G', name_payload(&cfg.borrow(), "home")),
                     &|| active.get(),
+                    || POLL,
                 )
                 .await
                 .unwrap();
@@ -1813,6 +1909,7 @@ mod mac {
                                 },
                                 || (b'R', 100, current_preview(ids[lamp])),
                                 keep,
+                                || POLL,
                             )
                             .await
                             .unwrap();
@@ -2367,6 +2464,7 @@ mod mac {
                         },
                         || b'G',
                         &keep,
+                        || POLL,
                     )
                     .await
                     .unwrap();
@@ -2466,6 +2564,7 @@ mod mac {
                     },
                     || (b'G', cfg.borrow().lamp_brightness_percent(first)),
                     &keep,
+                    || POLL,
                 )
                 .await
                 .unwrap();
@@ -2487,6 +2586,7 @@ mod mac {
                     },
                     || (b'G', cfg.borrow().lamp_brightness_percent(first)),
                     &keep,
+                    || POLL,
                 )
                 .await
                 .unwrap();

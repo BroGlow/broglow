@@ -263,6 +263,11 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
     };
     let agent_width = widest(|l| &l.0, 2, 10);
     let host_width = widest(|l| &l.1, 4, 16);
+    let status_width = if app.sessions.iter().any(|s| s.capacity_blocked) {
+        17
+    } else {
+        10
+    };
 
     let header = Row::new(vec![
         Cell::from(""),
@@ -287,7 +292,11 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
                 Status::NeedsHelp => (
                     "●",
                     RED,
-                    "needs help",
+                    if s.capacity_blocked {
+                        "Model at capacity"
+                    } else {
+                        "needs help"
+                    },
                     Style::default().fg(RED).add_modifier(Modifier::BOLD),
                 ),
                 Status::Active => ("●", GREEN, "working", Style::default().fg(GREEN)),
@@ -359,8 +368,8 @@ fn render_table(frame: &mut Frame, app: &mut App, area: ratatui::layout::Rect) {
             Constraint::Length(agent_width),
             Constraint::Fill(2), // project
             Constraint::Length(host_width),
-            Constraint::Length(4),  // last
-            Constraint::Length(10), // status
+            Constraint::Length(4), // last
+            Constraint::Length(status_width),
         ],
     )
     .header(header);

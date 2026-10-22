@@ -28,61 +28,120 @@ const POLL_INTERVAL: Duration = Duration::from_millis(500);
 const HEARTBEAT: Duration = Duration::from_secs(2);
 const RESCAN_INTERVAL: Duration = Duration::from_secs(2);
 
-/// Connection-local animation; a reconnect consumes the current event as its baseline.
+/// Connection-local animations; reconnect consumes the current events as its baseline.
 pub(crate) struct ExpiryPulse {
     seen: Option<String>,
-    phase: Option<(u8, Option<Instant>)>,
+    seen_capacity: Option<String>,
+    generation: u64,
+    phase: Option<(u8, Option<Instant>, bool)>,
 }
 
 impl ExpiryPulse {
-    pub(crate) fn new(event: Option<&state::QuestionExpiry>) -> Self {
+    pub(crate) fn new(
+        expiry: Option<&state::QuestionExpiry>,
+        capacity: Option<&state::CapacityAlert>,
+    ) -> Self {
         Self {
-            seen: event.map(|event| event.id.clone()),
+            seen: expiry.map(|event| event.id.clone()),
+            seen_capacity: capacity.map(|event| event.id.clone()),
+            generation: 0,
             phase: None,
         }
     }
 
     pub(crate) fn sample(
         &mut self,
-        event: Option<&state::QuestionExpiry>,
+        expiry: Option<&state::QuestionExpiry>,
+        capacity: Option<&state::CapacityAlert>,
         aggregate: u8,
         masked: bool,
         now: Instant,
         wall: chrono::DateTime<chrono::Utc>,
-    ) -> (u8, Option<u8>) {
-        if let Some(event) = event.filter(|event| self.seen.as_ref() != Some(&event.id)) {
+    ) -> (u8, Option<(u64, u8)>) {
+        let fresh = |timestamp: &str, seconds| {
+            chrono::DateTime::parse_from_rfc3339(timestamp).is_ok_and(|time| {
+                let age = wall.signed_duration_since(time);
+                age >= chrono::Duration::zero() && age <= chrono::Duration::seconds(seconds)
+            })
+        };
+        if let Some(event) = expiry.filter(|event| self.seen.as_ref() != Some(&event.id)) {
             self.seen = Some(event.id.clone());
-            let fresh =
-                chrono::DateTime::parse_from_rfc3339(&event.occurred_at).is_ok_and(|time| {
-                    let age = wall.signed_duration_since(time);
-                    age >= chrono::Duration::zero() && age <= chrono::Duration::seconds(5)
-                });
-            if fresh && aggregate != b'R' && !masked {
-                // Start dark so the first flash is distinct from the former help signal.
-                self.phase = Some((0, None));
+            if fresh(&event.occurred_at, 5)
+                && aggregate != b'R'
+                && !masked
+                && !self.phase.is_some_and(|(_, _, capacity)| capacity)
+            {
+                self.generation = self.generation.wrapping_add(1);
+                self.phase = Some((0, None, false));
             }
         }
-        if aggregate == b'R' || masked {
+        if let Some(event) = capacity.filter(|event| self.seen_capacity.as_ref() != Some(&event.id))
+        {
+            self.seen_capacity = Some(event.id.clone());
+            // Capacity wins over an expiry effect, including when the lamp is already red.
+            // Allow the daemon's five-second reconciliation tick plus transport polling.
+            let fresh = fresh(&event.occurred_at, 10);
+            if fresh || self.phase.is_some_and(|(_, _, capacity)| capacity) {
+                self.generation = self.generation.wrapping_add(1);
+                self.phase = (fresh && !masked).then_some((0, None, true));
+            }
+        }
+        if masked
+            || self.phase.is_some_and(|(_, _, is_capacity)| {
+                if is_capacity {
+                    capacity.is_none()
+                } else {
+                    aggregate == b'R'
+                }
+            })
+        {
             self.phase = None;
         }
-        if let Some((phase, Some(written))) = self.phase {
-            if now.duration_since(written) >= Duration::from_millis(500) {
-                self.phase = (phase < 5).then_some((phase + 1, None));
+        if let Some((phase, Some(written), capacity)) = self.phase {
+            let (duration, last) = if capacity {
+                (Duration::from_millis(150), 10)
+            } else {
+                (Duration::from_millis(500), 5)
+            };
+            if now.duration_since(written) >= duration {
+                self.phase = (phase < last).then_some((phase + 1, None, capacity));
             }
         }
         match self.phase {
-            Some((phase, _)) => (if phase % 2 == 0 { b'N' } else { b'R' }, Some(phase)),
+            // Start dark so each red flash is distinct even from an existing help signal.
+            Some((phase, _, _)) => (
+                if phase % 2 == 0 { b'N' } else { b'R' },
+                Some((self.generation, phase)),
+            ),
             None => (aggregate, None),
         }
     }
 
-    pub(crate) fn acknowledged(&mut self, phase: Option<u8>, now: Instant) {
-        if let Some((current, written)) = self.phase.as_mut() {
-            if Some(*current) == phase && written.is_none() {
+    pub(crate) fn acknowledged(&mut self, phase: Option<(u64, u8)>, now: Instant) {
+        if let Some((current, written, _)) = self.phase.as_mut() {
+            if Some((self.generation, *current)) == phase && written.is_none() {
                 *written = Some(now);
             }
         }
     }
+
+    pub(crate) fn poll_interval(&self, normal: Duration, now: Instant) -> Duration {
+        match self.phase {
+            Some((_, Some(written), true)) => {
+                normal.min(Duration::from_millis(150).saturating_sub(now.duration_since(written)))
+            }
+            _ => normal,
+        }
+    }
+}
+
+pub(crate) fn current_capacity(state: &state::HookState) -> Option<&state::CapacityAlert> {
+    state.capacity_alert.as_ref().filter(|alert| {
+        state
+            .sessions
+            .get(&alert.session_id)
+            .is_some_and(|session| session.is_codex_capacity())
+    })
 }
 
 /// Espressif's native USB vendor ID, used by the ESP32-C3 SuperMini.
@@ -281,23 +340,29 @@ fn drive(
     // Native USB CDC stacks use DTR to learn that a host is listening.
     let _ = port.write_data_terminal_ready(true);
 
-    let mut pulse = ExpiryPulse::new(read_hook_state().question_expiry.as_ref());
+    let mut state = read_hook_state();
+    let mut cfg = config::read_config();
+    let mut sampled = Instant::now();
+    let mut pulse = ExpiryPulse::new(state.question_expiry.as_ref(), current_capacity(&state));
     let mut last_sent = None;
     let mut last_write = Instant::now();
 
     loop {
-        if !keep_running() {
-            let _ = port.write_all(b"N\n");
-            let _ = port.flush();
-            return Ok(());
+        // Keep disk reads at the regular cadence while the lamp blinks faster.
+        if last_sent.is_none() || sampled.elapsed() >= POLL_INTERVAL {
+            if !keep_running() {
+                let _ = port.write_all(b"N\n");
+                let _ = port.flush();
+                return Ok(());
+            }
+            state = read_hook_state();
+            cfg = config::read_config();
+            sampled = Instant::now();
         }
-
-        // Re-read the config each poll so a yellow-mode change from the
-        // popover's Settings view takes effect without reconnecting.
-        let state = read_hook_state();
         let output = pulse.sample(
             state.question_expiry.as_ref(),
-            status_byte(aggregate(&state, config::read_config().yellow_mode)),
+            current_capacity(&state),
+            status_byte(aggregate(&state, cfg.yellow_mode)),
             false,
             Instant::now(),
             chrono::Utc::now(),
@@ -319,7 +384,11 @@ fn drive(
             last_write = Instant::now();
         }
 
-        std::thread::sleep(POLL_INTERVAL);
+        std::thread::sleep(
+            pulse
+                .poll_interval(POLL_INTERVAL, Instant::now())
+                .min(POLL_INTERVAL.saturating_sub(sampled.elapsed())),
+        );
     }
 }
 
@@ -506,32 +575,38 @@ mod transport_tests {
             id: "new".into(),
             occurred_at: wall.to_rfc3339(),
         };
-        let mut pulse = ExpiryPulse::new(None);
+        let mut pulse = ExpiryPulse::new(None, None);
         let start = Instant::now();
         let mut now = start;
         let mut writes = Vec::new();
         for phase in 0..6 {
-            let expected = (if phase % 2 == 0 { b'N' } else { b'R' }, Some(phase));
-            let output = pulse.sample(Some(&event), b'G', false, now, wall);
+            let expected = (if phase % 2 == 0 { b'N' } else { b'R' }, Some((1, phase)));
+            let output = pulse.sample(Some(&event), None, b'G', false, now, wall);
             assert_eq!(output, expected);
             // A failed/pending write must never advance the animation, even after seconds.
             now += Duration::from_secs(3);
-            assert_eq!(pulse.sample(Some(&event), b'Y', false, now, wall), expected);
+            assert_eq!(
+                pulse.sample(Some(&event), None, b'Y', false, now, wall),
+                expected
+            );
             writes.push(output.0);
             pulse.acknowledged(output.1, now);
             now += Duration::from_millis(499);
-            assert_eq!(pulse.sample(Some(&event), b'Y', false, now, wall), expected);
+            assert_eq!(
+                pulse.sample(Some(&event), None, b'Y', false, now, wall),
+                expected
+            );
             // Duplicate ACK/heartbeat must not extend the phase.
             pulse.acknowledged(output.1, now);
             now += Duration::from_millis(1);
         }
         assert_eq!(writes, b"NRNRNR");
         assert_eq!(
-            pulse.sample(Some(&event), b'Y', false, now, wall),
+            pulse.sample(Some(&event), None, b'Y', false, now, wall),
             (b'Y', None)
         );
         assert_eq!(
-            pulse.sample(Some(&event), b'G', false, now, wall),
+            pulse.sample(Some(&event), None, b'G', false, now, wall),
             (b'G', None)
         );
     }
@@ -545,9 +620,9 @@ mod transport_tests {
             id: "new".into(),
             occurred_at: wall.to_rfc3339(),
         };
-        let mut startup = ExpiryPulse::new(Some(&event));
+        let mut startup = ExpiryPulse::new(Some(&event), None);
         assert_eq!(
-            startup.sample(Some(&event), b'G', false, now, wall),
+            startup.sample(Some(&event), None, b'G', false, now, wall),
             (b'G', None)
         );
         for timestamp in [
@@ -559,20 +634,20 @@ mod transport_tests {
                 occurred_at: timestamp,
                 ..event.clone()
             };
-            let mut pulse = ExpiryPulse::new(None);
+            let mut pulse = ExpiryPulse::new(None, None);
             assert_eq!(
-                pulse.sample(Some(&stale), b'G', false, now, wall),
+                pulse.sample(Some(&stale), None, b'G', false, now, wall),
                 (b'G', None)
             );
         }
         for (aggregate, masked) in [(b'R', false), (b'G', true)] {
-            let mut pulse = ExpiryPulse::new(None);
+            let mut pulse = ExpiryPulse::new(None, None);
             assert_eq!(
-                pulse.sample(Some(&event), aggregate, masked, now, wall),
+                pulse.sample(Some(&event), None, aggregate, masked, now, wall),
                 (aggregate, None)
             );
             assert_eq!(
-                pulse.sample(Some(&event), b'G', false, now, wall),
+                pulse.sample(Some(&event), None, b'G', false, now, wall),
                 (b'G', None)
             );
             let second = state::QuestionExpiry {
@@ -580,19 +655,230 @@ mod transport_tests {
                 ..event.clone()
             };
             assert_eq!(
-                pulse.sample(Some(&second), b'G', false, now, wall),
-                (b'N', Some(0))
+                pulse.sample(Some(&second), None, b'G', false, now, wall),
+                (b'N', Some((1, 0)))
             );
-            pulse.acknowledged(Some(0), now);
+            pulse.acknowledged(Some((1, 0)), now);
             assert_eq!(
-                pulse.sample(Some(&second), aggregate, masked, now, wall),
+                pulse.sample(Some(&second), None, aggregate, masked, now, wall),
                 (aggregate, None)
             );
             assert_eq!(
-                pulse.sample(Some(&second), b'G', false, now, wall),
+                pulse.sample(Some(&second), None, b'G', false, now, wall),
                 (b'G', None)
             );
         }
+    }
+
+    #[test]
+    fn capacity_pulse_has_five_acknowledged_150ms_flashes_then_current_aggregate() {
+        let wall = chrono::Utc::now();
+        let event = state::CapacityAlert {
+            id: "session:turn".into(),
+            session_id: "session".into(),
+            occurred_at: wall.to_rfc3339(),
+        };
+        for aggregate in *b"RY" {
+            let mut pulse = ExpiryPulse::new(None, None);
+            let mut now = Instant::now();
+            let mut writes = Vec::new();
+            for phase in 0..11 {
+                let expected = (if phase % 2 == 0 { b'N' } else { b'R' }, Some((1, phase)));
+                assert_eq!(
+                    pulse.sample(None, Some(&event), aggregate, false, now, wall),
+                    expected
+                );
+                // A slow transport holds every phase until its write succeeds.
+                now += Duration::from_secs(3);
+                assert_eq!(
+                    pulse.sample(None, Some(&event), aggregate, false, now, wall),
+                    expected
+                );
+                writes.push(expected.0);
+                pulse.acknowledged(expected.1, now);
+                for poll in [POLL_INTERVAL, Duration::from_millis(250)] {
+                    assert_eq!(pulse.poll_interval(poll, now), Duration::from_millis(150));
+                }
+                now += Duration::from_millis(149);
+                assert_eq!(
+                    pulse.sample(None, Some(&event), aggregate, false, now, wall),
+                    expected
+                );
+                assert_eq!(
+                    pulse.poll_interval(POLL_INTERVAL, now),
+                    Duration::from_millis(1)
+                );
+                pulse.acknowledged(expected.1, now);
+                now += Duration::from_millis(1);
+                assert_eq!(pulse.poll_interval(POLL_INTERVAL, now), Duration::ZERO);
+            }
+            assert_eq!(writes, b"NRNRNRNRNRN");
+            assert_eq!(
+                pulse.sample(None, Some(&event), aggregate, false, now, wall),
+                (aggregate, None)
+            );
+            assert_eq!(pulse.poll_interval(POLL_INTERVAL, now), POLL_INTERVAL);
+            assert_eq!(
+                pulse.sample(None, Some(&event), b'G', false, now, wall),
+                (b'G', None)
+            );
+        }
+    }
+
+    #[test]
+    fn capacity_pulse_consumes_startup_reconnect_stale_masked_and_cancelled_alerts() {
+        let wall = chrono::Utc::now();
+        let now = Instant::now();
+        let event = state::CapacityAlert {
+            id: "session:turn".into(),
+            session_id: "session".into(),
+            occurred_at: wall.to_rfc3339(),
+        };
+        let mut startup = ExpiryPulse::new(None, Some(&event));
+        assert_eq!(
+            startup.sample(None, Some(&event), b'R', false, now, wall),
+            (b'R', None)
+        );
+        for timestamp in [
+            (wall - chrono::Duration::seconds(11)).to_rfc3339(),
+            (wall + chrono::Duration::seconds(1)).to_rfc3339(),
+            "invalid".into(),
+        ] {
+            let stale = state::CapacityAlert {
+                occurred_at: timestamp,
+                ..event.clone()
+            };
+            let mut pulse = ExpiryPulse::new(None, None);
+            assert_eq!(
+                pulse.sample(None, Some(&stale), b'R', false, now, wall),
+                (b'R', None)
+            );
+        }
+        let boundary = state::CapacityAlert {
+            occurred_at: (wall - chrono::Duration::seconds(10)).to_rfc3339(),
+            ..event.clone()
+        };
+        let mut delayed = ExpiryPulse::new(None, None);
+        assert_eq!(
+            delayed.sample(None, Some(&boundary), b'R', false, now, wall),
+            (b'N', Some((1, 0)))
+        );
+        let mut masked = ExpiryPulse::new(None, None);
+        assert_eq!(
+            masked.sample(None, Some(&event), b'R', true, now, wall),
+            (b'R', None)
+        );
+        assert_eq!(
+            masked.sample(None, Some(&event), b'R', false, now, wall),
+            (b'R', None)
+        );
+        for preview in [false, true] {
+            let mut pulse = ExpiryPulse::new(None, None);
+            assert_eq!(
+                pulse.sample(None, Some(&event), b'R', false, now, wall),
+                (b'N', Some((1, 0)))
+            );
+            pulse.acknowledged(Some((1, 0)), now);
+            let current = preview.then_some(&event);
+            assert_eq!(
+                pulse.sample(None, current, b'R', preview, now, wall),
+                (b'R', None)
+            );
+            assert_eq!(
+                pulse.sample(None, Some(&event), b'R', false, now, wall),
+                (b'R', None)
+            );
+            let next = state::CapacityAlert {
+                id: "session:next".into(),
+                ..event.clone()
+            };
+            assert_eq!(
+                pulse.sample(None, Some(&next), b'R', false, now, wall),
+                (b'N', Some((2, 0)))
+            );
+            let mut reconnect = ExpiryPulse::new(None, Some(&next));
+            assert_eq!(
+                reconnect.sample(None, Some(&next), b'R', false, now, wall),
+                (b'R', None)
+            );
+        }
+    }
+
+    #[test]
+    fn capacity_takes_priority_over_expiry_without_replaying_either_effect() {
+        let wall = chrono::Utc::now();
+        let now = Instant::now();
+        let expiry = state::QuestionExpiry {
+            id: "expiry".into(),
+            occurred_at: wall.to_rfc3339(),
+        };
+        let capacity = state::CapacityAlert {
+            id: "session:turn".into(),
+            session_id: "session".into(),
+            occurred_at: wall.to_rfc3339(),
+        };
+        let mut pulse = ExpiryPulse::new(None, None);
+        assert_eq!(
+            pulse.sample(Some(&expiry), None, b'G', false, now, wall),
+            (b'N', Some((1, 0)))
+        );
+        pulse.acknowledged(Some((1, 0)), now);
+        assert_eq!(
+            pulse.sample(Some(&expiry), Some(&capacity), b'R', false, now, wall),
+            (b'N', Some((2, 0)))
+        );
+        pulse.acknowledged(Some((2, 0)), now);
+        let second_expiry = state::QuestionExpiry {
+            id: "second".into(),
+            ..expiry
+        };
+        assert_eq!(
+            pulse.sample(
+                Some(&second_expiry),
+                Some(&capacity),
+                b'G',
+                false,
+                now + Duration::from_millis(150),
+                wall
+            ),
+            (b'R', Some((2, 1)))
+        );
+        assert_eq!(
+            pulse.sample(Some(&second_expiry), None, b'G', false, now, wall),
+            (b'G', None)
+        );
+        assert_eq!(
+            pulse.sample(
+                Some(&second_expiry),
+                Some(&capacity),
+                b'G',
+                false,
+                now,
+                wall
+            ),
+            (b'G', None)
+        );
+    }
+
+    #[test]
+    fn capacity_alert_requires_its_session_to_still_need_help() {
+        let mut state = state::HookState {
+            capacity_alert: Some(state::CapacityAlert {
+                id: "session:turn".into(),
+                session_id: "session".into(),
+                occurred_at: chrono::Utc::now().to_rfc3339(),
+            }),
+            ..Default::default()
+        };
+        assert!(current_capacity(&state).is_none());
+        state.sessions.insert("session".into(), serde_json::from_value(serde_json::json!({
+            "status": "needs_help", "last_updated": "", "harness": "codex", "notification_type": "codex_capacity"
+        })).unwrap());
+        assert!(current_capacity(&state).is_some());
+        state.sessions.get_mut("session").unwrap().status = state::Status::Inactive;
+        assert!(current_capacity(&state).is_none());
+        state.sessions.get_mut("session").unwrap().status = state::Status::Done;
+        assert!(current_capacity(&state).is_none());
     }
 
     use super::*;

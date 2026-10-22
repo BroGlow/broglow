@@ -105,10 +105,10 @@ function sessionMeta(element, id) {
   return html.slice(html.indexOf(`data-id="${id}"`)).match(/<span class="smeta">(.*?)<\/span><\/div>/)[1];
 }
 
-test('a state push cannot replace Focus before its pointer click is delivered', () => {
+test('a state push cannot replace Open Codex before its pointer click is delivered', () => {
   const { context, element, listeners, windowListeners, click, commands, advance } = popoverPage();
   const refresh = name => context.window.__setState({ aggregate: 'red', settings: {}, lamp: lamp(),
-    sessions: [{ id: 'codex-task', name, project: 'broglow', status: 'needs_help', lastUpdated: new Date().toISOString() }] });
+    sessions: [{ id: 'codex-task', name, project: 'broglow', status: 'needs_help', capacityBlocked: true, lastUpdated: new Date().toISOString() }] });
   refresh('Original title');
   const focus = element('focus-codex-task');
   focus.dataset = { cmd: 'focus', id: 'codex-task' };
@@ -129,6 +129,42 @@ test('a state push cannot replace Focus before its pointer click is delivered', 
   assert.match(element('groups').innerHTML, /After cancellation/);
   down(); refresh('After blur'); windowListeners.blur();
   assert.match(element('groups').innerHTML, /After blur/, 'A hidden popover must not retain a stale pointer');
+});
+
+test('capacity rows explain recovery while keeping session metadata, focus and dismissal', () => {
+  const { element, pushState, click, commands } = popoverPage();
+  const capacity = session('capacity', {
+    name: 'Ship <fix> "now"', project: 'bro<glow>', projectPath: '/work/bro<glow>',
+    status: 'needs_help', capacityBlocked: true,
+    agent: { label: 'Codex', icon: 'M8 1v14', badge: 'cx' },
+    host: { kind: 'app', name: 'Codex <app>' },
+  });
+  for (const groupByProject of [false, true]) {
+    pushState({ aggregate: 'red', sessions: [capacity, session('question', { status: 'needs_help' })],
+      settings: { groupByProject } });
+    const html = element('groups').innerHTML;
+    assert.match(html, /class="srow helprow"[^>]*data-id="capacity"[^>]*title="Open Codex"/);
+    assert.match(html, /Ship &lt;fix&gt; &quot;now&quot;/);
+    assert.match(html, /bro&lt;glow&gt;/);
+    assert.match(html, /aria-label="Codex &lt;app&gt;"/);
+    assert.match(html, /class="sreason">Model at capacity<\/span>/);
+    assert.match(html, /id="capacity-capacity">Choose another model or retry in Codex\.<\/span>/);
+    assert.match(html, /class="focusbtn" type="button"[^>]*aria-label="Open Codex: Ship &lt;fix&gt; &quot;now&quot;"[^>]*aria-describedby="capacity-capacity">Open Codex<\/button>/);
+    assert.equal((html.match(/>Open Codex<\/button>/g) || []).length, 1);
+    assert.equal((html.match(/>Focus<\/button>/g) || []).length, 1, 'Ordinary needs-help stays unchanged');
+  }
+  const focus = element('focus-capacity');
+  focus.dataset = { cmd: 'focus', id: 'capacity' };
+  click(focus.id);
+  assert.deepEqual(commands('focus'), [{ cmd: 'focus', id: 'capacity' }]);
+  const dismiss = element('dismiss-capacity');
+  dismiss.dataset = { cmd: 'clear_session', id: 'capacity' };
+  click(dismiss.id);
+  assert.deepEqual(commands('clear_session'), [{ cmd: 'clear_session', id: 'capacity' }]);
+  assert.equal(commands('focus').length, 1, 'Dismiss does not also open Codex');
+  pushState({ sessions: [{ ...capacity, status: 'active' }] });
+  assert.doesNotMatch(element('groups').innerHTML, /Model at capacity|Choose another model|>Open Codex<\/button>/,
+    'A new attempt removes the warning even if an older producer leaves the flag set');
 });
 
 test('only the host reset flag returns Lamps and Settings to current chats', () => {

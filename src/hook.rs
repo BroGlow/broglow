@@ -53,7 +53,14 @@ pub(crate) fn update_state(mutate: impl FnOnce(&mut HookState) -> bool) -> anyho
             .get(id)
             .is_some_and(|s| s.harness.as_deref() == Some("codex") && !s.codex_background)
     });
-    if changed || state.codex_questions.len() != count {
+    let turn_count = state.codex_turns.len();
+    state.codex_turns.retain(|id, _| {
+        state
+            .sessions
+            .get(id)
+            .is_some_and(|s| s.harness.as_deref() == Some("codex") && !s.codex_background)
+    });
+    if changed || state.codex_questions.len() != count || state.codex_turns.len() != turn_count {
         write_state_atomic(&state)?;
     }
     Ok(())
@@ -545,12 +552,41 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
         }
         // A rollout can identify a desktop host after the first hook captured
         // stale terminal variables. Repair it even on suppressed working events.
-        let mut terminal_changed = false;
+        let mut terminal_changed = if harness == "codex" {
+            crate::codex::reconcile_turns(state) | crate::codex::monitor_turn(state, &session_id, v)
+        } else {
+            false
+        };
         if let (Some(terminal), Some(s)) = (&terminal, state.sessions.get_mut(&session_id)) {
             if s.terminal.as_ref() != Some(terminal) {
                 s.terminal = Some(terminal.clone());
                 terminal_changed = true;
             }
+        }
+        if harness == "codex"
+            && state
+                .sessions
+                .get(&session_id)
+                .is_some_and(SessionStatus::is_codex_capacity)
+            && !matches!(
+                v["hook_event_name"].as_str(),
+                Some("UserPromptSubmit" | "SessionEnd")
+            )
+        {
+            return terminal_changed;
+        }
+        if harness == "codex"
+            && matches!(
+                v["hook_event_name"].as_str(),
+                Some("PostToolUse" | "Stop" | "Interrupt" | "SessionEnd")
+            )
+            && state.codex_turns.get(&session_id).is_some_and(|pending| {
+                v["turn_id"]
+                    .as_str()
+                    .is_some_and(|turn| turn != pending.turn_id)
+            })
+        {
+            return terminal_changed;
         }
         let mut question_rejected = harness == "codex"
             && v["hook_event_name"] == "PostToolUse"
@@ -880,6 +916,7 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
         "hook_event_name": hook_event,
         "codex_background": background,
         "turn_id": field("turn_id"),
+        "transcript_path": transcript_path,
     });
     if question_marker == Some("codex_question_async") {
         if matches!(hook_event.as_str(), "PreToolUse" | "PostToolUse")
@@ -949,7 +986,7 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
     #[cfg(not(target_os = "macos"))]
     let terminal = None;
     ingest_event(&ev, terminal)?;
-    update_state(crate::codex::reconcile_questions)?;
+    update_state(crate::codex::reconcile_rollouts)?;
 
     // Prompt hooks can name a saved chat before its rollout is readable.
     // Name once; later Codex titles still win through the title path above.

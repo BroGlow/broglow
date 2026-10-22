@@ -210,6 +210,7 @@ fn menu_rows(
     let mut current: Option<&str> = None;
     for s in sessions.iter().filter(|s| s.status != Status::Done) {
         let (prefix, badge) = match s.status {
+            Status::NeedsHelp if s.capacity_blocked => ("🔴", "Model at capacity"),
             Status::NeedsHelp => ("🔴", "needs help"),
             Status::Active => ("🟢", "working"),
             Status::Inactive => ("🟠", "paused"),
@@ -1149,6 +1150,7 @@ mod menu_rows_tests {
             session_id: id.into(),
             name: format!("Task {id}"),
             status,
+            capacity_blocked: false,
             project_name: if project.is_empty() {
                 crate::session::NO_PROJECT.into()
             } else {
@@ -1201,6 +1203,21 @@ mod menu_rows_tests {
             ]
         );
         assert!(menu_rows(&[], true, true).is_empty());
+    }
+
+    #[test]
+    fn capacity_menu_row_names_the_failure_and_keeps_its_focus_target() {
+        let mut capacity = session(
+            "capacity",
+            Status::NeedsHelp,
+            "/work/broglow",
+            Some("codex"),
+        );
+        capacity.capacity_blocked = true;
+        let rows = menu_rows(&[capacity], false, true);
+        assert!(matches!(&rows[0], MenuRow::Session { text, id }
+            if text == "🔴 Task capacity (Model at capacity) — [cx] Codex · broglow"
+                && id == "capacity"));
     }
 }
 

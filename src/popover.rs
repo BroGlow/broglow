@@ -180,6 +180,8 @@ struct SessionPayload<'a> {
     #[serde(rename = "projectPath")]
     project_path: &'a str,
     status: &'a Status,
+    #[serde(rename = "capacityBlocked")]
+    capacity_blocked: bool,
     #[serde(rename = "lastUpdated")]
     last_updated: &'a str,
     /// The session's coding agent, for the icon and name in the meta line.
@@ -672,6 +674,7 @@ fn session_payloads(state: &HookState) -> Vec<SessionPayload<'_>> {
                 .unwrap_or_else(|| crate::session::NO_PROJECT.to_string()),
             project_path: s.project_path.as_deref().unwrap_or_default(),
             status: &s.status,
+            capacity_blocked: s.is_codex_capacity(),
             last_updated: &s.last_updated,
             agent: crate::harness::agent(s.harness.as_deref()).into(),
             host: crate::terminal::host(s.harness.as_deref(), s.terminal.as_ref()).map(Into::into),
@@ -965,6 +968,35 @@ mod tests {
             .find(|p| p["id"] == "a")
             .unwrap();
         assert_eq!(live["project"], "recco");
+    }
+
+    #[test]
+    fn session_payloads_expose_capacity_without_losing_session_metadata() {
+        let mut state = HookState::default();
+        state.sessions.insert(
+            "capacity".into(),
+            serde_json::from_value(serde_json::json!({
+                "status": "needs_help",
+                "last_updated": "2026-01-01T00:00:00Z",
+                "name": "Ship the fix",
+                "project_path": "/work/broglow",
+                "harness": "codex",
+                "terminal": { "bundle_id": "com.openai.codex" },
+                "notification_type": "codex_capacity"
+            }))
+            .unwrap(),
+        );
+        let payloads = serde_json::to_value(session_payloads(&state)).unwrap();
+        let row = &payloads[0];
+        assert_eq!(row["capacityBlocked"], true);
+        assert_eq!(row["name"], "Ship the fix");
+        assert_eq!(row["project"], "broglow");
+        assert_eq!(row["projectPath"], "/work/broglow");
+        assert_eq!(row["agent"]["label"], "Codex");
+        assert_eq!(row["host"]["name"], "Codex app");
+        state.sessions.get_mut("capacity").unwrap().status = Status::Active;
+        let payloads = serde_json::to_value(session_payloads(&state)).unwrap();
+        assert_eq!(payloads[0]["capacityBlocked"], false);
     }
 
     #[test]

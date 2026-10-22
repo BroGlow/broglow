@@ -10,6 +10,8 @@ pub struct DisplaySession {
     pub session_id: String,
     pub name: String,
     pub status: Status,
+    /// A failed Codex turn that needs a different model or a retry.
+    pub capacity_blocked: bool,
     /// The project label from [`project_labels`]: the folder name, with
     /// parent folders added only where two shown sessions' folders share a
     /// name; [`NO_PROJECT`] when the path is unknown.
@@ -183,6 +185,7 @@ pub fn load_all_sessions(hook_state: &HookState, grouped: bool) -> Vec<DisplaySe
                 session_id: session_id.clone(),
                 name,
                 status: session_status.status.clone(),
+                capacity_blocked: session_status.is_codex_capacity(),
                 project_name: String::new(),
                 project_path: session_status.project_path.clone().unwrap_or_default(),
                 last_updated: session_status.last_updated.clone(),
@@ -268,6 +271,22 @@ mod tests {
         assert_eq!(oc.name, "Wire opencode");
         assert_eq!(cc.harness, None);
         assert_eq!(cc.name, "Session 日本語日本語日本");
+    }
+
+    #[test]
+    fn session_rows_expose_capacity_only_while_the_codex_failure_needs_help() {
+        let mut state = HookState::default();
+        state.sessions.insert(
+            "capacity".into(),
+            SessionStatus {
+                harness: Some("codex".into()),
+                notification_type: Some("codex_capacity".into()),
+                ..stored_session(Status::NeedsHelp, "2026-01-01T00:00:00Z", None)
+            },
+        );
+        assert!(super::load_all_sessions(&state, false)[0].capacity_blocked);
+        state.sessions.get_mut("capacity").unwrap().status = Status::Active;
+        assert!(!super::load_all_sessions(&state, false)[0].capacity_blocked);
     }
 
     #[test]

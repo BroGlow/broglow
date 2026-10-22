@@ -31,6 +31,243 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use serde_json::Value;
 
+/// A foreground turn's incremental rollout cursor, independent of usage consent.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MonitoredTurn {
+    pub turn_id: String,
+    pub transcript_path: String,
+    pub offset: u64,
+    pub created_offset: u64,
+    #[serde(default)]
+    pub discard_line: bool,
+    #[serde(default)]
+    pub terminal: bool,
+}
+
+/// Establish tracking from a live hook, never by scanning old sessions at startup.
+pub(crate) fn monitor_turn(state: &mut crate::state::HookState, id: &str, event: &Value) -> bool {
+    let hook = event["hook_event_name"].as_str().unwrap_or_default();
+    if hook == "SessionEnd" {
+        if state.codex_turns.get(id).is_some_and(|pending| {
+            !pending.turn_id.is_empty()
+                && event["turn_id"]
+                    .as_str()
+                    .is_some_and(|turn| turn != pending.turn_id)
+        }) {
+            return false;
+        }
+        return state.codex_turns.remove(id).is_some();
+    }
+    let path = event["transcript_path"]
+        .as_str()
+        .filter(|p| !p.is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            (hook == "UserPromptSubmit")
+                .then(|| state.codex_turns.get(id).map(|p| p.transcript_path.clone()))
+                .flatten()
+        });
+    let Some(path) = path else {
+        return false;
+    };
+    let explicit_turn = event["turn_id"].as_str().filter(|t| !t.is_empty());
+    if state.codex_turns.get(id).is_some_and(|pending| {
+        explicit_turn == Some(&pending.turn_id)
+            && (pending.transcript_path == path || hook != "UserPromptSubmit")
+    }) {
+        return false;
+    }
+    let Ok(metadata) = std::fs::metadata(&path) else {
+        return false;
+    };
+    // A prompt hook without its turn ID may precede task_started. The latest
+    // context can still be the previous failed turn, so wait at EOF for new proof.
+    let waiting_for_turn = hook == "UserPromptSubmit" && explicit_turn.is_none();
+    let latest = if waiting_for_turn {
+        None
+    } else {
+        current_rollout_turn(&path)
+    };
+    let turn = explicit_turn
+        .or_else(|| latest.as_ref().map(|(turn, _)| turn.as_str()))
+        .unwrap_or_default()
+        .to_string();
+    if let Some(pending) = state.codex_turns.get(id) {
+        if pending.transcript_path == path && pending.turn_id == turn && !waiting_for_turn {
+            return false;
+        }
+        if hook != "UserPromptSubmit"
+            && !latest.as_ref().is_some_and(|(current, position)| {
+                current == &turn && *position > pending.created_offset
+            })
+        {
+            return false;
+        }
+    } else if !matches!(hook, "SessionStart" | "UserPromptSubmit" | "PreToolUse")
+        && !state.sessions.get(id).is_some_and(|s| {
+            s.harness.as_deref() == Some("codex") && s.status != crate::state::Status::Done
+        })
+    {
+        return false;
+    }
+    // SessionStart is a baseline: reopening a saved chat must not replay its error.
+    // Other live hooks can arrive after the terminal line has already been flushed.
+    let recovering_terminal = !state.codex_turns.contains_key(id)
+        && explicit_turn.is_some()
+        && matches!(hook, "Stop" | "Interrupt" | "PostToolUse");
+    let fallback_offset = if recovering_terminal {
+        metadata.len().saturating_sub(256 * 1024)
+    } else {
+        metadata.len()
+    };
+    let mut discard_line = false;
+    let offset = if hook == "SessionStart" || waiting_for_turn {
+        metadata.len()
+    } else {
+        latest.filter(|(current, _)| current == &turn).map_or_else(
+            || {
+                discard_line = recovering_terminal && fallback_offset > 0;
+                fallback_offset
+            },
+            |(_, position)| position,
+        )
+    };
+    state.codex_turns.insert(
+        id.to_string(),
+        MonitoredTurn {
+            turn_id: turn,
+            transcript_path: path.to_string(),
+            offset,
+            created_offset: metadata.len(),
+            discard_line,
+            terminal: false,
+        },
+    );
+    true
+}
+
+pub(crate) fn reconcile_rollouts(state: &mut crate::state::HookState) -> bool {
+    let changed = reconcile_turns(state);
+    reconcile_questions(state) || changed
+}
+
+pub(crate) fn reconcile_turns(state: &mut crate::state::HookState) -> bool {
+    use crate::state::{CapacityAlert, Status};
+    let mut changed = false;
+    for (id, pending) in &mut state.codex_turns {
+        let Some(session) = state.sessions.get_mut(id).filter(|s| {
+            s.harness.as_deref() == Some("codex") && !s.codex_background && s.status != Status::Done
+        }) else {
+            continue;
+        };
+        // Bound each tick, including a huge or partially flushed JSON line.
+        const BUDGET: u64 = 256 * 1024;
+        let Ok(mut file) = File::open(&pending.transcript_path) else {
+            continue;
+        };
+        if file
+            .metadata()
+            .ok()
+            .is_none_or(|m| m.len() < pending.offset)
+            || file.seek(SeekFrom::Start(pending.offset)).is_err()
+        {
+            continue;
+        }
+        let mut bytes = Vec::new();
+        if file.take(BUDGET).read_to_end(&mut bytes).is_err() {
+            continue;
+        }
+        let Some(complete) = bytes.iter().rposition(|b| *b == b'\n').map(|i| i + 1) else {
+            if bytes.len() as u64 == BUDGET {
+                pending.offset += BUDGET;
+                pending.discard_line = true;
+                changed = true;
+            }
+            continue;
+        };
+        let mut position = pending.offset;
+        pending.offset += complete as u64;
+        changed = true;
+        for line in bytes[..complete].split_inclusive(|b| *b == b'\n') {
+            position += line.len() as u64;
+            if pending.discard_line {
+                pending.discard_line = false;
+                continue;
+            }
+            let Ok(record) = serde_json::from_slice::<Value>(line) else {
+                continue;
+            };
+            let payload = &record["payload"];
+            let starts_turn = record["type"] == "turn_context"
+                || (record["type"] == "event_msg" && payload["type"] == "task_started");
+            if starts_turn {
+                if let Some(turn) = payload["turn_id"]
+                    .as_str()
+                    .filter(|t| *t != pending.turn_id && position > pending.created_offset)
+                {
+                    pending.turn_id = turn.to_string();
+                    pending.terminal = false;
+                    if let Some(question) = state.codex_questions.get_mut(id) {
+                        if question.turn_id != turn {
+                            question.superseded = true;
+                            question.next_turn_id = Some(turn.to_string());
+                        }
+                    }
+                    if session.is_codex_capacity() {
+                        session.status = Status::Active;
+                        session.notification_type = None;
+                    }
+                }
+                continue;
+            }
+            if pending.terminal
+                || record["type"] != "event_msg"
+                || !matches!(
+                    payload["type"].as_str(),
+                    Some("task_complete" | "turn_aborted")
+                )
+                || payload["turn_id"]
+                    .as_str()
+                    .or_else(|| payload["root_turn_id"].as_str())
+                    != Some(&pending.turn_id)
+            {
+                continue;
+            }
+            pending.terminal = true;
+            if payload["type"] != "task_complete"
+                || payload["error"]["codex_error_info"] != "server_overloaded"
+            {
+                continue;
+            }
+            let Some(timestamp) = record["timestamp"]
+                .as_str()
+                .filter(|s| chrono::DateTime::parse_from_rfc3339(s).is_ok())
+            else {
+                continue;
+            };
+            session.status = Status::NeedsHelp;
+            session.notification_type = Some("codex_capacity".into());
+            session.last_updated = timestamp.to_string();
+            let alert = CapacityAlert {
+                id: format!("{id}:{}", pending.turn_id),
+                session_id: id.clone(),
+                occurred_at: timestamp.to_string(),
+            };
+            if state.capacity_alert.as_ref().is_none_or(|old| {
+                old.id != alert.id
+                    && chrono::DateTime::parse_from_rfc3339(&old.occurred_at)
+                        .ok()
+                        .is_none_or(|old| {
+                            chrono::DateTime::parse_from_rfc3339(timestamp).unwrap() >= old
+                        })
+            }) {
+                state.capacity_alert = Some(alert);
+            }
+        }
+    }
+    changed
+}
+
 /// Persist the generation and cursor so idle/restarted readers can reconcile
 /// only the question that owns this marker, without rescanning old rollouts.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -139,6 +376,9 @@ pub(crate) fn reconcile_questions(state: &mut crate::state::HookState) -> bool {
             resolved.push(id.clone());
             continue;
         };
+        if session.is_codex_capacity() {
+            continue;
+        }
         if pending.terminal_at.is_some() || pending.superseded {
             continue;
         }
@@ -792,6 +1032,102 @@ fn session_meta_is_exec(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn capacity_parser_is_bounded_and_waits_for_complete_exact_terminal_records() {
+        let rollout = tempfile::NamedTempFile::new().unwrap();
+        // Old state files need neither capacity nor rollout-tracking fields.
+        let mut state: crate::state::HookState = serde_json::from_value(serde_json::json!({
+            "sessions":{"chat":{"status":"active", "last_updated":"2026-10-22T10:00:00Z",
+                "harness":"codex"}}
+        }))
+        .unwrap();
+        assert!(monitor_turn(
+            &mut state,
+            "chat",
+            &serde_json::json!({
+                "hook_event_name":"UserPromptSubmit", "turn_id":"turn", "transcript_path":rollout.path()
+            })
+        ));
+        let terminal = serde_json::json!({"type":"event_msg", "timestamp":"2026-10-22T10:00:00Z",
+            "payload":{"type":"task_complete", "root_turn_id":"turn",
+                "error":{"codex_error_info":"server_overloaded"}}})
+        .to_string();
+        let mut contents = "x".repeat(256 * 1024 + 10) + "\nnot json\n" + &terminal;
+        std::fs::write(rollout.path(), &contents).unwrap();
+        assert!(reconcile_rollouts(&mut state));
+        assert_eq!(state.codex_turns["chat"].offset, 256 * 1024);
+        assert!(state.capacity_alert.is_none());
+        assert!(reconcile_rollouts(&mut state));
+        assert!(state.capacity_alert.is_none());
+        contents.push('\n');
+        std::fs::write(rollout.path(), &contents).unwrap();
+        assert!(reconcile_rollouts(&mut state));
+        assert!(state.sessions["chat"].is_codex_capacity());
+        assert_eq!(state.capacity_alert.as_ref().unwrap().id, "chat:turn");
+        assert!(!reconcile_rollouts(&mut state));
+        let alert = state.capacity_alert.clone();
+        // Truncation cannot prove a new generation or clear an existing warning.
+        std::fs::write(rollout.path(), "").unwrap();
+        assert!(!reconcile_rollouts(&mut state));
+        assert!(state.sessions["chat"].is_codex_capacity());
+        assert_eq!(state.capacity_alert, alert);
+    }
+
+    #[test]
+    fn a_turn_keeps_its_exact_transcript_and_newest_alert_wins_across_sessions() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = crate::state::HookState::default();
+        for (id, timestamp) in [
+            ("fresh", "2026-10-22T10:00:00Z"),
+            ("old", "2026-10-22T09:00:00Z"),
+        ] {
+            let path = dir.path().join(id);
+            std::fs::write(&path, "").unwrap();
+            state.sessions.insert(
+                id.into(),
+                serde_json::from_value(serde_json::json!({
+                    "status":"active", "last_updated":timestamp, "harness":"codex"
+                }))
+                .unwrap(),
+            );
+            assert!(monitor_turn(
+                &mut state,
+                id,
+                &serde_json::json!({
+                    "hook_event_name":"UserPromptSubmit", "turn_id":"turn", "transcript_path":path
+                })
+            ));
+            let other = dir.path().join(format!("{id}-other"));
+            std::fs::write(&other, "").unwrap();
+            assert!(!monitor_turn(
+                &mut state,
+                id,
+                &serde_json::json!({
+                    "hook_event_name":"Stop", "turn_id":"turn", "transcript_path":other
+                })
+            ));
+            assert_eq!(
+                state.codex_turns[id].transcript_path,
+                path.to_string_lossy()
+            );
+            std::fs::write(
+                &path,
+                serde_json::json!({"type":"event_msg", "timestamp":timestamp,
+                "payload":{"type":"task_complete", "turn_id":"turn",
+                    "error":{"codex_error_info":"server_overloaded"}}})
+                .to_string()
+                    + "\n",
+            )
+            .unwrap();
+        }
+        assert!(reconcile_rollouts(&mut state));
+        assert_eq!(state.capacity_alert.as_ref().unwrap().id, "fresh:turn");
+        assert!(state
+            .sessions
+            .values()
+            .all(crate::state::SessionStatus::is_codex_capacity));
+    }
 
     #[test]
     fn question_expiry_keeps_the_newest_terminal_across_sessions() {

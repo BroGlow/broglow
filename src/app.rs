@@ -450,6 +450,7 @@ mod tests {
                 session_id: id.into(),
                 name: name.into(),
                 status: Status::Inactive,
+                capacity_blocked: false,
                 project_name: project.into(),
                 project_path: format!("/work/{project}"),
                 last_updated: String::new(),
@@ -534,11 +535,37 @@ mod tests {
     }
 
     #[test]
+    fn capacity_rows_keep_the_cause_and_metadata_visible_at_80_columns() {
+        let mut app = app();
+        let state = serde_json::from_value(serde_json::json!({
+            "sessions": {
+                "capacity": {
+                    "status": "needs_help",
+                    "last_updated": "2026-01-01T00:00:00Z",
+                    "name": "Ship the fix",
+                    "project_path": "/work/broglow",
+                    "harness": "codex",
+                    "terminal": { "bundle_id": "com.openai.codex" },
+                    "notification_type": "codex_capacity"
+                }
+            }
+        }))
+        .unwrap();
+        app.sessions = crate::session::load_all_sessions(&state, false);
+        let rows = rows_80x24(&mut app);
+        let row = rows.iter().find(|r| r.contains("Ship the fix")).unwrap();
+        for text in ["Model at capacity", "Codex", "broglow", "app"] {
+            assert!(row.contains(text), "{text} missing from {row:?}");
+        }
+    }
+
+    #[test]
     fn grouped_rows_brighten_the_project_on_the_first_row_of_each_run() {
         let session = |id: &str, project: &str| DisplaySession {
             session_id: id.into(),
             name: format!("Task {id}"),
             status: Status::Active,
+            capacity_blocked: false,
             project_name: project.into(),
             project_path: format!("/work/{project}"),
             last_updated: String::new(),

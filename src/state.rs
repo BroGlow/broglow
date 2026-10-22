@@ -55,6 +55,12 @@ pub struct SessionStatus {
 }
 
 impl SessionStatus {
+    pub fn is_codex_capacity(&self) -> bool {
+        self.harness.as_deref() == Some("codex")
+            && self.status == Status::NeedsHelp
+            && self.notification_type.as_deref() == Some("codex_capacity")
+    }
+
     pub fn is_codex_background(&self) -> bool {
         self.harness.as_deref() == Some("codex") && self.codex_background
     }
@@ -127,6 +133,17 @@ pub struct HookState {
     pub question_expiry: Option<QuestionExpiry>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub codex_questions: HashMap<String, crate::codex::PendingQuestion>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub codex_turns: HashMap<String, crate::codex::MonitoredTurn>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capacity_alert: Option<CapacityAlert>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CapacityAlert {
+    pub id: String,
+    pub session_id: String,
+    pub occurred_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -195,9 +212,9 @@ pub fn read_hook_state() -> HookState {
         .and_then(|content| serde_json::from_str(&content).ok())
         .unwrap_or_default();
 
-    if !state.codex_questions.is_empty() {
+    if !state.codex_questions.is_empty() || !state.codex_turns.is_empty() {
         // Stop can precede the terminal record; readers retry without a hook.
-        let _ = crate::hook::update_state(crate::codex::reconcile_questions);
+        let _ = crate::hook::update_state(crate::codex::reconcile_rollouts);
         if let Some(updated) = std::fs::read_to_string(&path)
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
@@ -299,6 +316,9 @@ fn clear_sessions_matching(matches: impl Fn(&str, &SessionStatus) -> bool) -> an
     state
         .codex_questions
         .retain(|id, _| state.sessions.contains_key(id));
+    state
+        .codex_turns
+        .retain(|id, _| state.sessions.contains_key(id));
     if state.sessions.len() == count {
         return Ok(());
     }
@@ -347,6 +367,60 @@ mod tests {
     use crate::config::YellowMode;
 
     #[cfg(unix)]
+    #[test]
+    fn reader_reconciles_late_capacity_and_dismissal_removes_tracking() {
+        if std::env::var_os("BROGLOW_TEST_CAPACITY_READER").is_none() {
+            let home = tempfile::tempdir().unwrap();
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "state::tests::reader_reconciles_late_capacity_and_dismissal_removes_tracking",
+                ])
+                .env("HOME", home.path())
+                .env("BROGLOW_TEST_CAPACITY_READER", "1")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+        let rollout = tempfile::NamedTempFile::new().unwrap();
+        let mut state = state_with(&[Status::Inactive]);
+        let session = state.sessions.get_mut("s0").unwrap();
+        session.harness = Some("codex".into());
+        session.last_updated = Utc::now().to_rfc3339();
+        crate::codex::monitor_turn(
+            &mut state,
+            "s0",
+            &serde_json::json!({
+                "hook_event_name":"UserPromptSubmit", "turn_id":"turn", "transcript_path":rollout.path()
+            }),
+        );
+        write_state_atomic(&state).unwrap();
+        let terminal = serde_json::json!({"type":"event_msg", "timestamp":Utc::now().to_rfc3339(),
+            "payload":{"type":"task_complete", "turn_id":"turn",
+                "error":{"codex_error_info":"server_overloaded"}}})
+        .to_string();
+        std::fs::write(rollout.path(), &terminal).unwrap();
+        assert_eq!(read_hook_state().sessions["s0"].status, Status::Inactive);
+        std::fs::write(rollout.path(), terminal + "\n").unwrap();
+        let failed = read_hook_state();
+        assert!(failed.sessions["s0"].is_codex_capacity());
+        assert_eq!(failed.capacity_alert.as_ref().unwrap().id, "s0:turn");
+        let disk = std::fs::read(state_file_path()).unwrap();
+        assert_eq!(read_hook_state().capacity_alert, failed.capacity_alert);
+        assert_eq!(std::fs::read(state_file_path()).unwrap(), disk);
+        clear_session("s0").unwrap();
+        let dismissed = read_hook_state();
+        assert!(!dismissed.sessions.contains_key("s0"));
+        assert!(dismissed.codex_turns.is_empty());
+        assert_eq!(dismissed.capacity_alert, failed.capacity_alert);
+    }
+
     #[test]
     fn reader_reconciles_expiry_after_stop_and_restart() {
         if std::env::var_os("BROGLOW_TEST_EXPIRY").is_none() {

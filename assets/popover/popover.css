@@ -85,6 +85,8 @@ body.win .srow:hover { background: rgba(255,255,255,.06); }
 .sinfo { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
 .sname { font-size: 13px; font-weight: 590; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .smeta { font-size: 11px; color: rgba(255,255,255,.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sreason { font-size: 12px; font-weight: 590; color: #ff8a80; }
+.capacityhint { white-space: normal; line-height: 1.35; }
 /* Agent icon (our own glyphs) ahead of the project in each session's meta line. */
 .agicon { width: 11px; height: 11px; margin-right: 4px; vertical-align: -1px;
   fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
@@ -103,7 +105,7 @@ body.win .badge { color: #c9a0ff; background: rgba(201,160,255,.16); }
   cursor: pointer;
 }
 .dismissbtn:hover { background: rgba(255,255,255,.12); color: #fff; }
-.dismissbtn:focus-visible, #clearpaused:focus-visible { outline: 2px solid #71a4ff; outline-offset: 1px; }
+.dismissbtn:focus-visible, .focusbtn:focus-visible, #clearpaused:focus-visible { outline: 2px solid #71a4ff; outline-offset: 1px; }
 
 .focusbtn {
   font-size: 11px; font-weight: 600; color: #fff; background: #3577f6;
@@ -119,6 +121,7 @@ body.win .focusbtn { background: #4cc2ff; color: #0b2a3a; }
 body.win .helprow { background: rgba(255,153,164,.1); }
 body.win .helprow:hover { background: rgba(255,153,164,.18); }
 body.win .helprow .sname { color: #ff99a4; }
+body.win .sreason { color: #ff99a4; }
 
 /* Settings view — swapped into the same scroll area as the session groups. */
 .optrow { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 7px; }
