@@ -85,11 +85,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Update Linux package indexes
+        if: runner.os == 'Linux'
+        run: sudo apt-get update
+
       # tao/tray-icon need gtk + appindicator, serialport needs libudev.
       - name: Install Linux system libraries
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libudev-dev
 
@@ -119,11 +122,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Update Linux package indexes
+        run: sudo apt-get update
+
       # Building the binary links tao/tray-icon (gtk + appindicator) and
       # serialport (libudev), same as the test job.
       - name: Install Linux system libraries
         run: |
-          sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libudev-dev
 
