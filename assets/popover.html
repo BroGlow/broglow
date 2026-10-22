@@ -140,13 +140,13 @@ body.win .optrow input { accent-color: #4cc2ff; }
 .resetsetting .setdesc { display: block; margin: 3px 0 0 23px; }
 #popoverresetminutes:disabled { opacity: .5; }
 
-/* Usage section (design 1a/1c) — sits between the session groups and the
-   footer: 5h-block + week bars, or today's tokens alone. */
+/* Each agent owns its limits; only local token totals can be combined. */
 .usec {
   padding: 9px 14px 11px 14px; border-top: 1px solid rgba(255,255,255,.1);
-  display: flex; flex-direction: column; gap: 5px;
+  display: flex; flex-direction: column; gap: 9px; flex-shrink: 0;
 }
 .usec[hidden] { display: none; }
+.uagent { display: flex; flex-direction: column; gap: 5px; }
 body.win .usec { border-top: 1px solid rgba(255,255,255,.08); }
 .ulhead {
   display: flex; align-items: baseline; gap: 5px;
@@ -157,10 +157,8 @@ body.win .usec { border-top: 1px solid rgba(255,255,255,.08); }
 .usub { font-size: 11px; font-weight: 400; color: rgba(255,255,255,.42); letter-spacing: 0; text-transform: none; }
 .ubar { height: 5px; border-radius: 99px; background: rgba(255,255,255,.1); overflow: hidden; display: flex; }
 .ufill { background: #3577f6; border-radius: 99px; }
-.uweek { opacity: .55; }
 body.win .ubar { border-radius: 2px; }
 body.win .ufill { background: #4cc2ff; border-radius: 2px; }
-.mt4 { margin-top: 4px; }
 
 .emptybox {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
@@ -307,41 +305,32 @@ function fmtTokens(n) {
   return String(n);
 }
 
-/* Usage section, per design 1a/1c: 5h-block + week bars from the plan
-   endpoint with today's token line under them, or the token line alone when
-   the percentages are unavailable. */
 function renderUsage() {
   const el = document.getElementById('usage');
   const u = state.usage;
-  const havePlan = u && u.fiveHourPct != null;
-  if (view !== 'sessions' || !u || (!havePlan && !u.todayTokens)) {
+  const agents = (u?.agents || []).filter(a => a.todayTokens > 0 || a.limits?.length);
+  if (view !== 'sessions' || state.settings?.usageEnabled !== true || !agents.length) {
     el.hidden = true;
     el.innerHTML = '';
     return;
   }
 
-  let html = '';
-  if (havePlan) {
-    const pct = v => Math.max(0, Math.min(100, v));
-    html +=
-      `<div class="ulhead"><span>Usage · 5h block</span><span class="f1"></span>` +
-      `<span class="uval">${Math.round(u.fiveHourPct)}%</span>` +
-      (u.fiveHourReset ? `<span class="usub">resets ${esc(u.fiveHourReset)}</span>` : '') +
-      `</div><div class="ubar"><span class="ufill" style="width:${pct(u.fiveHourPct)}%"></span></div>`;
-    if (u.weekPct != null) {
-      html +=
-        `<div class="ulhead mt4"><span>Week</span><span class="f1"></span>` +
-        `<span class="uval">${Math.round(u.weekPct)}%</span>` +
-        (u.weekReset ? `<span class="usub">resets ${esc(u.weekReset)}</span>` : '') +
-        `</div><div class="ubar"><span class="ufill uweek" style="width:${pct(u.weekPct)}%"></span></div>`;
+  const html = agents.map(a => {
+    let section = `<section class="uagent" aria-label="${esc(a.label)} usage">` +
+      `<div class="ulhead"><span>Usage · ${esc(a.label)}</span></div>` +
+      `<div class="usub">Today ≈ ${fmtTokens(a.todayTokens)} tokens</div>`;
+    for (const limit of a.limits || []) {
+      if (!Number.isFinite(limit.usedPercent)) continue;
+      const pct = Math.max(0, Math.min(100, limit.usedPercent));
+      section += `<div class="ulhead"><span>${esc(limit.label)}</span><span class="f1"></span>` +
+        `<span class="uval">${Math.round(pct)}%</span>` +
+        (limit.reset ? `<span class="usub">resets ${esc(limit.reset)}</span>` : '') +
+        `</div><div class="ubar" role="progressbar" aria-label="${esc(a.label)} ${esc(limit.label)} used"` +
+        ` aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">` +
+        `<span class="ufill" style="width:${pct}%"></span></div>`;
     }
-    html += `<div class="usub mt4">Today ≈ ${fmtTokens(u.todayTokens)} tokens</div>`;
-  } else {
-    // No plan data (API-key install, no creds, Codex only): today only.
-    html +=
-      `<div class="ulhead"><span>Usage · today</span><span class="f1"></span>` +
-      `<span class="uval">≈ ${fmtTokens(u.todayTokens)} tokens</span></div>`;
-  }
+    return section + '</section>';
+  }).join('') + `<div class="usub">All agents today ≈ ${fmtTokens(u.todayTokens)} tokens</div>`;
   el.innerHTML = html;
   el.hidden = false;
 }
@@ -721,7 +710,7 @@ function render() {
       `<label class="optrow" for="trackusage">` +
       `<input type="checkbox" id="trackusage" aria-describedby="usagehint">` +
       `<span class="sinfo"><span class="sname">Track usage</span>` +
-      `<span class="smeta setdesc" id="usagehint">5-hour and weekly limits, and today's tokens.</span></span></label>`;
+      `<span class="smeta setdesc" id="usagehint">Separate Claude and Codex limits, plus local tokens for Claude, Codex and opencode (including API use). No token pricing.</span></span></label>`;
     const setting = (key, saved) => key in pendingSettings ? pendingSettings[key] : saved;
     document.getElementById('showdashboard').checked = setting('showDashboardButton', state.settings?.showDashboardButton === true);
     document.getElementById('showagentnames').checked = setting('showAgentNames', state.settings?.showAgentNames !== false);

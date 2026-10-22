@@ -21,6 +21,39 @@ Only tasks running on this computer are tracked: cloud or remote tasks and ordin
 ChatGPT chats never reach the local BroGlow service. Returning to,
 naming and dismissing sessions is the same for every agent: [Working with sessions](sessions.md).
 
+<a name="usage"></a>
+
+## Usage across agents
+
+Turn on **Settings → Track usage** in the menu-bar popover. Tracking is off by
+default. Claude, Codex and opencode each get their own token total for today;
+**All agents today** adds those local totals. BroGlow does not price tokens or
+estimate bills. Token counts are local activity totals, not subscription balances.
+
+| Agent | Tokens for today | Limits |
+| --- | --- | --- |
+| Claude Code | Local Claude transcripts. | Claude's OAuth usage endpoint, when available. |
+| Codex | Local Codex rollout records. | The latest limits observed in those records, when available; they can lag account usage. |
+| opencode | Completed assistant messages observed by the BroGlow plugin after tracking is enabled. | No subscription limits are inferred from tokens. |
+| GitHub Copilot CLI | Token usage is unavailable. | Unavailable. |
+
+Claude and Codex limits are independent: BroGlow labels each source and never adds
+their percentages. A weekly limit can appear on its own. Missing limits stay
+absent rather than showing zero. The menu bar prefixes each available percentage
+with **CC** (Claude) or **CX** (Codex); without limits it shows the combined local
+token total.
+
+Claude totals include local subagent transcripts; Codex totals include archived
+chats and exclude copied fork history. Legacy fork logs with ambiguous ownership
+may be omitted to avoid counting inherited usage again. Codex limits are the
+last observed account values, not a live account query.
+
+opencode with an API key contributes only its locally observed tokens. API usage
+does not consume your Claude or Codex subscription allowance. After upgrading
+BroGlow, run `broglow install` to update the opencode plugin and restart opencode.
+BroGlow does not import opencode's historical usage; only messages observed after
+opt-in with the updated plugin are counted.
+
 <a name="codex-setup"></a>
 
 ## Codex

@@ -8,6 +8,7 @@ mod hook;
 mod led;
 mod menubar;
 mod notification;
+mod opencode_usage;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod popover;
 mod session;

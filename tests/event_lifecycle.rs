@@ -42,6 +42,126 @@ fn ev_title(event: &str, session_id: &str, title: &str) -> String {
     .to_string()
 }
 
+fn usage_event(session: &str, message: &str) -> serde_json::Value {
+    json!({
+        "harness": "opencode", "event": "usage", "session_id": session,
+        "message_id": message, "role": "assistant",
+        "completed": chrono::Local::now().timestamp_millis(),
+        "tokens": {"input": 100, "output": 30, "reasoning": 20,
+            "cache": {"read": 50, "write": 10}},
+    })
+}
+
+fn usage_path(home: &TempDir) -> std::path::PathBuf {
+    state_path(home).with_file_name(format!(
+        "opencode-usage-{}.json",
+        chrono::Local::now().date_naive()
+    ))
+}
+
+fn enable_usage(home: &TempDir) {
+    let path = state_path(home).with_file_name("config.json");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(path, r#"{"usage_enabled":true}"#).unwrap();
+}
+
+#[test]
+fn usage_is_opt_in_and_never_creates_session_state() {
+    let home = temp_home();
+    let event = usage_event("ses-api", "msg-api").to_string();
+    run_event(&home, &event).success();
+    assert!(!state_path(&home).parent().unwrap().exists());
+
+    enable_usage(&home);
+    run_event(&home, &event).success();
+    assert!(usage_path(&home).exists());
+    assert!(!state_path(&home).exists());
+}
+
+#[test]
+fn usage_reconciles_messages_across_sessions_processes_and_out_of_order_updates() {
+    let home = temp_home();
+    enable_usage(&home);
+    run_event(&home, &ev("needs_input", "ses-api")).success();
+    let state_before = std::fs::read(state_path(&home)).unwrap();
+    let mut event = usage_event("ses-api", "msg-shared");
+    run_event(&home, &event.to_string()).success();
+    run_event(&home, &event.to_string()).success();
+    event["tokens"]["total"] = json!(200);
+    run_event(&home, &event.to_string()).success();
+    event["tokens"]["total"] = json!(150);
+    run_event(&home, &event.to_string()).success();
+    run_event(&home, &usage_event("ses-other", "msg-shared").to_string()).success();
+
+    let bytes = std::fs::read(usage_path(&home)).unwrap();
+    let ledger: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        ledger,
+        json!({"ses-api": {"msg-shared": 200},
+        "ses-other": {"msg-shared": 190}})
+    );
+    assert_eq!(std::fs::read(state_path(&home)).unwrap(), state_before);
+}
+
+#[test]
+fn usage_ignores_incomplete_or_invalid_messages() {
+    let home = temp_home();
+    enable_usage(&home);
+    let valid = usage_event("ses-api", "msg-api");
+    for (field, value) in [
+        ("role", json!("user")),
+        ("completed", json!(null)),
+        ("completed", json!(-1)),
+        ("completed", json!(1.5)),
+        ("message_id", json!("")),
+        ("session_id", json!(null)),
+        ("tokens", json!({"input": 5, "output": -1})),
+    ] {
+        let mut invalid = valid.clone();
+        invalid[field] = value;
+        run_event(&home, &invalid.to_string()).success();
+        assert!(!usage_path(&home).exists(), "invalid {field}");
+    }
+    assert!(!state_path(&home).exists());
+}
+
+#[test]
+fn usage_never_overwrites_unreadable_ledger_or_writes_without_the_shared_lock() {
+    let home = temp_home();
+    enable_usage(&home);
+    let path = usage_path(&home);
+    for damaged in ["{incomplete", r#"{"ses":{"msg":"bad count"}}"#] {
+        std::fs::write(&path, damaged).unwrap();
+        run_event(&home, &usage_event("ses-api", "msg-api").to_string()).failure();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), damaged);
+    }
+    std::fs::remove_file(&path).unwrap();
+    let lock = path.with_file_name(".state.lock");
+    std::fs::remove_file(&lock).unwrap();
+    std::fs::create_dir(lock).unwrap();
+    run_event(&home, &usage_event("ses-api", "msg-api").to_string()).success();
+    assert!(!path.exists());
+}
+
+#[test]
+fn usage_uses_completion_local_day_rather_than_arrival_or_utc_day() {
+    let home = temp_home();
+    enable_usage(&home);
+    let mut event = usage_event("ses-api", "msg-api");
+    event["completed"] = json!(1_704_070_800_000i64); // 2024-01-01 01:00 UTC.
+    command(&home)
+        .env("TZ", "America/Los_Angeles")
+        .arg("event")
+        .write_stdin(event.to_string())
+        .assert()
+        .success();
+    let path = state_path(&home).with_file_name("opencode-usage-2023-12-31.json");
+    assert!(path.exists());
+    assert!(!state_path(&home)
+        .with_file_name("opencode-usage-2024-01-01.json")
+        .exists());
+}
+
 #[test]
 fn full_lifecycle_maps_normalized_events_to_statuses() {
     let home = temp_home();

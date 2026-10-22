@@ -23,7 +23,7 @@ use crate::session::DisplaySession;
 #[cfg(any(test, not(any(target_os = "macos", target_os = "windows"))))]
 use crate::state::Status;
 use crate::state::{self, aggregate, read_display_state, Aggregate, HookState};
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(any(test, target_os = "macos", target_os = "windows"))]
 use crate::usage;
 
 pub(crate) const ICON_GREEN: &[u8] = include_bytes!("../assets/icons/broglow-green.png");
@@ -374,16 +374,31 @@ fn start_lamp_setup(
     });
 }
 
-/// Short usage readout for the tray: the plan's 5h-block percentage, or
-/// today's token count when plan data is unavailable. `None` until the first
-/// scan lands (or nothing ran today), which keeps the bar clean instead of
-/// showing a zero.
+/// Quotas belong to each agent; never combine percentages across providers.
+#[cfg(any(test, target_os = "macos", target_os = "windows"))]
+fn snapshot_readout(u: &usage::UsageSnapshot) -> Option<String> {
+    let quotas: Vec<String> = u
+        .agents
+        .iter()
+        .filter_map(|agent| {
+            let limit = agent.limits.first()?;
+            Some(format!(
+                "{} {:.0}%",
+                agent.badge.to_uppercase(),
+                limit.used_percent
+            ))
+        })
+        .collect();
+    if quotas.is_empty() {
+        (u.today_tokens > 0).then(|| format!("{} tok", usage::compact_tokens(u.today_tokens)))
+    } else {
+        Some(quotas.join(" · "))
+    }
+}
+
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 fn usage_readout() -> Option<String> {
-    let u = usage::latest()?;
-    u.five_hour_pct.map(|p| format!("{p:.0}%")).or_else(|| {
-        (u.today_tokens > 0).then(|| format!("{} tok", usage::compact_tokens(u.today_tokens)))
-    })
+    snapshot_readout(&usage::latest()?)
 }
 
 /// Put the readout where the platform can show it: next to the menu bar icon
@@ -1181,5 +1196,55 @@ mod menu_rows_tests {
             ]
         );
         assert!(menu_rows(&[], true, true).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod usage_readout_tests {
+    use super::snapshot_readout;
+    use crate::usage::{AgentUsage, UsageLimit, UsageSnapshot};
+
+    #[test]
+    fn quotas_are_named_per_agent_instead_of_added() {
+        let snapshot = UsageSnapshot {
+            today_tokens: 50_000,
+            agents: vec![
+                AgentUsage {
+                    badge: "cc",
+                    limits: vec![UsageLimit {
+                        label: "Week".into(),
+                        used_percent: 32.0,
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+                AgentUsage {
+                    badge: "cx",
+                    limits: vec![UsageLimit {
+                        label: "5h block".into(),
+                        used_percent: 7.0,
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+                AgentUsage {
+                    badge: "oc",
+                    today_tokens: 50_000,
+                    ..Default::default()
+                },
+            ],
+        };
+        assert_eq!(
+            snapshot_readout(&snapshot).as_deref(),
+            Some("CC 32% · CX 7%")
+        );
+    }
+
+    #[test]
+    fn tokens_are_the_fallback_when_no_agent_has_limits() {
+        let mut snapshot = UsageSnapshot::default();
+        assert_eq!(snapshot_readout(&snapshot), None);
+        snapshot.today_tokens = 50_000;
+        assert_eq!(snapshot_readout(&snapshot).as_deref(), Some("50k tok"));
     }
 }

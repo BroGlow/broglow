@@ -506,20 +506,74 @@ test('grouping by project lists sessions under directory headings with the statu
   assert.doesNotMatch(tiedHtml, /clearpaused/);
 });
 
-test('usage shows plan percentages and tokens, never dollar estimates', () => {
-  const { context, element } = popoverPage();
-  const show = usage => {
-    context.window.__setState({ aggregate: 'none', sessions: [], settings: { usageEnabled: true },
-      lamp: lamp(), usage });
-    return visibleLabel(element('usage'));
-  };
-  const plan = show({ todayTokens: 1240000, fiveHourPct: 62, fiveHourReset: '4:00 PM', weekPct: 31 });
-  assert.match(plan, /62%/);
-  assert.match(plan, /31%/);
-  assert.match(plan, /Today ≈ 1\.2M tokens/);
-  const tokensOnly = show({ todayTokens: 12400, fiveHourPct: null, weekPct: null });
-  assert.match(tokensOnly, /≈ 12k tokens/);
-  for (const text of [plan, tokensOnly]) assert.doesNotMatch(text, /\$|API/);
+test('usage keeps Claude and Codex quotas separate from opencode API tokens and the all-agent total', () => {
+  const { element, pushState } = popoverPage();
+  pushState({ settings: { usageEnabled: true }, usage: { todayTokens: 1312400, agents: [
+    { harness: 'claude', label: 'Claude', badge: 'cc', todayTokens: 1240000,
+      limits: [{ label: '5h block', usedPercent: 62, reset: '4:00 PM' },
+        { label: 'Week', usedPercent: 31, reset: null }] },
+    { harness: 'codex', label: 'Codex', badge: 'cx', todayTokens: 60000,
+      limits: [{ label: '5h block', usedPercent: 12, reset: '5:00 PM' }] },
+    { harness: 'opencode', label: 'opencode', badge: 'oc', todayTokens: 12400, limits: [] },
+  ] } });
+  const sections = [...element('usage').innerHTML.matchAll(/<section[^>]*>(.*?)<\/section>/g)].map(m => m[1]);
+  assert.equal(sections.length, 3);
+  assert.match(sections[0], /Usage · Claude/);
+  assert.match(sections[0], /Today ≈ 1\.2M tokens/);
+  assert.match(sections[0], /62%.*4:00 PM/);
+  assert.match(sections[0], /31%/);
+  assert.doesNotMatch(sections[0], /12%/);
+  assert.match(sections[1], /Usage · Codex/);
+  assert.match(sections[1], /Today ≈ 60k tokens/);
+  assert.match(sections[1], /12%.*5:00 PM/);
+  assert.doesNotMatch(sections[1], /62%|31%/);
+  assert.match(sections[2], /Usage · opencode/);
+  assert.match(sections[2], /Today ≈ 12k tokens/);
+  assert.doesNotMatch(sections[2], /%|progressbar/);
+  assert.match(visibleLabel(element('usage')), /All agents today ≈ 1\.3M tokens/);
+  assert.doesNotMatch(visibleLabel(element('usage')), /\$|74%|105%/);
+  assert.equal(element('usage').hidden, false);
+});
+
+test('usage renders weekly-only quotas and leaves unavailable quotas absent', () => {
+  const { element, pushState } = popoverPage();
+  pushState({ settings: { usageEnabled: true }, usage: { todayTokens: 1200, agents: [
+    { harness: 'claude', label: 'Claude', badge: 'cc', todayTokens: 0,
+      limits: [{ label: 'Week', usedPercent: 0, reset: null }] },
+    { harness: 'codex', label: 'Codex', badge: 'cx', todayTokens: 1200, limits: [] },
+    { harness: 'opencode', label: 'opencode', badge: 'oc', todayTokens: 0, limits: [] },
+  ] } });
+  const html = element('usage').innerHTML;
+  assert.match(html, /Claude Week used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"/);
+  assert.match(visibleLabel(element('usage')), /Usage · ClaudeToday ≈ 0 tokensWeek0%/);
+  assert.match(visibleLabel(element('usage')), /Usage · CodexToday ≈ 1k tokens/);
+  assert.equal((html.match(/role="progressbar"/g) || []).length, 1);
+  assert.doesNotMatch(html, /5h block|resets|opencode/);
+  assert.equal(element('usage').hidden, false);
+  pushState({ settings: { usageEnabled: true }, usage: { todayTokens: 0, agents: [] } });
+  assert.equal(element('usage').hidden, true);
+  assert.equal(element('usage').innerHTML, '');
+});
+
+test('disabled usage stays hidden even with a cached snapshot', () => {
+  const { element, pushState, click, listeners } = popoverPage();
+  const usage = { todayTokens: 100, agents: [
+    { harness: 'codex', label: 'Codex', badge: 'cx', todayTokens: 100,
+      limits: [{ label: 'Week', usedPercent: 44, reset: 'Fri' }] },
+  ] };
+  pushState({ settings: { usageEnabled: true }, usage });
+  assert.equal(element('usage').hidden, false);
+  for (const settings of [{ usageEnabled: false }, {}]) {
+    pushState({ settings, usage });
+    assert.equal(element('usage').hidden, true);
+    assert.equal(element('usage').innerHTML, '');
+  }
+  pushState({ settings: { usageEnabled: true }, usage });
+  click('settingsbtn');
+  element('trackusage').checked = false;
+  listeners.change({ target: element('trackusage') });
+  click('settingsbtn');
+  assert.equal(element('usage').hidden, true, 'Disabling hides cached usage before the next host snapshot');
 });
 
 test('Settings toggles the saved Dashboard preference, reflects CLI changes and recovers from save failures', () => {

@@ -25,7 +25,7 @@ export const broglow = async ({ directory, worktree, project }) => {
   // Spawn one `broglow event` and resolve when it exits (or after a short
   // timeout, so a wedged broglow can't stall the queue). Detached + unref so
   // the write still completes if opencode exits right after; failures swallowed.
-  const spawnEvent = (event, sessionID, title) =>
+  const spawnEvent = (event, sessionID, title, usage) =>
     new Promise((resolve) => {
       let done = false;
       const finish = () => {
@@ -45,6 +45,7 @@ export const broglow = async ({ directory, worktree, project }) => {
         const payload = { harness: "opencode", event, directory: dir };
         if (sessionID) payload.session_id = sessionID;
         if (title) payload.title = title;
+        if (usage) Object.assign(payload, usage);
         child.stdin.end(JSON.stringify(payload));
         child.unref();
         // Watchdog so a wedged broglow can't stall the queue forever. Note the
@@ -67,8 +68,8 @@ export const broglow = async ({ directory, worktree, project }) => {
   // background — so the host is never blocked. Errors are swallowed so one bad
   // spawn can't wedge the queue.
   let queue = Promise.resolve();
-  const send = (event, sessionID, title) => {
-    queue = queue.then(() => spawnEvent(event, sessionID, title)).catch(() => {});
+  const send = (event, sessionID, title, usage) => {
+    queue = queue.then(() => spawnEvent(event, sessionID, title, usage)).catch(() => {});
   };
 
   // Shutdown layer (a): when this opencode process exits, mark every session it
@@ -124,6 +125,26 @@ export const broglow = async ({ directory, worktree, project }) => {
       try {
         const type = event && event.type;
         const p = (event && event.properties) || {};
+        if (type === "message.updated") {
+          const info = p.info;
+          if (info?.role === "assistant" && typeof info.time?.completed === "number") {
+            const tokens = info.tokens || {};
+            send("usage", info.sessionID, undefined, {
+              message_id: info.id,
+              role: info.role,
+              completed: info.time.completed,
+              tokens: {
+                total: tokens.total,
+                input: tokens.input,
+                output: tokens.output,
+                reasoning: tokens.reasoning,
+                cache: { read: tokens.cache?.read, write: tokens.cache?.write },
+              },
+            });
+          }
+          // A message ID is never a live session ID, and usage cannot change status.
+          return;
+        }
         const sid =
           p.sessionID ||
           p.session_id ||

@@ -96,6 +96,11 @@ function sandbox(t) {
       return {
         emit: (type, properties = {}) => request({ kind: "event", event: { type, properties } }),
         drain: () => request({ kind: "drain" }),
+        close: async () => {
+          const exited = once(child, "exit");
+          child.send({ kind: "stop" });
+          await exited;
+        },
       };
     },
   };
@@ -133,6 +138,79 @@ async function waitFor(home, pred, timeout = 6000) {
 
 const info = (id, extra = {}) => ({ sessionID: id, info: { id, ...extra } });
 const status = (id, type) => ({ sessionID: id, status: { type } });
+
+function usagePath(home, completed) {
+  const date = new Date(completed);
+  const day = [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")].join("-");
+  return join(home, ".claude", "broglow", `opencode-usage-${day}.json`);
+}
+
+function enableUsage(home) {
+  const dir = join(home, ".claude", "broglow");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ usage_enabled: true }));
+}
+
+const assistantUsage = (sessionID, id, completed, total) => ({ info: {
+  sessionID, id, role: "assistant", time: { created: completed - 1000, completed },
+  tokens: { total, input: 100, output: 30, reasoning: 20, cache: { read: 50, write: 10 } },
+  text: "message content must not be persisted by BroGlow",
+} });
+
+test("API usage reconciles completed messages across sessions and plugin restarts without changing status", {
+  skip: isWindows && "unix-only",
+}, async (t) => {
+  const { home, newSession } = sandbox(t);
+  enableUsage(home);
+  const completed = Date.now();
+  const first = await newSession();
+  await first.emit("session.created", info("ses-api", { title: "API task" }));
+  await first.emit("session.idle", { sessionID: "ses-api" });
+  await first.drain();
+  const originalState = readFileSync(statePath(home), "utf8");
+
+  await first.emit("message.updated", assistantUsage("ses-api", "msg-same", completed));
+  await first.emit("message.updated", assistantUsage("ses-api", "msg-same", completed, 200));
+  await first.emit("message.updated", assistantUsage("ses-api", "msg-same", completed, 150));
+  await first.drain();
+  assert.equal(readFileSync(statePath(home), "utf8"), originalState);
+
+  // A fresh plugin instance sees the same completed message again.
+  const restarted = await newSession();
+  await restarted.emit("message.updated", assistantUsage("ses-api", "msg-same", completed, 200));
+  await restarted.emit("message.updated", assistantUsage("ses-other", "msg-same", completed));
+  await restarted.drain();
+  await restarted.close();
+  assert.deepEqual(JSON.parse(readFileSync(usagePath(home, completed), "utf8")), {
+    "ses-api": { "msg-same": 200 }, "ses-other": { "msg-same": 190 },
+  });
+  // Usage-only messages must not enter the live-session set, including on exit.
+  assert.equal(readFileSync(statePath(home), "utf8"), originalState);
+});
+
+test("usage opt-out and incomplete messages create no tracking files or message sessions", {
+  skip: isWindows && "unix-only",
+}, async (t) => {
+  const { home, newSession } = sandbox(t);
+  const plugin = await newSession();
+  const completed = Date.now();
+  await plugin.emit("message.updated", assistantUsage("ses-api", "msg-api", completed));
+  await plugin.drain();
+  assert.ok(!existsSync(join(home, ".claude", "broglow")), "opt-out writes nothing");
+
+  enableUsage(home);
+  const incomplete = assistantUsage("ses-api", "msg-api", completed);
+  delete incomplete.info.time.completed;
+  await plugin.emit("message.updated", incomplete);
+  const user = assistantUsage("ses-api", "msg-user", completed);
+  user.info.role = "user";
+  await plugin.emit("message.updated", user);
+  await plugin.drain();
+  await plugin.close();
+  assert.ok(!existsSync(usagePath(home, completed)));
+  assert.ok(!existsSync(statePath(home)), "message IDs never become sessions, even on exit");
+});
 
 test("full lifecycle: created → permission → reply → idle → deleted", {
   skip: isWindows && "unix-only (HOME can't sandbox state on Windows)",

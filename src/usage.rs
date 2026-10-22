@@ -1,19 +1,6 @@
-//! Today's coding-agent token usage plus the plan rate-limit percentages,
-//! feeding the tray readout and the popover's usage section (designs 1a/1c in
-//! the Tray Menu Designs doc). BroGlow counts tokens; it never prices them.
-//!
-//! Token counts come from the transcript JSONLs Claude Code writes under
-//! `~/.claude/projects/<dir>/<session>.jsonl`: each assistant line carries the
-//! request's token usage and model id. Scanning is incremental (a byte offset
-//! per file, only files touched since local midnight), entries are deduped by
-//! message/request id (resuming a session copies old lines into a new file),
-//! and only lines stamped today in local time are counted.
-//!
-//! Plan-mode percentages (5-hour block / week) come from the same OAuth usage
-//! endpoint the Claude Code `/usage` screen reads, using the credentials
-//! Claude Code already stores. Everything here is best-effort: missing creds,
-//! an unreachable endpoint, or an unknown response shape degrade to `None`
-//! and the UI falls back to the token line.
+//! Opt-in local token totals per coding agent, with independently attributed
+//! subscription limits. Tokens include cached input; they are not a bill or a
+//! measure of subscription utilization. Missing provider data stays unavailable.
 
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
@@ -29,14 +16,25 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct UsageSnapshot {
     pub today_tokens: u64,
-    /// Plan rate-limit utilization (0–100), when the OAuth endpoint is
-    /// reachable with Claude Code's stored credentials.
-    pub five_hour_pct: Option<f64>,
-    /// Local reset time of the 5h block, preformatted ("4:00 PM").
-    pub five_hour_reset: Option<String>,
-    pub week_pct: Option<f64>,
-    /// Weekday the weekly window resets ("Mon").
-    pub week_reset: Option<String>,
+    pub agents: Vec<AgentUsage>,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentUsage {
+    pub harness: &'static str,
+    pub label: &'static str,
+    pub badge: &'static str,
+    pub today_tokens: u64,
+    pub limits: Vec<UsageLimit>,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageLimit {
+    pub label: String,
+    pub used_percent: f64,
+    pub reset: Option<String>,
 }
 
 /// Shared cache between the refresher thread and the tray/popover readers.
@@ -53,7 +51,7 @@ pub fn latest() -> Option<UsageSnapshot> {
 }
 
 /// "1.2M" / "12k" / "950", matching the popover's `fmtTokens`.
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(any(test, target_os = "macos", target_os = "windows"))]
 pub fn compact_tokens(n: u64) -> String {
     if n >= 1_000_000 {
         format!("{:.1}M", n as f64 / 1e6)
@@ -96,6 +94,8 @@ pub fn spawn_refresher(on_change: impl Fn() + Send + 'static) {
                     on_change();
                 }
                 prev_enabled = false;
+                plan = None;
+                scans = 0;
                 std::thread::sleep(IDLE_POLL);
                 continue;
             }
@@ -131,6 +131,7 @@ pub fn run_once() -> anyhow::Result<()> {
 struct FilePos {
     offset: u64,
     len: u64,
+    modified: Option<std::time::SystemTime>,
 }
 
 /// Codex `token_count` events carry **cumulative** session totals, so the
@@ -141,6 +142,17 @@ struct CodexFilePos {
     offset: u64,
     len: u64,
     prev: CodexCumulative,
+    context: CodexContext,
+    modified: Option<std::time::SystemTime>,
+}
+
+#[derive(Debug, Default, Clone)]
+struct CodexContext {
+    owner: String,
+    session: String,
+    inherited: bool,
+    turn: Option<String>,
+    reset: u64,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -156,9 +168,12 @@ struct Tracker {
     /// Codex rollout files (`$CODEX_HOME/sessions/YYYY/MM/DD/*.jsonl`).
     codex_files: HashMap<PathBuf, CodexFilePos>,
     /// message id / request id already counted today, across all files.
-    seen: HashSet<String>,
-    /// Tokens counted today.
-    today_tokens: u64,
+    seen: HashMap<String, u64>,
+    codex_seen: HashSet<String>,
+    claude_tokens: u64,
+    codex_tokens: u64,
+    opencode_tokens: u64,
+    codex_plan: Option<(DateTime<chrono::FixedOffset>, serde_json::Value)>,
 }
 
 /// One transcript line, reduced to the fields usage accounting needs.
@@ -205,7 +220,13 @@ fn collect_jsonl(dir: &std::path::Path, depth: u32, out: &mut Vec<PathBuf>) {
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.is_dir() {
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
+        if kind.is_symlink() {
+            continue;
+        }
+        if kind.is_dir() {
             if depth > 0 {
                 collect_jsonl(&path, depth - 1, out);
             }
@@ -221,8 +242,12 @@ impl Tracker {
             day: Local::now().date_naive(),
             files: HashMap::new(),
             codex_files: HashMap::new(),
-            seen: HashSet::new(),
-            today_tokens: 0,
+            seen: HashMap::new(),
+            codex_seen: HashSet::new(),
+            claude_tokens: 0,
+            codex_tokens: 0,
+            opencode_tokens: 0,
+            codex_plan: None,
         }
     }
 
@@ -235,7 +260,10 @@ impl Tracker {
             self.files.clear();
             self.codex_files.clear();
             self.seen.clear();
-            self.today_tokens = 0;
+            self.codex_seen.clear();
+            self.claude_tokens = 0;
+            self.codex_tokens = 0;
+            self.codex_plan = None;
         }
 
         // Session files last written before local midnight can't contain
@@ -244,43 +272,12 @@ impl Tracker {
             .and_hms_opt(0, 0, 0)
             .and_then(|t| t.and_local_timezone(Local).single());
 
-        // Codex-only installations need no Claude transcript directory.
+        self.opencode_tokens = crate::opencode_usage::today_tokens(today);
         self.scan_codex(midnight);
         let Some(root) = projects_dir() else { return };
-        let Ok(projects) = std::fs::read_dir(&root) else {
-            return;
-        };
-
-        for project in projects.flatten() {
-            let Ok(sessions) = std::fs::read_dir(project.path()) else {
-                continue;
-            };
-            for entry in sessions.flatten() {
-                let path = entry.path();
-                if path.extension().is_none_or(|e| e != "jsonl") {
-                    continue;
-                }
-                let Ok(meta) = entry.metadata() else { continue };
-                if let (Some(midnight), Ok(mtime)) = (midnight, meta.modified()) {
-                    if DateTime::<Local>::from(mtime) < midnight {
-                        continue;
-                    }
-                }
-                self.scan_file(path, meta.len());
-            }
-        }
-    }
-
-    /// Fold new Codex rollout lines into today's tallies. Same incremental
-    /// per-file scan as the Claude side; the layout is a fixed
-    /// `sessions/YYYY/MM/DD/rollout-*.jsonl` tree, walked with the same
-    /// before-midnight mtime skip.
-    fn scan_codex(&mut self, midnight: Option<DateTime<Local>>) {
-        let Some(root) = crate::codex::codex_home().map(|h| h.join("sessions")) else {
-            return;
-        };
         let mut files = Vec::new();
-        collect_jsonl(&root, 4, &mut files);
+        // projects/<project>/<session>/subagents/*.jsonl also contains usage.
+        collect_jsonl(&root, 3, &mut files);
         for path in files {
             let Ok(meta) = std::fs::metadata(&path) else {
                 continue;
@@ -290,16 +287,128 @@ impl Tracker {
                     continue;
                 }
             }
+            self.scan_file(path, meta.len());
+        }
+    }
+
+    /// Fold new Codex rollout lines into today's tallies. Same incremental
+    /// per-file scan as the Claude side; the layout is a fixed
+    /// `sessions/YYYY/MM/DD/rollout-*.jsonl` tree, walked with the same
+    /// before-midnight mtime skip.
+    fn scan_codex(&mut self, midnight: Option<DateTime<Local>>) {
+        let Some(home) = crate::codex::codex_home() else {
+            return;
+        };
+        let mut files = Vec::new();
+        collect_jsonl(&home.join("sessions"), 4, &mut files);
+        collect_jsonl(&home.join("archived_sessions"), 4, &mut files);
+        for path in files {
+            let Ok(meta) = std::fs::metadata(&path) else {
+                continue;
+            };
+            if let (Some(midnight), Ok(mtime)) = (midnight, meta.modified()) {
+                if DateTime::<Local>::from(mtime) < midnight {
+                    self.scan_old_codex_limits(&path, &meta);
+                    continue;
+                }
+            }
             self.scan_codex_file(path, meta.len());
+        }
+    }
+
+    fn scan_old_codex_limits(&mut self, path: &std::path::Path, meta: &std::fs::Metadata) {
+        let modified = meta.modified().ok();
+        if self
+            .codex_files
+            .get(path)
+            .is_some_and(|pos| pos.len == meta.len() && pos.modified == modified)
+        {
+            return;
+        }
+        if self
+            .codex_plan
+            .as_ref()
+            .is_some_and(|(ts, _)| modified.is_some_and(|m| DateTime::<Local>::from(m) <= *ts))
+        {
+            return;
+        }
+        // shortcut: normal old files use their final 1 MiB for recent quotas;
+        // increase this bound if footer records grow. Forks need ownership history.
+        let Ok(mut file) = std::fs::File::open(path) else {
+            return;
+        };
+        let mut context = CodexContext::default();
+        let mut header = String::new();
+        if BufReader::new(&mut file).read_line(&mut header).is_ok() {
+            if let Ok(v) = serde_json::from_str(&header) {
+                update_codex_context(&v, &mut context);
+            }
+        }
+        let start = if context.inherited {
+            0
+        } else {
+            meta.len().saturating_sub(1024 * 1024)
+        };
+        if file.seek(SeekFrom::Start(start)).is_err() {
+            return;
+        }
+        let mut reader = BufReader::new(file);
+        let mut buf = Vec::new();
+        if start > 0 {
+            let _ = reader.read_until(b'\n', &mut buf);
+        }
+        loop {
+            buf.clear();
+            let Ok(n) = reader.read_until(b'\n', &mut buf) else {
+                return;
+            };
+            if n == 0 || buf.last() != Some(&b'\n') {
+                break;
+            }
+            if let Ok(v) = serde_json::from_slice(&buf) {
+                update_codex_context(&v, &mut context);
+                if !context.inherited {
+                    self.ingest_codex_limits(&v);
+                }
+            }
+        }
+        let pos = self.codex_files.entry(path.to_path_buf()).or_default();
+        pos.len = meta.len();
+        pos.modified = modified;
+    }
+
+    fn ingest_codex_limits(&mut self, v: &serde_json::Value) {
+        let payload = &v["payload"];
+        if v["type"] != "event_msg" || payload["type"] != "token_count" {
+            return;
+        }
+        let timestamp = v
+            .get("timestamp")
+            .and_then(|v| v.as_str())
+            .and_then(|v| DateTime::parse_from_rfc3339(v).ok());
+        if let (Some(ts), Some(limits)) = (timestamp, payload.get("rate_limits")) {
+            let is_codex = limits
+                .get("limit_id")
+                .and_then(|v| v.as_str())
+                .is_none_or(|id| id == "codex");
+            // API sessions have no quota observation; they cannot erase a
+            // concurrently used subscription account's last known limits.
+            if limits.is_object()
+                && is_codex
+                && self.codex_plan.as_ref().is_none_or(|(old, _)| ts >= *old)
+            {
+                self.codex_plan = Some((ts, limits.clone()));
+            }
         }
     }
 
     fn scan_codex_file(&mut self, path: PathBuf, len: u64) {
         let pos = self.codex_files.entry(path.clone()).or_default();
-        if len == pos.len {
+        let modified = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
+        if len == pos.len && modified == pos.modified {
             return;
         }
-        if len < pos.offset {
+        if len <= pos.len {
             // Truncated/rewritten: start over with fresh counters.
             *pos = CodexFilePos::default();
         }
@@ -307,6 +416,10 @@ impl Tracker {
         // borrow checker won't allow holding the map entry across ingest).
         let mut offset = pos.offset;
         let mut prev = pos.prev;
+        let mut context = pos.context.clone();
+        if context.session.is_empty() {
+            context.session = path.to_string_lossy().into_owned();
+        }
         let Ok(mut file) = std::fs::File::open(&path) else {
             return;
         };
@@ -325,13 +438,15 @@ impl Tracker {
             }
             offset += n as u64;
             if let Ok(text) = std::str::from_utf8(&buf) {
-                self.ingest_codex_line(text, &mut prev);
+                self.ingest_codex_record(text, &mut prev, &mut context);
             }
         }
         let pos = self.codex_files.entry(path).or_default();
         pos.offset = offset;
         pos.len = len;
         pos.prev = prev;
+        pos.context = context;
+        pos.modified = modified;
     }
 
     /// Fold one rollout line into the tallies. `token_count` events carry
@@ -339,28 +454,51 @@ impl Tracker {
     /// and a decrease means the counter reset (the current value is the new
     /// delta). Cached input is a subset of `input_tokens`; `output_tokens`
     /// already includes reasoning tokens.
+    #[cfg(test)]
     fn ingest_codex_line(&mut self, text: &str, prev: &mut CodexCumulative) {
+        self.ingest_codex_record(text, prev, &mut CodexContext::default());
+    }
+
+    fn ingest_codex_record(
+        &mut self,
+        text: &str,
+        prev: &mut CodexCumulative,
+        context: &mut CodexContext,
+    ) {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(text) else {
             return;
         };
         let Some(payload) = v.get("payload") else {
             return;
         };
+        update_codex_context(&v, context);
         match v.get("type").and_then(|t| t.as_str()) {
             Some("event_msg")
                 if payload.get("type").and_then(|t| t.as_str()) == Some("token_count") =>
             {
+                if !context.inherited {
+                    self.ingest_codex_limits(&v);
+                }
                 let Some(total) = payload.get("info").and_then(|i| i.get("total_token_usage"))
                 else {
                     return;
                 };
-                let n = |k: &str| total.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
+                let (Some(input), Some(output)) = (
+                    total["input_tokens"].as_u64(),
+                    total["output_tokens"].as_u64(),
+                ) else {
+                    return;
+                };
                 let cur = CodexCumulative {
-                    input: n("input_tokens"),
-                    output: n("output_tokens"),
-                    total: n("total_tokens"),
+                    input,
+                    output,
+                    total: total
+                        .get("total_tokens")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or_else(|| input.saturating_add(output)),
                 };
                 let delta = if cur.total < prev.total {
+                    context.reset += 1;
                     cur // counter reset: current value is the fresh delta
                 } else {
                     CodexCumulative {
@@ -378,10 +516,23 @@ impl Tracker {
                     .and_then(|t| t.as_str())
                     .and_then(|t| DateTime::parse_from_rfc3339(t).ok())
                     .is_some_and(|t| t.with_timezone(&Local).date_naive() == self.day);
-                if !today {
+                if !today || context.inherited {
                     return;
                 }
-                self.today_tokens += delta.input + delta.output;
+                // Forks retain original turn/session metadata but rewrite outer
+                // timestamps. Scope identical counters to that verified origin.
+                let key = serde_json::json!([
+                    context.session,
+                    context.turn,
+                    context.reset,
+                    payload.get("info")
+                ])
+                .to_string();
+                if self.codex_seen.insert(key) {
+                    self.codex_tokens = self
+                        .codex_tokens
+                        .saturating_add(delta.input.saturating_add(delta.output));
+                }
             }
             _ => {}
         }
@@ -389,10 +540,11 @@ impl Tracker {
 
     fn scan_file(&mut self, path: PathBuf, len: u64) {
         let pos = self.files.entry(path.clone()).or_default();
-        if len == pos.len {
+        let modified = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
+        if len == pos.len && modified == pos.modified {
             return;
         }
-        if len < pos.offset {
+        if len <= pos.len {
             // Truncated/rewritten: start over. Lines already counted stay in
             // `seen`, so a rewrite can't double-count.
             pos.offset = 0;
@@ -424,6 +576,7 @@ impl Tracker {
         let pos = self.files.entry(path).or_default();
         pos.offset = offset;
         pos.len = len;
+        pos.modified = modified;
     }
 
     /// Fold one transcript line into the tallies, if it is a deduplicated
@@ -451,29 +604,138 @@ impl Tracker {
         if !today {
             return;
         }
-        // Resumed sessions copy prior lines into the new session file — count
-        // each message once. Prefer the message id (stable across copies).
-        if let Some(key) = msg.id.or(line.request_id) {
-            if !self.seen.insert(key) {
-                return;
-            }
-        }
-
-        self.today_tokens += usage.input_tokens
-            + usage.output_tokens
-            + usage.cache_creation_input_tokens
-            + usage.cache_read_input_tokens;
+        let total = usage
+            .input_tokens
+            .saturating_add(usage.output_tokens)
+            .saturating_add(usage.cache_creation_input_tokens)
+            .saturating_add(usage.cache_read_input_tokens);
+        // Streaming rows can update the same message. Reconcile the maximum
+        // observed count, so replayed early chunks cannot lower the total.
+        let delta = if let Some(key) = msg.id.or(line.request_id) {
+            let previous = self.seen.entry(key).or_default();
+            let delta = total.saturating_sub(*previous);
+            *previous = (*previous).max(total);
+            delta
+        } else {
+            total
+        };
+        self.claude_tokens = self.claude_tokens.saturating_add(delta);
     }
 
     fn snapshot(&self, plan: Option<&PlanUsage>) -> UsageSnapshot {
+        let codex_limits = self
+            .codex_plan
+            .as_ref()
+            .map(|(_, v)| codex_limits(v, chrono::Utc::now().timestamp()))
+            .unwrap_or_default();
+        let mut agents = Vec::new();
+        for (harness, tokens, limits) in [
+            (
+                "claude",
+                self.claude_tokens,
+                plan.map(|p| p.windows.clone()).unwrap_or_default(),
+            ),
+            ("codex", self.codex_tokens, codex_limits),
+            ("opencode", self.opencode_tokens, Vec::new()),
+        ] {
+            if tokens == 0 && limits.is_empty() {
+                continue;
+            }
+            let adapter = crate::harness::ADAPTERS.iter().find(|a| a.name == harness);
+            agents.push(AgentUsage {
+                harness,
+                label: adapter
+                    .map(|a| a.label)
+                    .unwrap_or(crate::harness::CLAUDE_LABEL),
+                badge: adapter
+                    .map(|a| a.badge)
+                    .unwrap_or(crate::harness::CLAUDE_BADGE),
+                today_tokens: tokens,
+                limits,
+            });
+        }
         UsageSnapshot {
-            today_tokens: self.today_tokens,
-            five_hour_pct: plan.and_then(|p| p.five_hour_pct),
-            five_hour_reset: plan.and_then(|p| p.five_hour_reset.clone()),
-            week_pct: plan.and_then(|p| p.week_pct),
-            week_reset: plan.and_then(|p| p.week_reset.clone()),
+            today_tokens: agents
+                .iter()
+                .fold(0u64, |sum, a| sum.saturating_add(a.today_tokens)),
+            agents,
         }
     }
+}
+
+fn update_codex_context(v: &serde_json::Value, context: &mut CodexContext) {
+    let payload = &v["payload"];
+    match v["type"].as_str() {
+        Some("session_meta") => {
+            if let Some(id) = payload
+                .get("id")
+                .or_else(|| payload.get("session_id"))
+                .and_then(|v| v.as_str())
+            {
+                if context.owner.is_empty() {
+                    context.owner = id.to_owned();
+                }
+                context.session = id.to_owned();
+                context.turn = None;
+                context.inherited = id != context.owner || payload["forked_from_id"].is_string();
+            }
+        }
+        Some("turn_context") => {
+            context.turn = payload["turn_id"].as_str().map(str::to_owned);
+        }
+        Some("event_msg")
+            if payload["type"] == "thread_settings_applied"
+                && payload["thread_id"].as_str() == Some(context.owner.as_str()) =>
+        {
+            context.session.clone_from(&context.owner);
+            context.inherited = false;
+            context.turn = None;
+        }
+        _ => {}
+    }
+}
+
+fn codex_limits(value: &serde_json::Value, now: i64) -> Vec<UsageLimit> {
+    // Newer rollouts may include separate non-Codex limit buckets.
+    if value
+        .get("limit_id")
+        .and_then(|v| v.as_str())
+        .is_some_and(|id| id != "codex")
+    {
+        return Vec::new();
+    }
+    ["primary", "secondary"]
+        .iter()
+        .filter_map(|key| {
+            let window = value.get(key)?;
+            let pct = window.get("used_percent")?.as_f64()?;
+            let minutes = window.get("window_minutes")?.as_u64()?;
+            let resets_at = window.get("resets_at")?.as_i64()?;
+            if !pct.is_finite() || !(0.0..=100.0).contains(&pct) || resets_at <= now {
+                return None;
+            }
+            let reset = DateTime::from_timestamp(resets_at, 0)?.with_timezone(&Local);
+            let label = match minutes {
+                300 => "5h block".into(),
+                10080 => "Week".into(),
+                0 => return None,
+                n => format!("{n}m window"),
+            };
+            Some(UsageLimit {
+                label,
+                used_percent: pct,
+                reset: Some(
+                    reset
+                        .format(if minutes >= 1440 {
+                            "%a %-I:%M %p"
+                        } else {
+                            "%-I:%M %p"
+                        })
+                        .to_string(),
+                ),
+            })
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -481,10 +743,7 @@ impl Tracker {
 
 #[derive(Debug, Default)]
 struct PlanUsage {
-    five_hour_pct: Option<f64>,
-    five_hour_reset: Option<String>,
-    week_pct: Option<f64>,
-    week_reset: Option<String>,
+    windows: Vec<UsageLimit>,
 }
 
 #[derive(Deserialize)]
@@ -604,23 +863,32 @@ fn fetch_plan_usage() -> Option<PlanUsage> {
             .map(|t| t.with_timezone(&Local))
     };
     let mut plan = PlanUsage::default();
-    if let Some(w) = resp.five_hour {
-        plan.five_hour_pct = w.utilization;
-        plan.five_hour_reset = w
-            .resets_at
-            .as_deref()
-            .and_then(local)
-            .map(|t| t.format("%-I:%M %p").to_string());
+    for (label, window) in [("5h block", resp.five_hour), ("Week", resp.seven_day)] {
+        let Some(w) = window else { continue };
+        let Some(pct) = w
+            .utilization
+            .filter(|p| p.is_finite() && (0.0..=100.0).contains(p))
+        else {
+            continue;
+        };
+        let reset = w.resets_at.as_deref().and_then(local);
+        if reset.is_some_and(|r| r <= Local::now()) {
+            continue;
+        }
+        plan.windows.push(UsageLimit {
+            label: label.into(),
+            used_percent: pct,
+            reset: reset.map(|r| {
+                r.format(if label == "Week" {
+                    "%a %-I:%M %p"
+                } else {
+                    "%-I:%M %p"
+                })
+                .to_string()
+            }),
+        });
     }
-    if let Some(w) = resp.seven_day {
-        plan.week_pct = w.utilization;
-        plan.week_reset = w
-            .resets_at
-            .as_deref()
-            .and_then(local)
-            .map(|t| t.format("%a").to_string());
-    }
-    (plan.five_hour_pct.is_some() || plan.week_pct.is_some()).then_some(plan)
+    (!plan.windows.is_empty()).then_some(plan)
 }
 
 #[cfg(test)]
@@ -672,6 +940,80 @@ mod tests {
         assert_eq!(tracker.snapshot(None).today_tokens, 110);
         tracker.scan();
         assert_eq!(tracker.snapshot(None).today_tokens, 110);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn scan_includes_archives_and_subagents_and_resets_on_new_day() {
+        if std::env::var_os("BROGLOW_TEST_MIXED_USAGE").is_none() {
+            let home = tempfile::tempdir().unwrap();
+            let output = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "usage::tests::scan_includes_archives_and_subagents_and_resets_on_new_day",
+                ])
+                .env("HOME", home.path())
+                .env("CODEX_HOME", home.path().join("codex"))
+                .env("BROGLOW_TEST_MIXED_USAGE", "1")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            return;
+        }
+        let mut t = Tracker::new();
+        let root = projects_dir().unwrap().join("project");
+        let sub = root.join("session/subagents");
+        std::fs::create_dir_all(&sub).unwrap();
+        let ts = today_ts(&t);
+        std::fs::write(
+            root.join("session.jsonl"),
+            line("claude", "main", &ts, 50) + "\n",
+        )
+        .unwrap();
+        std::fs::write(
+            sub.join("subagent.jsonl"),
+            line("claude", "subagent", &ts, 50) + "\n",
+        )
+        .unwrap();
+        let archive = crate::codex::codex_home()
+            .unwrap()
+            .join("archived_sessions");
+        std::fs::create_dir_all(&archive).unwrap();
+        let event = serde_json::json!({"timestamp":ts,"type":"event_msg",
+        "payload":{"type":"token_count","info":{"total_token_usage":{
+            "input_tokens":100,"output_tokens":10,"total_tokens":110
+        }}}})
+        .to_string()
+            + "\n";
+        std::fs::write(archive.join("rollout.jsonl"), event).unwrap();
+        let yesterday = Local::now() - chrono::Duration::days(1);
+        let quota = serde_json::json!({"timestamp":yesterday.to_rfc3339(), "type":"event_msg",
+        "payload":{"type":"token_count","info":null,"rate_limits":{"secondary":{
+            "used_percent":53,"window_minutes":10080,"resets_at":chrono::Utc::now().timestamp() + 200000
+        }}}});
+        let old_path = archive.join("yesterday.jsonl");
+        std::fs::write(&old_path, format!("{quota}\n")).unwrap();
+        std::fs::File::open(&old_path)
+            .unwrap()
+            .set_times(
+                std::fs::FileTimes::new().set_modified(std::time::SystemTime::from(yesterday)),
+            )
+            .unwrap();
+        t.scan();
+        assert_eq!(t.snapshot(None).agents[1].limits[0].used_percent, 53.0);
+        assert_eq!(t.snapshot(None).today_tokens, 2430);
+        assert_eq!(t.snapshot(None).agents[0].today_tokens, 2320);
+        assert_eq!(t.snapshot(None).agents[1].today_tokens, 110);
+        t.scan();
+        assert_eq!(t.snapshot(None).today_tokens, 2430);
+        // Simulate the cached tracker being carried across local midnight.
+        t.day = t.day.pred_opt().unwrap();
+        t.scan();
+        assert_eq!(t.snapshot(None).today_tokens, 2430);
     }
 
     fn line(model: &str, msg_id: &str, ts: &str, output: u64) -> String {
@@ -746,6 +1088,223 @@ mod tests {
         // 101, then (14300-100)+(5-1), then 6000+500, then the reset's 60.
         let expected_tokens = 101 + (14300 - 100) + (5 - 1) + (6000 + 500) + 60;
         assert_eq!(t.snapshot(None).today_tokens, expected_tokens);
+    }
+
+    #[test]
+    fn updated_claude_message_reconciles_usage_instead_of_keeping_first_chunk() {
+        let mut t = Tracker::new();
+        let ts = today_ts(&t);
+        t.ingest_line(&line("claude", "streamed", &ts, 1));
+        t.ingest_line(&line("claude", "streamed", &ts, 50));
+        t.ingest_line(&line("claude", "streamed", &ts, 1));
+        assert_eq!(t.snapshot(None).today_tokens, 1160);
+    }
+
+    #[test]
+    fn fork_inherited_history_is_not_new_usage_even_when_retimestamped_today() {
+        let mut t = Tracker::new();
+        let ts = today_ts(&t);
+        let mut prev = CodexCumulative::default();
+        let mut context = CodexContext::default();
+        let count = |input, pct| {
+            serde_json::json!({"timestamp":ts,"type":"event_msg",
+            "payload":{"type":"token_count","info":{"total_token_usage":{
+                "input_tokens":input,"output_tokens":10,"total_tokens":input+10
+            }},"rate_limits":{"primary":{"used_percent":pct,"window_minutes":300,
+                "resets_at":chrono::Utc::now().timestamp()+3600}}}})
+            .to_string()
+        };
+        for row in [
+            serde_json::json!({"type":"session_meta","payload":{"id":"child","forked_from_id":"parent"}}).to_string(),
+            serde_json::json!({"type":"session_meta","payload":{"id":"parent"}}).to_string(),
+            count(100, 99),
+        ] { t.ingest_codex_record(&row, &mut prev, &mut context); }
+        assert_eq!(t.snapshot(None).today_tokens, 0);
+        assert!(t.snapshot(None).agents.is_empty());
+        t.ingest_codex_record(
+            &serde_json::json!({"type":"event_msg","payload":{
+            "type":"thread_settings_applied","thread_id":"child"}})
+            .to_string(),
+            &mut prev,
+            &mut context,
+        );
+        t.ingest_codex_record(&count(150, 20), &mut prev, &mut context);
+        assert_eq!(t.snapshot(None).today_tokens, 50);
+        assert_eq!(t.snapshot(None).agents[0].limits[0].used_percent, 20.0);
+    }
+
+    #[test]
+    fn old_fork_limits_survive_an_ownership_marker_outside_the_tail() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("fork.jsonl");
+        let mut t = Tracker::new();
+        let yesterday = Local::now() - chrono::Duration::days(1);
+        let meta = serde_json::json!({"type":"session_meta","payload":{"id":"child","forked_from_id":"parent"}});
+        let owned = serde_json::json!({"type":"event_msg","payload":{"type":"thread_settings_applied","thread_id":"child"}});
+        let large =
+            serde_json::json!({"type":"response_item","payload":{"text":"x".repeat(1_100_000)}});
+        let quota = serde_json::json!({"timestamp":yesterday.to_rfc3339(),"type":"event_msg","payload":{
+            "type":"token_count","info":null,"rate_limits":{"secondary":{
+                "used_percent":53,"window_minutes":10080,"resets_at":chrono::Utc::now().timestamp()+200000}}}});
+        std::fs::write(&path, format!("{meta}\n{owned}\n{large}\n{quota}\n")).unwrap();
+        t.scan_old_codex_limits(&path, &std::fs::metadata(&path).unwrap());
+        assert_eq!(t.snapshot(None).agents[0].limits[0].used_percent, 53.0);
+        assert_eq!(t.snapshot(None).today_tokens, 0);
+    }
+
+    #[test]
+    fn independent_codex_sessions_with_identical_usage_are_both_counted() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut t = Tracker::new();
+        let event = serde_json::json!({"timestamp":today_ts(&t),"type":"event_msg",
+        "payload":{"type":"token_count","info":{"total_token_usage":{
+            "input_tokens":100,"output_tokens":10,"total_tokens":110
+        }}}})
+        .to_string();
+        for id in ["first", "second"] {
+            let path = dir.path().join(format!("{id}.jsonl"));
+            let meta = serde_json::json!({"type":"session_meta","payload":{"id":id}});
+            std::fs::write(&path, format!("{meta}\n{event}\n")).unwrap();
+            t.scan_codex_file(path.clone(), std::fs::metadata(path).unwrap().len());
+        }
+        assert_eq!(t.snapshot(None).today_tokens, 220);
+    }
+
+    #[test]
+    fn copied_and_truncated_codex_rollouts_do_not_double_count() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("rollout.jsonl");
+        let copy = dir.path().join("copy.jsonl");
+        let mut t = Tracker::new();
+        let event = serde_json::json!({"timestamp":today_ts(&t),"type":"event_msg",
+        "payload":{"type":"token_count","info":{"total_token_usage":{
+            "input_tokens":100,"output_tokens":10,"total_tokens":110
+        }}}})
+        .to_string()
+            + "\n";
+        let meta = "{\"type\":\"session_meta\",\"payload\":{\"id\":\"same-session\"}}\n";
+        let event = format!("{meta}{event}");
+        std::fs::write(&path, format!("{event}{{}}\n")).unwrap();
+        t.scan_codex_file(path.clone(), std::fs::metadata(&path).unwrap().len());
+        std::fs::write(&copy, &event).unwrap();
+        t.scan_codex_file(copy.clone(), std::fs::metadata(&copy).unwrap().len());
+        assert_eq!(t.snapshot(None).today_tokens, 110, "copied history");
+        std::fs::write(&path, &event).unwrap();
+        t.scan_codex_file(path.clone(), std::fs::metadata(&path).unwrap().len());
+        assert_eq!(t.snapshot(None).today_tokens, 110, "truncated history");
+    }
+
+    #[test]
+    fn mixed_agents_keep_tokens_and_limits_independent() {
+        let mut t = Tracker::new();
+        let ts = today_ts(&t);
+        t.ingest_line(&line("claude", "mixed", &ts, 50));
+        t.codex_tokens = 220;
+        t.opencode_tokens = 330;
+        let now = chrono::Utc::now().timestamp();
+        let limits = serde_json::json!({"limit_id":"codex", "primary":{
+            "used_percent":70,"window_minutes":300,"resets_at":now + 3600}});
+        t.ingest_codex_line(
+            &serde_json::json!({"timestamp":ts,"type":"event_msg",
+            "payload":{"type":"token_count","info":null,"rate_limits":limits}})
+            .to_string(),
+            &mut CodexCumulative::default(),
+        );
+        let plan = PlanUsage {
+            windows: vec![UsageLimit {
+                label: "5h block".into(),
+                used_percent: 10.0,
+                reset: None,
+            }],
+        };
+        let snap = t.snapshot(Some(&plan));
+        assert_eq!(snap.today_tokens, 1710);
+        assert_eq!(
+            snap.agents.iter().map(|a| a.harness).collect::<Vec<_>>(),
+            vec!["claude", "codex", "opencode"]
+        );
+        assert_eq!(snap.agents[0].today_tokens, 1160);
+        assert_eq!(snap.agents[0].limits[0].used_percent, 10.0);
+        assert_eq!(snap.agents[1].limits[0].used_percent, 70.0);
+        assert!(snap.agents[2].limits.is_empty());
+        assert_eq!(codex_limits(&limits, now + 3600).len(), 0);
+        assert_eq!(codex_limits(&serde_json::Value::Null, now).len(), 0);
+        assert_eq!(
+            codex_limits(
+                &serde_json::json!({"limit_id":"review", "primary":
+            limits["primary"]}),
+                now
+            )
+            .len(),
+            0
+        );
+        assert_eq!(
+            codex_limits(
+                &serde_json::json!({"secondary":{
+            "used_percent":15,"window_minutes":10080,"resets_at":now + 10000}}),
+                now
+            )[0]
+            .label,
+            "Week"
+        );
+    }
+
+    #[test]
+    fn codex_latest_limits_win_and_separate_api_sessions_preserve_them() {
+        let mut t = Tracker::new();
+        let now = chrono::Utc::now();
+        let event = |ts: chrono::DateTime<chrono::Utc>, limits: serde_json::Value| {
+            serde_json::json!({"timestamp":ts.to_rfc3339(), "type":"event_msg",
+                "payload":{"type":"token_count","info":null,"rate_limits":limits}})
+            .to_string()
+        };
+        let limits = |pct| {
+            serde_json::json!({"primary":{
+            "used_percent":pct,"window_minutes":300,"resets_at":now.timestamp() + 3600}})
+        };
+        let mut prev = CodexCumulative::default();
+        t.ingest_codex_line(&event(now, limits(60)), &mut prev);
+        t.ingest_codex_line(
+            &event(now - chrono::Duration::seconds(1), limits(10)),
+            &mut prev,
+        );
+        assert_eq!(t.snapshot(None).agents[0].limits[0].used_percent, 60.0);
+        t.ingest_codex_line(
+            &event(
+                now + chrono::Duration::seconds(1),
+                serde_json::json!({
+            "limit_id":"review","primary":limits(90)["primary"]}),
+            ),
+            &mut prev,
+        );
+        assert_eq!(t.snapshot(None).agents[0].limits[0].used_percent, 60.0);
+        t.ingest_codex_line(
+            &event(now + chrono::Duration::seconds(2), serde_json::Value::Null),
+            &mut prev,
+        );
+        assert_eq!(t.snapshot(None).agents[0].limits[0].used_percent, 60.0);
+        let mut api_only = Tracker::new();
+        api_only.ingest_codex_line(
+            &event(now, serde_json::Value::Null),
+            &mut CodexCumulative::default(),
+        );
+        assert!(api_only.snapshot(None).agents.is_empty());
+    }
+
+    #[test]
+    fn scanners_retry_partial_lines_and_keep_independent_sessions() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("claude.jsonl");
+        let mut t = Tracker::new();
+        let row = line("claude", "partial", &today_ts(&t), 50);
+        std::fs::write(&path, &row).unwrap();
+        t.scan_file(path.clone(), row.len() as u64);
+        assert_eq!(t.snapshot(None).today_tokens, 0);
+        std::fs::write(&path, format!("{row}\n")).unwrap();
+        t.scan_file(path.clone(), row.len() as u64 + 1);
+        assert_eq!(t.snapshot(None).today_tokens, 1160);
+        t.scan_file(path, row.len() as u64 + 1);
+        assert_eq!(t.snapshot(None).today_tokens, 1160);
     }
 
     #[cfg(any(target_os = "macos", target_os = "windows"))]

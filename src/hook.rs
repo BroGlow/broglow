@@ -466,6 +466,9 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
         return Ok(());
     };
     let event = field("event").unwrap_or_default();
+    if harness == "opencode" && event == "usage" {
+        return crate::opencode_usage::ingest(v);
+    }
     let session_id = field("session_id");
     let title = field("title");
     let directory = field("directory");

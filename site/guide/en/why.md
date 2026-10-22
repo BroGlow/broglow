@@ -53,7 +53,7 @@ Details: [Install and connect](installation.md#pairing).
 | --- | --- |
 | **Homebrew install** | `brew install broglow/tap/broglow`, then `broglow install`; upgrades the same way. |
 | **Upgrades that don't break** | Config writes are atomic, a failed macOS upgrade rolls back, dotfile symlinks survive, uninstall removes every hook. |
-| **Track token usage** | Opt-in view of your plan's 5-hour and weekly percentages and today's tokens, Claude and Codex together. |
+| **Track token usage** | Opt-in view of separate Claude/Codex limits and today's local tokens per agent, including opencode API use. No token pricing. [Coverage and setup](agents.md#usage). |
 | **120 fps popover** | The menu-bar interface renders at your display's full refresh rate. |
 
 Details: [Install and connect](installation.md).

@@ -351,17 +351,22 @@ thin:
   binary. Local installs use ad-hoc signing with a stable designated identifier;
   `BROGLOW_SIGNING_IDENTITY` supports a real signing identity. Terminal permission
   alone does not establish that the login-started service has permission.
-- **Usage tracking is strictly opt-in** (`usage_enabled`, set in the popover's
-  Settings view; off by default). It shows the plan's 5-hour/weekly percentages and
-  today's token total; BroGlow never prices tokens. It covers both harness families:
-  Claude transcripts (per-message `usage` blocks) and Codex rollouts (cumulative `token_count` events,
-  folded as per-event deltas with reset detection). While off, `usage::spawn_refresher`
-  does *no* work —
-  it never scans the transcript JSONLs, reads Claude Code's credentials, or contacts the
-  OAuth usage endpoint — and both the tray readout (`apply_readout`) and the popover's
-  usage section stay empty regardless of any cached snapshot. Enabling it is what
-  authorizes that work. The foreground `broglow usage` subcommand is the exception:
-  running it is itself the opt-in for that one invocation, like `broglow led`.
+- **Usage tracking is strictly opt-in** (`usage_enabled`, off by default). Keep
+  token totals and limits separate per agent: Claude limits come from OAuth;
+  Codex limits come from the newest local `token_count.rate_limits` and expire
+  at their reset time. API tokens never become subscription percentages or money.
+  Count Claude transcripts including nested subagents and active/archived Codex
+  rollouts; reconcile streaming messages and deduplicate copied history. Codex
+  forks rewrite outer timestamps: skip inherited prefixes until the canonical
+  thread's `thread_settings_applied` boundary, while advancing cumulative counters;
+  legacy ambiguous fork histories stay excluded. Recover valid prior-day quotas
+  from bounded rollout tails independently of today's token filter.
+  `opencode_usage.rs` stores completed plugin message totals in a locked, atomic
+  numeric ledger only while enabled; collection begins after plugin installation
+  and opt-in, with no historical import. Usage events never change session status.
+  Copilot has session tracking only. While disabled, the refresher does no scan,
+  credential access or network work and cached UI data stays hidden. Running
+  `broglow usage` explicitly authorizes one foreground snapshot.
 - **Project grouping is one order and one label rule** (`group_by_project`, set in the
   popover's Settings view; off by default). `session::project_labels` and
   `session::group_by_project` are the only implementations: the TUI and the Linux menu
