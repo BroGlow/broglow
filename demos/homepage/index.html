@@ -26,7 +26,7 @@
   <meta name="twitter:image:alt" content="The real orange BroGlow mascot beside its black lamp, with all three LEDs lit for the photo" data-i18n-content="desk.photoAlt">
   <link rel="icon" href="../../site/guide/assets/favicon.svg" type="image/svg+xml">
   <script src="theme.js?v=5"></script>
-  <link rel="stylesheet" href="styles.css?v=8">
+  <link rel="stylesheet" href="styles.css?v=9">
   <link rel="stylesheet" href="themes.css?v=6">
   <link rel="stylesheet" href="ar.css?v=1">
   <script type="importmap">{"imports":{"three":"../../site/vendor/three-0.183.0/three.module.min.js"}}</script>
@@ -45,7 +45,18 @@
   <header class="header">
     <a class="brand" href="#top" aria-label="BroGlow home" data-i18n-aria-label="nav.home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>broglow.</a>
     <nav aria-label="Main navigation" data-i18n-aria-label="nav.label"><a href="#model-demo" data-i18n="action.seeGlow">See it glow</a><a href="#desk" data-i18n="nav.desk">The desk buddy</a><a href="https://github.com/broglow/broglow" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a></nav>
-    <div class="header-tools"><div class="appearance-controls"><label><span class="control-label" data-i18n="control.language">Language</span><select id="language" aria-label="Language" data-i18n-aria-label="control.language"><option value="en">EN</option><option value="ru">RU</option></select></label><label><span class="control-label" data-i18n="control.theme">Theme</span><select id="theme" aria-label="Theme" data-i18n-aria-label="control.theme"><option value="auto" data-i18n="theme.auto">System</option><option value="light" data-i18n="theme.light">Light</option><option value="dark" data-i18n="theme.dark">Dark</option></select></label></div><a class="button button-small button-dark" href="#install"><bdi data-i18n="action.get">Get BroGlow</bdi> <span aria-hidden="true">↗</span></a></div>
+    <div class="header-tools"><div class="appearance-controls">
+      <label class="icon-control">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a17 17 0 0 1 0 18 17 17 0 0 1 0-18Z"/></svg>
+        <select id="language" title="Language" data-i18n-title="control.language" aria-label="Language" data-i18n-aria-label="control.language"><option value="en">EN</option><option value="ru">RU</option></select>
+      </label>
+      <label class="icon-control theme-control">
+        <svg class="theme-icon theme-icon-auto" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></svg>
+        <svg class="theme-icon theme-icon-light" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>
+        <svg class="theme-icon theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.5 13A8.5 8.5 0 0 1 11 3.5 8.5 8.5 0 1 0 20.5 13Z"/></svg>
+        <select id="theme" title="Theme" data-i18n-title="control.theme" aria-label="Theme" data-i18n-aria-label="control.theme"><option value="auto" data-i18n="theme.auto">System</option><option value="light" data-i18n="theme.light">Light</option><option value="dark" data-i18n="theme.dark">Dark</option></select>
+      </label>
+    </div><a class="button button-small button-dark" href="#install"><bdi data-i18n="action.get">Get BroGlow</bdi> <span aria-hidden="true">↗</span></a></div>
   </header>
   <main id="top">
     <section class="hero section-wrap" id="story" aria-labelledby="hero-title">
