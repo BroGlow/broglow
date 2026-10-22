@@ -309,7 +309,8 @@ function renderUsage() {
   const el = document.getElementById('usage');
   const u = state.usage;
   const agents = (u?.agents || []).filter(a => a.todayTokens > 0 || a.limits?.length);
-  if (view !== 'sessions' || state.settings?.usageEnabled !== true || !agents.length) {
+  const usageEnabled = pendingSettings.usageEnabled ?? state.settings?.usageEnabled;
+  if (view !== 'sessions' || usageEnabled !== true || !agents.length) {
     el.hidden = true;
     el.innerHTML = '';
     return;
@@ -710,7 +711,11 @@ function render() {
       `<label class="optrow" for="trackusage">` +
       `<input type="checkbox" id="trackusage" aria-describedby="usagehint">` +
       `<span class="sinfo"><span class="sname">Track usage</span>` +
-      `<span class="smeta setdesc" id="usagehint">Separate Claude and Codex limits, plus local tokens for Claude, Codex and opencode (including API use). No token pricing.</span></span></label>`;
+      `<span class="smeta setdesc" id="usagehint">Separate Claude and Codex limits, plus local tokens for Claude, Codex and opencode (including API use). No token pricing.</span></span></label>` +
+      `<label class="optrow" for="showusageinmenubar">` +
+      `<input type="checkbox" id="showusageinmenubar" aria-describedby="showusageinmenubarhint">` +
+      `<span class="sinfo"><span class="sname">Show usage in menu bar</span>` +
+      `<span class="smeta setdesc" id="showusageinmenubarhint">Limits and tokens beside the status icon. Hiding them keeps tracking and popover totals on.</span></span></label>`;
     const setting = (key, saved) => key in pendingSettings ? pendingSettings[key] : saved;
     document.getElementById('showdashboard').checked = setting('showDashboardButton', state.settings?.showDashboardButton === true);
     document.getElementById('showagentnames').checked = setting('showAgentNames', state.settings?.showAgentNames !== false);
@@ -725,7 +730,11 @@ function render() {
     document.getElementById('usblampsettings').hidden = !state.lamp?.bluetooth_supported;
     document.getElementById('autoaddforgottenusb').checked = setting('autoAddForgottenUsb', state.settings?.autoAddForgottenUsb !== false);
     document.getElementById(`yellow-${mode}`).checked = true;
-    document.getElementById('trackusage').checked = state.settings?.usageEnabled === true;
+    const usageEnabled = setting('usageEnabled', state.settings?.usageEnabled === true);
+    document.getElementById('trackusage').checked = usageEnabled;
+    const menuBarUsage = document.getElementById('showusageinmenubar');
+    menuBarUsage.checked = setting('showUsageInMenuBar', state.settings?.showUsageInMenuBar !== false);
+    menuBarUsage.disabled = !usageEnabled;
     const error = document.getElementById('settingserror');
     error.textContent = configActionError;
     error.hidden = !configActionError;
@@ -882,13 +891,16 @@ document.addEventListener('change', ev => {
     groupbyproject: ['groupByProject', 'set_group_by_project'],
     autoaddforgottenusb: ['autoAddForgottenUsb', 'set_auto_add_forgotten_usb'],
     popoverreset: ['popoverResetEnabled', 'set_popover_reset'],
+    trackusage: ['usageEnabled', 'set_usage'],
+    showusageinmenubar: ['showUsageInMenuBar', 'set_usage_in_menu_bar'],
   };
   if (ev.target.id in toggles) {
+    if (ev.target.disabled) return;
     const [key, cmd] = toggles[ev.target.id];
     configActionError = '';
     document.getElementById('settingserror').hidden = true;
     pendingSettings[key] = ev.target.checked;
-    if (ev.target.id === 'popoverreset') render();
+    if (ev.target.id === 'popoverreset' || ev.target.id === 'trackusage') render();
     post({ cmd, enabled: ev.target.checked });
     return;
   }
@@ -912,12 +924,6 @@ document.addEventListener('change', ev => {
     state.settings = state.settings || {};
     state.settings.yellowMode = ev.target.value;
     post({ cmd: 'set_yellow_mode', mode: ev.target.value });
-    return;
-  }
-  if (ev.target.id === 'trackusage') {
-    state.settings = state.settings || {};
-    state.settings.usageEnabled = ev.target.checked;
-    post({ cmd: 'set_usage', enabled: ev.target.checked });
     return;
   }
   if (!isBrightnessSlider(ev.target) || !canEditBrightness(ev.target)) return;

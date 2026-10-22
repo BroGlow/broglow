@@ -104,6 +104,10 @@ pub enum PopoverMsg {
     SetUsage {
         enabled: bool,
     },
+    /// Show usage in the menu bar without changing background tracking.
+    SetUsageInMenuBar {
+        enabled: bool,
+    },
     /// The Lamp details control: connect (`enabled: true`) or disconnect the
     /// physical status lamp by toggling LED mirroring.
     SetLed {
@@ -242,6 +246,8 @@ struct SettingsPayload {
     /// whether the usage section shows at all.
     #[serde(rename = "usageEnabled")]
     usage_enabled: bool,
+    #[serde(rename = "showUsageInMenuBar")]
+    show_usage_in_menu_bar: bool,
 }
 
 /// Physical status-lamp state for the footer connection indicator.
@@ -687,6 +693,7 @@ fn build_payload(state: &HookState, setup_busy: bool, cfg: &config::Config) -> S
             auto_add_forgotten_usb: cfg.auto_add_forgotten_usb,
             yellow_mode: cfg.yellow_mode,
             usage_enabled: cfg.usage_enabled,
+            show_usage_in_menu_bar: cfg.show_usage_in_menu_bar,
         },
         // Only surface usage once the user has opted in — otherwise the section
         // stays absent even if a stale snapshot is still cached.

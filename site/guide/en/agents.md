@@ -39,9 +39,15 @@ estimate bills. Token counts are local activity totals, not subscription balance
 
 Claude and Codex limits are independent: BroGlow labels each source and never adds
 their percentages. A weekly limit can appear on its own. Missing limits stay
-absent rather than showing zero. The menu bar prefixes each available percentage
-with **CC** (Claude) or **CX** (Codex); without limits it shows the combined local
-token total.
+absent rather than showing zero. On macOS, the menu bar pairs each available
+percentage with the app's monochrome Claude or Codex icon; without limits it shows
+the combined local token total. Windows uses agent names in the tray tooltip.
+
+**Show usage in menu bar**, directly below **Track usage**, is on by default.
+Turn it off to hide the usage numbers and agent icons beside the status light;
+background tracking and the popover's usage totals continue. The checkbox is
+disabled while tracking is off and keeps your saved display choice. On Windows,
+it controls usage in the tray tooltip.
 
 Claude totals include local subagent transcripts; Codex totals include archived
 chats and exclude copied fork history. Legacy fork logs with ambiguous ownership

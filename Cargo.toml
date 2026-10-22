@@ -14,10 +14,21 @@ categories = ["command-line-utilities"]
 name = "broglow"
 path = "src/main.rs"
 
+[[test]]
+name = "menubar_usage_native"
+path = "tests/menubar_usage_native.rs"
+harness = false
+
 [dev-dependencies]
 # Integration tests (tests/) drive the compiled binary end-to-end.
 assert_cmd = "2"
 tempfile = "3"
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+    "NSAppearance", "NSBitmapImageRep", "NSButton", "NSColorSpace", "NSImageRep",
+    "NSView",
+] }
 
 [dependencies]
 ratatui = "0.30"
@@ -70,6 +81,15 @@ winreg = "0.56"
 # WebKit private API to lift the popover's 60 fps cap (popover.rs). Same
 # version wry already pulls in.
 objc2 = "0.6"
+block2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+    "std", "block2", "NSAttributedString", "NSButton", "NSColor", "NSControl",
+    "NSFont", "NSGraphics", "NSGraphicsContext", "NSImage", "NSStatusBarButton",
+    "NSStatusItem", "NSTextAttachment",
+] }
+objc2-foundation = { version = "0.3", default-features = false, features = [
+    "std", "NSAttributedString", "NSData", "NSGeometry", "NSRange", "NSString",
+] }
 btleplug = "=0.13.1"
 futures-util = "0.3"
 tokio = { version = "1", features = ["rt", "time", "macros", "sync"] }

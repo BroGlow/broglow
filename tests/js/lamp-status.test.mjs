@@ -296,6 +296,10 @@ test('Settings uses native radios for mixed sessions and a checkbox for usage tr
   assert.doesNotMatch(html, /dollar|API rates|\$/i);
   assert.equal(element('yellow-any_inactive').checked, true, 'Default mode is selected');
   assert.equal(element('trackusage').checked, false, 'Usage tracking is off by default');
+  assert.equal(element('showusageinmenubar').checked, true, 'Menu-bar usage defaults on');
+  assert.equal(element('showusageinmenubar').disabled, true, 'Menu-bar usage requires tracking');
+  assert.match(html, /id="usagehint">[^<]*<\/span><\/span><\/label><label[^>]*for="showusageinmenubar"><input type="checkbox" id="showusageinmenubar" aria-describedby="showusageinmenubarhint"/,
+    'The menu-bar checkbox is directly below Track usage');
 
   const radio = element('yellow-active_wins');
   Object.assign(radio, { name: 'yellowmode', value: 'active_wins', checked: true });
@@ -321,10 +325,11 @@ for (const { id, key, command, defaultValue } of [
   { id: 'groupbyproject', key: 'groupByProject', command: 'set_group_by_project', defaultValue: false },
   { id: 'autoaddforgottenusb', key: 'autoAddForgottenUsb', command: 'set_auto_add_forgotten_usb', defaultValue: true },
   { id: 'popoverreset', key: 'popoverResetEnabled', command: 'set_popover_reset', defaultValue: true },
+  { id: 'showusageinmenubar', key: 'showUsageInMenuBar', command: 'set_usage_in_menu_bar', defaultValue: true },
 ]) {
   test(`Settings saves ${key} while preserving the pending choice and keyboard focus`, () => {
     const { context, element, click, listeners, commands, pushState } = popoverPage();
-    const refresh = settings => pushState({ settings });
+    const refresh = settings => pushState({ settings: { usageEnabled: true, ...settings } });
     refresh({});
     click('settingsbtn');
     const toggle = element(id);
@@ -352,6 +357,34 @@ for (const { id, key, command, defaultValue } of [
     assert.equal(element('groups').writes, builds, 'Keep the control attached during host refreshes');
   });
 }
+
+test('Track usage immediately enables its menu-bar checkbox and retains the saved display choice', () => {
+  const { context, element, click, listeners, commands, pushState } = popoverPage();
+  pushState({ settings: { usageEnabled: true, showUsageInMenuBar: false } });
+  click('settingsbtn');
+  const tracking = element('trackusage'), menuBar = element('showusageinmenubar');
+  assert.equal(menuBar.checked, false);
+  assert.equal(menuBar.disabled, false);
+  tracking.checked = false;
+  listeners.change({ target: tracking });
+  assert.equal(menuBar.disabled, true, 'Disable the dependent checkbox before saving');
+  assert.equal(menuBar.checked, false, 'Turning tracking off preserves its display preference');
+  pushState({ settings: { usageEnabled: true, showUsageInMenuBar: false } });
+  assert.equal(menuBar.disabled, true, 'A racing snapshot preserves pending tracking opt-out');
+  context.window.__configActionResult('Could not save setting');
+  assert.equal(tracking.checked, true);
+  assert.equal(menuBar.disabled, false, 'Rejected opt-out restores the saved dependency');
+  pushState({ settings: { usageEnabled: false, showUsageInMenuBar: false } });
+  assert.equal(menuBar.disabled, true);
+  menuBar.checked = true;
+  listeners.change({ target: menuBar });
+  assert.equal(commands('set_usage_in_menu_bar').length, 0, 'Disabled display control cannot save');
+  tracking.checked = true;
+  listeners.change({ target: tracking });
+  assert.equal(menuBar.disabled, false, 'Tracking opt-in enables the dependent checkbox immediately');
+  assert.equal(menuBar.checked, false, 'Opting back in preserves the previous display choice');
+  assert.equal(commands('set_usage_in_menu_bar').length, 0, 'Tracking never rewrites the display preference');
+});
 
 test('popover return time defaults to five minutes and follows the enabled checkbox immediately', () => {
   const { context, element, click, listeners, pushState } = popoverPage();
@@ -574,6 +607,26 @@ test('disabled usage stays hidden even with a cached snapshot', () => {
   listeners.change({ target: element('trackusage') });
   click('settingsbtn');
   assert.equal(element('usage').hidden, true, 'Disabling hides cached usage before the next host snapshot');
+});
+
+test('hiding menu-bar usage preserves popover totals without changing the tracking opt-in', () => {
+  const { context, element, click, listeners, commands, pushState } = popoverPage();
+  const usage = { todayTokens: 100, agents: [
+    { harness: 'codex', label: 'Codex', badge: 'cx', todayTokens: 100,
+      limits: [{ label: 'Week', usedPercent: 44, reset: 'Fri' }] },
+  ] };
+  const settings = { usageEnabled: true, showUsageInMenuBar: true };
+  pushState({ settings, usage });
+  click('settingsbtn');
+  element('showusageinmenubar').checked = false;
+  listeners.change({ target: element('showusageinmenubar') });
+  assert.deepEqual(commands('set_usage_in_menu_bar'), [{ cmd: 'set_usage_in_menu_bar', enabled: false }]);
+  assert.equal(commands('set_usage').length, 0);
+  pushState({ settings: { ...settings, showUsageInMenuBar: false }, usage });
+  context.window.__configActionResult(null);
+  click('settingsbtn');
+  assert.equal(element('usage').hidden, false);
+  assert.match(visibleLabel(element('usage')), /Usage · CodexToday ≈ 100 tokensWeek44%resets FriAll agents today ≈ 100 tokens/);
 });
 
 test('Settings toggles the saved Dashboard preference, reflects CLI changes and recovers from save failures', () => {

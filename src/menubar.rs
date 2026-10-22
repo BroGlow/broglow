@@ -382,11 +382,7 @@ fn snapshot_readout(u: &usage::UsageSnapshot) -> Option<String> {
         .iter()
         .filter_map(|agent| {
             let limit = agent.limits.first()?;
-            Some(format!(
-                "{} {:.0}%",
-                agent.badge.to_uppercase(),
-                limit.used_percent
-            ))
+            Some(format!("{} {:.0}%", agent.label, limit.used_percent))
         })
         .collect();
     if quotas.is_empty() {
@@ -396,20 +392,16 @@ fn snapshot_readout(u: &usage::UsageSnapshot) -> Option<String> {
     }
 }
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-fn usage_readout() -> Option<String> {
-    snapshot_readout(&usage::latest()?)
-}
-
-/// Put the readout where the platform can show it: next to the menu bar icon
-/// on macOS (design 1a), in the tray tooltip on Windows (design 1c). Shows
-/// nothing while usage tracking is off (the opt-in default).
+/// Hiding the readout leaves opt-in collection and popover usage untouched.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 fn apply_readout(tray: &tray_icon::TrayIcon) {
     let cfg = config::read_config();
-    let text = cfg.usage_enabled.then(usage_readout).flatten();
+    let snapshot = (cfg.usage_enabled && cfg.show_usage_in_menu_bar)
+        .then(usage::latest)
+        .flatten();
+    let text = snapshot.as_ref().and_then(snapshot_readout);
     #[cfg(target_os = "macos")]
-    tray.set_title(text.as_deref());
+    crate::menubar_usage::set_readout(tray, snapshot.as_ref(), text.as_deref());
     #[cfg(target_os = "windows")]
     {
         let tooltip = match text {
@@ -857,6 +849,19 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                     popover.push_state(&read_display_state());
                     popover.config_action_result(error);
                 }
+                PopoverMsg::SetUsageInMenuBar { enabled } => {
+                    let error = config::update_config(|cfg| {
+                        cfg.show_usage_in_menu_bar = enabled;
+                        Ok(())
+                    })
+                    .err()
+                    .map(|error| format!("Could not save menu-bar usage setting: {error}"));
+                    if let Some(tray) = tray_holder.as_ref() {
+                        apply_readout(tray);
+                    }
+                    popover.push_state(&read_display_state());
+                    popover.config_action_result(error);
+                }
                 PopoverMsg::SetLed { enabled } => {
                     let error = config::update_config(|cfg| {
                         cfg.led_enabled = enabled;
@@ -1210,6 +1215,8 @@ mod usage_readout_tests {
             today_tokens: 50_000,
             agents: vec![
                 AgentUsage {
+                    harness: "claude",
+                    label: "Claude",
                     badge: "cc",
                     limits: vec![UsageLimit {
                         label: "Week".into(),
@@ -1219,6 +1226,8 @@ mod usage_readout_tests {
                     ..Default::default()
                 },
                 AgentUsage {
+                    harness: "codex",
+                    label: "Codex",
                     badge: "cx",
                     limits: vec![UsageLimit {
                         label: "5h block".into(),
@@ -1236,7 +1245,7 @@ mod usage_readout_tests {
         };
         assert_eq!(
             snapshot_readout(&snapshot).as_deref(),
-            Some("CC 32% · CX 7%")
+            Some("Claude 32% · Codex 7%")
         );
     }
 

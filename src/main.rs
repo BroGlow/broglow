@@ -7,6 +7,8 @@ mod harness;
 mod hook;
 mod led;
 mod menubar;
+#[cfg(target_os = "macos")]
+mod menubar_usage;
 mod notification;
 mod opencode_usage;
 #[cfg(any(target_os = "macos", target_os = "windows"))]

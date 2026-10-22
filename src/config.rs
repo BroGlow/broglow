@@ -76,12 +76,14 @@ pub struct Config {
     /// How idle sessions color the aggregate (tray icon / LED) — see
     /// [`YellowMode`]. Set from the tray popover's Settings view.
     pub yellow_mode: YellowMode,
-    /// Whether the tray shows today's usage (the plan percentage or token
-    /// readout and the popover's usage section). Off by default — strictly opt-in, like the
-    /// LEDs: until a user turns it on in the popover's Settings view, the daemon
-    /// never scans transcripts, reads Claude Code's credentials, or contacts the
-    /// usage endpoint. Enabling it is what authorizes that work.
+    /// Collect usage and show the popover's usage section. Off by default —
+    /// strictly opt-in, like the LEDs: until enabled in Settings, the daemon
+    /// never scans transcripts, reads Claude Code's credentials, or contacts
+    /// the usage endpoint. Enabling it authorizes that work.
     pub usage_enabled: bool,
+    /// Show usage beside the tray icon while tracking is enabled. Hiding it
+    /// leaves collection and the popover's totals enabled. On by default.
+    pub show_usage_in_menu_bar: bool,
     /// Preserve settings introduced by newer versions or local integrations.
     #[serde(flatten)]
     pub extra: std::collections::BTreeMap<String, serde_json::Value>,
@@ -106,6 +108,7 @@ impl Default for Config {
             lamp_brightness: Default::default(),
             yellow_mode: YellowMode::default(),
             usage_enabled: false,
+            show_usage_in_menu_bar: true,
             extra: Default::default(),
         }
     }
@@ -255,6 +258,34 @@ pub fn write_config(cfg: &Config) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::Config;
+
+    #[test]
+    fn menu_bar_usage_defaults_on_without_enabling_tracking_and_preserves_preferences() {
+        for cfg in [Config::default(), serde_json::from_str("{}").unwrap()] {
+            assert!(cfg.show_usage_in_menu_bar);
+            assert!(!cfg.usage_enabled);
+        }
+        for usage_enabled in [false, true] {
+            let cfg: Config = serde_json::from_value(serde_json::json!({
+                "usage_enabled": usage_enabled,
+                "show_usage_in_menu_bar": false,
+                "show_agent_names": false,
+                "custom": 42,
+            }))
+            .unwrap();
+            let saved = serde_json::to_value(&cfg).unwrap();
+            assert_eq!(saved["usage_enabled"], usage_enabled);
+            assert_eq!(saved["show_usage_in_menu_bar"], false);
+            assert_eq!(saved["show_agent_names"], false);
+            assert_eq!(saved["custom"], 42);
+            let restored: Config = serde_json::from_value(saved).unwrap();
+            assert!(!restored.show_usage_in_menu_bar);
+            assert_eq!(restored.usage_enabled, usage_enabled);
+        }
+        let existing: Config = serde_json::from_str(r#"{"usage_enabled":true}"#).unwrap();
+        assert!(existing.show_usage_in_menu_bar);
+        assert!(existing.usage_enabled);
+    }
 
     #[test]
     fn popover_reset_defaults_on_and_preserves_custom_preferences() {
