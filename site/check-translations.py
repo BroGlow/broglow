@@ -53,6 +53,9 @@ pairs = [
         "CLAUDE.md",
         "site/README.md",
         "site/vendor/README.md",
+        "demos/homepage/README.md",
+        "demos/homepage/SHARED-UI.md",
+        "demos/homepage/REFERENCE-SOURCE.md",
     )
 ]
 pairs.append(

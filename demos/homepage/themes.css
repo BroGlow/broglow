@@ -1,0 +1,45 @@
+/* Ember brand colors in light and dark appearances. */
+:root{--paper:#fcf5ee;--ink:#32231e;--muted:#756158;--line:#e7d7ca;--accent:#a04723;--surface:#f8eadc;--surface-raised:#fffaf6;--selected:#f3dcc7;--selected-line:#c38a5a;--wallpaper:#efd0b3;--wallpaper-ring:#e7bc94;--wallpaper-line:#d9a679;--wallpaper-ink:#aa734f;--shadow:#7e44252a;--accent-soft:#f6c9a5}
+:root[data-theme=dark]{--paper:#231b18;--ink:#fbede1;--muted:#ceb4a6;--line:#4b3830;--accent:#f3b180;--surface:#30231d;--surface-raised:#3d2d25;--selected:#4a3326;--selected-line:#9d6d49;--wallpaper:#4f3525;--wallpaper-ring:#62402a;--wallpaper-line:#7a5237;--wallpaper-ink:#b7865f;--shadow:#00000052;--accent-soft:#754a2d}
+html{color:var(--ink);background:var(--paper)}
+::selection{background:var(--accent-soft);color:var(--ink)}
+select{font:inherit;color:var(--ink);background:var(--surface-raised);border:1px solid var(--line);border-radius:6px;padding:7px 26px 7px 9px;cursor:pointer}
+select:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+.button-dark:hover{background:var(--accent);color:var(--paper)}
+.text-link{border-color:var(--selected-line)}
+.hero-copy>p{color:var(--muted)}
+.desktop{border-color:var(--line);background:var(--wallpaper);box-shadow:0 25px 60px -35px var(--shadow)}
+.desktop-bar{background:var(--surface);border-color:var(--line)}
+.tray-button{background:var(--selected)}
+.desktop-wallpaper:before{border-color:var(--wallpaper-line);box-shadow:0 0 0 34px var(--wallpaper-ring),0 0 0 35px var(--wallpaper-line),0 0 0 75px var(--wallpaper),0 0 0 76px var(--wallpaper-line)}
+.desktop-wallpaper>span{color:var(--wallpaper-ink)}
+/* The terminal and embedded production app keep their own realistic dark UI. */
+.terminal{background:#1e2429;border-color:#3d454c;box-shadow:0 14px 25px #00000023}
+.terminal-top{background:#293139;color:#b6bec6}
+.terminal-agent>span{border-color:#46525f;color:#b0bbc5}
+.terminal.focused{outline-color:var(--accent);box-shadow:0 15px 45px var(--shadow)}
+.terminal-bottom{border-color:#3a454e;color:#a6b3be}
+.demo-question{background:#30343a;border-color:#786b4c}
+.demo-question>button{background:#e6e9ef;color:#20262d}
+.hero-states button[aria-pressed=true],.model-controls button[aria-pressed=true]{background:var(--selected);border-color:var(--selected-line)}
+#app-preview-error{color:var(--muted);background:var(--surface-raised)}
+.lamp-wrap{background:var(--surface);border-color:var(--line)}
+.lamp-wrap model-viewer{--progress-bar-color:var(--accent)}
+.model-figure figcaption,.step-number,.desk-footnote,.footer small{color:var(--muted)}
+.brightness-control input{accent-color:var(--accent)}
+.model-steps article.active{background:var(--surface)}
+.signal-controls{background:var(--surface)}
+.signal-choice.selected{background:var(--surface-raised);border-color:var(--selected-line)}
+.install-box{background:var(--surface);border-color:var(--line)}
+.install-box-head{border-color:var(--line)}
+.copy-button{background:var(--surface-raised);border-color:var(--selected-line)}
+.copy-button:hover{background:var(--selected)}
+.install-box .install-command::before,.install-box-foot{color:var(--muted)}
+#install-fallback{background:var(--surface-raised);border-color:var(--selected-line);color:var(--ink)}
+.toast{background:var(--surface-raised);border-color:var(--selected-line);box-shadow:0 8px 35px var(--shadow)}
+.appearance-controls{display:flex;align-items:center;justify-content:flex-end;gap:15px;flex-wrap:wrap;font-size:var(--text-ui)}
+.appearance-controls label{display:inline-flex;align-items:center;gap:8px}
+@media(max-width:768px){.appearance-controls{gap:10px;justify-content:flex-start;font-size:var(--text-ui)}}
+
+.brand-mark{background:#18251e}.skip{color:var(--paper)}
+.appearance-controls select{background:var(--surface-raised)}

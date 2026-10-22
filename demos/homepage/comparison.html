@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BroGlow — landing page comparison</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#32231e;background:#fcf5ee;font-size:18px;line-height:1.6}*{box-sizing:border-box}body{max-width:1320px;margin:auto;padding:40px 5% 64px}h1{font-size:clamp(34px,5vw,56px);line-height:1.12;letter-spacing:-.045em;margin:12px 0 20px}h2{font-size:28px;line-height:1.3;margin:44px 0 16px}p{max-width:78ch}a{color:#a04723;text-underline-offset:4px}nav{display:flex;gap:16px;flex-wrap:wrap;margin:28px 0}nav a{border:1px solid #c38a5a;border-radius:8px;padding:10px 18px;text-decoration:none;min-height:44px}.table-wrap{overflow:auto;border:1px solid #e7d7ca;border-radius:12px;background:#fffaf6}table{border-collapse:collapse;width:100%;min-width:760px;text-align:left}th,td{padding:18px 20px;border-bottom:1px solid #e7d7ca;vertical-align:top}thead th{background:#f3dcc7}tbody th{width:23%;font-size:18px}td{width:38.5%}tr:last-child>*{border-bottom:0}.note{font-size:16px;color:#756158}.reviews{min-width:660px}.reviews th{width:23%}.reviews td{width:auto}li{margin:10px 0}strong{font-weight:650}:focus-visible{outline:3px solid #a04723;outline-offset:5px}@media(max-width:600px){body{padding:24px 6% 40px}.table-wrap{margin:0 -8px}th,td{padding:15px 16px}h2{font-size:26px}}@media(prefers-color-scheme:dark){:root{background:#231b18;color:#fbede1}a{color:#f3b180}.table-wrap{background:#30231d;border-color:#4b3830}th,td{border-color:#4b3830}thead th{background:#4a3326}.note{color:#ceb4a6}}
+</style>
+</head>
+<body>
+<main>
+<p class="note">BroGlow · local design review · 21 October 2026</p>
+<h1>What visitors can see and do.</h1>
+<p>The new landing makes the software easier to try. The old landing gives hardware builders more detail. This compares the landing pages themselves; a feature reached only through documentation is listed as a guide link.</p>
+<nav aria-label="Compare the pages"><a href="../../site/" target="_blank" rel="noopener">Open old landing ↗</a><a href="./" target="_blank" rel="noopener">Open new landing ↗</a></nav>
+<div class="table-wrap" role="region" aria-label="Old versus new landing page experiences" tabindex="0">
+<table>
+<thead><tr><th scope="col">Visitor experience</th><th scope="col">Old landing</th><th scope="col">New landing</th></tr></thead>
+<tbody>
+<tr><th scope="row">First impression</th><td>Hardware photo; explains immediately that no lamp is required. Installation is the primary action.</td><td>Working app and terminal demonstration first. Software-first installation and optional hardware are explained further down.</td></tr>
+<tr><th scope="row">Try the app</th><td>Static screenshot of the real app.</td><td>Real app interface with example sessions: open/close the tray, change agent labels and grouping, show sample usage, dismiss sessions, focus a terminal and approve a simulated test run.</td></tr>
+<tr><th scope="row">Understand the signals</th><td>Manual Working, Paused, Needs help and Off choices, with explanations and real photos.</td><td>Working, Paused and Needs you change the app and terminal. Separate model and photo controls show the physical signals. No explicit Off/no-sessions explanation.</td></tr>
+<tr><th scope="row">Explore the 3D lamp</th><td>Rotate, zoom, reset, retry and switch between model/photo.</td><td>Rotate, adjust brightness, and watch camera/LED changes while scrolling. Wheel scrolling moves the page. Automatic photo fallback; no dedicated reset/retry or photo toggle.</td></tr>
+<tr><th scope="row">Place it on your desk in AR</th><td>Mobile AR plus a desktop QR handoff to a phone.</td><td>Native AR on supported phones; desktop QR handoff on reachable hosted pages. Local previews offer a clearly labeled public AR viewer link.</td></tr>
+<tr><th scope="row">Understand the assembly</th><td>Exploded 3D assembly, component list and magnetic mascot explanation.</td><td>Assembled product model, photos and a short build invitation. Assembly details are reached through the guide.</td></tr>
+<tr><th scope="row">Find printable files</th><td>Direct Printables and MakerWorld links, plus the build guide.</td><td>Direct Printables and MakerWorld model links in the optional-lamp FAQ, plus the build guide.</td></tr>
+<tr><th scope="row">Check connections</th><td>Dedicated Bluetooth/USB, platform, USB power and no-Wi-Fi explanation; automatic pairing steps.</td><td>Short hardware introduction. Connection details are reached through documentation.</td></tr>
+<tr><th scope="row">Install the software</th><td>Installation guide and commands within the build steps.</td><td>Dedicated installation section with copyable commands, guide link and Windows/Linux alternatives.</td></tr>
+<tr><th scope="row">Check agent compatibility</th><td>Names the four supported coding agents.</td><td>Names the same agents; FAQ also states the Codex version requirement and excludes cloud tasks and web chats.</td></tr>
+<tr><th scope="row">Evaluate open source/support</th><td>GitHub link with live stars/forks, guide and Why BroGlow links.</td><td>GitHub stars/forks plus a dedicated repository link. Documentation link; no direct Why BroGlow link.</td></tr>
+<tr><th scope="row">Answer common questions</th><td>Information distributed through the page and guide.</td><td>Expandable FAQ covers optional hardware, supported sessions and mixed-session signal priority.</td></tr>
+<tr><th scope="row">Language and appearance</th><td>English/Russian and system/light/dark.</td><td>English/Russian and system/light/dark with the selected Ember brand. The real embedded app retains its shipped English interface.</td></tr>
+<tr><th scope="row">Read comfortably</th><td>18px introduction with several smaller 12–15px controls/supporting labels.</td><td>18px body, 16px main controls and 14px captions/terminal; narrow layouts wrap and stack rather than shrink.</td></tr>
+<tr><th scope="row">Share a link</th><td>Canonical URL and Open Graph/Twitter metadata with the product photo.</td><td>Canonical URL and Open Graph/Twitter photo previews, with static English text for social crawlers. Browser metadata follows the selected EN/RU language.</td></tr>
+</tbody>
+</table>
+</div>
+<p class="note">These are differences in presentation and access, not claims that BroGlow itself has gained or lost those product capabilities.</p>
+<h2>Three Lazarus reviews</h2>
+<div class="table-wrap" role="region" aria-label="Lazarus review results" tabindex="0"><table class="reviews"><thead><tr><th scope="col">Review</th><th scope="col">Confirmed issues</th><th scope="col">After fixes</th></tr></thead><tbody>
+<tr><th scope="row">Product accuracy</th><td>Mixed-session settings did not affect the demo’s signal.</td><td>Fixed; reviewer re-checked the shared calculation and regression.</td></tr>
+<tr><th scope="row">Correctness</th><td>Dismissing sessions left the outer tray stale, including after all sessions were cleared.</td><td>Fixed; tray follows the app without recreating dismissed sessions. Reviewer re-check passed.</td></tr>
+<tr><th scope="row">Experience/accessibility</th><td>A failed 3D view stayed invisibly focusable; the photo fallback advertised brightness changes it could not display.</td><td>Fixed; failed/loading model is inert, photo brightness is disabled, labels/controls recover on model success. Reviewer re-check passed.</td></tr>
+</tbody></table></div>
+<p><strong>Automated regression checks pass.</strong> Browser checks confirmed mixed-session priority, dismissal and the empty-session tray state. All three reviewers report no remaining confirmed findings.</p>
+<p>Follow-up fix: clicking or keyboard-focusing either demo window now brings it forward without resetting sessions. The waiting-session Focus → Allow → return-to-BroGlow sequence was also checked in the browser.</p>
+<p>AR and social previews are now restored. Supported phones can launch native AR; desktop visitors get a QR handoff on reachable hosted pages. Local addresses show a public-viewer option instead of an unusable QR. Open Graph/Twitter previews use our own hardware photo. Direct printable-model links are available in the optional-lamp FAQ and build guide.</p>
+<h2>Scope and evidence</h2>
+<p>Compared the current files and rendered pages at <code>site/</code> and <code>demos/homepage/</code>. Product behavior was checked against the shipped popover and project guides. Regression tests cover the new fixes, localization, theme choices, message validation, LED mapping, scroll progression and reduced motion.</p>
+<p class="note">The new app demo uses synthetic sessions. No native services, installers, physical hardware or phone AR were exercised. 3D failure and recovery paths were verified through automated tests. No production page or deployment was changed.</p>
+</main>
+</body>
+</html>
