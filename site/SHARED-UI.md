@@ -6,7 +6,7 @@
 The desktop app and landing demo use the same UI sources in `assets/popover/`.
 There is no Vue or React dependency and no second recreation of the popover.
 The landing is static HTML/CSS/JavaScript. Preview, build and check commands live
-in [the demo README](README.md#build-and-check).
+in [the website runbook](README.md#build-and-preview).
 
 <a name="sources"></a>
 ## Shared sources
@@ -27,7 +27,7 @@ The native host embeds the shell, styles and scripts at compile time in
 `window.__setState`. Error/confirmation callbacks keep their existing names.
 The installed app needs no external files or HTTP server.
 
-The landing host in `demos/homepage/app-preview.js` loads those same sources and
+The landing host in `site/app-preview.js` loads those same sources and
 provides sample state plus simulated IPC through the explicit host slot. Its
 scripts-only iframe has no native services or access to the parent document.
 Source, origin and per-load channel tokens authenticate both message directions.
@@ -45,9 +45,15 @@ the readout and retains its display preference for the next enable.
 <a name="packaging"></a>
 ## Static packaging and checks
 
-The builder copies the shared UI and its pinned dependencies into the ignored
-standalone output; runtime paths no longer depend on the source checkout.
-Rebuild after shared-source changes. The native view tests exercise the same
-assembled views as the demo; Pages CI runs those tests when shared sources change.
-See [the README](README.md) for commands and validation limits. Building the demo
-does not replace `site/index.html` or publish a site.
+`site/pages.py` packages the canonical homepage, guide, shared UI and pinned
+browser dependencies into ignored `site/_pages/`. In source previews the landing
+loads `../assets/`; the builder copies the native shell, renderer and tray icons
+into `app-ui/` and remaps those paths, preserving the shared UI source bytes.
+The artifact runs without the checkout. There is no separate prototype builder.
+
+Rebuild after shared-source changes. Native view tests exercise the same assembled
+views as the demo; Pages CI runs those tests when shared sources change. Run
+`node --test site/*.test.cjs` and
+`node --test tests/js/lamp-status.test.mjs tests/js/popover-library.test.mjs`.
+See [the website runbook](README.md#check-the-exact-pages-artifact-locally) for the
+production build and validation limits. Building does not publish the site.

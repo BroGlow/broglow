@@ -61,7 +61,7 @@
     $$('[data-hero-state]').forEach(button => button.setAttribute('aria-pressed',String(button.dataset.heroState === heroSignal)));
     const icon = $('#tray-icon');
     if (icon) {
-      icon.src = `../../assets/icons/broglow-${aggregateSignal}.png`;
+      icon.src = `../assets/icons/broglow-${aggregateSignal}.png`;
       icon.alt = text('tray.alt','BroGlow: {state}',{state:label(aggregateSignal)});
     }
     $('#workspace-hint').textContent = aggregateSignal === 'red' ? text('workspace.red','A session needs input. Click it in the BroGlow panel.') : aggregateSignal === 'yellow' ? text('workspace.yellow','A turn is done. Ready when you are.') : aggregateSignal === 'none' ? text('workspace.none','No live sessions. Choose a session state to try again.') : text('workspace.green','Actual BroGlow interface. Illustrative local sessions.');
@@ -143,7 +143,7 @@
     $('#terminal').classList.remove('focused');
   });
   function renderPhoto() {
-    $('#signal-photo').src = `../../site/assets/photos/${photos[photoSignal]}`;
+    $('#signal-photo').src = `./assets/photos/${photos[photoSignal]}`;
     $('#signal-photo').alt = text('photo.alt','Real BroGlow lamp showing the {state} signal',{state:label(photoSignal)});
     $('#photo-state').innerHTML = `<i class="signal-dot ${photoSignal}"></i> ${escape(label(photoSignal))}`;
   }
@@ -154,7 +154,7 @@
     renderPhoto();
   }));
   function renderModel() {
-    $('#lamp-fallback').src = `../../site/assets/photos/${photos[modelSignal]}`;
+    $('#lamp-fallback').src = `./assets/photos/${photos[modelSignal]}`;
     $('#lamp-fallback').alt = text('model.photoAlt','Our real BroGlow lamp showing the {state} signal',{state:label(modelSignal)});
     $('#lamp-brightness').disabled = modelFailed;
     $('#model-status').textContent = modelFailed

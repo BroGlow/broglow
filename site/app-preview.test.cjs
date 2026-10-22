@@ -5,9 +5,9 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 const source = readFileSync(resolve(__dirname, 'app-preview.js'), 'utf8');
-const popover = readFileSync(resolve(__dirname, '../../assets/popover.html'), 'utf8');
-const renderer = readFileSync(resolve(__dirname, '../../assets/popover/popover.js'), 'utf8');
-const popoverDocument = require('../../assets/popover/document.js');
+const popover = readFileSync(resolve(__dirname, '../assets/popover.html'), 'utf8');
+const renderer = readFileSync(resolve(__dirname, '../assets/popover/popover.js'), 'utf8');
+const popoverDocument = require('../assets/popover/document.js');
 class DetailEvent extends Event {
   constructor(type, options) { super(type); this.detail = options?.detail; }
 }
@@ -24,11 +24,11 @@ async function preview({ fail = false } = {}) {
     browser.addEventListener(type, event => events.push({ type, detail: event.detail }));
   }
   vm.runInNewContext(source, { window: browser, document: {
-    baseURI: 'http://localhost:8766/demos/homepage/', body: { dataset: {} },
+    baseURI: 'http://localhost:8766/site/', body: { dataset: {} },
     querySelector: () => frame }, CustomEvent: DetailEvent, URL, Uint8Array, btoa,
     crypto: { randomUUID: () => 'test-channel-token' }, fetch: async url => ({
-      ok: !fail, text: async () => readFileSync(resolve(__dirname, '../..', new URL(url).pathname.replace(/^\//, '')), 'utf8'), arrayBuffer: async () => {
-        const bytes = readFileSync(resolve(__dirname, '../../assets/icons', new URL(url).pathname.split('/').pop()));
+      ok: !fail, text: async () => readFileSync(resolve(__dirname, '..', new URL(url).pathname.replace(/^\//, '')), 'utf8'), arrayBuffer: async () => {
+        const bytes = readFileSync(resolve(__dirname, '../assets/icons', new URL(url).pathname.split('/').pop()));
         return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
       },
     }) });

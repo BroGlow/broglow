@@ -171,7 +171,7 @@
 
   async function load() {
     try {
-      const sourceUrl = new URL('../../assets/popover.html', document.baseURI);
+      const sourceUrl = new URL('../assets/popover.html', document.baseURI);
       const response = await fetch(sourceUrl);
       if (!response.ok) throw new Error('Popover source unavailable');
       const template = await response.text();
@@ -192,7 +192,7 @@
         hostScript: shim, platform: 'mac', icons });
     } catch {
       frame.dataset.error = 'true';
-      emit('broglow:app-error', { message: 'The BroGlow app preview could not load its shared UI assets. Rebuild the static demo or serve it from the project root.' });
+      emit('broglow:app-error', { message: 'The BroGlow app preview could not load its shared UI assets.' });
     }
   }
   load();

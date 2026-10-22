@@ -45,7 +45,7 @@ function preview(now = new Date()) {
   const buttons = ['green','yellow','red'].map(signal => element({heroState:signal}));
   const photos = ['green','yellow','red'].map(signal => element({signalChoice:signal}));
   const browser = new EventTarget();
-  browser.BroGlowPresentation = require('../../assets/popover/presentation.js');
+  browser.BroGlowPresentation = require('../assets/popover/presentation.js');
   const body = element();
   const stateEvents = [];
   browser.addEventListener('broglow:app-state', event => stateEvents.push(event.detail.signal));
@@ -110,7 +110,7 @@ test('all three hero states tell a complete checkout story and use the shipped t
     assert.ok(demo.$('#terminal-output').innerHTML.includes(expected));
     assert.equal(demo.$('#terminal-output').innerHTML.includes('terminal-cursor'),cursor);
     assert.equal(demo.$('#demo-question').hidden,!question);
-    assert.equal(demo.$('#tray-icon').src,`../../assets/icons/broglow-${signal}.png`);
+    assert.equal(demo.$('#tray-icon').src,`../assets/icons/broglow-${signal}.png`);
   }
   assert.equal(demo.$('#demo-question p').textContent,'Can I run the checkout tests?');
   assert.deepEqual(demo.stateEvents,['green','yellow','red']);

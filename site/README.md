@@ -2,9 +2,17 @@
 
 [English](README.md) | [Русский](README.ru.md)
 
-The landing is plain HTML/CSS. The bilingual guide uses [MkDocs](https://www.mkdocs.org/),
-[Material](https://squidfunk.github.io/mkdocs-material/) and
-[static-i18n](https://ultrabug.github.io/mkdocs-static-i18n/).
+The Ember homepage in `site/` is the canonical landing. It uses static
+HTML/CSS/JavaScript and the same app renderer as the desktop app; no Vue, React,
+npm dependencies or separate demo build are needed. The bilingual guide uses
+[MkDocs](https://www.mkdocs.org/), [Material](https://squidfunk.github.io/mkdocs-material/)
+and [static-i18n](https://ultrabug.github.io/mkdocs-static-i18n/).
+
+The previous prototype from `demos/homepage/` has been promoted here. The
+[shared UI contract](SHARED-UI.md) explains the app boundary; the dated
+[public-source research](REFERENCE-SOURCE.md) records the Blink Buddy reference.
+The [experience comparison](comparison.html) and [viewport harness](viewport-check.html)
+are local review tools and are excluded from the published Pages artifact.
 
 ## Edit the guide
 
@@ -70,44 +78,40 @@ landing and local downloads.
 
 ## Interactive 3D and AR
 
-The hero keeps the main photo visible. Directly below, **Explore in 3D** hosts the
-assembled lamp preview with signal effects and AR.
-The build section has a rotatable assembly explorer using the same self-hosted
-model-viewer with `assets/assembly.glb`, loaded lazily; it supports drag,
-keyboard rotation, zoom, Reset view and retry after loading errors. Its separated
-parts expose the LED retainer and mounting points. Without JavaScript, the hero
-photo and the 3D preview's poster remain visible.
+Normal document scrolling moves the page and changes the assembled lamp's camera
+and signal as the model section passes through the viewport. The page has no
+pinned narrative or scroll snapping. Drag or arrow keys rotate the model;
+**Working**, **Paused** and **Needs you** select green, yellow and red, and the
+brightness slider changes the lit material's emissive strength. Zoom is disabled
+so wheel and vertical touch gestures keep scrolling the page. Reduced-motion
+preference disables scripted camera movement.
 
-The 3D preview starts automatically with **Working** selected; its initial poster
-is `assets/photos/signal-green.jpg`. Self-hosted
-`@google/model-viewer` 4.3.1 and the effects module share Three.js via a local import
-map (see [vendor/README.md](vendor/README.md)). **Working**, **Paused** and **Needs help** light only the green,
-yellow or red lens; **Off** dims all three and removes the glow. A restrained bloom
-keeps the lens color visible. One Three.js point light follows the active LED and
-casts its color onto nearby surfaces with distance falloff; Off disables it.
-The light attaches through the effects composer's public mesh selection, so it
-follows the model during rotation.
+`lamp.js` uses self-hosted `@google/model-viewer` 4.3.1 with
+`assets/broglow.glb`; Three.js resolves through the local import map
+(see [vendor/README.md](vendor/README.md)). The LED material indices are checked
+against the exported GLB in `demo.test.cjs`. While the model loads or after a
+failure, a real lamp photo is shown; failed loading disables controls that require
+3D. The photo changes with the selected signal and retains its 7:5 proportions.
+Without JavaScript the photo remains visible. The homepage no longer includes the
+old exploded assembly explorer; printing and assembly instructions remain in the
+guide. `assets/assembly.glb` remains an export asset.
 
-The selected signal applies before the first rendered frame and after retrying;
-Reset view preserves it. Automatic loading does not take keyboard focus. After a
-loading failure, the photo shows the selected signal and **Retry 3D** is available.
-The material mapping is checked against the exported GLB in `model-preview.test.cjs`.
-Android Scene Viewer reloads the original GLB, so signal changes do not reach it.
-Bloom postprocessing is not available in AR modes, including WebXR.
-
-**View in your space** opens a keyboard-accessible dialog with a locally generated
-QR code and an **Open on this device** link. The QR uses the current site path with
-`#view-in-space`, without query parameters; scanning opens the 3D preview, then the
-visitor taps **View on your desk** to start AR. The phone uses its own language
-preference. Localhost/file previews show guidance instead of an unreachable QR;
-use a phone-accessible HTTPS address to test scanning and AR. QR generation failure
-keeps the on-device link usable. The pinned QR encoder and license live in `vendor/`.
+**View in your space** starts native AR directly on supported phones. Other
+browsers open a keyboard-accessible handoff dialog with a locally generated QR
+code and an **Open on this device** link. The QR uses the current site path with
+`#view-in-space` and the selected `?lang=en` / `?lang=ru`, dropping other query
+parameters. Localhost/file previews suppress an unreachable QR and offer the
+public viewer. Use a phone-accessible HTTPS address to test handoff. QR generation
+failure keeps the on-device link usable. The pinned QR encoder and license live
+in `vendor/`.
 
 AR uses `webxr`, `scene-viewer` and `quick-look` with `ar-scale="fixed"`; the GLB
 uses meters. Safari on iPhone/iPad generates USDZ on demand (`ios-src` is omitted);
-other iOS browsers are unverified. WebXR requires HTTPS or loopback, and a phone
-cannot reach another device's localhost. Physical phone placement and size still
-need acceptance checks. See the [component's AR reference](https://modelviewer.dev/examples/augmentedreality/).
+other iOS browsers are unverified. Scroll-driven changes pause during AR. Android
+Scene Viewer reloads the original GLB, so browser material changes do not reach it.
+WebXR requires HTTPS or loopback; a phone cannot reach another device's localhost.
+Physical phone placement and size still need acceptance checks. See the
+[component's AR reference](https://modelviewer.dev/examples/augmentedreality/).
 
 The model depicts the magnetic enclosure from `models/magnetic/` with reference
 magnets and electronics (`appearance.py` for the assembled preview, `exploded.py` for the
@@ -130,59 +134,69 @@ adding Draco/KTX compression.
 
 ## Languages and behavior
 
-The landing defaults to English, including its static HTML and metadata. Russian
-translations live in `data-ru` attributes. Manual choice wins and is shared through
-localStorage key `broglow-language`; clear it to restore the default. The guide
-uses the URL's language unless a saved or explicit choice overrides it;
-`guide/assets/language.js` preserves page/section and uses `?lang=ru` / `?lang=en`
-when storage is blocked. Browser language does not override these defaults.
-Without JavaScript, guide links work in their URL's language and prompts can be
-copied manually.
+The landing defaults to English, including its static HTML and metadata. The
+EN/RU dictionaries and `data-i18n` bindings live in `language.js`. An explicit
+`?lang=en` / `?lang=ru` wins over localStorage key `broglow-language`; otherwise the
+saved choice wins, then English. The language icon offers EN/RU and updates the
+current URL and translated guide links. The guide uses the URL's language unless
+a saved or explicit choice overrides it; `guide/assets/language.js` preserves
+page/section and query parameters when storage is blocked. Browser language does
+not override these defaults. Without JavaScript, links and installation commands
+remain usable in the static page's language.
 
 The landing's Open Graph and Twitter cards use English text and our real
-`assets/photos/broglow-all-lights.jpg` lamp photo. Absolute canonical and preview URLs
-point to the published site; `pages.py` adjusts them for `--repository`.
+`assets/photos/broglow-all-lights.jpg` lamp photo. Absolute canonical and preview
+URLs point to the published site; `pages.py` adjusts them for `--repository`.
+Browser metadata follows a manual language change; crawlers receive static English.
 
-The landing explicitly offers installation and session monitoring before building
-or getting a lamp. Its main button opens the installation guide; the physical lamp
-is an optional addition to the menu-bar app and terminal dashboard.
+The hero demonstrates session monitoring with the real app renderer in a
+scripts-only sandbox iframe, using sample state and a simulated native host.
+Try Working/Paused/Needs you, terminal focus, dismissals and Settings. **Track
+usage** exposes sample per-agent Claude/Codex quotas, opencode tokens and an
+all-agent token total. **Show usage in menu bar** controls the status-bar readout
+independently. Names, grouping, dashboard visibility, mixed-state priority and the
+return-to-chats timeout use the shared renderer. Demo settings and dismissals stay
+in memory; it reads no real sessions and cannot install software or control
+hardware. See [SHARED-UI.md](SHARED-UI.md) for the source and host contract.
 
-The GitHub badge beside the install button links to the repository and loads its
-star and fork counts from GitHub's public API. Without JavaScript or when the
-request fails, it remains a source-code link. `pages.py` adjusts the repository
-link for `--repository` and includes `github.js` in the Pages artifact.
+BroGlow works before building or getting a lamp. The header and install section
+link to the installation guide; the copyable Homebrew commands omit decorative
+shell prompts from selected/copied text. The terminal dashboard and menu-bar app
+can be used on their own. The FAQ also links directly to the Printables and
+MakerWorld models for visitors who want a lamp.
 
-The language, GitHub and QR helper scripts use `defer`: they download without
-blocking HTML parsing and execute in order after it. The GitHub script has low
-download priority. The 3D module is deferred by default and follows the QR helper.
-Only `theme.js` runs before paint to apply the saved theme without a flash.
+GitHub links in the hero and source section lead to the repository. `github.js`
+loads star and fork counts from GitHub's public API; the links remain usable
+without JavaScript or when the request fails. `pages.py` adjusts repository links
+for `--repository`. No separate Releases/Issues/license link row is shown.
 
-Both the landing and the guide follow the system color scheme and offer an
-auto/light/dark switch: the landing's `theme.js` stores the choice under
-localStorage key `broglow-theme` and sets `data-theme` before the first paint;
-the guide uses Material's three-way palette toggle with its own storage.
-Material provides navigation, local search and copy buttons; `copy.js` adds
-accessible success/failure feedback. Fonts are system fonts; no analytics or
-external font service is configured.
+`theme.js` runs before paint to apply system/light/dark preference without a
+flash. It reads `?theme=auto|light|dark`, then localStorage key `broglow-theme`,
+then the system color scheme; the brand palette is fixed Ember. The header uses
+language and theme icons with accessible labels and native selectors. Other
+classic scripts use `defer`; `lamp.js` is a module. The guide uses Material's
+three-way palette toggle with its own storage. Material provides navigation,
+local search and copy buttons; `copy.js` adds accessible success/failure feedback.
+Fonts are system fonts; no analytics or external font service is configured.
 
 ## Check changes
 
 ```bash
 uv run --frozen --only-group docs python site/check-translations.py
-node site/i18n.test.cjs
-node site/theme.test.cjs
-node site/github.test.cjs
-node site/model-preview.test.cjs
-node site/docs-language.test.cjs
-node site/docs-copy.test.cjs
+node --test site/*.test.cjs
+node --test tests/js/lamp-status.test.mjs tests/js/popover-library.test.mjs
 uv run --frozen --only-group test pytest site/test_pages.py
 uv run --frozen --only-group docs mkdocs build --strict -f site/mkdocs.yaml
 uv run --no-project --python 3.14 python site/check-links.py
 uv run --no-project --python 3.14 python site/check-links.py --base-url http://127.0.0.1:8080/site/
 ```
 
-The link check covers generated pages, anchors, language links and downloads.
-Keep the preview server running for the HTTP check.
+The tests cover shared UI boundaries, settings, tracking, terminal/window
+interaction, localization, assets, 3D/AR and social tags. The link check covers
+generated pages, anchors, language links and downloads. Keep the preview server
+running for the HTTP check. Check narrow and desktop layouts with
+`site/viewport-check.html`; these checks do not verify installed services,
+installers, physical hardware, phone AR or live social scraping.
 
 ## Local downloads and factual limits
 
@@ -250,7 +264,11 @@ uv run --no-project --python 3.14 python -m http.server 8081 --bind 127.0.0.1 --
 ```
 
 Open http://127.0.0.1:8081/. Only ignored `site/_pages/` is uploaded: landing,
-generated docs and assets, including the GLB and provenance. CAD, print files,
+generated docs and assets, including the GLB, provenance and native UI copies in
+`app-ui/`. `site/pages.py` is the sole production builder; it remaps source paths
+from `../assets/` to `app-ui/` so the artifact runs without the checkout.
+`comparison.html`, `viewport-check.html`, tests and developer Markdown are excluded.
+Rebuild after changing the landing or shared UI. CAD, print files,
 app packages and the Python environment stay outside the artifact. Public builds
 keep translated guide links on-site and direct other source links to GitHub.
 Verify GitHub Actions, the live site and release downloads after publishing.

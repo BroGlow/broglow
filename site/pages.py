@@ -409,6 +409,51 @@ def landing_page(home, repo_url=None):
     )
 
 
+def write_landing(output, home, repo_url=None):
+    """Package the landing beside the guide, preserving the native UI source bytes."""
+    output.mkdir(parents=True, exist_ok=True)
+    (output / "index.html").write_text(
+        landing_page(home, repo_url)
+        .replace("../assets/", "app-ui/")
+        .replace("guide/assets/favicon.svg", "assets/favicon.svg")
+    )
+    for name in (
+        "styles.css",
+        "themes.css",
+        "theme.js",
+        "language.js",
+        "app.js",
+        "app-preview.js",
+        "lamp.js",
+        "ar.js",
+        "ar.css",
+        "github.js",
+    ):
+        if name.endswith(".js"):
+            (output / name).write_text(
+                (SITE / name)
+                .read_text()
+                .replace("../assets/", "app-ui/")
+                .replace("https://broglow.github.io/broglow/", home)
+                .replace(
+                    "https://github.com/broglow/broglow", repo_url or repository_url()
+                )
+            )
+        else:
+            shutil.copy2(SITE / name, output / name)
+    for name in ("assets", "vendor"):
+        shutil.copytree(SITE / name, output / name, dirs_exist_ok=True)
+    shutil.copy2(SITE / "guide/assets/favicon.svg", output / "assets/favicon.svg")
+    native = SITE.parent / "assets"
+    (output / "app-ui").mkdir(exist_ok=True)
+    shutil.copy2(native / "popover.html", output / "app-ui/popover.html")
+    shutil.copytree(native / "popover", output / "app-ui/popover", dirs_exist_ok=True)
+    (output / "app-ui/icons").mkdir(exist_ok=True)
+    for color in ("green", "yellow", "red", "none"):
+        name = f"broglow-{color}.png"
+        shutil.copy2(native / "icons" / name, output / "app-ui/icons" / name)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -430,11 +475,7 @@ def main():
         site_dir=str(output / "docs"),
     )
     build(config)
-    (output / "index.html").write_text(landing_page(home, config.repo_url))
-    for name in ("styles.css", "i18n.js", "theme.js", "github.js", "model-preview.js"):
-        shutil.copy2(SITE / name, output / name)
-    shutil.copytree(SITE / "assets", output / "assets")
-    shutil.copytree(SITE / "vendor", output / "vendor")
+    write_landing(output, home, config.repo_url)
     (output / "404.html").write_text(not_found_page(home))
     (output / ".nojekyll").touch()
     print(f"Pages artifact: {output}")

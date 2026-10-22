@@ -36,7 +36,7 @@ test('canonical and social image use final HTTPS URLs and the existing photo dim
     assert.doesNotMatch(url, /localhost|127\.0\.0\.1|outputs\//);
   }
   assert.equal(meta('og:image:type'), 'image/jpeg');
-  const photo = readFileSync(resolve(__dirname, '../../site/assets/photos/broglow-all-lights.jpg'));
+  const photo = readFileSync(resolve(__dirname, './assets/photos/broglow-all-lights.jpg'));
   assert.equal(photo.readUInt16BE(0), 0xffd8);
   let dimensions;
   for (let offset = 2; offset < photo.length;) {

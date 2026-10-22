@@ -39,7 +39,10 @@ class Landing(HTMLParser):
 def test_landing_preview_without_javascript(home: str, repo_url: str) -> None:
     landing = Landing()
     landing.feed(pages.landing_page(home, repo_url))
-    assert ("html", {"lang": "en"}) in landing.elements
+    assert any(
+        tag == "html" and attributes.get("lang") == "en"
+        for tag, attributes in landing.elements
+    )
     assert not re.search(r"[А-Яа-яЁё]", "".join(landing.text).replace("Русский", ""))
     assert ("link", {"rel": "canonical", "href": home}) in landing.elements
     metadata = {
@@ -59,12 +62,96 @@ def test_landing_preview_without_javascript(home: str, repo_url: str) -> None:
         assert metadata[key] and not re.search(r"[А-Яа-яЁё]", metadata[key])
     image = metadata["og:image"].removeprefix(home)
     assert image.startswith("assets/") and (pages.SITE / image).is_file()
-    assert ("a", {"class": "repository-badge", "href": repo_url}) in landing.elements
-    assert (
-        "script",
-        {"src": "github.js", "defer": None, "fetchpriority": "low"},
-    ) in landing.elements
+    assert any(
+        tag == "a"
+        and "repository-badge" in attributes.get("class", "").split()
+        and attributes.get("href") == repo_url
+        for tag, attributes in landing.elements
+    )
+    assert any(
+        tag == "script"
+        and attributes.get("src", "").removeprefix("./").split("?")[0] == "github.js"
+        and "defer" in attributes
+        for tag, attributes in landing.elements
+    )
     assert (pages.SITE / "github.js").is_file()
+
+
+def test_published_landing_is_self_contained_and_reuses_native_ui(
+    tmp_path: Path,
+) -> None:
+    home = "https://example.github.io/lamp/"
+    guide = write(tmp_path, "docs/installation/index.html", "Existing guide")
+
+    pages.write_landing(tmp_path, home, REPOSITORY_URL)
+
+    assert guide.read_text() == "Existing guide"
+    html = (tmp_path / "index.html").read_text()
+    assert f'href="{home}"' in html
+    assert f'content="{home}assets/photos/broglow-all-lights.jpg"' in html
+    assert f'href="{REPOSITORY_URL}"' in html
+    assert 'href="assets/favicon.svg"' in html
+    for name in (
+        "styles.css",
+        "themes.css",
+        "theme.js",
+        "language.js",
+        "app.js",
+        "app-preview.js",
+        "lamp.js",
+        "ar.js",
+        "ar.css",
+        "github.js",
+    ):
+        assert (tmp_path / name).is_file()
+        assert name in html
+    assert "app-ui/popover/presentation.js" in html
+    assert "app-ui/popover/document.js" in html
+    assert "app-ui/icons/broglow-green.png" in html
+    runtime = "\n".join(path.read_text() for path in tmp_path.glob("*.js"))
+    for source in (html, runtime):
+        for unwanted in (
+            "../assets/",
+            "../../",
+            "demos/homepage",
+            "https://broglow.github.io/broglow/",
+        ):
+            assert unwanted not in source
+    assert "new URL('app-ui/popover.html', document.baseURI)" in runtime
+    assert "app-ui/icons/broglow-${aggregateSignal}.png" in runtime
+    assert "./assets/photos/${photos[photoSignal]}" in runtime
+    assert "./assets/photos/${photos[modelSignal]}" in runtime
+    assert 'import("./vendor/model-viewer-module-4.3.1.min.js")' in runtime
+    assert f"phoneUrl('{home}')" in (tmp_path / "ar.js").read_text()
+    assert '"three":"./vendor/three-0.183.0/three.module.min.js"' in html
+
+    native = pages.SITE.parent / "assets"
+    for source in (native / "popover").rglob("*"):
+        if source.is_file():
+            assert (
+                tmp_path / "app-ui" / source.relative_to(native)
+            ).read_bytes() == source.read_bytes()
+    for name in (
+        "popover.html",
+        *(f"icons/broglow-{color}.png" for color in ("green", "yellow", "red", "none")),
+    ):
+        assert (tmp_path / "app-ui" / name).read_bytes() == (native / name).read_bytes()
+    for path in (
+        "assets/broglow.glb",
+        "assets/photos/popover-dark.png",
+        "assets/photos/broglow-all-lights.jpg",
+        "assets/photos/signal-green.jpg",
+        "assets/photos/signal-yellow.jpg",
+        "assets/photos/signal-red.jpg",
+        "vendor/model-viewer-module-4.3.1.min.js",
+        "vendor/qrcode-generator-2.0.4.js",
+        "vendor/three-0.183.0/three.module.min.js",
+        "vendor/three-0.183.0/three.core.min.js",
+    ):
+        assert (tmp_path / path).read_bytes() == (pages.SITE / path).read_bytes()
+    assert (tmp_path / "assets/favicon.svg").read_bytes() == (
+        pages.SITE / "guide/assets/favicon.svg"
+    ).read_bytes()
 
 
 @pytest.fixture

@@ -150,10 +150,12 @@ Adapt the **explanation structure**: one real product, a short progression of me
 
 A local BroGlow implementation can reuse its existing 3D asset/renderer, with native sticky layout, small scroll-state code and a separate interactive state selector. Keep the source reference out of the demo's dependencies. It should have its own copy, composition and graphics, plus reduced-motion and WebGL fallback paths.
 
-The recommendations above were recorded on 2026-10-21. The current demo uses normal
-document flow rather than a pinned scroll section and reuses the shared app UI.
-See [the demo README](README.md) and [shared UI contract](SHARED-UI.md) for its current
-implementation and tracking scope.
+The recommendations above were recorded on 2026-10-21. The homepage prototype has
+since been promoted into `site/` as the canonical landing. It uses normal document
+flow rather than a pinned scroll section and reuses the shared app UI. See
+[the website runbook](README.md) and [shared UI contract](SHARED-UI.md) for its
+current implementation and tracking scope. The source findings above remain a
+historical record; no reference-site code, media, fonts or branding are site dependencies.
 
 <a name="limits"></a>
 ## Limits

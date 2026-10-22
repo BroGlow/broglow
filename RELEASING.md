@@ -266,8 +266,10 @@ the post-deployment check below.
 
 After deployment, open the live English and Russian guides and follow a release
 download from this repository's Releases through to its checksum. The guide
-includes a separate enclosure download, and the landing opens with the product
-photo before the 3D view loads.
+includes a separate enclosure download. Check the Ember homepage in both
+languages and themes: the shared app demo and tracking settings, copyable install
+commands, guide/print links and scroll-driven 3D lamp. Confirm the real-photo
+fallback when 3D is unavailable. Physical phone AR needs a separate check.
 
 Local checks cannot prove GitHub permissions, hosted-runner success, live Pages
 delivery or installation on another Mac. Verify those after each release

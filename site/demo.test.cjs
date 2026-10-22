@@ -5,7 +5,7 @@ const test = require("node:test");
 const vm = require("node:vm");
 
 const source = readFileSync(resolve(__dirname, "lamp.js"), "utf8");
-const modelFile = readFileSync(resolve(__dirname, "../../site/assets/broglow.glb"));
+const modelFile = readFileSync(resolve(__dirname, "./assets/broglow.glb"));
 const gltf = JSON.parse(modelFile.subarray(20, 20 + modelFile.readUInt32LE(12)).toString());
 const lensIndices = [0, 1, 2].map(index => {
   const node = gltf.nodes.find(node => node.name === `REFERENCE_ONLY_LED_${index}`);
@@ -68,7 +68,7 @@ function preview({ reducedMotion = false, importError = false, interactive = fal
   });
 
   // Only the browser's module loader is stubbed; the preview logic runs unchanged.
-  assert.ok(source.includes('import("../../site/vendor/model-viewer-module-4.3.1.min.js")'));
+  assert.ok(source.includes('import("./vendor/model-viewer-module-4.3.1.min.js")'));
   vm.runInNewContext(source.replace("import(", "loadViewer("), {
     document: { body, querySelector: selector => selector === "#lamp-model" ? viewer
       : !interactive ? null : { "#model-demo": demo, "#lamp-brightness": brightness, "#brightness-value": output }[selector] },

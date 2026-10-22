@@ -1,54 +1,111 @@
-const assert = require("node:assert/strict");
-const { readFileSync } = require("node:fs");
-const { runInNewContext } = require("node:vm");
-const script = readFileSync(`${__dirname}/theme.js`, "utf8");
+const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const { join } = require('node:path');
+const test = require('node:test');
+const vm = require('node:vm');
+const source = readFileSync(join(__dirname, 'theme.js'), 'utf8');
 
-function load({ saved, light = false, blocked = false } = {}) {
-  const root = { dataset: {} };
-  const picker = { value: "" };
-  const meta = { content: "#181a19" };
-  const listeners = {};
-  const media = { matches: light, addEventListener: (event, fn) => { assert.equal(event, "change"); listeners.media = fn; } };
-  const storage = { saved };
-  runInNewContext(script, {
-    document: {
-      documentElement: root,
-      addEventListener: (event, fn) => { assert.equal(event, "DOMContentLoaded"); listeners.ready = fn; },
-      querySelector: (selector) => selector === "#theme" ? picker : meta,
-    },
-    window: { matchMedia: (query) => { assert.equal(query, "(prefers-color-scheme: light)"); return media; } },
+function appearance({ query = '', stored = {}, dark = false, blockedStorage = false } = {}) {
+  const root = { dataset: {}, style: {} };
+  const storage = new Map(Object.entries(stored));
+  const events = [];
+  const select = new EventTarget();
+  select.value = 'auto';
+  const system = new EventTarget();
+  system.matches = dark;
+  const browser = new EventTarget();
+  browser.location = new URL(`https://broglow.test/demo/${query}#model-demo`);
+  browser.matchMedia = () => system;
+  browser.history = { replaceState(_state, _unused, url) { browser.location = new URL(url); } };
+  browser.addEventListener('broglow:appearance', event => events.push(event.detail));
+  vm.runInNewContext(source, {
+    document: { documentElement: root, readyState: 'complete', querySelector: () => select },
+    window: browser, URL, URLSearchParams,
     localStorage: {
-      getItem(key) { assert.equal(key, "broglow-theme"); if (blocked) throw new Error("blocked"); return storage.saved; },
-      setItem(key, value) { assert.equal(key, "broglow-theme"); if (blocked) throw new Error("blocked"); storage.saved = value; },
+      getItem(key) { if (blockedStorage) throw new Error('Storage disabled'); return storage.get(key); },
+      setItem(key, value) { if (blockedStorage) throw new Error('Storage disabled'); storage.set(key, value); },
     },
+    CustomEvent: class extends Event { constructor(type, init) { super(type); this.detail = init.detail; } },
   });
-  picker.addEventListener = (event, fn) => { assert.equal(event, "change"); listeners.change = fn; };
-  listeners.ready();
-  return { root, picker, meta, storage, media, listeners, switchTo(value) { picker.value = value; listeners.change(); } };
+  return {
+    root, storage, events, browser,
+    theme(value) { select.value = value; select.dispatchEvent(new Event('change')); },
+    system(value) { system.matches = value; system.dispatchEvent(new Event('change')); },
+  };
 }
 
-assert.equal(load().root.dataset.theme, "dark", "Dark system preference stays dark");
-assert.equal(load({ light: true }).root.dataset.theme, "light", "Light system preference is followed");
-assert.equal(load({ saved: "light" }).root.dataset.theme, "light");
-assert.equal(load({ saved: "dark", light: true }).root.dataset.theme, "dark");
-assert.equal(load({ saved: "weird", light: true }).root.dataset.theme, "light", "Unknown choices fall back to auto");
-const page = load({ light: true });
-assert.equal(page.picker.value, "auto");
-assert.equal(page.storage.saved, undefined, "Auto-detection must not save a preference");
-const lightChrome = page.meta.content;
-page.switchTo("dark");
-assert.equal(page.root.dataset.theme, "dark");
-assert.equal(page.root.dataset.themeChoice, "dark", "The picker icon follows the choice");
-assert.notEqual(page.meta.content, lightChrome, "Browser chrome changes with the theme");
-assert.equal(page.storage.saved, "dark");
-page.switchTo("auto");
-assert.equal(page.root.dataset.theme, "light");
-assert.equal(page.root.dataset.themeChoice, "auto");
-assert.equal(page.meta.content, lightChrome, "Returning to light restores its browser chrome");
-page.media.matches = false;
-page.listeners.media();
-assert.equal(page.root.dataset.theme, "dark", "System changes apply while auto is selected");
-const privatePage = load({ blocked: true, light: true });
-privatePage.switchTo("dark");
-assert.equal(privatePage.root.dataset.theme, "dark");
-console.log("PASS: theme auto/light/dark, saved choice, system changes and blocked storage");
+test('query theme overrides the saved appearance without changing storage', () => {
+  const page = appearance({ query:'?palette=ember&theme=light&lang=ru', stored:{'broglow-theme':'dark','broglow-demo-palette':'plum'} });
+  assert.equal(page.root.dataset.palette, 'ember');
+  assert.equal(page.root.dataset.theme, 'light');
+  assert.equal(page.root.style.colorScheme, 'light');
+  assert.equal(page.storage.get('broglow-demo-palette'), 'plum');
+  assert.equal(page.storage.get('broglow-theme'), 'dark');
+});
+
+test('system appearance follows live OS changes; explicit appearance does not', () => {
+  const page = appearance({ dark:true });
+  assert.equal(page.root.dataset.themePreference, 'auto');
+  assert.equal(page.root.dataset.theme, 'dark');
+  page.system(false);
+  assert.equal(page.root.dataset.theme, 'light');
+  page.theme('light');
+  page.system(true);
+  assert.equal(page.root.dataset.theme, 'light');
+  page.theme('auto');
+  assert.equal(page.root.dataset.theme, 'dark');
+  assert.deepEqual(JSON.parse(JSON.stringify(page.events.at(-1))), { theme:'dark', palette:'ember' });
+});
+
+test('user changes persist the chosen preference and preserve language and anchor in share URLs', () => {
+  const page = appearance({ query:'?lang=ru&palette=tide' });
+  page.theme('dark');
+  assert.equal(page.storage.get('broglow-theme'), 'dark');
+  assert.equal(page.browser.location.searchParams.get('lang'), 'ru');
+  assert.equal(page.browser.location.searchParams.has('palette'), false);
+  assert.equal(page.browser.location.searchParams.get('theme'), 'dark');
+  assert.equal(page.browser.location.hash, '#model-demo');
+});
+
+test('invalid inputs fall back to saved choices and unavailable storage does not block controls', () => {
+  const saved = appearance({ query:'?palette=not-a-palette&theme=invalid', stored:{'broglow-theme':'light','broglow-demo-palette':'plum'} });
+  assert.equal(saved.root.dataset.palette, 'ember');
+  assert.equal(saved.root.dataset.theme, 'light');
+  const page = appearance({ blockedStorage:true });
+  page.theme('dark');
+  assert.equal(page.root.dataset.palette, 'ember');
+  assert.equal(page.root.dataset.theme, 'dark');
+});
+
+test('Ember stays fixed despite stale palette query parameters and stored preferences', () => {
+  assert.equal(appearance().root.dataset.palette, 'ember');
+  for (const palette of ['sage', 'ember', 'tide', 'plum', 'unknown']) {
+    const page = appearance({ query:`?palette=${palette}`, stored:{'broglow-demo-palette':palette} });
+    assert.equal(page.root.dataset.palette, 'ember');
+    assert.equal(page.storage.get('broglow-demo-palette'), palette, 'obsolete storage is ignored without mutation');
+    assert.deepEqual(JSON.parse(JSON.stringify(page.events.at(-1))), { theme:'light', palette:'ember' });
+  }
+});
+
+test('Ember light and dark appearances meet AA text contrast', () => {
+  const css = readFileSync(join(__dirname, 'themes.css'), 'utf8');
+  function luminance(hex) {
+    const rgb = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255)
+      .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return rgb.reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+  }
+  const contrast = (foreground, background) => {
+    const [low, high] = [foreground, background].map(luminance).sort((a, b) => a - b);
+    return (high + 0.05) / (low + 0.05);
+  };
+  let combinations = 0;
+  for (const [, selector, body] of css.matchAll(/([^{}]+)\{([^{}]+)\}/g)) {
+    const tokens = Object.fromEntries([...body.matchAll(/--([\w-]+):(#[0-9a-fA-F]{6})\b/g)].map(match => [match[1], match[2]]));
+    if (!tokens.paper) continue;
+    combinations += 1;
+    for (const [text, surface] of [['ink', 'paper'], ['muted', 'paper'], ['accent', 'paper'], ['muted', 'surface']]) {
+      assert.ok(contrast(tokens[text], tokens[surface]) >= 4.5, `${selector}: ${text} on ${surface}`);
+    }
+  }
+  assert.equal(combinations, 2);
+});

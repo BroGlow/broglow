@@ -13,7 +13,7 @@
 <p class="note">BroGlow · local design review · 21 October 2026</p>
 <h1>What visitors can see and do.</h1>
 <p>The new landing makes the software easier to try. The old landing gives hardware builders more detail. This compares the landing pages themselves; a feature reached only through documentation is listed as a guide link.</p>
-<nav aria-label="Compare the pages"><a href="../../site/" target="_blank" rel="noopener">Open old landing ↗</a><a href="./" target="_blank" rel="noopener">Open new landing ↗</a></nav>
+<nav aria-label="Compare the pages"><a href="https://github.com/BroGlow/broglow/blob/b62bf78/site/index.html" target="_blank" rel="noopener">Previous homepage source ↗</a><a href="./" target="_blank" rel="noopener">Open new landing ↗</a></nav>
 <div class="table-wrap" role="region" aria-label="Old versus new landing page experiences" tabindex="0">
 <table>
 <thead><tr><th scope="col">Visitor experience</th><th scope="col">Old landing</th><th scope="col">New landing</th></tr></thead>
@@ -47,8 +47,8 @@
 <p>Follow-up fix: clicking or keyboard-focusing either demo window now brings it forward without resetting sessions. The waiting-session Focus → Allow → return-to-BroGlow sequence was also checked in the browser.</p>
 <p>AR and social previews are now restored. Supported phones can launch native AR; desktop visitors get a QR handoff on reachable hosted pages. Local addresses show a public-viewer option instead of an unusable QR. Open Graph/Twitter previews use our own hardware photo. Direct printable-model links are available in the optional-lamp FAQ and build guide.</p>
 <h2>Scope and evidence</h2>
-<p>Compared the current files and rendered pages at <code>site/</code> and <code>demos/homepage/</code>. Product behavior was checked against the shipped popover and project guides. Regression tests cover the new fixes, localization, theme choices, message validation, LED mapping, scroll progression and reduced motion.</p>
-<p class="note">The new app demo uses synthetic sessions. No native services, installers, physical hardware or phone AR were exercised. 3D failure and recovery paths were verified through automated tests. No production page or deployment was changed.</p>
+<p>Compared the current files and rendered pages at <code>site/</code> and <code>site/</code> (promoted homepage). Product behavior was checked against the shipped popover and project guides. Regression tests cover the new fixes, localization, theme choices, message validation, LED mapping, scroll progression and reduced motion.</p>
+<p class="note">The new app demo uses synthetic sessions. No native services, installers, physical hardware or phone AR were exercised. 3D failure and recovery paths were verified through automated tests. The new landing is now the production homepage source. This report does not establish a hosted deployment.</p>
 </main>
 </body>
 </html>

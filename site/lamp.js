@@ -160,6 +160,6 @@ if (viewer) {
   });
   viewer.addEventListener("error", () => setState("modelError"));
 
-  import("../../site/vendor/model-viewer-module-4.3.1.min.js")
+  import("./vendor/model-viewer-module-4.3.1.min.js")
     .catch(() => setState("modelError"));
 }

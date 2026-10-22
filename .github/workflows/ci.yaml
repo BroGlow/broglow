@@ -142,5 +142,5 @@ jobs:
       - name: opencode plugin integration tests
         run: node --test tests/js/*.test.mjs
 
-      - name: Homepage candidate tests
-        run: node --test demos/homepage/*.test.cjs
+      - name: Homepage tests
+        run: node --test site/*.test.cjs
