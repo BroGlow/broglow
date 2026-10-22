@@ -334,7 +334,7 @@ thin:
   USB VID `0x303A` identifies Espressif,
   not an exact board model: identify the actual hardware before flashing or issuing
   serial commands. Preserve the existing USB default and explicit-port behavior.
-- **The popover footer shows lamp connection status** (`renderLamp` in assets/popover.html,
+- **The popover footer shows lamp connection status** (`renderLamp` in assets/popover/popover.js,
   fed by `LampPayload` in popover.rs). The footer opens Lamp details; it does not
   toggle the lamp. Enable/disable is an explicit action in that scrollable view,
   with Back/Escape returning to sessions. The TUI uses `d` for lamp details,
@@ -441,7 +441,13 @@ actual event shapes and assert the `state.json` the built binary writes — the
 one boundary the Rust suite (which feeds `broglow event` directly) can't cover.
 `exit-child.mjs` is a helper process, not a test, so the plugin's
 `process.on("exit")` shutdown path can be exercised for real.
-lamp-status.test.mjs loads `assets/popover.html` and covers its worker-driven
+The app and browser demo share the `assets/popover.html` shell and
+`assets/popover/{popover.css,popover.js,presentation.js}`. Rust embeds these files;
+the browser assembles them with `assets/popover/document.js`. The explicit
+`__POPOVER_HOST__` slot installs a browser host before the renderer; native builds
+leave it empty and keep `window.ipc` and `window.__setState` unchanged. Change UI
+components in these shared assets rather than copying their markup into the site.
+lamp-status.test.mjs assembles the shared document and covers its worker-driven
 lamp status and lamp controls, the Settings view and the session list, including
 grouping by project.
 

@@ -21,7 +21,7 @@ use crate::state::{aggregate, Aggregate, HookState, SessionStatus, Status};
 use crate::usage::{self, UsageSnapshot};
 
 /// Logical width of the popover window. Must match the card width in
-/// assets/popover.html; the window is sized exactly to the card and the
+/// assets/popover/popover.css; the window is sized exactly to the card and the
 /// shadow is the native window shadow.
 #[cfg(target_os = "macos")]
 const WIDTH: f64 = 338.0;
@@ -772,12 +772,19 @@ fn unlock_frame_rate(webview: &WebView) {
 
 fn popover_html() -> String {
     const HTML: &str = include_str!("../assets/popover.html");
+    const STYLES: &str = include_str!("../assets/popover/popover.css");
+    const SCRIPT: &str = include_str!("../assets/popover/popover.js");
+    const PRESENTATION: &str = include_str!("../assets/popover/presentation.js");
     let platform = if cfg!(target_os = "macos") {
         "mac"
     } else {
         "win"
     };
-    HTML.replace("__PLATFORM__", platform)
+    HTML.replace("__POPOVER_STYLE__", STYLES)
+        .replace("__POPOVER_PRESENTATION__", PRESENTATION)
+        .replace("__POPOVER_HOST__", "")
+        .replace("__POPOVER_SCRIPT__", SCRIPT)
+        .replace("__PLATFORM__", platform)
         .replace("__ICON_RED__", &data_uri(ICON_RED))
         .replace("__ICON_YELLOW__", &data_uri(ICON_YELLOW))
         .replace("__ICON_GREEN__", &data_uri(ICON_GREEN))
@@ -818,10 +825,22 @@ fn base64(data: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{base64, session_payloads, should_reset_navigation, PopoverMsg};
+    use super::{base64, popover_html, session_payloads, should_reset_navigation, PopoverMsg};
     use crate::config::Config;
     use crate::state::{HookState, SessionStatus, Status};
     use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn shared_popover_assets_are_embedded_without_template_tokens() {
+        let html = popover_html();
+        for token in ["__POPOVER_", "__PLATFORM__", "__ICON_"] {
+            assert!(!html.contains(token), "unresolved token: {token}");
+        }
+        assert!(html.contains(include_str!("../assets/popover/popover.css")));
+        assert!(html.contains(include_str!("../assets/popover/presentation.js")));
+        assert!(html.contains("window.__setState"));
+        assert!(html.contains("window.ipc.postMessage"));
+    }
 
     #[test]
     fn popover_reset_requires_a_full_closed_interval_and_respects_opt_out() {

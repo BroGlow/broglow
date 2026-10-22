@@ -1,0 +1,234 @@
+
+/* Tray popover, from "Tray Menu Designs" 1a (macOS) / 1c (Windows 11).
+   The window is sized exactly to the card; the drop shadow is the native
+   window shadow (a CSS shadow in the transparent margin composites against
+   white and shows as a pale halo), and the transparent window corners give
+   the rounded shape. */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { background: transparent; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  -webkit-user-select: none; user-select: none;
+  cursor: default;
+}
+/* Windows: paint the canvas card-dark instead of transparent. Any mismatch
+   between the client area and the card (window-frame padding quirks, resize
+   races) then shows as card background instead of an opaque white gutter,
+   and DWM rounds the window corners for us. */
+body.win { font-family: 'Segoe UI', system-ui, sans-serif; background: #202020; }
+
+.pop {
+  width: 338px;
+  max-height: 720px;
+  display: flex;
+  flex-direction: column;
+  /* The design's rgba+backdrop-blur can't blur the desktop behind a
+     transparent window, so stay effectively opaque to avoid text bleed. */
+  background: rgb(32,32,37);
+  border-radius: 11px;
+  border: 1px solid rgba(255,255,255,.14);
+  overflow: hidden;
+  color: rgba(255,255,255,.92);
+}
+body.win .pop {
+  width: 344px;
+  background: #202020;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.08);
+  color: #fff;
+}
+
+.pophead { display: flex; align-items: center; gap: 10px; padding: 12px 14px 10px 14px; }
+.pophead img { width: 22px; height: 22px; image-rendering: pixelated; }
+.apptitle { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agg { font-size: 11px; color: rgba(255,255,255,.5); white-space: nowrap; }
+.chips { display: flex; gap: 6px; }
+.chip {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px;
+  background: rgba(255,255,255,.08); color: rgba(255,255,255,.75);
+}
+
+.dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dgreen { background: #34c759 } .dyellow { background: #ff9f0a }
+.dred { background: #ff453a } .dgray { background: #8e8e93 }
+
+.grp { padding: 2px 6px 6px 6px; min-height: 0; max-height: 480px; overflow-y: auto; }
+.grp::-webkit-scrollbar { width: 8px; }
+.grp::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 4px; }
+.grplabel {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: rgba(255,255,255,.35); padding: 6px 10px 3px 10px;
+}
+body.win .grplabel { color: rgba(255,255,255,.45); }
+.grphead { display: flex; align-items: center; justify-content: space-between; padding-right: 4px; }
+.grphead .pbtn { font-size: 11px; padding: 3px 6px; }
+/* Project heading when sessions are grouped by working directory: the folder
+   name in sentence case (uppercase would mangle repo names), the full path on
+   hover, and a folder glyph of our own. */
+.projhead {
+  display: flex; align-items: center; gap: 6px; margin-top: 4px; padding: 6px 10px 2px 10px;
+  font-size: 11px; font-weight: 600; color: rgba(255,255,255,.6);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.grphead + .projhead { margin-top: 0; }
+.projhead svg { width: 12px; height: 12px; flex-shrink: 0;
+  fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.projhead span { overflow: hidden; text-overflow: ellipsis; }
+body.win .projhead { color: rgba(255,255,255,.7); }
+
+.srow { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; cursor: pointer; }
+.srow:active { filter: brightness(.85); }
+body.win .srow { border-radius: 5px; padding: 9px 12px; }
+.srow:hover { background: rgba(255,255,255,.08); }
+body.win .srow:hover { background: rgba(255,255,255,.06); }
+.sinfo { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.sname { font-size: 13px; font-weight: 590; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.smeta { font-size: 11px; color: rgba(255,255,255,.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Agent icon (our own glyphs) ahead of the project in each session's meta line. */
+.agicon { width: 11px; height: 11px; margin-right: 4px; vertical-align: -1px;
+  fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+/* Host glyph after a named agent sits before " · ", which brings its own space. */
+.agicon.aftername { margin-right: 0; }
+/* Text tag standing in for the icon of an unknown/future agent. */
+.badge { display: inline-block; font-size: 9px; font-weight: 700; line-height: 1.4;
+  color: #c678dd; background: rgba(198,120,221,.16); border-radius: 4px;
+  padding: 0 5px; margin-right: 6px; vertical-align: 1px; }
+body.win .badge { color: #c9a0ff; background: rgba(201,160,255,.16); }
+.time { font-size: 11px; color: rgba(255,255,255,.4); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.dismissbtn {
+  width: 24px; height: 24px; flex-shrink: 0; border: none; border-radius: 5px;
+  background: transparent; color: rgba(255,255,255,.6);
+  font-family: inherit; font-size: 18px; line-height: 1;
+  cursor: pointer;
+}
+.dismissbtn:hover { background: rgba(255,255,255,.12); color: #fff; }
+.dismissbtn:focus-visible, #clearpaused:focus-visible { outline: 2px solid #71a4ff; outline-offset: 1px; }
+
+.focusbtn {
+  font-size: 11px; font-weight: 600; color: #fff; background: #3577f6;
+  border-radius: 5px; padding: 3px 9px; flex-shrink: 0; border: none;
+  font-family: inherit; cursor: default;
+}
+.focusbtn:active { filter: brightness(.85); }
+body.win .focusbtn { background: #4cc2ff; color: #0b2a3a; }
+
+.helprow { background: rgba(255,69,58,.12); }
+.helprow:hover { background: rgba(255,69,58,.2); }
+.helprow .sname { color: #ff8a80; }
+body.win .helprow { background: rgba(255,153,164,.1); }
+body.win .helprow:hover { background: rgba(255,153,164,.18); }
+body.win .helprow .sname { color: #ff99a4; }
+
+/* Settings view — swapped into the same scroll area as the session groups. */
+.optrow { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 7px; }
+body.win .optrow { border-radius: 5px; padding: 9px 12px; }
+.optrow:hover { background: rgba(255,255,255,.08); }
+body.win .optrow:hover { background: rgba(255,255,255,.06); }
+.setdesc { white-space: normal; line-height: 1.35; }
+#usblampsettings .sname { white-space: normal; }
+.optrow input { margin-top: 2px; accent-color: #3577f6; }
+body.win .optrow input { accent-color: #4cc2ff; }
+.resetsetting { display: block; }
+.resetline { display: flex; align-items: center; gap: 6px; }
+.resetlabel { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.resetlabel input { margin: 0; }
+.resetsetting .setdesc { display: block; margin: 3px 0 0 23px; }
+#popoverresetminutes:disabled { opacity: .5; }
+
+/* Each agent owns its limits; only local token totals can be combined. */
+.usec {
+  padding: 9px 14px 11px 14px; border-top: 1px solid rgba(255,255,255,.1);
+  display: flex; flex-direction: column; gap: 9px; flex-shrink: 0;
+}
+.usec[hidden] { display: none; }
+.uagent { display: flex; flex-direction: column; gap: 5px; }
+.uagenthead { display: flex; align-items: center; font-size: 11px; font-weight: 600; color: rgba(255,255,255,.65); }
+body.win .usec { border-top: 1px solid rgba(255,255,255,.08); }
+.ulhead {
+  display: flex; align-items: baseline; gap: 5px;
+  font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: rgba(255,255,255,.38);
+}
+.uval { font-size: 12px; font-weight: 700; color: rgba(255,255,255,.9); letter-spacing: 0; text-transform: none; }
+.usub { font-size: 11px; font-weight: 400; color: rgba(255,255,255,.42); letter-spacing: 0; text-transform: none; }
+.ubar { height: 5px; border-radius: 99px; background: rgba(255,255,255,.1); overflow: hidden; display: flex; }
+.ufill { background: #3577f6; border-radius: 99px; }
+body.win .ubar { border-radius: 2px; }
+body.win .ufill { background: #4cc2ff; border-radius: 2px; }
+
+.emptybox {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 26px 16px; color: rgba(255,255,255,.45); font-size: 12px;
+}
+.emptybox img { width: 26px; height: 26px; opacity: .5; filter: grayscale(1); image-rendering: pixelated; }
+
+.popfoot {
+  display: flex; align-items: center; gap: 6px; padding: 9px 12px;
+  border-top: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.03);
+}
+body.win .popfoot { border-top: 1px solid rgba(255,255,255,.08); background: #1b1b1b; }
+.pbtn {
+  font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 6px;
+  background: rgba(255,255,255,.09); color: rgba(255,255,255,.85);
+  border: none; font-family: inherit; white-space: nowrap; cursor: default;
+  display: flex; align-items: center; gap: 5px;
+}
+.pbtn:hover { background: rgba(255,255,255,.14); }
+.pbtn:active { filter: brightness(.8); }
+.pbtnpri { background: #3577f6; color: #fff; }
+.pbtnpri:hover { background: #4285f8; }
+body.win .pbtnpri { background: #4cc2ff; color: #0b2a3a; }
+body.win .pbtnpri:hover { background: #63cbff; }
+.pbtnghost { background: transparent; color: rgba(255,255,255,.55); }
+.pbtnghost:hover { background: rgba(255,255,255,.08); }
+/* Destructive action: dark red at rest, bright red once pointed at or focused. */
+.pbtndanger { color: #c4463c; }
+.pbtndanger:hover, .pbtndanger:focus-visible { color: #ff453a; }
+.pbtn[disabled] { opacity: .55; pointer-events: none; }
+.pbtn[hidden] { display: none; }
+.f1 { flex: 1; }
+/* Footer lamp indicator opens details without changing lamp control. */
+.lampbtn { gap: 6px; padding-left: 9px; padding-right: 9px; }
+.lampbtn .dot { width: 7px; height: 7px; }
+.lampbtn.lon { color: rgba(255,255,255,.8); }
+.lampsetup { padding: 7px 10px 12px; }
+.lampsetup .error { color: #ff8a80; }
+.lamptop { padding: 7px 10px 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.lamptop #lampsummary { font-size: 13px; font-weight: 600; }
+.lamptop #lamptransport { color: rgba(255,255,255,.5); font-size: 11px; }
+.lamplist { padding: 0 10px 12px; }
+.lampitem { border: 1px solid rgba(255,255,255,.12); border-radius: 7px; margin-bottom: 6px; }
+.lampheading { display: grid; grid-template-columns: minmax(0,1fr) auto 10px; gap: 8px; align-items: center; padding: 10px; font-size: 12px; cursor: pointer; list-style: none; }
+.lamptitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lampheading::-webkit-details-marker { display: none; }
+.lampheading:hover { background: rgba(255,255,255,.05); }
+summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outline-offset: -2px; border-radius: 6px; }
+.lampstate { font-size: 11px; color: #ffbc66; }
+.lampstate.connected { color: #66d987; }
+.lampstate.disabled { color: rgba(255,255,255,.5); }
+.lampstate.error, .lampstate.unavailable { color: #ff8a80; }
+.lampchevron { color: rgba(255,255,255,.5); font-size: 16px; transition: transform .1s; }
+.lampitem[open] .lampchevron { transform: rotate(90deg); }
+.lampitem dl { padding: 0 10px 10px; font-size: 11px; line-height: 1.45; -webkit-user-select: text; user-select: text; }
+.lampitem dt { color: rgba(255,255,255,.5); margin-top: 7px; }
+.lampitem dd { color: rgba(255,255,255,.8); overflow-wrap: anywhere; }
+.lampitem dd.lampid { font-family: ui-monospace, monospace; }
+.lampforget, .lampidentify { padding: 0 10px 10px; }
+.lampnameedit { padding: 0 10px 10px; font-size: 12px; color: rgba(255,255,255,.8); }
+.lampnameedit label { display: block; margin-bottom: 5px; }
+.lampnamefields { display: flex; gap: 6px; }
+.lampnamefields input, #popoverresetminutes { min-width: 0; width: 100%; padding: 5px 7px; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; background: rgba(255,255,255,.05); color: inherit; font: inherit; }
+#popoverresetminutes { width: 64px; flex-shrink: 0; margin: 0; padding: 4px 6px; font-size: 13px; }
+.lampnamesaved { margin-top: 5px; color: #66d987; font-size: 11px; }
+.lamperror { margin: 0 10px 12px; color: #ff8a80; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.lamptechnical { margin: 0 10px 12px; font-size: 11px; color: rgba(255,255,255,.6); }
+.lamptechnical summary { cursor: pointer; padding: 5px 0; }
+.lampdetail { padding: 7px 10px 12px; color: rgba(255,255,255,.65); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-line; -webkit-user-select: text; user-select: text; }
+.lampactions { padding: 0 10px 10px; }
+.brightness { padding: 0 10px 12px; color: rgba(255,255,255,.8); font-size: 12px; }
+.brightness label { display: flex; justify-content: space-between; margin-bottom: 7px; }
+.brightness input { width: 100%; accent-color: #3577f6; }
+.brightness p, .lampsetup p { margin-top: 5px; color: rgba(255,255,255,.5); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+body.win .brightness input { accent-color: #4cc2ff; }
+.pophead, .popfoot, .usec { flex-shrink: 0; }

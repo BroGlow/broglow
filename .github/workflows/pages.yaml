@@ -11,6 +11,10 @@ on:
       - 'AGENTS*.md'
       - 'CLAUDE*.md'
       - 'assets/icons/**'
+      - 'assets/popover.html'
+      - 'assets/popover/**'
+      - 'tests/js/lamp-status.test.mjs'
+      - 'tests/js/popover-library.test.mjs'
       - 'scripts/export-web-model.py'
       - 'models/magnetic/**'
       - 'models/broglow/*.py'
@@ -26,6 +30,10 @@ on:
       - 'AGENTS*.md'
       - 'CLAUDE*.md'
       - 'assets/icons/**'
+      - 'assets/popover.html'
+      - 'assets/popover/**'
+      - 'tests/js/lamp-status.test.mjs'
+      - 'tests/js/popover-library.test.mjs'
       - 'scripts/export-web-model.py'
       - 'models/magnetic/**'
       - 'models/broglow/*.py'
@@ -93,6 +101,7 @@ jobs:
           node site/model-preview.test.cjs
           node site/docs-language.test.cjs
           node site/docs-copy.test.cjs
+          node --test tests/js/lamp-status.test.mjs tests/js/popover-library.test.mjs
           uv run --frozen --only-group test pytest site/test_pages.py
           uv run --no-project --python 3.14 python scripts/export-web-model.py --check
           uv run --no-project --python 3.14 python scripts/export-web-model.py --exploded --check

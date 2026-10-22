@@ -1,12 +1,23 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 
+const { render } = createRequire(import.meta.url)('../../assets/popover/document.js');
+const popoverAssets = {
+  template: readFileSync(new URL('../../assets/popover.html', import.meta.url), 'utf8'),
+  styles: readFileSync(new URL('../../assets/popover/popover.css', import.meta.url), 'utf8'),
+  script: readFileSync(new URL('../../assets/popover/popover.js', import.meta.url), 'utf8'),
+  presentation: readFileSync(new URL('../../assets/popover/presentation.js', import.meta.url), 'utf8'),
+  icons: Object.fromEntries(['red', 'yellow', 'green', 'none'].map(color => [color,
+    'data:image/png;base64,' + readFileSync(new URL(`../../assets/icons/broglow-${color}.png`, import.meta.url)).toString('base64')])),
+};
+
 // Execute the full embedded page; native layout/keyboard behavior needs a browser.
 function popoverPage() {
-  const html = readFileSync(new URL('../../assets/popover.html', import.meta.url), 'utf8');
-  const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const html = render(popoverAssets);
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match => match[1]);
   const elements = new Map();
   const element = id => {
     if (!elements.has(id)) elements.set(id, {
@@ -57,7 +68,7 @@ function popoverPage() {
     setInterval: (callback, delay) => schedule(callback, delay, true),
     clearTimeout: id => timers.delete(id), clearInterval: id => timers.delete(id),
   };
-  runInNewContext(script, context);
+  for (const script of scripts) runInNewContext(script, context);
   const click = id => listeners.click({ target: { closest: selector => {
     const el = element(id);
     return selector === '[data-local]' && el.dataset.local ? el :
