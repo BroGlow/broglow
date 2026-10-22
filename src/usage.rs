@@ -25,6 +25,8 @@ pub struct AgentUsage {
     pub harness: &'static str,
     pub label: &'static str,
     pub badge: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<&'static str>,
     pub today_tokens: u64,
     pub limits: Vec<UsageLimit>,
 }
@@ -650,6 +652,11 @@ impl Tracker {
                 badge: adapter
                     .map(|a| a.badge)
                     .unwrap_or(crate::harness::CLAUDE_BADGE),
+                icon: Some(
+                    adapter
+                        .map(|a| a.icon)
+                        .unwrap_or(crate::harness::CLAUDE_ICON),
+                ),
                 today_tokens: tokens,
                 limits,
             });
@@ -1223,6 +1230,15 @@ mod tests {
             snap.agents.iter().map(|a| a.harness).collect::<Vec<_>>(),
             vec!["claude", "codex", "opencode"]
         );
+        for agent in &snap.agents {
+            let expected =
+                crate::harness::agent((agent.harness != "claude").then_some(agent.harness));
+            assert_eq!(agent.icon, expected.icon);
+            assert_eq!(
+                serde_json::to_value(agent).unwrap()["icon"].as_str(),
+                expected.icon
+            );
+        }
         assert_eq!(snap.agents[0].today_tokens, 1160);
         assert_eq!(snap.agents[0].limits[0].used_percent, 10.0);
         assert_eq!(snap.agents[1].limits[0].used_percent, 70.0);

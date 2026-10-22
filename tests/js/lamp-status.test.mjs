@@ -541,31 +541,54 @@ test('grouping by project lists sessions under directory headings with the statu
 
 test('usage keeps Claude and Codex quotas separate from opencode API tokens and the all-agent total', () => {
   const { element, pushState } = popoverPage();
-  pushState({ settings: { usageEnabled: true }, usage: { todayTokens: 1312400, agents: [
-    { harness: 'claude', label: 'Claude', badge: 'cc', todayTokens: 1240000,
+  const icons = [
+    'M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2',
+    'M8 1.5l5.6 3.25v6.5L8 14.5l-5.6-3.25v-6.5z',
+    'M5.5 2.5H3v11h2.5M10.5 2.5H13v11h-2.5',
+  ];
+  pushState({ settings: { usageEnabled: true, showAgentNames: false }, usage: { todayTokens: 1312400, agents: [
+    { harness: 'claude', label: 'Claude', badge: 'cc', icon: icons[0], todayTokens: 1240000,
       limits: [{ label: '5h block', usedPercent: 62, reset: '4:00 PM' },
         { label: 'Week', usedPercent: 31, reset: null }] },
-    { harness: 'codex', label: 'Codex', badge: 'cx', todayTokens: 60000,
+    { harness: 'codex', label: 'Codex', badge: 'cx', icon: icons[1], todayTokens: 60000,
       limits: [{ label: '5h block', usedPercent: 12, reset: '5:00 PM' }] },
-    { harness: 'opencode', label: 'opencode', badge: 'oc', todayTokens: 12400, limits: [] },
+    { harness: 'opencode', label: 'opencode', badge: 'oc', icon: icons[2], todayTokens: 12400, limits: [] },
   ] } });
-  const sections = [...element('usage').innerHTML.matchAll(/<section[^>]*>(.*?)<\/section>/g)].map(m => m[1]);
+  const html = element('usage').innerHTML;
+  assert.equal((html.match(/role="heading" aria-level="2">Usage<\/div>/g) || []).length, 1);
+  assert.equal((html.match(/role="heading" aria-level="3"/g) || []).length, 3);
+  assert.doesNotMatch(html, /Usage ·|class="badge"/);
+  const sections = [...html.matchAll(/<section[^>]*>(.*?)<\/section>/g)].map(m => m[1]);
   assert.equal(sections.length, 3);
-  assert.match(sections[0], /Usage · Claude/);
+  for (const [i, label] of ['Claude', 'Codex', 'opencode'].entries()) {
+    assert.ok(sections[i].startsWith('<div class="uagenthead" role="heading" aria-level="3">' +
+      `<svg class="agicon" viewBox="0 0 16 16" aria-hidden="true"><path d="${icons[i]}"/></svg>${label}</div>`),
+      'Usage keeps named agent headings when session names are hidden');
+  }
   assert.match(sections[0], /Today ≈ 1\.2M tokens/);
   assert.match(sections[0], /62%.*4:00 PM/);
   assert.match(sections[0], /31%/);
   assert.doesNotMatch(sections[0], /12%/);
-  assert.match(sections[1], /Usage · Codex/);
   assert.match(sections[1], /Today ≈ 60k tokens/);
   assert.match(sections[1], /12%.*5:00 PM/);
   assert.doesNotMatch(sections[1], /62%|31%/);
-  assert.match(sections[2], /Usage · opencode/);
   assert.match(sections[2], /Today ≈ 12k tokens/);
   assert.doesNotMatch(sections[2], /%|progressbar/);
   assert.match(visibleLabel(element('usage')), /All agents today ≈ 1\.3M tokens/);
   assert.doesNotMatch(visibleLabel(element('usage')), /\$|74%|105%/);
   assert.equal(element('usage').hidden, false);
+});
+
+test('usage escapes agent identity fields and keeps the unknown-agent badge fallback', () => {
+  const { element, pushState } = popoverPage();
+  pushState({ settings: { usageEnabled: true }, usage: { todayTokens: 2, agents: [
+    { label: 'Known <agent>', icon: 'M1 1" onload="bad<>&\'', badge: 'kn', todayTokens: 1, limits: [] },
+    { label: 'Future <agent>', icon: null, badge: 'f<&', todayTokens: 1, limits: [] },
+  ] } });
+  const html = element('usage').innerHTML;
+  assert.match(html, /<path d="M1 1&quot; onload=&quot;bad&lt;&gt;&amp;&#39;"\/><\/svg>Known &lt;agent&gt;<\/div>/);
+  assert.match(html, /aria-label="Future &lt;agent&gt;"><div class="uagenthead" role="heading" aria-level="3"><span class="badge" aria-hidden="true">f&lt;&amp;<\/span>Future &lt;agent&gt;<\/div>/);
+  assert.doesNotMatch(html, / onload="|<agent>/);
 });
 
 test('usage renders weekly-only quotas and leaves unavailable quotas absent', () => {
@@ -578,8 +601,8 @@ test('usage renders weekly-only quotas and leaves unavailable quotas absent', ()
   ] } });
   const html = element('usage').innerHTML;
   assert.match(html, /Claude Week used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"/);
-  assert.match(visibleLabel(element('usage')), /Usage · ClaudeToday ≈ 0 tokensWeek0%/);
-  assert.match(visibleLabel(element('usage')), /Usage · CodexToday ≈ 1k tokens/);
+  assert.match(visibleLabel(element('usage')), /ClaudeToday ≈ 0 tokensWeek0%/);
+  assert.match(visibleLabel(element('usage')), /CodexToday ≈ 1k tokens/);
   assert.equal((html.match(/role="progressbar"/g) || []).length, 1);
   assert.doesNotMatch(html, /5h block|resets|opencode/);
   assert.equal(element('usage').hidden, false);
@@ -626,7 +649,7 @@ test('hiding menu-bar usage preserves popover totals without changing the tracki
   context.window.__configActionResult(null);
   click('settingsbtn');
   assert.equal(element('usage').hidden, false);
-  assert.match(visibleLabel(element('usage')), /Usage · CodexToday ≈ 100 tokensWeek44%resets FriAll agents today ≈ 100 tokens/);
+  assert.match(visibleLabel(element('usage')), /CodexToday ≈ 100 tokensWeek44%resets FriAll agents today ≈ 100 tokens/);
 });
 
 test('Settings toggles the saved Dashboard preference, reflects CLI changes and recovers from save failures', () => {

@@ -29,6 +29,7 @@ Turn on **Settings → Track usage** in the menu-bar popover. Tracking is off by
 default. Claude, Codex and opencode each get their own token total for today;
 **All agents today** adds those local totals. BroGlow does not price tokens or
 estimate bills. Token counts are local activity totals, not subscription balances.
+The popover groups these totals under one **Usage** heading, with each agent's name and existing monochrome icon below it.
 
 | Agent | Tokens for today | Limits |
 | --- | --- | --- |

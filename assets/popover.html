@@ -147,6 +147,7 @@ body.win .optrow input { accent-color: #4cc2ff; }
 }
 .usec[hidden] { display: none; }
 .uagent { display: flex; flex-direction: column; gap: 5px; }
+.uagenthead { display: flex; align-items: center; font-size: 11px; font-weight: 600; color: rgba(255,255,255,.65); }
 body.win .usec { border-top: 1px solid rgba(255,255,255,.08); }
 .ulhead {
   display: flex; align-items: baseline; gap: 5px;
@@ -316,9 +317,9 @@ function renderUsage() {
     return;
   }
 
-  const html = agents.map(a => {
-    let section = `<section class="uagent" aria-label="${esc(a.label)} usage">` +
-      `<div class="ulhead"><span>Usage · ${esc(a.label)}</span></div>` +
+  const html = `<div class="ulhead" role="heading" aria-level="2">Usage</div>` + agents.map(a => {
+    let section = `<section class="uagent" aria-label="${esc(a.label)}">` +
+      `<div class="uagenthead" role="heading" aria-level="3">${agentMark(a, true)}${esc(a.label)}</div>` +
       `<div class="usub">Today ≈ ${fmtTokens(a.todayTokens)} tokens</div>`;
     for (const limit of a.limits || []) {
       if (!Number.isFinite(limit.usedPercent)) continue;
@@ -585,16 +586,20 @@ const HOST_ICONS = {
   ide: 'M5 4.5 1.5 8 5 11.5M11 4.5 14.5 8 11 11.5M9.5 3l-3 10',
 };
 
+function agentMark(agent, showName) {
+  const a11y = showName ? ' aria-hidden="true"' : ` role="img" aria-label="${esc(agent.label)}"`;
+  return agent.icon
+    ? `<svg class="agicon" viewBox="0 0 16 16"${a11y}><path d="${esc(agent.icon)}"/></svg>`
+    : `<span class="badge"${a11y}>${esc(agent.badge || '')}</span>`;
+}
+
 // "<icon> Codex <host> · " before the project; with names off, just
 // "<icon> <host>". The agent icon is path data from the host's agent registry,
 // placed only in an attribute; hover names the agent and the host.
 function agentMeta(agent, showName, host) {
   if (!agent || !agent.label) return '';
   const label = esc(agent.label);
-  const a11y = showName ? ' aria-hidden="true"' : ` role="img" aria-label="${label}"`;
-  const mark = agent.icon
-    ? `<svg class="agicon" viewBox="0 0 16 16"${a11y}><path d="${esc(agent.icon)}"/></svg>`
-    : `<span class="badge"${a11y}>${esc(agent.badge || '')}</span>`;
+  const mark = agentMark(agent, showName);
   const hostPath = host && HOST_ICONS[host.kind];
   const hostName = hostPath ? esc(host.name) : '';
   const hostMark = hostPath
