@@ -420,8 +420,9 @@ disconnected board resumes its setup/waiting indication. A connected BLE client 
 when BLE is disconnected. Flash with `broglow flash`, PlatformIO or the documented prebuilt
 esptool procedure; firmware updates over the application protocol are unsupported.
 The firmware's version lives in `firmware/esp32-c3-supermini/VERSION`, separate
-from the app's; `scripts/firmware-version.py record` locks it to the sources and
-the host test fails on a source change without a bump.
+from the app's: the date of its last change (`YYYY.MM.DD`, `.1`… same day).
+`scripts/firmware-version.py bump` sets it and locks it to the sources; the host
+test fails on a source change without a bump.
 BLE writes require encryption and LE Secure Connections Just Works bonding.
 After normal boot, BOOT/GPIO9 held three seconds opens a 60-second pairing window;
 ten seconds requests deletion of all board bonds. No bonds at startup also opens

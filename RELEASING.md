@@ -56,13 +56,14 @@ checks on that platform.
 
 The C3 firmware carries its own version in `firmware/esp32-c3-supermini/VERSION`,
 independent of the app's, so an app release never asks lamps to reflash unchanged
-firmware. `version-lock.json` next to it records the sources that version was built
-from, and the firmware host test fails when `src/main.cpp` or `platformio.ini` change
-without a new version. After changing the firmware, set the next version in `VERSION`
-and run:
+firmware. The version is the date of the firmware's last change, `YYYY.MM.DD`, with
+`.1`, `.2`, … for further changes on the same day. `version-lock.json` next to it
+records the sources that version was built from, and the firmware host test fails
+when `src/main.cpp` or `platformio.ini` change without a new version. After changing
+the firmware, run:
 
 ```bash
-uv run --no-project --python 3.14 python scripts/firmware-version.py record
+uv run --no-project --python 3.14 python scripts/firmware-version.py bump
 ```
 
 ## Build a draft release

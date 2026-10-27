@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """The C3 firmware's own version, locked to its sources.
 
-`VERSION` holds the version the firmware reports; `version-lock.json` records
-the sources that version was built from. The firmware host test fails when the
-sources change without a new version, so the app never offers a pointless
-update and never misses a real one.
+`VERSION` holds the version the firmware reports: the date of its last change
+as YYYY.MM.DD, plus .1, .2, ... for further changes on the same day, so it
+reads as a date, never as an app version, and sorts in order (up to nine bumps
+a day). `version-lock.json` records the sources that version was built from.
+The firmware host test fails when the sources change without a new version, so
+the app never offers a pointless update and never misses a real one.
 
     firmware-version.py            print the version
     firmware-version.py check      exit 1 when the lock is stale
+    firmware-version.py bump       set today's date as the version and lock it
     firmware-version.py record     write the lock for the current VERSION
 """
 
+import datetime
 import hashlib
 import json
 from pathlib import Path
@@ -74,10 +78,28 @@ def record(force=False):
     print(f"Recorded firmware {current} for {', '.join(SOURCES)}")
 
 
+def next_version(current, today):
+    """Today's date, or the next same-day suffix when today is already used."""
+    base = today.strftime("%Y.%m.%d")
+    if current == base:
+        return f"{base}.1"
+    if current.startswith(base + "."):
+        return f"{base}.{int(current[len(base) + 1 :]) + 1}"
+    return base
+
+
+def bump(today=None):
+    new = next_version(version(), today or datetime.date.today())
+    VERSION.write_text(new + "\n")
+    record()
+
+
 def main(argv):
     command = argv[1] if len(argv) > 1 else "print"
     if command == "print":
         print(version())
+    elif command == "bump":
+        bump()
     elif command == "check":
         reason = stale()
         if reason:

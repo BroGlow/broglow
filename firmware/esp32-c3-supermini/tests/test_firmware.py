@@ -130,3 +130,21 @@ def test_version_lock_refuses_to_re_record_changed_sources(
     assert "records 1.2.0" in firmware_version.stale()
     firmware_version.record()
     assert firmware_version.stale() is None
+
+    # bump: the change date, then same-day suffixes, each recorded at once.
+    import datetime
+
+    day = datetime.date(2026, 10, 27)
+    (c3 / "src/main.cpp").write_text("// v3\n")
+    firmware_version.bump(day)
+    assert (c3 / "VERSION").read_text() == "2026.10.27\n"
+    assert firmware_version.stale() is None
+    (c3 / "src/main.cpp").write_text("// v4\n")
+    firmware_version.bump(day)
+    assert (c3 / "VERSION").read_text() == "2026.10.27.1\n"
+    (c3 / "src/main.cpp").write_text("// v5\n")
+    firmware_version.bump(day)
+    assert (c3 / "VERSION").read_text() == "2026.10.27.2\n"
+    firmware_version.bump(datetime.date(2026, 11, 2))
+    assert (c3 / "VERSION").read_text() == "2026.11.02\n"
+    assert firmware_version.stale() is None
