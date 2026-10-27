@@ -52,6 +52,19 @@ Python 3.14** (`macos-15` in release CI). Other platforms may produce different
 STL bytes and fail the hash check; accept new hashes only after real slicing
 checks on that platform.
 
+## Firmware version
+
+The C3 firmware carries its own version in `firmware/esp32-c3-supermini/VERSION`,
+independent of the app's, so an app release never asks lamps to reflash unchanged
+firmware. `version-lock.json` next to it records the sources that version was built
+from, and the firmware host test fails when `src/main.cpp` or `platformio.ini` change
+without a new version. After changing the firmware, set the next version in `VERSION`
+and run:
+
+```bash
+uv run --no-project --python 3.14 python scripts/firmware-version.py record
+```
+
 ## Build a draft release
 
 Review and commit all release changes first, then check both the source and

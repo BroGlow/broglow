@@ -22,6 +22,11 @@ _spec = importlib.util.spec_from_file_location(
 )
 notices = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(notices)
+_version_spec = importlib.util.spec_from_file_location(
+    "firmware_version", ROOT / "scripts/firmware-version.py"
+)
+firmware_version_tool = importlib.util.module_from_spec(_version_spec)
+_version_spec.loader.exec_module(firmware_version_tool)
 
 FIRMWARE_DEPENDENCIES = {
     "": """# Firmware dependencies
@@ -53,8 +58,8 @@ precompiled archives. To build with your own version of the core or a library:
    `platform_packages = framework-arduinoespressif32 @ symlink:///path/to/copy`
    to `[env:esp32-c3-supermini]`.
 3. Run `pio run` again. The new images are written to
-   `.pio/build/esp32-c3-supermini/` in this directory; outside a source checkout
-   they report the firmware version `unknown`.
+   `.pio/build/esp32-c3-supermini/` in this directory and report the version in
+   `VERSION`; change it so the app can tell your build from the release.
 4. Copy its `bootloader.bin`, `partitions.bin` and `firmware.bin` over the images
    here (keep `boot_app0.bin`) and run `broglow flash --firmware` with this
    directory's path.
@@ -90,8 +95,8 @@ Arduino-ESP32 2.0.17 и её предкомпилированными библи
    `platform_packages = framework-arduinoespressif32 @ symlink:///path/to/copy`
    в `[env:esp32-c3-supermini]`.
 3. Снова выполните `pio run`. Новые образы появятся в
-   `.pio/build/esp32-c3-supermini/` в этой папке; вне чекаута исходников они
-   сообщают версию прошивки `unknown`.
+   `.pio/build/esp32-c3-supermini/` в этой папке и сообщат версию из файла
+   `VERSION`; измените её, чтобы приложение отличало вашу сборку от релиза.
 4. Скопируйте оттуда `bootloader.bin`, `partitions.bin` и `firmware.bin` поверх
    образов в этой папке (`boot_app0.bin` оставьте) и выполните
    `broglow flash --firmware` с путём к этой папке.
@@ -121,15 +126,21 @@ def write_firmware_notices(destination, framework, document):
 
 
 def firmware_sources():
-    """Inputs whose change needs a rebuild before packaging. Cargo.toml also
-    feeds version.py, but the stamped version is checked directly instead."""
-    return [C3 / "platformio.ini", C3 / "version.py", C3 / "src/main.cpp"]
+    """Inputs whose change needs a rebuild before packaging."""
+    return [
+        C3 / "platformio.ini",
+        C3 / "version.py",
+        C3 / "VERSION",
+        C3 / "src/main.cpp",
+    ]
 
 
 def package_firmware(destination, platformio_core, version):
     """Verify the pinned build in firmware/esp32-c3-supermini and write the
     release firmware directory. Returns (framework_version, linked_archives)."""
     require(not destination.exists(), f"Refusing to overwrite {destination}")
+    stale = firmware_version_tool.stale()
+    require(stale is None, f"Firmware version lock: {stale}")
     build = C3 / ".pio/build/esp32-c3-supermini"
     framework = platformio_core / "packages/framework-arduinoespressif32"
     framework_version = json.loads((framework / "package.json").read_text())["version"]
@@ -204,6 +215,8 @@ def package_firmware(destination, platformio_core, version):
         shutil.copy2(path, destination / path.name)
     shutil.copy2(C3 / "platformio.ini", destination / "platformio.ini")
     shutil.copy2(C3 / "version.py", destination / "version.py")
+    shutil.copy2(C3 / "VERSION", destination / "VERSION")
+    shutil.copy2(C3 / "version-lock.json", destination / "version-lock.json")
     shutil.copytree(C3 / "src", destination / "src")
     shutil.copytree(
         C3 / "tests",
@@ -228,10 +241,9 @@ def package_firmware(destination, platformio_core, version):
     return framework_version, linked
 
 
-def cargo_version():
-    return re.search(
-        r'^version = "([^"]+)"$', (ROOT / "Cargo.toml").read_text(), re.M
-    ).group(1)
+def firmware_version():
+    """The firmware's own version from VERSION; independent of the app's."""
+    return firmware_version_tool.version()
 
 
 def main():
@@ -251,7 +263,7 @@ def main():
     args = parser.parse_args()
     output = args.output.resolve()
     framework_version, linked = package_firmware(
-        output, args.platformio_core, cargo_version()
+        output, args.platformio_core, firmware_version()
     )
     print(f"{output}: Arduino-ESP32 {framework_version}, {len(linked)} linked archives")
 

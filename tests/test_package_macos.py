@@ -183,7 +183,7 @@ def test_firmware_package_ships_images_sources_and_notices_only(
     if local_firmware_notices is None:
         pytest.skip("Pinned firmware has not been built on this machine")
     destination = tmp_path / "esp32-c3-supermini"
-    version = firmware.cargo_version()
+    version = firmware.firmware_version()
 
     framework_version, linked = firmware.package_firmware(
         destination, Path.home() / ".platformio", version
@@ -204,6 +204,8 @@ def test_firmware_package_ships_images_sources_and_notices_only(
         "flash-manifest.json",
         "platformio.ini",
         "version.py",
+        "VERSION",
+        "version-lock.json",
         "src/main.cpp",
         "ARDUINO-LICENSE.md",
         "BLE-LICENSE.txt",

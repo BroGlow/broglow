@@ -151,8 +151,10 @@ broglow_pair identity=001122334455 service=7d2ea28a-f7bd-485a-bd9d-92ad6ecfe93e
 version=1.1.0
 ```
 
-The `version` line is the app release whose checkout built the firmware; the
-same line is printed at boot. A rebuild outside a checkout reports `unknown`.
+The `version` line is the firmware's own version from
+`firmware/esp32-c3-supermini/VERSION`, independent of the app's; the same line is
+printed at boot. It changes only when the firmware sources change, so the app
+offers an update only for lamps that run different firmware.
 
 These setup commands also work while BLE owns the LEDs. The advertised identity
 is the six base-MAC bytes, not the possibly changing over-the-air private Bluetooth address.

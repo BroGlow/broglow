@@ -1,18 +1,21 @@
 """Exercise real firmware with host hardware fakes, without accessing a board."""
 
 import configparser
+import importlib.util
 from pathlib import Path
-import re
 import shlex
 import subprocess
 
 import pytest
 
 PROJECT = Path(__file__).resolve().parents[1]
+_spec = importlib.util.spec_from_file_location(
+    "firmware_version", PROJECT.parents[1] / "scripts/firmware-version.py"
+)
+firmware_version = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(firmware_version)
 # version.py stamps real builds; the host build passes the same define itself.
-APP_VERSION = re.search(
-    r'^version = "([^"]+)"$', (PROJECT.parents[1] / "Cargo.toml").read_text(), re.M
-).group(1)
+FIRMWARE_VERSION = firmware_version.version()
 LED_SCENARIOS = (
     "indications",
     "brightness",
@@ -56,7 +59,7 @@ def firmware_binary(
     config = configparser.ConfigParser(interpolation=None)
     config.read(PROJECT / "platformio.ini")
     flags = shlex.split(config["env:esp32-c3-supermini"]["build_flags"])
-    flags.append(f'-DBROGLOW_FIRMWARE_VERSION="{APP_VERSION}"')
+    flags.append(f'-DBROGLOW_FIRMWARE_VERSION="{FIRMWARE_VERSION}"')
     if request.param is not None:
         flags.extend(["-U" + request.param.split("=")[0], "-D" + request.param])
     executable = directory / "check"
@@ -97,3 +100,33 @@ def firmware_binary(
 def test_firmware_behavior(firmware_binary: Path, scenario: str) -> None:
     # Each scenario starts in a new process, like a fresh power-on.
     subprocess.run([str(firmware_binary), scenario], check=True, timeout=10)
+
+
+def test_firmware_version_is_locked_to_its_sources() -> None:
+    # A changed sketch or build config needs a new VERSION, or lamps already on
+    # this version would silently run different firmware than new ones.
+    assert firmware_version.stale() is None, firmware_version.stale()
+
+
+def test_version_lock_refuses_to_re_record_changed_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    c3 = tmp_path / "esp32-c3-supermini"
+    (c3 / "src").mkdir(parents=True)
+    (c3 / "src/main.cpp").write_text("// v1\n")
+    (c3 / "platformio.ini").write_text("[env]\n")
+    (c3 / "VERSION").write_text("1.2.0\n")
+    monkeypatch.setattr(firmware_version, "C3", c3)
+    monkeypatch.setattr(firmware_version, "VERSION", c3 / "VERSION")
+    monkeypatch.setattr(firmware_version, "LOCK", c3 / "version-lock.json")
+    firmware_version.record()
+    assert firmware_version.stale() is None
+
+    (c3 / "src/main.cpp").write_text("// v2\n")
+    assert "set a new version" in firmware_version.stale()
+    with pytest.raises(SystemExit, match="bump VERSION first"):
+        firmware_version.record()
+    (c3 / "VERSION").write_text("1.3.0\n")
+    assert "records 1.2.0" in firmware_version.stale()
+    firmware_version.record()
+    assert firmware_version.stale() is None

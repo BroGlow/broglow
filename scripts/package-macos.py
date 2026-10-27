@@ -231,7 +231,9 @@ def main():
         shutil.copy2(binary, package / "bin/broglow")
         (package / "bin/broglow").chmod(0o755)
         framework_version, linked = firmware.package_firmware(
-            package / "firmware/esp32-c3-supermini", args.platformio_core, version
+            package / "firmware/esp32-c3-supermini",
+            args.platformio_core,
+            firmware.firmware_version(),
         )
         copy_manual(package)
         try:
@@ -252,6 +254,8 @@ def main():
             "artifacts_rebuilt_by_packager": False,
             "provenance_note": "Existing builds; input age checks and hashes do not prove reproducibility or test results.",
             "arduino_framework_package": framework_version,
+            "firmware_version": firmware.firmware_version(),
+            "firmware_version": firmware.firmware_version(),
             "third_party_notices": {
                 "rust_crates": len(crates),
                 "rust_crates_without_license_files": [

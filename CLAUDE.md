@@ -417,8 +417,11 @@ uses exactly one `R`, `Y`, `G`, or `N` byte with response; the host sends immedi
 on changes, and every two seconds. The board clears session status ten seconds
 after its last valid update; a still-connected stale link stays dark, while a
 disconnected board resumes its setup/waiting indication. A connected BLE client owns LED control; serial commands work
-when BLE is disconnected. Flash with PlatformIO or the documented prebuilt
+when BLE is disconnected. Flash with `broglow flash`, PlatformIO or the documented prebuilt
 esptool procedure; firmware updates over the application protocol are unsupported.
+The firmware's version lives in `firmware/esp32-c3-supermini/VERSION`, separate
+from the app's; `scripts/firmware-version.py record` locks it to the sources and
+the host test fails on a source change without a bump.
 BLE writes require encryption and LE Secure Connections Just Works bonding.
 After normal boot, BOOT/GPIO9 held three seconds opens a 60-second pairing window;
 ten seconds requests deletion of all board bonds. No bonds at startup also opens
