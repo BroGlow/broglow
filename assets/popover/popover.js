@@ -351,14 +351,19 @@ function renderLamp() {
 // Settings only: what the last update check found. Quiet by design.
 function renderUpdate(app) {
   const update = app.update || {};
-  document.getElementById('appversion').textContent = `BroGlow ${app.version || ''}`.trim();
-  let hint;
-  if (update.upgrading) hint = 'Updating via Homebrew… the app restarts by itself when done.';
-  else if (update.checking) hint = 'Checking for updates…';
-  else if (update.available) hint = `BroGlow ${update.latest} is available.` + (update.homebrew ? '' : ' Download it from the release page.');
-  else if (update.latest) hint = 'You have the latest version.';
+  // The title carries the news: the new version when there is one, else ours.
+  let title = `BroGlow ${app.version || ''}`.trim(), hint;
+  if (update.upgrading) {
+    title = `Updating to ${update.latest}…`;
+    hint = 'Via Homebrew; the app restarts by itself.';
+  } else if (update.checking) hint = 'Checking for updates…';
+  else if (update.available) {
+    title = `Update available: BroGlow ${update.latest}`;
+    hint = `You have ${app.version}.` + (update.homebrew ? '' : ' Download it from the release page.');
+  } else if (update.latest) hint = 'You have the latest version.';
   else if (update.error) hint = 'Could not reach GitHub; try again later.';
   else hint = 'Not checked yet.';
+  document.getElementById('appversion').textContent = title;
   document.getElementById('updatehint').textContent = hint;
   const check = document.getElementById('checkupdates');
   check.dataset.cmd = 'check_updates';
