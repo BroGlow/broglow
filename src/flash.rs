@@ -189,6 +189,16 @@ pub fn update(
         Some(path) => path,
         None => lamp_port()?,
     };
+    // Only USB mirroring holds the cable. Otherwise answer "up to date" from a
+    // plain INFO first, so a Bluetooth lamp never disconnects for a check.
+    let cfg = config::read_config();
+    let cable_held = cfg.led_enabled && cfg.led_transport == config::LedTransport::Usb;
+    if !cable_held && !force {
+        let mut serial = open_lamp(&path)?;
+        if lamp_version(serial.as_mut())?.as_deref() == Some(images.version.as_str()) {
+            return Ok(Outcome::UpToDate(images.version));
+        }
+    }
     // Mirroring may hold the cable; pause it until the lamp is back.
     let resume = pause_mirroring()?;
     let result = flash_lamp(&path, &images, force, confirm, report);
