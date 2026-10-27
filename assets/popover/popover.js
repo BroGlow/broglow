@@ -108,7 +108,9 @@ function lampSetupBusy() { return addLampBusy() || firmwareBusy(); }
 // USB mirroring holds the cable there is no probe, and the write pauses it.
 function usbUpdateAllowed(lamp) {
   const usb = lamp.usb_lamp;
-  if (usb) return usb.broglow === true && usb.version !== lamp.firmware?.available;
+  // A board with no BroGlow reply (new, or damaged) is written only by its own
+  // explicit Flash new board button.
+  if (usb) return usb.broglow !== true || usb.version !== lamp.firmware?.available;
   return lamp.usb_present === true && lamp.transport === 'usb' && lamp.enabled === true;
 }
 function canUpdateFirmware() {
@@ -363,9 +365,10 @@ function renderFirmware(l, devices) {
   const usbName = !usb?.id ? 'The lamp' : l.names?.[usb.id] ? `Lamp “${l.names[usb.id]}”` :
     usbIndex >= 0 ? `Lamp ${usbIndex + 1}` : 'The lamp';
   const upToDate = !busy && usb?.broglow === true && usb.version === firmware.available;
+  const newBoard = !busy && usb && usb.broglow !== true;
   let hint;
   if (busy) hint = `Writing firmware ${firmware.available}… ${firmwareProgress}%. Keep the lamp connected.`;
-  else if (usb && !usb.broglow) hint = `The USB device gives no BroGlow reply. For a new or damaged board run \`broglow flash --force\` from a terminal.`;
+  else if (newBoard) hint = `The USB device gives no BroGlow reply. Flash new board writes firmware ${firmware.available} to a new or damaged ESP32-C3; its Bluetooth pairing, if any, is kept.`;
   else if (upToDate) hint = `${usbName} on USB runs firmware ${firmware.available}, the latest.`;
   else if (usb) hint = `${usbName} on USB runs firmware ${usb.version || `older than ${firmware.available}`}. Updating pauses lamp control; Bluetooth pairing is kept.`;
   else if (l.usb_present && l.transport === 'usb' && l.enabled) hint = `Firmware ${firmware.available} is ready for the lamp on USB. Updating pauses lamp control; Bluetooth pairing is kept.`;
@@ -376,10 +379,12 @@ function renderFirmware(l, devices) {
   document.getElementById('lampfirmwarehint').textContent = hint;
   const button = document.getElementById('lampflash');
   button.dataset.cmd = 'update_firmware';
+  button.dataset.force = String(!!newBoard);
   button.hidden = upToDate;
   button.disabled = !canUpdateFirmware();
   button.setAttribute('aria-disabled', String(!canUpdateFirmware()));
-  button.textContent = busy ? 'Updating…' : usbName === 'The lamp' ? `Update firmware to ${firmware.available}` : `Update ${usbName} to ${firmware.available}`;
+  button.textContent = busy ? 'Updating…' : newBoard ? 'Flash new board' :
+    usbName === 'The lamp' ? `Update firmware to ${firmware.available}` : `Update ${usbName} to ${firmware.available}`;
   const result = document.getElementById('lampfirmwareresult');
   result.textContent = busy ? '' : firmwareError || firmwareMessage;
   result.className = firmwareError && !busy ? 'error' : '';
@@ -773,6 +778,7 @@ document.addEventListener('click', ev => {
   const msg = { cmd: btn.dataset.cmd };
   if (btn.dataset.id !== undefined) msg.id = btn.dataset.id;
   if (btn.dataset.enabled !== undefined) msg.enabled = btn.dataset.enabled === 'true';
+  if (btn.dataset.force === 'true') msg.force = true;
   if (msg.cmd === 'clear_session' || msg.cmd === 'clear_paused') {
     configActionError = '';
     document.getElementById('sessionerror').hidden = true;

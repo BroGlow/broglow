@@ -115,8 +115,12 @@ pub enum PopoverMsg {
     },
     /// Identify the single USB lamp and remember its Bluetooth identity.
     AddLamp,
-    /// Write the bundled firmware to the single USB lamp.
-    UpdateFirmware,
+    /// Write the bundled firmware to the single USB lamp. `force` also
+    /// writes a board that gives no BroGlow INFO reply (new or damaged).
+    UpdateFirmware {
+        #[serde(default)]
+        force: bool,
+    },
     /// Stop remembering/reconnecting to one lamp; retain Bluetooth bonds.
     ForgetLamp {
         id: String,
@@ -1100,6 +1104,18 @@ mod tests {
         state.sessions.get_mut("capacity").unwrap().status = Status::Active;
         let payloads = serde_json::to_value(session_payloads(&state)).unwrap();
         assert_eq!(payloads[0]["capacityBlocked"], false);
+    }
+
+    #[test]
+    fn update_firmware_ipc_defaults_to_a_plain_update() {
+        let msg: PopoverMsg =
+            serde_json::from_value(serde_json::json!({ "cmd": "update_firmware" })).unwrap();
+        assert!(matches!(msg, PopoverMsg::UpdateFirmware { force: false }));
+        let msg: PopoverMsg = serde_json::from_value(serde_json::json!({
+            "cmd": "update_firmware", "force": true
+        }))
+        .unwrap();
+        assert!(matches!(msg, PopoverMsg::UpdateFirmware { force: true }));
     }
 
     #[test]

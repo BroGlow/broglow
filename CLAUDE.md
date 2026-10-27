@@ -114,7 +114,8 @@ grant or board operation: record those acceptance checks separately.
   The popover's Lamp details carry a Firmware section (`renderFirmware` in
   popover.js): the BLE worker reads each lamp's version characteristic once per
   connection into `DeviceStatus.firmware`, the payload adds `usb_present` and the
-  bundled version, and **Update firmware** runs `flash::update` on a tray thread
+  bundled version, and **Update firmware** (or **Flash new board** with `force` for a
+device that gives no BroGlow INFO reply) runs `flash::update` on a tray thread
   with progress events (`FirmwareProgress`/`FirmwareFinished`). `flash_busy`
   pauses USB setup and lamp edits like `setup_busy` does.
 - **led.rs** — USB detection/driver, aggregate-to-byte mapping, transport dispatch,

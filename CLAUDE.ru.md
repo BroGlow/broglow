@@ -135,7 +135,8 @@ BLE не даёт поиску устройств и рабочему проце
   В деталях лампы в поповере есть раздел Firmware (`renderFirmware` в popover.js):
   BLE-воркер один раз за подключение читает характеристику версии лампы в
   `DeviceStatus.firmware`, payload добавляет `usb_present` и версию из бандла, а
-  **Update firmware** запускает `flash::update` в потоке трея с событиями хода
+  **Update firmware** (или **Flash new board** с `force` для устройства без ответа
+BroGlow на INFO) запускает `flash::update` в потоке трея с событиями хода
   (`FirmwareProgress`/`FirmwareFinished`). `flash_busy` останавливает USB-настройку
   и правки ламп так же, как `setup_busy`.
 - **led.rs** — обнаружение и драйвер USB, преобразование сводного состояния в

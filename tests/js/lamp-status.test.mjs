@@ -1464,7 +1464,7 @@ test('preview requires an enabled connected wireless lamp but saving does not', 
 });
 
 test('firmware section offers a USB update only with bundled images and a lamp on USB', () => {
-  const { context, element, update, click, commands } = lampPage();
+  const { context, element, update, click, commands, messages } = lampPage();
   assert.equal(element('lampfirmware').hidden, true, 'No bundled images, no section');
   click('lampflash');
   assert.equal(commands('update_firmware').length, 0);
@@ -1487,8 +1487,13 @@ test('firmware section offers a USB update only with bundled images and a lamp o
   click('lampflash');
   assert.equal(commands('update_firmware').length, 0, 'No probe yet, no write');
   update(lamp({ firmware, usb_present: true, usb_lamp: { id: null, version: null, broglow: false } }));
-  assert.match(element('lampfirmwarehint').textContent, /no BroGlow reply.*broglow flash --force/);
-  assert.equal(element('lampflash').disabled, true);
+  assert.match(element('lampfirmwarehint').textContent, /no BroGlow reply\. Flash new board writes firmware 1\.2\.0/);
+  assert.equal(element('lampflash').textContent, 'Flash new board');
+  assert.equal(element('lampflash').disabled, false);
+  click('lampflash');
+  assert.deepEqual(commands('update_firmware'), [{ cmd: 'update_firmware', force: true }], 'A new board is written only with force');
+  context.window.__firmwareResult('Flashed and verified firmware 1.2.0.', null);
+  messages.length = 0;
   update(lamp({ firmware, usb_present: true, names: { 'saved-lamp': 'Desk' },
     usb_lamp: { id: 'saved-lamp', version: '1.2.0', broglow: true } }));
   assert.equal(element('lampfirmwarehint').textContent, 'Lamp “Desk” on USB runs firmware 1.2.0, the latest.');

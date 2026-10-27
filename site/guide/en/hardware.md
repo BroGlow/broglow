@@ -233,8 +233,10 @@ Skip this for a lamp with working firmware. The Mac package contains four images
 
 The app writes them itself. In the menu-bar app, open Lamp details: the Firmware
 section shows the version each Bluetooth lamp reports and, with a lamp on a USB data
-cable, offers **Update firmware** with a progress readout. The same from a terminal,
-with no serial monitor open:
+cable, offers **Update firmware** with a progress readout. A board that gives no
+BroGlow reply, new from the factory or damaged, gets **Flash new board** instead; it
+writes the same images and keeps any Bluetooth pairing the board holds. The same from
+a terminal, with no serial monitor open:
 
 ```bash
 broglow flash

@@ -391,6 +391,7 @@ fn start_lamp_setup(
 fn start_firmware_update(
     popover: &mut Popover,
     proxy: &tao::event_loop::EventLoopProxy<UserEvent>,
+    force: bool,
 ) {
     if popover.setup_busy || popover.flash_busy {
         return;
@@ -402,7 +403,7 @@ fn start_firmware_update(
         let result = crate::flash::update(
             None,
             None,
-            false,
+            force,
             &mut |_, _| Ok(true),
             &mut |done, total| {
                 let _ = progress.send_event(UserEvent::FirmwareProgress(done, total));
@@ -813,8 +814,8 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                 PopoverMsg::AddLamp => {
                     start_lamp_setup(&mut popover, &setup_proxy, crate::ble::SetupMode::Manual);
                 }
-                PopoverMsg::UpdateFirmware => {
-                    start_firmware_update(&mut popover, &setup_proxy);
+                PopoverMsg::UpdateFirmware { force } => {
+                    start_firmware_update(&mut popover, &setup_proxy, force);
                 }
                 PopoverMsg::SetLed { .. }
                 | PopoverMsg::ForgetLamp { .. }

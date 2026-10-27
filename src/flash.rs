@@ -197,7 +197,9 @@ pub fn update(
     let cable_held = cfg.led_enabled && cfg.led_transport == config::LedTransport::Usb;
     if !cable_held && !force {
         let mut serial = open_lamp(&path)?;
-        if lamp_version(serial.as_mut())?.as_deref() == Some(images.version.as_str()) {
+        let current = lamp_version(serial.as_mut())
+            .context("Use --force to flash a board without BroGlow firmware")?;
+        if current.as_deref() == Some(images.version.as_str()) {
             return Ok(Outcome::UpToDate(images.version));
         }
     }
