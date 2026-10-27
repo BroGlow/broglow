@@ -379,6 +379,7 @@ function renderFirmware(l, devices) {
   const firmware = l.firmware || {};
   const section = document.getElementById('lampfirmware');
   section.hidden = !firmware.available;
+  document.getElementById('lampfirmwarelabel').hidden = section.hidden;
   if (!firmware.available) return;
   const busy = firmwareBusy();
   if ((firmware.progress || 0) > firmwareProgress) firmwareProgress = firmware.progress;
@@ -499,7 +500,8 @@ function render() {
         `<input id="brightness" type="range" min="0" max="100" step="1" value="100" aria-describedby="brightnesshint">` +
         `<p id="brightnesshint"></p></div>` +
         `<div class="lampactions"><button class="pbtn" id="lampcontrol"></button></div>` +
-        `<div class="lampsetup" id="lampfirmware" hidden><div class="grplabel">Firmware</div>` +
+        `<div class="grplabel" id="lampfirmwarelabel" hidden>Firmware</div>` +
+        `<div class="lampsetup" id="lampfirmware" hidden>` +
         `<p id="lampfirmwarehint"></p>` +
         `<button class="pbtn" type="button" id="lampflash" aria-describedby="lampfirmwarehint">Update firmware</button>` +
         `<p id="lampfirmwareresult" role="status" hidden></p></div>` +

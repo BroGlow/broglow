@@ -1466,11 +1466,15 @@ test('preview requires an enabled connected wireless lamp but saving does not', 
 test('firmware section offers a USB update only with bundled images and a lamp on USB', () => {
   const { context, element, update, click, commands, messages } = lampPage();
   assert.equal(element('lampfirmware').hidden, true, 'No bundled images, no section');
+  assert.equal(element('lampfirmwarelabel').hidden, true);
+  assert.match(element('groups').innerHTML, /<div class="grplabel" id="lampfirmwarelabel" hidden>Firmware<\/div><div class="lampsetup" id="lampfirmware" hidden>/,
+    'The heading sits beside the section, not inside its padding');
   click('lampflash');
   assert.equal(commands('update_firmware').length, 0);
   const firmware = { available: '1.2.0', busy: false, progress: 0 };
   update(lamp({ firmware, devices: [{ id: 'saved-lamp', state: 'connected', firmware: '1.1.0' }] }));
   assert.equal(element('lampfirmware').hidden, false);
+  assert.equal(element('lampfirmwarelabel').hidden, false);
   assert.match(element('lampfirmwarehint').textContent, /A lamp runs firmware 1\.1\.0; 1\.2\.0 is available\. Connect the lamp by USB/);
   assert.equal(element('lampflash').disabled, true);
   assert.equal(element('lampfirmware-0').textContent, '1.1.0');
