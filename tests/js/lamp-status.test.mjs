@@ -1488,6 +1488,9 @@ test('firmware section states: facts per line, a button only for a board on USB'
     { id: 'saved-lamp', state: 'searching', firmware: '1.1.0' }, { id: 'office-id', state: 'connected', firmware: '1.0.5' }] }));
   assert.equal(hint(), 'Lamp “Home” runs firmware 1.1.0. Lamp “Office” runs firmware 1.0.5.', 'An offline lamp keeps its last known version');
   assert.equal(note().textContent, 'Connect a lamp by USB to update to 1.2.0.');
+  update(lamp({ firmware, names, selected_count: 2, devices: [
+    { id: 'saved-lamp', state: 'connected', firmware: '1.1.0' }, { id: 'office-id', state: 'searching', firmware: '1.1.0' }] }));
+  assert.equal(hint(), 'Lamp “Home” and Lamp “Office” run firmware 1.1.0.', 'Same version, one sentence');
   update(lamp({ firmware, devices: [{ id: 'saved-lamp', state: 'connected', firmware: '1.2.0' }] }));
   assert.equal(hint(), 'The lamp runs firmware 1.2.0, the latest.');
   assert.equal(note().hidden, true);
@@ -1573,6 +1576,8 @@ test('Settings shows the app version and a quiet update check with Homebrew only
   assert.match(html, /<div class="grplabel">Updates<\/div><div class="optrow static">/, 'A named group; the version row is not a control');
   assert.match(html, /<label class="optrow" for="checkupdatesonstartup" title="One request to GitHub[^"]*Never a notification\."/, 'The long explanation lives in the tooltip');
   assert.match(html, /id="checkupdatesonstartuphint">Checks GitHub releases\.</);
+  assert.match(html, /<div class="lampactions"><button[^>]*id="upgradeapp"[^>]*>Update via Homebrew<\/button><button[^>]*id="releasenotes"[^>]*>Release notes<\/button><button[^>]*id="checkupdates"/,
+    'The primary action comes first in one row');
   assert.equal(element('appversion').textContent, 'BroGlow 1.1.0');
   assert.equal(element('updatehint').textContent, 'Not checked yet.');
   assert.equal(element('checkupdatesonstartup').checked, true, 'Startup check defaults on');
@@ -1593,6 +1598,7 @@ test('Settings shows the app version and a quiet update check with Homebrew only
   assert.equal(element('updatehint').textContent, 'BroGlow 1.2.0 is available.');
   assert.equal(element('releasenotes').hidden, false);
   assert.equal(element('upgradeapp').hidden, false);
+  assert.equal(element('checkupdates').hidden, true, 'Two buttons when an update is available');
   click('releasenotes');
   click('upgradeapp');
   assert.deepEqual(commands('open_release_notes'), [{ cmd: 'open_release_notes' }]);
@@ -1604,6 +1610,8 @@ test('Settings shows the app version and a quiet update check with Homebrew only
   assert.equal(element('updatehint').textContent, 'BroGlow 1.2.0 is available. Download it from the release page.');
   assert.equal(element('upgradeapp').hidden, true, 'No Homebrew, no upgrade button');
   assert.equal(element('releasenotes').hidden, false);
+  refresh({ version: '1.1.0', update: { ...available, available: false, latest: '1.1.0' } });
+  assert.equal(element('checkupdates').hidden, false, 'Up to date: the check button is back');
   const toggle = element('checkupdatesonstartup');
   toggle.checked = false;
   listeners.change({ target: toggle });

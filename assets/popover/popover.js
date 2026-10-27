@@ -362,6 +362,8 @@ function renderUpdate(app) {
   document.getElementById('updatehint').textContent = hint;
   const check = document.getElementById('checkupdates');
   check.dataset.cmd = 'check_updates';
+  // With an update on the table the two buttons that matter are enough.
+  check.hidden = update.available === true;
   check.disabled = update.checking === true || update.upgrading === true;
   check.textContent = update.checking ? 'Checking…' : 'Check for updates';
   const notes = document.getElementById('releasenotes');
@@ -417,7 +419,15 @@ function renderFirmware(l, devices) {
     const known = devices.filter(device => device.firmware);
     const outdated = known.filter(device => device.firmware !== latest);
     if (outdated.length) {
-      hint = outdated.map((device, i) => `${nameOf(device.id, `Lamp ${i + 1}`)} runs firmware ${device.firmware}.`).join(' ');
+      // One sentence per version: "Lamp “A” and Lamp “B” run firmware 1.1.0."
+      const byVersion = new Map();
+      outdated.forEach((device, i) => {
+        const names = byVersion.get(device.firmware) || [];
+        names.push(nameOf(device.id, `Lamp ${i + 1}`));
+        byVersion.set(device.firmware, names);
+      });
+      hint = [...byVersion].map(([version, names]) =>
+        `${names.length === 1 ? names[0] + ' runs' : names.slice(0, -1).join(', ') + ' and ' + names.at(-1) + ' run'} firmware ${version}.`).join(' ');
       note = `Connect ${outdated.length === 1 ? 'it' : 'a lamp'} by USB to update to ${latest}.`;
     } else if (known.length) {
       hint = `${known.length === 1 && devices.length === 1 ? 'The lamp runs' : 'Connected lamps run'} firmware ${latest}, the latest.`;
@@ -586,9 +596,9 @@ function render() {
       `<div class="grplabel">Updates</div>` +
       `<div class="optrow static"><span class="sinfo"><span class="sname" id="appversion"></span>` +
       `<span class="smeta setdesc" id="updatehint" role="status"></span></span></div>` +
-      `<div class="lampactions"><button class="pbtn" type="button" id="checkupdates" data-cmd="check_updates">Check for updates</button>` +
+      `<div class="lampactions"><button class="pbtn" type="button" id="upgradeapp" data-cmd="upgrade_app" hidden>Update via Homebrew</button>` +
       `<button class="pbtn" type="button" id="releasenotes" data-cmd="open_release_notes" hidden>Release notes</button>` +
-      `<button class="pbtn" type="button" id="upgradeapp" data-cmd="upgrade_app" hidden>Update via Homebrew</button></div>` +
+      `<button class="pbtn" type="button" id="checkupdates" data-cmd="check_updates">Check for updates</button></div>` +
       `<label class="optrow" for="checkupdatesonstartup" title="One request to GitHub for the latest release when the app starts; nothing about you or this Mac is sent. Never a notification.">` +
       `<input type="checkbox" id="checkupdatesonstartup" aria-describedby="checkupdatesonstartuphint">` +
       `<span class="sinfo"><span class="sname">Check for updates at startup</span>` +

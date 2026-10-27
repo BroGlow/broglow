@@ -232,7 +232,8 @@ summary:focus-visible, .lampbtn:focus-visible { outline: 2px solid #6295ff; outl
 .lamptechnical { margin: 0 10px 12px; font-size: 11px; color: rgba(255,255,255,.6); }
 .lamptechnical summary { cursor: pointer; padding: 5px 0; }
 .lampdetail { padding: 7px 10px 12px; color: rgba(255,255,255,.65); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-line; -webkit-user-select: text; user-select: text; }
-.lampactions { padding: 0 10px 10px; }
+/* .pbtn is a flex box, so siblings stack unless the row lays them out. */
+.lampactions { padding: 0 10px 10px; display: flex; flex-wrap: wrap; gap: 8px; }
 .brightness { padding: 0 10px 12px; color: rgba(255,255,255,.8); font-size: 12px; }
 .brightness label { display: flex; justify-content: space-between; margin-bottom: 7px; }
 .brightness input { width: 100%; accent-color: #3577f6; }
