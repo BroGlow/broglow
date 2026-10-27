@@ -72,6 +72,7 @@ pub fn bundled_dir() -> Option<PathBuf> {
 }
 
 /// Copy the four images (nothing else) into `destination`.
+#[cfg(target_os = "macos")]
 pub fn copy_images(source: &Path, destination: &Path) -> Result<()> {
     std::fs::create_dir_all(destination)?;
     for (_, name, _) in IMAGES {
@@ -133,6 +134,7 @@ impl std::fmt::Display for Outcome {
 }
 
 /// The version of the images installed next to this executable, if any.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 pub fn bundled_version() -> Option<String> {
     static VERSION: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
     VERSION
@@ -324,6 +326,7 @@ pub struct LampInfo {
 
 /// Ask the single USB lamp once, without retries or pausing anything; the tray
 /// does this in the background so Lamp details can name the lamp and its version.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 pub fn probe(path: &str) -> Result<LampInfo> {
     lamp_info(open_lamp_within(path, Duration::ZERO)?.as_mut())
 }
