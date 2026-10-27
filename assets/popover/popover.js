@@ -395,10 +395,10 @@ function renderFirmware(l, devices) {
   const newBoard = !busy && usb && usb.broglow !== true;
   let hint;
   if (busy) hint = `Writing firmware ${firmware.available}… ${firmwareProgress}%. Keep the lamp connected.`;
-  else if (newBoard) hint = `The USB device gives no BroGlow reply. Flash new board writes firmware ${firmware.available} to a new or damaged ESP32-C3; its Bluetooth pairing, if any, is kept.`;
+  else if (newBoard) hint = `No BroGlow reply from the USB device. Flash new board writes firmware ${firmware.available} to a blank or damaged ESP32-C3.`;
   else if (upToDate) hint = `${usbName} on USB runs firmware ${firmware.available}, the latest.`;
-  else if (usb) hint = `${usbName} on USB runs firmware ${usb.version || `older than ${firmware.available}`}. Updating pauses lamp control; Bluetooth pairing is kept.`;
-  else if (l.usb_present && l.transport === 'usb' && l.enabled) hint = `Firmware ${firmware.available} is ready for the lamp on USB. Updating pauses lamp control; Bluetooth pairing is kept.`;
+  else if (usb) hint = `${usbName} on USB runs firmware ${usb.version || `older than ${firmware.available}`}.`;
+  else if (l.usb_present && l.transport === 'usb' && l.enabled) hint = `Firmware ${firmware.available} is ready for the lamp on USB.`;
   else if (l.usb_present) hint = 'Checking the lamp on USB…';
   else if (outdated.length) hint = `${versions.filter(version => outdated.includes(version)).length === 1 ? 'A lamp runs' : 'Lamps run'} firmware ${outdated.join(', ')}; ${firmware.available} is available. Connect the lamp by USB to update it.`;
   else if (versions.length && !unknown) hint = `Firmware ${firmware.available} is up to date.`;
