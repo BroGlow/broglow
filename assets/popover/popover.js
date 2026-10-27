@@ -108,7 +108,7 @@ function lampSetupBusy() { return addLampBusy() || firmwareBusy(); }
 // USB mirroring holds the cable there is no probe, and the write pauses it.
 function usbUpdateAllowed(lamp) {
   const usb = lamp.usb_lamp;
-  // A board with no BroGlow reply (new, or damaged) is written only by its own
+  // A board with no BroGlow reply (blank, from the factory) is written only by its own
   // explicit Flash new board button.
   if (usb) return usb.broglow !== true || usb.version !== lamp.firmware?.available;
   return lamp.usb_present === true && lamp.transport === 'usb' && lamp.enabled === true;
@@ -401,7 +401,7 @@ function renderFirmware(l, devices) {
     action = 'Updating…';
   } else if (newBoard) {
     hint = 'No BroGlow reply from the USB device.';
-    note = `Flash new board writes firmware ${latest} to a blank or damaged ESP32-C3.`;
+    note = `Flash new board writes firmware ${latest} to a blank ESP32-C3.`;
     action = 'Flash new board';
   } else if (upToDate) {
     hint = `${usbName} on USB runs firmware ${latest}, the latest.`;

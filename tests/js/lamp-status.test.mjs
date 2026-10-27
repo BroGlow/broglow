@@ -1502,7 +1502,7 @@ test('firmware section states: facts per line, a button only for a board on USB'
   assert.equal(button().hidden, true);
   update(lamp({ firmware, usb_present: true, usb_lamp: { id: null, version: null, broglow: false } }));
   assert.equal(hint(), 'No BroGlow reply from the USB device.');
-  assert.equal(note().textContent, 'Flash new board writes firmware 1.2.0 to a blank or damaged ESP32-C3.');
+  assert.equal(note().textContent, 'Flash new board writes firmware 1.2.0 to a blank ESP32-C3.');
   assert.equal(button().textContent, 'Flash new board');
   assert.equal(button().disabled, false);
   click('lampflash');
