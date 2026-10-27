@@ -361,6 +361,9 @@ enum UserEvent {
     /// The background INFO probe of the lamp on USB answered (or did not).
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     UsbLampProbed(String, Option<crate::flash::LampInfo>),
+    /// The update check finished: the latest release, or why it failed.
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    UpdateChecked(Result<crate::update::Latest, String>),
     /// The usage refresher produced a new snapshot (design 1a/1c readout).
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     UsageChanged,
@@ -412,6 +415,21 @@ fn start_firmware_update(
         .map(|outcome| outcome.to_string())
         .map_err(|error| format!("{error:#}"));
         let _ = proxy.send_event(UserEvent::FirmwareFinished(result));
+    });
+}
+
+/// Ask GitHub for the latest release on a thread; Settings shows the answer.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn start_update_check(popover: &mut Popover, proxy: &tao::event_loop::EventLoopProxy<UserEvent>) {
+    if popover.update.checking {
+        return;
+    }
+    popover.update.checking = true;
+    popover.push_state(&read_display_state());
+    let proxy = proxy.clone();
+    thread::spawn(move || {
+        let result = crate::update::check().map_err(|error| format!("{error:#}"));
+        let _ = proxy.send_event(UserEvent::UpdateChecked(result));
     });
 }
 
@@ -545,6 +563,11 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
         });
     }
 
+    // One quiet update check per start, a little after launch; failures are
+    // simply shown as "not checked" in Settings until the next start or click.
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    let startup_update_check = config::read_config().check_updates_on_startup;
+
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     let mut popover = {
         let proxy = event_loop.create_proxy();
@@ -552,6 +575,16 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
             let _ = proxy.send_event(UserEvent::Popover(msg));
         })?
     };
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    if startup_update_check {
+        popover.update.checking = true;
+        let proxy = event_loop.create_proxy();
+        thread::spawn(move || {
+            thread::sleep(std::time::Duration::from_secs(10));
+            let result = crate::update::check().map_err(|error| format!("{error:#}"));
+            let _ = proxy.send_event(UserEvent::UpdateChecked(result));
+        });
+    }
 
     // Dev aid: open the popover immediately at a synthetic anchor so it can
     // be inspected/screenshotted without clicking the real tray icon. The
@@ -801,6 +834,10 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                 popover.firmware_result(result);
             }
             #[cfg(any(target_os = "macos", target_os = "windows"))]
+            Event::UserEvent(UserEvent::UpdateChecked(result)) => {
+                popover.update_checked(result);
+            }
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::UserEvent(UserEvent::UsbLampProbed(port, info)) => {
                 usb_probe_in_flight = false;
                 popover.set_usb_lamp(Some(crate::popover::UsbLamp {
@@ -944,6 +981,40 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                         apply_readout(tray);
                     }
                     popover.push_state(&read_display_state());
+                    popover.config_action_result(error);
+                }
+                PopoverMsg::SetCheckUpdatesOnStartup { enabled } => {
+                    let error = config::update_config(|cfg| {
+                        cfg.check_updates_on_startup = enabled;
+                        Ok(())
+                    })
+                    .err()
+                    .map(|error| format!("Could not save update-check setting: {error}"));
+                    popover.push_state(&read_display_state());
+                    popover.config_action_result(error);
+                }
+                PopoverMsg::CheckUpdates => start_update_check(&mut popover, &setup_proxy),
+                PopoverMsg::UpgradeApp => {
+                    let error = match crate::update::homebrew() {
+                        Some(brew) => crate::update::upgrade_with_homebrew(&brew)
+                            .map(|_| popover.update.upgrading = true)
+                            .err()
+                            .map(|error| format!("Could not start the Homebrew upgrade: {error:#}")),
+                        None => Some("This BroGlow was not installed with Homebrew; download the release instead.".into()),
+                    };
+                    popover.push_state(&read_display_state());
+                    popover.config_action_result(error);
+                }
+                PopoverMsg::OpenReleaseNotes => {
+                    let url = popover
+                        .update
+                        .latest
+                        .as_ref()
+                        .map(|latest| latest.url.clone())
+                        .unwrap_or_else(|| crate::update::RELEASES_LATEST.to_string());
+                    let error = crate::update::open_url(&url)
+                        .err()
+                        .map(|error| format!("Could not open the release page: {error:#}"));
                     popover.config_action_result(error);
                 }
                 PopoverMsg::SetUsageInMenuBar { enabled } => {

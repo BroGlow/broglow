@@ -169,6 +169,16 @@ BroGlow на INFO) запускает `flash::update` в потоке трея �
   фиксированную версию btleplug 0.13.1: она исправляет потерю ошибок записи
   CoreBluetooth NSError при сопряжении на macOS. Увеличение тайм-аута хоста
   не продлевает системный запрос сопряжения macOS (наблюдалось около 30 секунд).
+- **update.rs** — тихая проверка обновлений приложения: один `curl -I` на
+  редирект `releases/latest` GitHub (тег и есть версия) через десять секунд после
+  старта трея при включённом `check_updates_on_startup` и по кнопке **Check for
+  updates** в Settings. Результат живёт только в Settings (`renderUpdate` в
+  popover.js): никаких уведомлений и значков. **Update via Homebrew** появляется
+  только при наличии `<prefix>/opt/broglow` и запускает `brew upgrade broglow &&
+  broglow install` отдельным процессом (`install` перезапускает этот трей), лог в
+  `~/.claude/broglow/update.log`. Ошибки показываются как «could not reach
+  GitHub» и повторяются при следующем старте или нажатии. О пользователе ничего
+  не отправляется.
 - **notification.rs** — уведомления рабочего стола (`osascript` на macOS,
   `notify-rust` на остальных платформах).
 - **spawn.rs** — флаги запуска отдельного дочернего процесса без окна только

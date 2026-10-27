@@ -19,6 +19,8 @@ mod spawn;
 mod state;
 mod terminal;
 mod ui;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+mod update;
 mod usage;
 
 use std::io;

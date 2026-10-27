@@ -108,6 +108,16 @@ pub enum PopoverMsg {
     SetUsageInMenuBar {
         enabled: bool,
     },
+    /// Settings: the startup update check.
+    SetCheckUpdatesOnStartup {
+        enabled: bool,
+    },
+    /// Settings: ask GitHub for the latest release now.
+    CheckUpdates,
+    /// Settings: run `brew upgrade broglow && broglow install` (macOS, Homebrew installs).
+    UpgradeApp,
+    /// Settings: open the latest release page in the browser.
+    OpenReleaseNotes,
     /// The Lamp details control: connect (`enabled: true`) or disconnect the
     /// physical status lamp by toggling LED mirroring.
     SetLed {
@@ -256,6 +266,41 @@ struct SettingsPayload {
     usage_enabled: bool,
     #[serde(rename = "showUsageInMenuBar")]
     show_usage_in_menu_bar: bool,
+    #[serde(rename = "checkUpdatesOnStartup")]
+    check_updates_on_startup: bool,
+}
+
+/// This build and what the update check found (Settings only, never a notification).
+#[derive(Serialize)]
+struct AppPayload {
+    version: &'static str,
+    update: UpdatePayload,
+}
+
+#[derive(Serialize)]
+struct UpdatePayload {
+    checking: bool,
+    /// A check has completed since the tray started.
+    checked: bool,
+    /// The newest published release, when the check succeeded.
+    latest: Option<String>,
+    /// `latest` is newer than this build.
+    available: bool,
+    url: Option<String>,
+    error: Option<String>,
+    /// This Mac installed BroGlow through Homebrew: the upgrade button applies.
+    homebrew: bool,
+    upgrading: bool,
+}
+
+/// Update-check state the tray keeps between pushes.
+#[derive(Default)]
+pub(crate) struct UpdateState {
+    pub(crate) checking: bool,
+    pub(crate) checked: bool,
+    pub(crate) latest: Option<crate::update::Latest>,
+    pub(crate) error: Option<String>,
+    pub(crate) upgrading: bool,
 }
 
 /// Physical status-lamp state for the footer connection indicator.
@@ -319,6 +364,7 @@ struct StatePayload<'a> {
     usage: Option<UsageSnapshot>,
     /// Footer lamp connection indicator.
     lamp: LampPayload,
+    app: AppPayload,
 }
 
 pub struct Popover {
@@ -327,6 +373,7 @@ pub struct Popover {
     pub(crate) flash_busy: bool,
     flash_progress: u8,
     pub(crate) usb_lamp: Option<UsbLamp>,
+    pub(crate) update: UpdateState,
     window: Window,
     webview: WebView,
     anchor: Option<Rect>,
@@ -396,6 +443,7 @@ impl Popover {
             flash_busy: false,
             flash_progress: 0,
             usb_lamp: None,
+            update: UpdateState::default(),
             window,
             webview,
             anchor: None,
@@ -469,6 +517,7 @@ impl Popover {
             self.setup_busy,
             (self.flash_busy, self.flash_progress),
             self.usb_lamp.as_ref(),
+            &self.update,
             cfg,
         );
         let _ = self
@@ -497,12 +546,26 @@ impl Popover {
         ));
     }
 
-    /// `Ok` is the outcome text; `Err` the failure. Both end the busy state.
     pub fn set_usb_lamp(&mut self, lamp: Option<UsbLamp>) {
         self.usb_lamp = lamp;
         self.push_state(&crate::state::read_display_state());
     }
 
+    /// The update check answered; a failure only clears "checking".
+    pub fn update_checked(&mut self, result: Result<crate::update::Latest, String>) {
+        self.update.checking = false;
+        self.update.checked = true;
+        match result {
+            Ok(latest) => {
+                self.update.latest = Some(latest);
+                self.update.error = None;
+            }
+            Err(error) => self.update.error = Some(error),
+        }
+        self.push_state(&crate::state::read_display_state());
+    }
+
+    /// `Ok` is the outcome text; `Err` the failure. Both end the busy state.
     pub fn firmware_result(&mut self, result: Result<String, String>) {
         self.flash_busy = false;
         self.usb_lamp = None; // The version changed; let the next tick re-probe.
@@ -774,6 +837,7 @@ fn build_payload(
     setup_busy: bool,
     flash: (bool, u8),
     usb_lamp: Option<&UsbLamp>,
+    update: &UpdateState,
     cfg: &config::Config,
 ) -> String {
     let connection = crate::led::connection_status();
@@ -790,10 +854,27 @@ fn build_payload(
             yellow_mode: cfg.yellow_mode,
             usage_enabled: cfg.usage_enabled,
             show_usage_in_menu_bar: cfg.show_usage_in_menu_bar,
+            check_updates_on_startup: cfg.check_updates_on_startup,
         },
         // Only surface usage once the user has opted in — otherwise the section
         // stays absent even if a stale snapshot is still cached.
         usage: cfg.usage_enabled.then(usage::latest).flatten(),
+        app: AppPayload {
+            version: crate::update::CURRENT,
+            update: UpdatePayload {
+                checking: update.checking,
+                checked: update.checked,
+                latest: update.latest.as_ref().map(|latest| latest.version.clone()),
+                available: update
+                    .latest
+                    .as_ref()
+                    .is_some_and(|latest| crate::update::newer(&latest.version)),
+                url: update.latest.as_ref().map(|latest| latest.url.clone()),
+                error: update.error.clone(),
+                homebrew: crate::update::homebrew().is_some(),
+                upgrading: update.upgrading,
+            },
+        },
         lamp: LampPayload {
             names: cfg.lamp_names.clone(),
             bluetooth_supported: cfg!(target_os = "macos"),

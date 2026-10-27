@@ -348,6 +348,32 @@ function renderLamp() {
   }
 }
 
+// Settings only: what the last update check found. Quiet by design.
+function renderUpdate(app) {
+  const update = app.update || {};
+  document.getElementById('appversion').textContent = `BroGlow ${app.version || ''}`.trim();
+  let hint;
+  if (update.upgrading) hint = 'Updating via Homebrew… the app restarts by itself when done.';
+  else if (update.checking) hint = 'Checking for updates…';
+  else if (update.available) hint = `BroGlow ${update.latest} is available.` + (update.homebrew ? '' : ' Download it from the release page.');
+  else if (update.latest) hint = 'You have the latest version.';
+  else if (update.error) hint = 'Could not reach GitHub; try again later.';
+  else hint = 'Not checked yet.';
+  document.getElementById('updatehint').textContent = hint;
+  const check = document.getElementById('checkupdates');
+  check.dataset.cmd = 'check_updates';
+  check.disabled = update.checking === true || update.upgrading === true;
+  check.textContent = update.checking ? 'Checking…' : 'Check for updates';
+  const notes = document.getElementById('releasenotes');
+  notes.dataset.cmd = 'open_release_notes';
+  notes.hidden = !update.available;
+  const upgrade = document.getElementById('upgradeapp');
+  upgrade.dataset.cmd = 'upgrade_app';
+  upgrade.hidden = !(update.available && update.homebrew);
+  upgrade.disabled = update.upgrading === true;
+  upgrade.textContent = update.upgrading ? 'Updating…' : 'Update via Homebrew';
+}
+
 // The firmware section exists only when this app carries release images.
 function renderFirmware(l, devices) {
   const firmware = l.firmware || {};
@@ -529,7 +555,17 @@ function render() {
       `<label class="optrow" for="showusageinmenubar">` +
       `<input type="checkbox" id="showusageinmenubar" aria-describedby="showusageinmenubarhint">` +
       `<span class="sinfo"><span class="sname">Show usage in menu bar</span>` +
-      `<span class="smeta setdesc" id="showusageinmenubarhint">Limits and tokens beside the status icon. Hiding them keeps tracking and popover totals on.</span></span></label>`;
+      `<span class="smeta setdesc" id="showusageinmenubarhint">Limits and tokens beside the status icon. Hiding them keeps tracking and popover totals on.</span></span></label>` +
+      `<div class="grplabel">BroGlow</div>` +
+      `<div class="optrow"><span class="sinfo"><span class="sname" id="appversion"></span>` +
+      `<span class="smeta setdesc" id="updatehint" role="status"></span></span></div>` +
+      `<div class="lampactions"><button class="pbtn" type="button" id="checkupdates" data-cmd="check_updates">Check for updates</button>` +
+      `<button class="pbtn" type="button" id="releasenotes" data-cmd="open_release_notes" hidden>Release notes</button>` +
+      `<button class="pbtn" type="button" id="upgradeapp" data-cmd="upgrade_app" hidden>Update via Homebrew</button></div>` +
+      `<label class="optrow" for="checkupdatesonstartup">` +
+      `<input type="checkbox" id="checkupdatesonstartup" aria-describedby="checkupdatesonstartuphint">` +
+      `<span class="sinfo"><span class="sname">Check for updates at startup</span>` +
+      `<span class="smeta setdesc" id="checkupdatesonstartuphint">One request to GitHub for the latest release when the app starts; nothing about you or this Mac is sent. Never a notification.</span></span></label>`;
     const setting = (key, saved) => key in pendingSettings ? pendingSettings[key] : saved;
     document.getElementById('showdashboard').checked = setting('showDashboardButton', state.settings?.showDashboardButton === true);
     document.getElementById('showagentnames').checked = setting('showAgentNames', state.settings?.showAgentNames !== false);
@@ -549,6 +585,8 @@ function render() {
     const menuBarUsage = document.getElementById('showusageinmenubar');
     menuBarUsage.checked = setting('showUsageInMenuBar', state.settings?.showUsageInMenuBar !== false);
     menuBarUsage.disabled = !usageEnabled;
+    document.getElementById('checkupdatesonstartup').checked = setting('checkUpdatesOnStartup', state.settings?.checkUpdatesOnStartup !== false);
+    renderUpdate(state.app || {});
     const error = document.getElementById('settingserror');
     error.textContent = configActionError;
     error.hidden = !configActionError;
@@ -714,6 +752,7 @@ document.addEventListener('change', ev => {
     popoverreset: ['popoverResetEnabled', 'set_popover_reset'],
     trackusage: ['usageEnabled', 'set_usage'],
     showusageinmenubar: ['showUsageInMenuBar', 'set_usage_in_menu_bar'],
+    checkupdatesonstartup: ['checkUpdatesOnStartup', 'set_check_updates_on_startup'],
   };
   if (ev.target.id in toggles) {
     if (ev.target.disabled) return;

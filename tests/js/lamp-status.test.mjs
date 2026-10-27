@@ -1549,3 +1549,47 @@ test('firmware section offers a USB update only with bundled images and a lamp o
   assert.equal(result.className, 'error');
   assert.equal(commands('update_firmware').length, 2);
 });
+
+
+test('Settings shows the app version and a quiet update check with Homebrew only where it applies', () => {
+  const { context, element, click, commands, listeners } = popoverPage();
+  const refresh = (app, settings = {}) => context.window.__setState({ aggregate: 'none', sessions: [], settings, lamp: lamp(), app });
+  refresh({ version: '1.1.0', update: { checking: false, checked: false, latest: null, available: false, url: null, error: null, homebrew: true, upgrading: false } });
+  click('settingsbtn');
+  assert.equal(element('appversion').textContent, 'BroGlow 1.1.0');
+  assert.equal(element('updatehint').textContent, 'Not checked yet.');
+  assert.equal(element('checkupdatesonstartup').checked, true, 'Startup check defaults on');
+  assert.equal(element('releasenotes').hidden, true);
+  assert.equal(element('upgradeapp').hidden, true);
+  click('checkupdates');
+  assert.deepEqual(commands('check_updates'), [{ cmd: 'check_updates' }]);
+  refresh({ version: '1.1.0', update: { checking: true, checked: false, latest: null, available: false, url: null, error: null, homebrew: true, upgrading: false } });
+  assert.equal(element('updatehint').textContent, 'Checking for updates…');
+  assert.equal(element('checkupdates').disabled, true);
+  refresh({ version: '1.1.0', update: { checking: false, checked: true, latest: null, available: false, url: null, error: 'curl exited with 6', homebrew: true, upgrading: false } });
+  assert.equal(element('updatehint').textContent, 'Could not reach GitHub; try again later.', 'Failures stay quiet and generic');
+  refresh({ version: '1.1.0', update: { checking: false, checked: true, latest: '1.1.0', available: false, url: 'https://github.com/BroGlow/broglow/releases/tag/v1.1.0', error: null, homebrew: true, upgrading: false } });
+  assert.equal(element('updatehint').textContent, 'You have the latest version.');
+  assert.equal(element('upgradeapp').hidden, true);
+  const available = { checking: false, checked: true, latest: '1.2.0', available: true, url: 'https://github.com/BroGlow/broglow/releases/tag/v1.2.0', error: null, homebrew: true, upgrading: false };
+  refresh({ version: '1.1.0', update: available });
+  assert.equal(element('updatehint').textContent, 'BroGlow 1.2.0 is available.');
+  assert.equal(element('releasenotes').hidden, false);
+  assert.equal(element('upgradeapp').hidden, false);
+  click('releasenotes');
+  click('upgradeapp');
+  assert.deepEqual(commands('open_release_notes'), [{ cmd: 'open_release_notes' }]);
+  assert.deepEqual(commands('upgrade_app'), [{ cmd: 'upgrade_app' }]);
+  refresh({ version: '1.1.0', update: { ...available, upgrading: true } });
+  assert.match(element('updatehint').textContent, /Updating via Homebrew/);
+  assert.equal(element('upgradeapp').disabled, true);
+  refresh({ version: '1.1.0', update: { ...available, homebrew: false } });
+  assert.equal(element('updatehint').textContent, 'BroGlow 1.2.0 is available. Download it from the release page.');
+  assert.equal(element('upgradeapp').hidden, true, 'No Homebrew, no upgrade button');
+  assert.equal(element('releasenotes').hidden, false);
+  const toggle = element('checkupdatesonstartup');
+  toggle.checked = false;
+  listeners.change({ target: toggle });
+  assert.deepEqual(commands('set_check_updates_on_startup'), [{ cmd: 'set_check_updates_on_startup', enabled: false }]);
+  assert.ok(commands('set_usage').length === 0 && commands('set_led').length === 0, 'Nothing else moved');
+});

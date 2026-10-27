@@ -84,6 +84,9 @@ pub struct Config {
     /// Show usage beside the tray icon while tracking is enabled. Hiding it
     /// leaves collection and the popover's totals enabled. On by default.
     pub show_usage_in_menu_bar: bool,
+    /// One request to GitHub for the latest release when the tray starts; the
+    /// result shows only in Settings. On by default; Settings can turn it off.
+    pub check_updates_on_startup: bool,
     /// Preserve settings introduced by newer versions or local integrations.
     #[serde(flatten)]
     pub extra: std::collections::BTreeMap<String, serde_json::Value>,
@@ -109,6 +112,7 @@ impl Default for Config {
             yellow_mode: YellowMode::default(),
             usage_enabled: false,
             show_usage_in_menu_bar: true,
+            check_updates_on_startup: true,
             extra: Default::default(),
         }
     }

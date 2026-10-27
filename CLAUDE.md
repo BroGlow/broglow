@@ -144,6 +144,15 @@ device that gives no BroGlow INFO reply) runs `flash::update` on a tray thread
   Keep btleplug 0.13.1 locked: its macOS write-error propagation fixes dropped
   CoreBluetooth NSError failures during pairing. A longer host timeout cannot
   extend the macOS system pairing alert (about 30 seconds observed).
+- **update.rs** — the quiet app update check: one `curl -I` of GitHub's
+  `releases/latest` redirect (the tag is the version) ten seconds after the tray
+  starts when `check_updates_on_startup` is on, and on **Check for updates** in
+  Settings. The result lives only in Settings (`renderUpdate` in popover.js):
+  never a notification, never a badge. **Update via Homebrew** appears only when
+  `<prefix>/opt/broglow` exists and spawns `brew upgrade broglow && broglow
+  install` detached (the `install` restarts this tray), logging to
+  `~/.claude/broglow/update.log`. Failures are shown as "could not reach GitHub"
+  and retried on the next start or click. Nothing about the user is sent.
 - **notification.rs** — desktop notifications (macOS `osascript`; else `notify-rust`).
 - **spawn.rs** — Windows-only detached/windowless child-process flags (no-op elsewhere).
 - **terminal.rs** — click-to-focus: `capture` records which terminal window/app hosts a
