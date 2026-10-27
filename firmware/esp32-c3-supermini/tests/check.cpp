@@ -194,6 +194,7 @@ struct BLEServerCallbacks {
 };
 struct BLECharacteristic {
   static constexpr int PROPERTY_WRITE = 1;
+  static constexpr int PROPERTY_READ = 2;
   BLECharacteristicCallbacks* callbacks = nullptr;
   std::string value, uuid;
   int properties = 0;
@@ -209,13 +210,16 @@ struct BLECharacteristic {
     callbacks->onWrite(this);
     return true;
   }
-} characteristic, brightnessCharacteristic, nameCharacteristic;
+} characteristic, brightnessCharacteristic, nameCharacteristic,
+    versionCharacteristic;
 struct BLEService {
   std::string uuid;
   bool started = false;
   BLECharacteristic* createCharacteristic(const char* value, int properties) {
     auto* target =
-        std::string(value) == "7d2ea28d-f7bd-485a-bd9d-92ad6ecfe93e"
+        std::string(value) == "7d2ea28e-f7bd-485a-bd9d-92ad6ecfe93e"
+            ? &versionCharacteristic
+        : std::string(value) == "7d2ea28d-f7bd-485a-bd9d-92ad6ecfe93e"
             ? &nameCharacteristic
         : std::string(value) == "7d2ea28c-f7bd-485a-bd9d-92ad6ecfe93e"
             ? &brightnessCharacteristic
@@ -414,6 +418,20 @@ void protocolChecks() {
     assert(target->permissions & ESP_GATT_PERM_WRITE_ENCRYPTED);
     assert(!target->write("R", false));
   }
+  // The version is readable without encryption and reported on its own serial
+  // line at boot and after INFO, so pair-line parsers stay unchanged.
+  const std::string version = BROGLOW_FIRMWARE_VERSION;
+  assert(versionCharacteristic.uuid == "7d2ea28e-f7bd-485a-bd9d-92ad6ecfe93e");
+  assert(versionCharacteristic.properties == BLECharacteristic::PROPERTY_READ);
+  assert(!(versionCharacteristic.permissions & ESP_GATT_PERM_WRITE_ENCRYPTED));
+  assert(versionCharacteristic.value == version);
+  const std::string versionLine = "version=" + version + "\n";
+  assert(Serial.output.find(versionLine) != std::string::npos);
+  Serial.output.clear();
+  feed("INFO\n");
+  const auto pairLine = Serial.output.find("broglow_pair identity=");
+  assert(pairLine != std::string::npos);
+  assert(Serial.output.find(versionLine, pairLine) != std::string::npos);
   assert(strictSecurity && BLESecurity::auth == ESP_LE_AUTH_REQ_SC_BOND);
   assert(BLESecurity::capability == ESP_IO_CAP_NONE &&
          BLESecurity::keySize == 16);

@@ -351,6 +351,10 @@ def main():
     require(
         (build / "firmware.bin").stat().st_size <= 0x140000, "Application exceeds app0."
     )
+    require(
+        f"version={version}\n".encode() in (build / "firmware.bin").read_bytes(),
+        f"Firmware does not report version {version}; rebuild it from this checkout.",
+    )
     for index, (offset, path) in enumerate(segments):
         end = (offset + path.stat().st_size + 4095) // 4096 * 4096
         require(
@@ -369,7 +373,12 @@ def main():
         if p.is_file()
     ]
     # Match the production build_src_filter; led-test.cpp is a separate image.
-    firmware_sources = [C3 / "platformio.ini", C3 / "src/main.cpp"]
+    firmware_sources = [
+        C3 / "platformio.ini",
+        C3 / "version.py",
+        C3 / "src/main.cpp",
+        ROOT / "Cargo.toml",  # version.py stamps the firmware from it.
+    ]
     for artifact, sources in (
         (binary, source_files),
         (build / "firmware.bin", firmware_sources),
@@ -406,6 +415,7 @@ def main():
         for _, path in segments:
             shutil.copy2(path, destination / path.name)
         shutil.copy2(C3 / "platformio.ini", destination / "platformio.ini")
+        shutil.copy2(C3 / "version.py", destination / "version.py")
         shutil.copytree(C3 / "src", destination / "src")
         shutil.copytree(
             C3 / "tests",

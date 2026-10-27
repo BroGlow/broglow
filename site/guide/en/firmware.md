@@ -148,7 +148,11 @@ sends `INFO` before `PAIR`. Example reply (identity varies by board):
 
 ```text
 broglow_pair identity=001122334455 service=7d2ea28a-f7bd-485a-bd9d-92ad6ecfe93e
+version=1.1.0
 ```
+
+The `version` line is the app release whose checkout built the firmware; the
+same line is printed at boot. A rebuild outside a checkout reports `unknown`.
 
 These setup commands also work while BLE owns the LEDs. The advertised identity
 is the six base-MAC bytes, not the possibly changing over-the-air private Bluetooth address.
@@ -163,6 +167,7 @@ is the six base-MAC bytes, not the possibly changing over-the-air private Blueto
 | Writable status characteristic | `7d2ea28b-f7bd-485a-bd9d-92ad6ecfe93e` |
 | Writable brightness characteristic | `7d2ea28c-f7bd-485a-bd9d-92ad6ecfe93e` |
 | Writable name characteristic | `7d2ea28d-f7bd-485a-bd9d-92ad6ecfe93e` |
+| Readable version characteristic | `7d2ea28e-f7bd-485a-bd9d-92ad6ecfe93e`: the UTF-8 firmware version (same value as the serial `version` line), readable without encryption |
 | GATT operation | Write with response |
 | Status payload | Exactly one ASCII byte: `R`, `Y`, `G`, or `N`; no newline |
 | Brightness payload | Exactly one binary byte, percentage 0..100; not ASCII digits. Board default 100; volatile until reset. |

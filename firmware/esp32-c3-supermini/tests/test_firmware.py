@@ -2,12 +2,17 @@
 
 import configparser
 from pathlib import Path
+import re
 import shlex
 import subprocess
 
 import pytest
 
 PROJECT = Path(__file__).resolve().parents[1]
+# version.py stamps real builds; the host build passes the same define itself.
+APP_VERSION = re.search(
+    r'^version = "([^"]+)"$', (PROJECT.parents[1] / "Cargo.toml").read_text(), re.M
+).group(1)
 LED_SCENARIOS = (
     "indications",
     "brightness",
@@ -51,6 +56,7 @@ def firmware_binary(
     config = configparser.ConfigParser(interpolation=None)
     config.read(PROJECT / "platformio.ini")
     flags = shlex.split(config["env:esp32-c3-supermini"]["build_flags"])
+    flags.append(f'-DBROGLOW_FIRMWARE_VERSION="{APP_VERSION}"')
     if request.param is not None:
         flags.extend(["-U" + request.param.split("=")[0], "-D" + request.param])
     executable = directory / "check"

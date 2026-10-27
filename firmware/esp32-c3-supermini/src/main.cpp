@@ -24,6 +24,13 @@ constexpr char SERVICE_UUID[] = "7d2ea28a-f7bd-485a-bd9d-92ad6ecfe93e";
 constexpr char STATUS_UUID[] = "7d2ea28b-f7bd-485a-bd9d-92ad6ecfe93e";
 constexpr char BRIGHTNESS_UUID[] = "7d2ea28c-f7bd-485a-bd9d-92ad6ecfe93e";
 constexpr char NAME_UUID[] = "7d2ea28d-f7bd-485a-bd9d-92ad6ecfe93e";
+constexpr char VERSION_UUID[] = "7d2ea28e-f7bd-485a-bd9d-92ad6ecfe93e";
+#ifndef BROGLOW_FIRMWARE_VERSION
+#error "version.py defines BROGLOW_FIRMWARE_VERSION from Cargo.toml"
+#endif
+constexpr char FIRMWARE_VERSION[] = BROGLOW_FIRMWARE_VERSION;
+static_assert(sizeof(FIRMWARE_VERSION) > 1,
+              "Firmware version must not be empty");
 constexpr size_t MAX_LAMP_NAME_BYTES =
     21;  // 31 - framing (2) - "BroGlow " (8).
 constexpr uint32_t PAIRING_MS = 60000;
@@ -572,9 +579,14 @@ void diagnostic() {
       serviceChangeRequestResult.load(), serviceChangeResult.load());
 }
 
+// The version rides on its own line: INFO parsers match the pair line exactly.
+// One literal, so the packaged image provably contains "version=X.Y.Z\n".
+void reportVersion() { Serial.print("version=" BROGLOW_FIRMWARE_VERSION "\n"); }
+
 void reportIdentity() {
   Serial.printf("broglow_pair identity=%s service=%s\n", identity,
                 SERVICE_UUID);
+  reportVersion();
 }
 
 void setup() {
@@ -653,6 +665,10 @@ void setup() {
       NAME_UUID, BLECharacteristic::PROPERTY_WRITE);
   nameSetting->setCallbacks(&nameCallbacks);
   nameSetting->setAccessPermissions(ESP_GATT_PERM_WRITE_ENCRYPTED);
+  // Plain read: the app compares it before offering a USB firmware update.
+  BLECharacteristic* version = service->createCharacteristic(
+      VERSION_UUID, BLECharacteristic::PROPERTY_READ);
+  version->setValue(std::string(FIRMWARE_VERSION));
   service->start();
   BLEAdvertising* advertising = BLEDevice::getAdvertising();
   BLEAdvertisementData advertisement, scanResponse;
@@ -674,6 +690,7 @@ void setup() {
   indicationStarted = millis();
   startupStarted = millis();
   Serial.printf("lamp=%s security=sc-bonded button=BOOT\n", name.c_str());
+  reportVersion();
 }
 
 void synchronizeBleConnection() {
