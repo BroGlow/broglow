@@ -375,43 +375,68 @@ function renderUpdate(app) {
 }
 
 // The firmware section exists only when this app carries release images.
+// One fact per line, one version per sentence; a button only when a board on
+// USB can actually be written right now.
 function renderFirmware(l, devices) {
   const firmware = l.firmware || {};
   const section = document.getElementById('lampfirmware');
   section.hidden = !firmware.available;
   document.getElementById('lampfirmwarelabel').hidden = section.hidden;
   if (!firmware.available) return;
+  const latest = firmware.available;
   const busy = firmwareBusy();
   if ((firmware.progress || 0) > firmwareProgress) firmwareProgress = firmware.progress;
-  const versions = devices.map(device => device.firmware);
-  const outdated = [...new Set(versions.filter(version => version && version !== firmware.available))];
-  const unknown = versions.filter(version => !version).length;
+  const nameOf = (id, fallback) => {
+    const index = devices.findIndex(device => device.id === id);
+    return l.names?.[id] ? `Lamp “${l.names[id]}”` : index >= 0 ? `Lamp ${index + 1}` : fallback;
+  };
   const usb = l.usb_lamp;
-  // A saved name reads as a name only when marked: Lamp “Home”, not Home.
-  const usbIndex = usb?.id ? devices.findIndex(device => device.id === usb.id) : -1;
-  const usbName = !usb?.id ? 'The lamp' : l.names?.[usb.id] ? `Lamp “${l.names[usb.id]}”` :
-    usbIndex >= 0 ? `Lamp ${usbIndex + 1}` : 'The lamp';
-  const upToDate = !busy && usb?.broglow === true && usb.version === firmware.available;
+  const usbName = usb?.id ? nameOf(usb.id, 'The lamp') : 'The lamp';
+  const cableHeld = !usb && l.usb_present === true && l.transport === 'usb' && l.enabled === true;
   const newBoard = !busy && usb && usb.broglow !== true;
-  let hint;
-  if (busy) hint = `Writing firmware ${firmware.available}… ${firmwareProgress}%. Keep the lamp connected.`;
-  else if (newBoard) hint = `No BroGlow reply from the USB device. Flash new board writes firmware ${firmware.available} to a blank or damaged ESP32-C3.`;
-  else if (upToDate) hint = `${usbName} on USB runs firmware ${firmware.available}, the latest.`;
-  else if (usb) hint = `${usbName} on USB runs firmware ${usb.version || `older than ${firmware.available}`}.`;
-  else if (l.usb_present && l.transport === 'usb' && l.enabled) hint = `Firmware ${firmware.available} is ready for the lamp on USB.`;
-  else if (l.usb_present) hint = 'Checking the lamp on USB…';
-  else if (outdated.length) hint = `${versions.filter(version => outdated.includes(version)).length === 1 ? 'A lamp runs' : 'Lamps run'} firmware ${outdated.join(', ')}; ${firmware.available} is available. Connect the lamp by USB to update it.`;
-  else if (versions.length && !unknown) hint = `Firmware ${firmware.available} is up to date.`;
-  else hint = `Connect a lamp by USB to check or update its firmware (${firmware.available} available).`;
+  const upToDate = !busy && usb?.broglow === true && usb.version === latest;
+  let hint, note = '', action = null;
+  if (busy) {
+    hint = `Writing firmware ${latest}… ${firmwareProgress}%`;
+    action = 'Updating…';
+  } else if (newBoard) {
+    hint = 'No BroGlow reply from the USB device.';
+    note = `Flash new board writes firmware ${latest} to a blank or damaged ESP32-C3.`;
+    action = 'Flash new board';
+  } else if (upToDate) {
+    hint = `${usbName} on USB runs firmware ${latest}, the latest.`;
+  } else if (usb) {
+    hint = `${usbName} on USB runs firmware ${usb.version || 'without a version'}.`;
+    action = `Update to ${latest}`;
+  } else if (cableHeld) {
+    hint = `Firmware ${latest} is ready for the lamp on USB.`;
+    action = `Update to ${latest}`;
+  } else if (l.usb_present) {
+    hint = 'Checking the lamp on USB…';
+  } else {
+    const known = devices.filter(device => device.firmware);
+    const outdated = known.filter(device => device.firmware !== latest);
+    if (outdated.length) {
+      hint = outdated.map((device, i) => `${nameOf(device.id, `Lamp ${i + 1}`)} runs firmware ${device.firmware}.`).join(' ');
+      note = `Connect ${outdated.length === 1 ? 'it' : 'a lamp'} by USB to update to ${latest}.`;
+    } else if (known.length) {
+      hint = `${known.length === 1 && devices.length === 1 ? 'The lamp runs' : 'Connected lamps run'} firmware ${latest}, the latest.`;
+    } else {
+      hint = `Firmware ${latest} is available.`;
+      note = 'Connect a lamp by USB to check or update it.';
+    }
+  }
   document.getElementById('lampfirmwarehint').textContent = hint;
+  const noteEl = document.getElementById('lampfirmwarenote');
+  noteEl.textContent = note;
+  noteEl.hidden = !note;
   const button = document.getElementById('lampflash');
   button.dataset.cmd = 'update_firmware';
   button.dataset.force = String(!!newBoard);
-  button.hidden = upToDate;
-  button.disabled = !canUpdateFirmware();
-  button.setAttribute('aria-disabled', String(!canUpdateFirmware()));
-  button.textContent = busy ? 'Updating…' : newBoard ? 'Flash new board' :
-    usbName === 'The lamp' ? `Update firmware to ${firmware.available}` : `Update ${usbName} to ${firmware.available}`;
+  button.hidden = action === null;
+  button.disabled = busy || !canUpdateFirmware();
+  button.setAttribute('aria-disabled', String(button.disabled));
+  button.textContent = action || '';
   const result = document.getElementById('lampfirmwareresult');
   result.textContent = busy ? '' : firmwareError || firmwareMessage;
   result.className = firmwareError && !busy ? 'error' : '';
@@ -502,7 +527,7 @@ function render() {
         `<div class="lampactions"><button class="pbtn" id="lampcontrol"></button></div>` +
         `<div class="grplabel" id="lampfirmwarelabel" hidden>Firmware</div>` +
         `<div class="lampsetup" id="lampfirmware" hidden>` +
-        `<p id="lampfirmwarehint"></p>` +
+        `<p id="lampfirmwarehint"></p><p id="lampfirmwarenote"></p>` +
         `<button class="pbtn" type="button" id="lampflash" aria-describedby="lampfirmwarehint">Update firmware</button>` +
         `<p id="lampfirmwareresult" role="status" hidden></p></div>` +
         `<p class="lampdetail" id="lampdetail" hidden></p>`;

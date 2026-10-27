@@ -896,14 +896,18 @@ fn build_payload(
                 })
                 .collect(),
             usb_present: crate::led::board_present_cached(),
-            usb_lamp: usb_lamp.map(|lamp| UsbLampPayload {
-                id: lamp
-                    .info
-                    .as_ref()
-                    .and_then(|info| cfg.usb_lamps.get(&info.identity).cloned()),
-                version: lamp.info.as_ref().and_then(|info| info.version.clone()),
-                broglow: lamp.info.is_some(),
-            }),
+            // Drop the probe the moment the board is gone; the tray's own
+            // five-second tick would otherwise offer a write to thin air.
+            usb_lamp: usb_lamp
+                .filter(|_| crate::led::board_present_cached())
+                .map(|lamp| UsbLampPayload {
+                    id: lamp
+                        .info
+                        .as_ref()
+                        .and_then(|info| cfg.usb_lamps.get(&info.identity).cloned()),
+                    version: lamp.info.as_ref().and_then(|info| info.version.clone()),
+                    broglow: lamp.info.is_some(),
+                }),
             firmware: FirmwarePayload {
                 available: crate::flash::bundled_version(),
                 busy: flash.0,

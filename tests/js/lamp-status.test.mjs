@@ -1463,8 +1463,11 @@ test('preview requires an enabled connected wireless lamp but saving does not', 
   assert.equal(commands('set_led').length, 0);
 });
 
-test('firmware section offers a USB update only with bundled images and a lamp on USB', () => {
+test('firmware section states: facts per line, a button only for a board on USB', () => {
   const { context, element, update, click, commands, messages } = lampPage();
+  const hint = () => element('lampfirmwarehint').textContent;
+  const note = () => element('lampfirmwarenote');
+  const button = () => element('lampflash');
   assert.equal(element('lampfirmware').hidden, true, 'No bundled images, no section');
   assert.equal(element('lampfirmwarelabel').hidden, true);
   assert.match(element('groups').innerHTML, /<div class="grplabel" id="lampfirmwarelabel" hidden>Firmware<\/div><div class="lampsetup" id="lampfirmware" hidden>/,
@@ -1472,61 +1475,67 @@ test('firmware section offers a USB update only with bundled images and a lamp o
   click('lampflash');
   assert.equal(commands('update_firmware').length, 0);
   const firmware = { available: '1.2.0', busy: false, progress: 0 };
-  update(lamp({ firmware, devices: [{ id: 'saved-lamp', state: 'connected', firmware: '1.1.0' }] }));
+  const names = { 'saved-lamp': 'Home', 'office-id': 'Office' };
+
+  // Bluetooth only: what each known lamp runs, one version per sentence, no button.
+  update(lamp({ firmware, names, devices: [{ id: 'saved-lamp', state: 'connected', firmware: '1.1.0' }] }));
   assert.equal(element('lampfirmware').hidden, false);
-  assert.equal(element('lampfirmwarelabel').hidden, false);
-  assert.match(element('lampfirmwarehint').textContent, /A lamp runs firmware 1\.1\.0; 1\.2\.0 is available\. Connect the lamp by USB/);
-  assert.equal(element('lampflash').disabled, true);
+  assert.equal(hint(), 'Lamp “Home” runs firmware 1.1.0.');
+  assert.equal(note().textContent, 'Connect it by USB to update to 1.2.0.');
+  assert.equal(button().hidden, true, 'Nothing on USB, nothing to press');
   assert.equal(element('lampfirmware-0').textContent, '1.1.0');
-  click('lampflash');
-  assert.equal(commands('update_firmware').length, 0, 'No lamp on USB, nothing to write');
+  update(lamp({ firmware, names, selected_count: 2, devices: [
+    { id: 'saved-lamp', state: 'searching', firmware: '1.1.0' }, { id: 'office-id', state: 'connected', firmware: '1.0.5' }] }));
+  assert.equal(hint(), 'Lamp “Home” runs firmware 1.1.0. Lamp “Office” runs firmware 1.0.5.', 'An offline lamp keeps its last known version');
+  assert.equal(note().textContent, 'Connect a lamp by USB to update to 1.2.0.');
   update(lamp({ firmware, devices: [{ id: 'saved-lamp', state: 'connected', firmware: '1.2.0' }] }));
-  assert.match(element('lampfirmwarehint').textContent, /Firmware 1\.2\.0 is up to date\./);
+  assert.equal(hint(), 'The lamp runs firmware 1.2.0, the latest.');
+  assert.equal(note().hidden, true);
   update(lamp({ firmware, devices: [{ id: 'saved-lamp', state: 'connected' }] }));
-  assert.match(element('lampfirmwarehint').textContent, /Connect a lamp by USB to check or update/);
+  assert.equal(hint(), 'Firmware 1.2.0 is available.');
+  assert.equal(note().textContent, 'Connect a lamp by USB to check or update it.');
   assert.match(element('lampfirmware-0').textContent, /^Unknown/);
+
+  // A board on USB: probing, blank, current, outdated, unsaved.
   update(lamp({ firmware, usb_present: true }));
-  assert.equal(element('lampfirmwarehint').textContent, 'Checking the lamp on USB…');
-  assert.equal(element('lampflash').disabled, true);
-  click('lampflash');
-  assert.equal(commands('update_firmware').length, 0, 'No probe yet, no write');
+  assert.equal(hint(), 'Checking the lamp on USB…');
+  assert.equal(button().hidden, true);
   update(lamp({ firmware, usb_present: true, usb_lamp: { id: null, version: null, broglow: false } }));
-  assert.equal(element('lampfirmwarehint').textContent, 'No BroGlow reply from the USB device. Flash new board writes firmware 1.2.0 to a blank or damaged ESP32-C3.');
-  assert.equal(element('lampflash').textContent, 'Flash new board');
-  assert.equal(element('lampflash').disabled, false);
+  assert.equal(hint(), 'No BroGlow reply from the USB device.');
+  assert.equal(note().textContent, 'Flash new board writes firmware 1.2.0 to a blank or damaged ESP32-C3.');
+  assert.equal(button().textContent, 'Flash new board');
+  assert.equal(button().disabled, false);
   click('lampflash');
-  assert.deepEqual(commands('update_firmware'), [{ cmd: 'update_firmware', force: true }], 'A new board is written only with force');
+  assert.deepEqual(commands('update_firmware'), [{ cmd: 'update_firmware', force: true }], 'A blank board is written only with force');
   context.window.__firmwareResult('Flashed and verified firmware 1.2.0.', null);
   messages.length = 0;
-  update(lamp({ firmware, usb_present: true, names: { 'saved-lamp': 'Desk' },
-    usb_lamp: { id: 'saved-lamp', version: '1.2.0', broglow: true } }));
-  assert.equal(element('lampfirmwarehint').textContent, 'Lamp “Desk” on USB runs firmware 1.2.0, the latest.');
-  assert.equal(element('lampflash').hidden, true, 'Nothing to write');
+  update(lamp({ firmware, usb_present: true, names, usb_lamp: { id: 'saved-lamp', version: '1.2.0', broglow: true } }));
+  assert.equal(hint(), 'Lamp “Home” on USB runs firmware 1.2.0, the latest.');
+  assert.equal(button().hidden, true, 'Nothing to write');
   click('lampflash');
   assert.equal(commands('update_firmware').length, 0);
-  update(lamp({ firmware, usb_present: true, usb_lamp: { id: 'saved-lamp', version: '1.1.0', broglow: true } }));
-  assert.equal(element('lampfirmwarehint').textContent, 'Lamp 1 on USB runs firmware 1.1.0.');
-  assert.equal(element('lampflash').hidden, false);
-  assert.equal(element('lampflash').disabled, false);
-  assert.equal(element('lampflash').textContent, 'Update Lamp 1 to 1.2.0');
-  update(lamp({ firmware, usb_present: true, names: { 'saved-lamp': 'Desk' }, usb_lamp: { id: 'saved-lamp', version: '1.1.0', broglow: true } }));
-  assert.equal(element('lampflash').textContent, 'Update Lamp “Desk” to 1.2.0');
+  update(lamp({ firmware, usb_present: true, names, usb_lamp: { id: 'saved-lamp', version: '1.1.0', broglow: true } }));
+  assert.equal(hint(), 'Lamp “Home” on USB runs firmware 1.1.0.');
+  assert.equal(note().hidden, true);
+  assert.equal(button().hidden, false);
+  assert.equal(button().disabled, false);
+  assert.equal(button().textContent, 'Update to 1.2.0');
   update(lamp({ firmware, usb_present: true, usb_lamp: { id: 'other-lamp', version: '1.1.0', broglow: true } }));
-  assert.equal(element('lampfirmwarehint').textContent, 'The lamp on USB runs firmware 1.1.0.', 'A paired board that is no longer saved has no row to name it by');
-  assert.equal(element('lampflash').textContent, 'Update firmware to 1.2.0');
+  assert.equal(hint(), 'The lamp on USB runs firmware 1.1.0.', 'A board not saved here, say a friend\'s lamp, still updates');
   update(lamp({ firmware, usb_present: true, usb_lamp: { id: null, version: null, broglow: true } }));
-  assert.equal(element('lampfirmwarehint').textContent, 'The lamp on USB runs firmware older than 1.2.0.');
-  assert.equal(element('lampflash').textContent, 'Update firmware to 1.2.0');
+  assert.equal(hint(), 'The lamp on USB runs firmware without a version.');
   update(lamp({ firmware, usb_present: true, transport: 'usb', usb_lamp: null }));
-  assert.equal(element('lampfirmwarehint').textContent, 'Firmware 1.2.0 is ready for the lamp on USB.', 'USB mirroring holds the cable: no probe, the write pauses it');
-  assert.equal(element('lampflash').disabled, false);
+  assert.equal(hint(), 'Firmware 1.2.0 is ready for the lamp on USB.', 'USB mirroring holds the cable: no probe, the write pauses it');
+  assert.equal(button().disabled, false);
+
+  // Writing: progress, blocked controls, outcome, retry.
   const usbLamp = { id: 'saved-lamp', version: '1.1.0', broglow: true };
   update(lamp({ firmware, usb_present: true, usb_lamp: usbLamp }));
   click('lampflash');
   click('lampflash');
   assert.deepEqual(commands('update_firmware'), [{ cmd: 'update_firmware' }]);
-  assert.equal(element('lampflash').textContent, 'Updating…');
-  assert.match(element('lampfirmwarehint').textContent, /Writing firmware 1\.2\.0… 0%/);
+  assert.equal(button().textContent, 'Updating…');
+  assert.equal(hint(), 'Writing firmware 1.2.0… 0%');
   for (const id of ['lampflash', 'lampadd', 'lampidentify-0', 'lampcontrol', 'brightness', 'lampforget-0']) {
     assert.equal(element(id).disabled, true, id);
   }
@@ -1534,16 +1543,17 @@ test('firmware section offers a USB update only with bundled images and a lamp o
   for (const id of ['lampadd', 'lampidentify-0', 'lampcontrol']) click(id);
   for (const cmd of ['add_lamp', 'identify_lamp', 'set_led']) assert.equal(commands(cmd).length, 0, cmd);
   context.window.__firmwareProgress(42);
-  assert.match(element('lampfirmwarehint').textContent, /42%/);
+  assert.equal(hint(), 'Writing firmware 1.2.0… 42%');
   update(lamp({ firmware: { ...firmware, busy: true, progress: 60 }, usb_present: true, usb_lamp: usbLamp }));
-  assert.match(element('lampfirmwarehint').textContent, /60%/);
+  assert.equal(hint(), 'Writing firmware 1.2.0… 60%');
   context.window.__firmwareResult('Flashed and verified firmware 1.2.0.', null);
-  update(lamp({ firmware, usb_present: true, usb_lamp: usbLamp, devices: [{ id: 'saved-lamp', state: 'connected', firmware: '1.2.0' }] }));
+  update(lamp({ firmware, usb_present: true, usb_lamp: { ...usbLamp, version: '1.2.0' }, devices: [{ id: 'saved-lamp', state: 'connected', firmware: '1.2.0' }] }));
   const result = element('lampfirmwareresult');
   assert.equal(result.textContent, 'Flashed and verified firmware 1.2.0.');
   assert.equal(result.attributes.role, 'status');
   assert.equal(result.hidden, false);
-  assert.equal(element('lampflash').disabled, false);
+  assert.equal(button().hidden, true, 'Current after the write');
+  update(lamp({ firmware, usb_present: true, usb_lamp: usbLamp }));
   click('lampflash');
   assert.equal(result.hidden, true, 'A new write clears the old outcome');
   context.window.__firmwareResult('', 'Opening USB lamp failed');
@@ -1553,7 +1563,6 @@ test('firmware section offers a USB update only with bundled images and a lamp o
   assert.equal(result.className, 'error');
   assert.equal(commands('update_firmware').length, 2);
 });
-
 
 test('Settings shows the app version and a quiet update check with Homebrew only where it applies', () => {
   const { context, element, click, commands, listeners } = popoverPage();
