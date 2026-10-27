@@ -3,6 +3,7 @@ mod ble;
 mod codex;
 mod config;
 mod copilot;
+mod flash;
 mod harness;
 mod hook;
 mod led;
@@ -69,6 +70,8 @@ enum Commands {
         #[command(subcommand)]
         command: ble::BleCommand,
     },
+    /// Write this release's ESP32-C3 firmware to the USB lamp (keeps its Bluetooth bonds)
+    Flash(flash::FlashArgs),
     /// (internal) Print today's usage snapshot (tokens / plan %) as JSON
     #[command(hide = true)]
     Usage,
@@ -124,6 +127,7 @@ fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Some(Commands::Led { port }) => led::run(port),
+        Some(Commands::Flash(args)) => flash::run(args),
         Some(Commands::Ble { command }) => {
             #[cfg(target_os = "macos")]
             if matches!(
@@ -625,6 +629,13 @@ fn create_mac_bundle(
         bundle.join("Contents/Info.plist"),
         MAC_INFO_PLIST.replace("{{VERSION}}", env!("CARGO_PKG_VERSION")),
     )?;
+    // The tray flashes from inside the bundle, so give it the release images.
+    if let Some(images) = flash::bundled_dir() {
+        flash::copy_images(
+            &images,
+            &bundle.join("Contents/Resources/firmware/esp32-c3-supermini"),
+        )?;
+    }
     let mut sign = std::process::Command::new("/usr/bin/codesign");
     sign.args([
         "--force",

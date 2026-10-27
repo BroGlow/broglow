@@ -31,7 +31,7 @@ PLACEHOLDERS = (
 )
 # Only verbatim licenses' "how to apply" instructions may contain template fields.
 APACHE_APPENDIX = re.compile(
-    r"APPENDIX: How to apply the Apache License to your work\.[\s\S]*?"
+    r"APPENDIX: How to\s+apply the Apache License to your work\.[\s\S]*?"
     r"limitations under the License\."
 )
 GNU_HOW_TO = re.compile(r"How to Apply These Terms to Your New (?:Programs|Libraries)")

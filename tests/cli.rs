@@ -466,3 +466,38 @@ fn ble_selection_preserves_settings_without_radio() {
         .failure();
     assert_eq!(std::fs::read_to_string(path).unwrap(), "{corrupt");
 }
+
+#[cfg(unix)]
+#[test]
+fn flash_needs_release_images_and_a_reachable_lamp_without_touching_settings() {
+    let home = tempfile::tempdir().unwrap();
+    let config = home.path().join(".claude/broglow/config.json");
+    let missing_port = home.path().join("nonexistent-serial-port");
+
+    // The test binary has no release layout around it.
+    let failed = broglow()
+        .env("HOME", home.path())
+        .args(["flash", "--yes", "--port"])
+        .arg(&missing_port)
+        .assert()
+        .failure();
+    assert!(String::from_utf8_lossy(&failed.get_output().stderr).contains("--firmware"));
+
+    let images = home.path().join("images");
+    std::fs::create_dir(&images).unwrap();
+    for name in ["bootloader.bin", "partitions.bin", "boot_app0.bin"] {
+        std::fs::write(images.join(name), [0xAA; 16]).unwrap();
+    }
+    std::fs::write(images.join("firmware.bin"), b"\0lamp=%s\nversion=9.9.9\n").unwrap();
+    let failed = broglow()
+        .env("HOME", home.path())
+        .args(["flash", "--yes", "--firmware"])
+        .arg(&images)
+        .arg("--port")
+        .arg(&missing_port)
+        .assert()
+        .failure();
+    assert!(String::from_utf8_lossy(&failed.get_output().stderr).contains("Opening USB lamp"));
+    // Lamp control was off, so nothing was paused and no settings file appeared.
+    assert!(!config.exists());
+}

@@ -230,8 +230,25 @@ the [firmware reference](firmware.md#pairing-feedback-and-diagnostics-without-ex
 
 Skip this for a lamp with working firmware. The Mac package contains four images and
 `firmware/esp32-c3-supermini/flash-manifest.json`, so no firmware compiler is needed.
-After verifying the package checksums, run `uv run --frozen flash` from the package
-folder.
+
+The app writes them itself. With the lamp on a data cable and no serial monitor open:
+
+```bash
+broglow flash
+```
+
+It finds the single ESP32 USB device, reads the current firmware version with
+`INFO`, shows the change and asks before writing. It checks for an ESP32-C3 with
+4 MB flash, writes the four images at their offsets without touching NVS (Bluetooth
+bonds and the lamp name survive), resets the board and requires the new version in
+its `INFO` reply. Lamp control is paused during the write and restored afterwards.
+Options: `--port PATH` for a specific device, `--firmware DIR` for images elsewhere
+(Homebrew keeps them in `$(brew --prefix)/share/broglow/firmware/esp32-c3-supermini`),
+`--force` to rewrite the same version or a board without BroGlow firmware, and `--yes`
+to skip the prompt. A lamp that already reports the bundled version is left alone.
+
+Without the app, run `uv run --frozen flash` from the package folder after verifying
+its checksums.
 
 The manual esptool procedure below is for advanced recovery. First
 [identify the board](#build-and-identify-the-board). Set `PACKAGE_DIR` to the extracted

@@ -63,7 +63,8 @@ PLACEHOLDERS = (
     "{name of copyright owner}",
 )
 INSTRUCTIONS = re.compile(
-    r"APPENDIX: How to apply the Apache License to your work\.[\s\S]*?"
+    # Some crates re-wrap the appendix heading (miette-derive breaks it after "to").
+    r"APPENDIX: How to\s+apply the Apache License to your work\.[\s\S]*?"
     r"limitations under the License\."
     r"|How to Apply These Terms to Your New (?:Programs|Libraries)[\s\S]*\Z"
 )

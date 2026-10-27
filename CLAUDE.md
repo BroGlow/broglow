@@ -54,6 +54,7 @@ grant or board operation: record those acceptance checks separately.
 | `menubar` | Run the tray daemon in the foreground |
 | `led [--port]` | Foreground ESP32 LED mirror (debugging) |
 | `ble pair [--port]` | Identify BroGlow firmware over USB, open pairing and remember its matching BLE ID; actual tray handles encryption/macOS approval |
+| `flash [--port] [--firmware DIR] [--force] [--yes]` | Write this release's four C3 images over USB with espflash: pauses lamp control, checks ESP32-C3 + 4 MB flash, skips NVS so bonds survive, verifies the new `version` over `INFO` |
 | `ble scan/add/remove/rename/brightness/list/on/off/usb/status` | Discover, remember/forget CoreBluetooth IDs, name a lamp, save per-lamp or global brightness, list per-lamp state, enable/disable the selected transport, restore USB, or inspect worker status |
 | `hook` *(hidden)* | Claude Code hook backend; reads one event as JSON on stdin |
 | `event` *(hidden)* | Normalized-event backend for non-Claude harnesses (opencode); reads one event as JSON on stdin |
@@ -105,6 +106,11 @@ grant or board operation: record those acceptance checks separately.
   `COLORTERM` is `truecolor`/`24bit`; otherwise each frame maps them to the xterm 256-color
   palette, because Terminal.app before macOS 26 misreads RGB escapes as separate SGR codes.
 - **menubar.rs** — tray icon + menu (tao/tray-icon event loop), spawns the LED daemon thread.
+- **flash.rs** — `broglow flash`: locates the release images (Homebrew pkgshare, the
+  app bundle's Resources, the package or Windows archive next to the executable, or
+  `--firmware`), reads the lamp's `version` line, and writes the four images with the
+  espflash crate at the Python tool's offsets. `install` copies the images into
+  `BroGlow.app/Contents/Resources` so the tray can flash from inside the bundle.
 - **led.rs** — USB detection/driver, aggregate-to-byte mapping, transport dispatch,
   and fresh cross-process worker status in `lamp-status.json`.
 - **ble.rs** — USB-assisted setup, discovery/selection and the macOS BLE worker: service-filtered
