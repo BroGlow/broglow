@@ -198,8 +198,8 @@ body.win .pbtnpri:hover { background: #63cbff; }
 .lampbtn .dot { width: 7px; height: 7px; }
 .lampbtn.lon { color: rgba(255,255,255,.8); }
 .lampsetup { padding: 7px 10px 12px; }
-/* The firmware hint precedes its button; keep the same gap Add lamp has below. */
-#lampfirmwarehint { margin: 0 0 9px; }
+/* The firmware lines precede their button; keep the same gap Add lamp has below. */
+#lampfirmwarehint, #lampfirmwarenote { margin: 0 0 9px; }
 .lampsetup .error { color: #ff8a80; }
 .lamptop { padding: 7px 10px 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .lamptop #lampsummary { font-size: 13px; font-weight: 600; }
