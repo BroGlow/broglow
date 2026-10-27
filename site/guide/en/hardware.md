@@ -231,7 +231,10 @@ the [firmware reference](firmware.md#pairing-feedback-and-diagnostics-without-ex
 Skip this for a lamp with working firmware. The Mac package contains four images and
 `firmware/esp32-c3-supermini/flash-manifest.json`, so no firmware compiler is needed.
 
-The app writes them itself. With the lamp on a data cable and no serial monitor open:
+The app writes them itself. In the menu-bar app, open Lamp details: the Firmware
+section shows the version each Bluetooth lamp reports and, with a lamp on a USB data
+cable, offers **Update firmware** with a progress readout. The same from a terminal,
+with no serial monitor open:
 
 ```bash
 broglow flash

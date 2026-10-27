@@ -99,7 +99,26 @@ window.__configActionResult = error => {
   render();
 };
 let lampSetupPending = false, lampSetupError = '', lampSetupMessage = '';
-function lampSetupBusy() { return lampSetupPending || state.lamp?.setup_busy === true; }
+let firmwarePending = false, firmwareError = '', firmwareMessage = '', firmwareProgress = 0;
+function addLampBusy() { return lampSetupPending || state.lamp?.setup_busy === true; }
+function firmwareBusy() { return firmwarePending || state.lamp?.firmware?.busy === true; }
+// Both own the USB cable; every lamp control waits for either.
+function lampSetupBusy() { return addLampBusy() || firmwareBusy(); }
+function canUpdateFirmware() {
+  const lamp = state.lamp || {};
+  return !!lamp.firmware?.available && lamp.usb_present === true && !lampSetupBusy() && !lampActionPending();
+}
+window.__firmwareProgress = percent => {
+  firmwareProgress = Math.max(0, Math.min(100, Number(percent) || 0));
+  renderLamp();
+};
+window.__firmwareResult = (message, error) => {
+  firmwarePending = false;
+  if (state.lamp?.firmware) state.lamp.firmware.busy = false;
+  firmwareError = error || '';
+  firmwareMessage = error ? '' : (message || '');
+  render();
+};
 function canIdentifyLamp(id) {
   const lamp = state.lamp || {};
   return !lampSetupBusy() && !lampActionPending() && lamp.transport === 'ble' &&
@@ -214,11 +233,11 @@ function renderLamp() {
     add.dataset.cmd = 'add_lamp';
     add.disabled = setupBusy;
     add.setAttribute('aria-disabled', String(setupBusy || lampActionPending()));
-    add.textContent = setupBusy ? 'Adding…' : 'Add lamp';
+    add.textContent = addLampBusy() ? 'Adding…' : 'Add lamp';
     const setupResult = document.getElementById('lampsetupresult');
-    setupResult.textContent = setupBusy ? 'Setting up USB lamp…' : lampSetupError || lampSetupMessage;
-    setupResult.className = !setupBusy && lampSetupError ? 'error' : '';
-    setupResult.setAttribute('role', !setupBusy && lampSetupError ? 'alert' : 'status');
+    setupResult.textContent = addLampBusy() ? 'Setting up USB lamp…' : lampSetupError || lampSetupMessage;
+    setupResult.className = !addLampBusy() && lampSetupError ? 'error' : '';
+    setupResult.setAttribute('role', !addLampBusy() && lampSetupError ? 'alert' : 'status');
     setupResult.hidden = !setupResult.textContent;
     document.getElementById('lamptransport').textContent = wireless ? 'Bluetooth' : 'USB';
     document.getElementById('lampsummary').textContent = wireless && !l.selected_count ? 'No lamps added' :
@@ -245,6 +264,7 @@ function renderLamp() {
           `<p id="lampbrightnesshint-${i}"></p></div>` : '') +
         `<details class="lamptechnical"><summary>Connection details</summary>` +
         `<dl><dt>${wireless ? 'Device ID' : 'Connection'}</dt><dd class="lampid" id="lampid-${i}"></dd>` +
+        (wireless ? `<dt>Firmware</dt><dd id="lampfirmware-${i}"></dd>` : '') +
         `<dt>Diagnostic</dt><dd id="lampdiagnostic-${i}"></dd></dl></details>` +
         (wireless ? `<div class="lampforget"><button class="pbtn pbtnghost pbtndanger" type="button" id="lampforget-${i}" ` +
           `aria-label="Forget lamp ${i + 1}">Forget lamp</button></div>` : '') +
@@ -268,6 +288,9 @@ function renderLamp() {
       if (id.textContent !== identifier) id.textContent = identifier;
       if (diagnostic.textContent !== (device.detail || '')) diagnostic.textContent = device.detail || '';
       if (wireless) {
+        const firmwareCell = document.getElementById('lampfirmware-' + i);
+        const firmwareText = device.firmware || 'Unknown (connect by USB to check)';
+        if (firmwareCell.textContent !== firmwareText) firmwareCell.textContent = firmwareText;
         const brightness = document.getElementById('lampbrightness-' + i);
         brightness.dataset.brightnessId = device.id;
         renderBrightness(brightness, 'lampbrightnessvalue-' + i, 'lampbrightnesshint-' + i,
@@ -310,7 +333,38 @@ function renderLamp() {
     control.textContent = (l.enabled ? 'Disable' : 'Enable') + (plural ? ' lamps' : ' lamp');
     document.getElementById('brightnesscontrol').hidden = !wireless;
     renderBrightness(document.getElementById('brightness'), 'brightnessvalue', 'brightnesshint', l.brightness_percent ?? 100);
+    renderFirmware(l, wireless ? devices : []);
   }
+}
+
+// The firmware section exists only when this app carries release images.
+function renderFirmware(l, devices) {
+  const firmware = l.firmware || {};
+  const section = document.getElementById('lampfirmware');
+  section.hidden = !firmware.available;
+  if (!firmware.available) return;
+  const busy = firmwareBusy();
+  if ((firmware.progress || 0) > firmwareProgress) firmwareProgress = firmware.progress;
+  const versions = devices.map(device => device.firmware);
+  const outdated = [...new Set(versions.filter(version => version && version !== firmware.available))];
+  const unknown = versions.filter(version => !version).length;
+  let hint;
+  if (busy) hint = `Writing firmware ${firmware.available}… ${firmwareProgress}%. Keep the lamp connected.`;
+  else if (l.usb_present) hint = `Firmware ${firmware.available} is ready for the lamp on USB. Lamp control pauses during the write; Bluetooth pairing is kept.`;
+  else if (outdated.length) hint = `${versions.filter(version => outdated.includes(version)).length === 1 ? 'A lamp runs' : 'Lamps run'} firmware ${outdated.join(', ')}; ${firmware.available} is available. Connect the lamp by USB to update it.`;
+  else if (versions.length && !unknown) hint = `Firmware ${firmware.available} is up to date.`;
+  else hint = `Connect a lamp by USB to check or update its firmware (${firmware.available} available).`;
+  document.getElementById('lampfirmwarehint').textContent = hint;
+  const button = document.getElementById('lampflash');
+  button.dataset.cmd = 'update_firmware';
+  button.disabled = !canUpdateFirmware();
+  button.setAttribute('aria-disabled', String(!canUpdateFirmware()));
+  button.textContent = busy ? 'Updating…' : `Update firmware to ${firmware.available}`;
+  const result = document.getElementById('lampfirmwareresult');
+  result.textContent = busy ? '' : firmwareError || firmwareMessage;
+  result.className = firmwareError && !busy ? 'error' : '';
+  result.setAttribute('role', firmwareError && !busy ? 'alert' : 'status');
+  result.hidden = !result.textContent;
 }
 
 // Where a session runs, drawn after the agent: window, >_ prompt, </> code.
@@ -394,6 +448,10 @@ function render() {
         `<input id="brightness" type="range" min="0" max="100" step="1" value="100" aria-describedby="brightnesshint">` +
         `<p id="brightnesshint"></p></div>` +
         `<div class="lampactions"><button class="pbtn" id="lampcontrol"></button></div>` +
+        `<div class="lampsetup" id="lampfirmware" hidden><div class="grplabel">Firmware</div>` +
+        `<p id="lampfirmwarehint"></p>` +
+        `<button class="pbtn" type="button" id="lampflash" aria-describedby="lampfirmwarehint">Update firmware</button>` +
+        `<p id="lampfirmwareresult" role="status" hidden></p></div>` +
         `<details class="lamptechnical" id="lamptechnical"><summary>Troubleshooting</summary>` +
         `<div class="lampdetail" id="lampdetail"></div></details>`;
     }
@@ -700,7 +758,15 @@ document.addEventListener('click', ev => {
     configActionError = '';
     document.getElementById('sessionerror').hidden = true;
   }
-  if (lampSetupBusy() && ['add_lamp', 'forget_lamp', 'rename_lamp', 'identify_lamp', 'set_led'].includes(msg.cmd)) return;
+  if (lampSetupBusy() && ['add_lamp', 'forget_lamp', 'rename_lamp', 'identify_lamp', 'set_led', 'update_firmware'].includes(msg.cmd)) return;
+  if (msg.cmd === 'update_firmware') {
+    if (!canUpdateFirmware()) return;
+    firmwarePending = true;
+    firmwareError = firmwareMessage = '';
+    firmwareProgress = 0;
+    configActionError = '';
+    renderLamp();
+  }
   if (msg.cmd === 'identify_lamp') {
     if (!canIdentifyLamp(msg.id)) return;
     pendingIdentifyId = msg.id;

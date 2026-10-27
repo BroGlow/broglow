@@ -1462,3 +1462,57 @@ test('preview requires an enabled connected wireless lamp but saving does not', 
   }
   assert.equal(commands('set_led').length, 0);
 });
+
+test('firmware section offers a USB update only with bundled images and a lamp on USB', () => {
+  const { context, element, update, click, commands } = lampPage();
+  assert.equal(element('lampfirmware').hidden, true, 'No bundled images, no section');
+  click('lampflash');
+  assert.equal(commands('update_firmware').length, 0);
+  const firmware = { available: '1.2.0', busy: false, progress: 0 };
+  update(lamp({ firmware, devices: [{ id: 'saved-lamp', state: 'connected', firmware: '1.1.0' }] }));
+  assert.equal(element('lampfirmware').hidden, false);
+  assert.match(element('lampfirmwarehint').textContent, /A lamp runs firmware 1\.1\.0; 1\.2\.0 is available\. Connect the lamp by USB/);
+  assert.equal(element('lampflash').disabled, true);
+  assert.equal(element('lampfirmware-0').textContent, '1.1.0');
+  click('lampflash');
+  assert.equal(commands('update_firmware').length, 0, 'No lamp on USB, nothing to write');
+  update(lamp({ firmware, devices: [{ id: 'saved-lamp', state: 'connected', firmware: '1.2.0' }] }));
+  assert.match(element('lampfirmwarehint').textContent, /Firmware 1\.2\.0 is up to date\./);
+  update(lamp({ firmware, devices: [{ id: 'saved-lamp', state: 'connected' }] }));
+  assert.match(element('lampfirmwarehint').textContent, /Connect a lamp by USB to check or update/);
+  assert.match(element('lampfirmware-0').textContent, /^Unknown/);
+  update(lamp({ firmware, usb_present: true }));
+  assert.match(element('lampfirmwarehint').textContent, /ready for the lamp on USB/);
+  assert.equal(element('lampflash').disabled, false);
+  assert.equal(element('lampflash').textContent, 'Update firmware to 1.2.0');
+  click('lampflash');
+  click('lampflash');
+  assert.deepEqual(commands('update_firmware'), [{ cmd: 'update_firmware' }]);
+  assert.equal(element('lampflash').textContent, 'Updating…');
+  assert.match(element('lampfirmwarehint').textContent, /Writing firmware 1\.2\.0… 0%/);
+  for (const id of ['lampflash', 'lampadd', 'lampidentify-0', 'lampcontrol', 'brightness', 'lampforget-0']) {
+    assert.equal(element(id).disabled, true, id);
+  }
+  assert.equal(element('lampadd').textContent, 'Add lamp', 'A firmware write is not USB setup');
+  for (const id of ['lampadd', 'lampidentify-0', 'lampcontrol']) click(id);
+  for (const cmd of ['add_lamp', 'identify_lamp', 'set_led']) assert.equal(commands(cmd).length, 0, cmd);
+  context.window.__firmwareProgress(42);
+  assert.match(element('lampfirmwarehint').textContent, /42%/);
+  update(lamp({ firmware: { ...firmware, busy: true, progress: 60 }, usb_present: true }));
+  assert.match(element('lampfirmwarehint').textContent, /60%/);
+  context.window.__firmwareResult('Flashed and verified firmware 1.2.0.', null);
+  update(lamp({ firmware, usb_present: true, devices: [{ id: 'saved-lamp', state: 'connected', firmware: '1.2.0' }] }));
+  const result = element('lampfirmwareresult');
+  assert.equal(result.textContent, 'Flashed and verified firmware 1.2.0.');
+  assert.equal(result.attributes.role, 'status');
+  assert.equal(result.hidden, false);
+  assert.equal(element('lampflash').disabled, false);
+  click('lampflash');
+  assert.equal(result.hidden, true, 'A new write clears the old outcome');
+  context.window.__firmwareResult('', 'Opening USB lamp failed');
+  update(lamp({ firmware, usb_present: true }));
+  assert.equal(result.textContent, 'Opening USB lamp failed');
+  assert.equal(result.attributes.role, 'alert');
+  assert.equal(result.className, 'error');
+  assert.equal(commands('update_firmware').length, 2);
+});

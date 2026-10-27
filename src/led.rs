@@ -407,6 +407,10 @@ pub struct DeviceStatus {
     pub state: String,
     pub detail: String,
     pub updated: u64,
+    /// The lamp's firmware version read over BLE; absent until read, or when
+    /// the firmware predates the version characteristic.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub firmware: Option<String>,
 }
 
 impl DeviceStatus {
@@ -416,6 +420,7 @@ impl DeviceStatus {
             state: state.into(),
             detail: detail.into(),
             updated: now_secs(),
+            firmware: None,
         }
     }
 }

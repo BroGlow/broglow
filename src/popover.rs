@@ -115,6 +115,8 @@ pub enum PopoverMsg {
     },
     /// Identify the single USB lamp and remember its Bluetooth identity.
     AddLamp,
+    /// Write the bundled firmware to the single USB lamp.
+    UpdateFirmware,
     /// Stop remembering/reconnecting to one lamp; retain Bluetooth bonds.
     ForgetLamp {
         id: String,
@@ -269,6 +271,20 @@ struct LampPayload {
     devices: Vec<crate::led::DeviceStatus>,
     brightness_percent: u8,
     brightness_by_id: std::collections::BTreeMap<String, u8>,
+    /// An ESP32 USB device is attached, whatever the selected transport.
+    usb_present: bool,
+    firmware: FirmwarePayload,
+}
+
+/// The Lamp details firmware section: what this release can write, and
+/// whether a write is running right now.
+#[derive(Serialize)]
+struct FirmwarePayload {
+    /// Version of the images installed with this app; absent without images.
+    available: Option<String>,
+    busy: bool,
+    /// Bytes written so far as a percentage, while `busy`.
+    progress: u8,
 }
 
 #[derive(Serialize)]
@@ -284,6 +300,9 @@ struct StatePayload<'a> {
 
 pub struct Popover {
     pub(crate) setup_busy: bool,
+    /// A firmware write is in progress; USB setup and lamp edits wait for it.
+    pub(crate) flash_busy: bool,
+    flash_progress: u8,
     window: Window,
     webview: WebView,
     anchor: Option<Rect>,
@@ -350,6 +369,8 @@ impl Popover {
 
         Ok(Self {
             setup_busy: false,
+            flash_busy: false,
+            flash_progress: 0,
             window,
             webview,
             anchor: None,
@@ -418,7 +439,12 @@ impl Popover {
     }
 
     fn render_state(&self, state: &HookState, cfg: &config::Config, reset_navigation: bool) {
-        let payload = build_payload(state, self.setup_busy, cfg);
+        let payload = build_payload(
+            state,
+            self.setup_busy,
+            (self.flash_busy, self.flash_progress),
+            cfg,
+        );
         let _ = self
             .webview
             .evaluate_script(&format!("window.__setState({payload}, {reset_navigation})"));
@@ -429,6 +455,35 @@ impl Popover {
         let _ = self
             .webview
             .evaluate_script(&format!("window.__configActionResult({error})"));
+    }
+
+    pub fn firmware_started(&mut self) {
+        self.flash_busy = true;
+        self.flash_progress = 0;
+        self.push_state(&crate::state::read_display_state());
+    }
+
+    pub fn firmware_progress(&mut self, done: usize, total: usize) {
+        self.flash_progress = (done * 100 / total.max(1)).min(100) as u8;
+        let _ = self.webview.evaluate_script(&format!(
+            "window.__firmwareProgress({})",
+            self.flash_progress
+        ));
+    }
+
+    /// `Ok` is the outcome text; `Err` the failure. Both end the busy state.
+    pub fn firmware_result(&mut self, result: Result<String, String>) {
+        self.flash_busy = false;
+        self.push_state(&crate::state::read_display_state());
+        let (message, error) = match &result {
+            Ok(message) => (message.as_str(), None),
+            Err(error) => ("", Some(error.as_str())),
+        };
+        let message = serde_json::to_string(message).expect("serialize outcome");
+        let error = serde_json::to_string(&error).expect("serialize flash error");
+        let _ = self
+            .webview
+            .evaluate_script(&format!("window.__firmwareResult({message}, {error})"));
     }
 
     pub fn lamp_setup_result(&mut self, error: Option<String>) {
@@ -682,7 +737,12 @@ fn session_payloads(state: &HookState) -> Vec<SessionPayload<'_>> {
         .collect()
 }
 
-fn build_payload(state: &HookState, setup_busy: bool, cfg: &config::Config) -> String {
+fn build_payload(
+    state: &HookState,
+    setup_busy: bool,
+    flash: (bool, u8),
+    cfg: &config::Config,
+) -> String {
     let connection = crate::led::connection_status();
     let payload = StatePayload {
         aggregate: agg_str(aggregate(state, cfg.yellow_mode)),
@@ -721,6 +781,12 @@ fn build_payload(state: &HookState, setup_busy: bool, cfg: &config::Config) -> S
                     (id, percent)
                 })
                 .collect(),
+            usb_present: crate::led::board_present_cached(),
+            firmware: FirmwarePayload {
+                available: crate::flash::bundled_version(),
+                busy: flash.0,
+                progress: flash.1,
+            },
         },
     };
     serde_json::to_string(&payload)

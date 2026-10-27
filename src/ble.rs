@@ -281,6 +281,8 @@ mod mac {
     const STATUS: Uuid = Uuid::from_u128(0x7d2ea28b_f7bd_485a_bd9d_92ad6ecfe93e);
     const BRIGHTNESS: Uuid = Uuid::from_u128(0x7d2ea28c_f7bd_485a_bd9d_92ad6ecfe93e);
     const NAME: Uuid = Uuid::from_u128(0x7d2ea28d_f7bd_485a_bd9d_92ad6ecfe93e);
+    /// Read-only firmware version string (firmware 1.2.0 and later).
+    const VERSION: Uuid = Uuid::from_u128(0x7d2ea28e_f7bd_485a_bd9d_92ad6ecfe93e);
     const POLL: Duration = Duration::from_millis(250);
     const HEARTBEAT: Duration = Duration::from_secs(2);
     const OP_TIMEOUT: Duration = Duration::from_secs(10);
@@ -968,7 +970,17 @@ mod mac {
                 let mut devices = statuses.borrow_mut();
                 // A forgotten lamp's last words must not bring its row back.
                 if let Some(device) = devices.iter_mut().find(|d| d.id == id) {
+                    let firmware = device.firmware.take();
                     *device = crate::led::DeviceStatus::new(id, state, detail);
+                    device.firmware = firmware;
+                    crate::led::publish_ble_status(cfg, devices.clone());
+                }
+            };
+            // Read once per connection; the popover offers a USB update from it.
+            let record_firmware = |id: &str, version: Option<String>| {
+                let mut devices = statuses.borrow_mut();
+                if let Some(device) = devices.iter_mut().find(|d| d.id == id) {
+                    device.firmware = version;
                     crate::led::publish_ble_status(cfg, devices.clone());
                 }
             };
@@ -1001,8 +1013,14 @@ mod mac {
             let scan_error = RefCell::new(None);
             // All futures share one adapter/runtime. A missing lamp or a pairing
             // prompt cannot delay another lamp's writes or heartbeat.
-            let (keep, targets, advertisements, scan_error, update) =
-                (&keep, &targets, &advertisements, &scan_error, &update);
+            let (keep, targets, advertisements, scan_error, update, record_firmware) = (
+                &keep,
+                &targets,
+                &advertisements,
+                &scan_error,
+                &update,
+                &record_firmware,
+            );
             tokio::join!(
                 discover(&adapter, targets, advertisements, scan_error, keep),
                 supervise(
@@ -1011,7 +1029,15 @@ mod mac {
                     |id, saved| {
                         async move {
                             let keep = || saved();
-                            lamp_loop(&id, advertisements, scan_error, &keep, update).await;
+                            lamp_loop(
+                                &id,
+                                advertisements,
+                                scan_error,
+                                &keep,
+                                update,
+                                record_firmware,
+                            )
+                            .await;
                         }
                         .boxed_local()
                     },
@@ -1215,8 +1241,10 @@ mod mac {
         scan_error: &RefCell<Option<String>>,
         keep: &impl Fn() -> bool,
         update: &impl Fn(&str, &str, &str),
+        record_firmware: &impl Fn(&str, Option<String>),
     ) {
         let publish = |state: &str, detail: &str| update(id, state, detail);
+        let firmware = |version: Option<String>| record_firmware(id, version);
         while keep() {
             // Subscribe anew after each disconnect: cached/queued advertisements
             // cannot reconnect a stale native CoreBluetooth peripheral handle.
@@ -1245,7 +1273,7 @@ mod mac {
             match discovered {
                 Ok(peripheral) => {
                     publish("connecting", "Connecting to saved lamp");
-                    let result = drive(&peripheral, keep, &publish).await;
+                    let result = drive(&peripheral, keep, &publish, &firmware).await;
                     // Cancelling a Rust future doesn't cancel a native pending connect.
                     let _ = timeout(Duration::from_secs(2), peripheral.disconnect()).await;
                     if let Err(error) = result {
@@ -1293,6 +1321,7 @@ mod mac {
         p: &Peripheral,
         keep: &impl Fn() -> bool,
         publish: &impl Fn(&str, &str),
+        firmware: &impl Fn(Option<String>),
     ) -> Result<()> {
         let id = Uuid::parse_str(&p.id().to_string())?;
         let target = id.to_string();
@@ -1332,6 +1361,22 @@ mod mac {
                     && c.properties.contains(CharPropFlags::WRITE)
             })
             .context("Saved device lacks the BroGlow writable name characteristic")?;
+        // Plain read, before pairing: firmware without the characteristic is
+        // simply older than the version line, not an error.
+        let version_characteristic = p.characteristics().into_iter().find(|c| {
+            c.service_uuid == SERVICE
+                && c.uuid == VERSION
+                && c.properties.contains(CharPropFlags::READ)
+        });
+        let version = match version_characteristic {
+            Some(characteristic) => wait(async { Ok(p.read(&characteristic).await?) }, keep)
+                .await
+                .ok()
+                .and_then(|bytes| String::from_utf8(bytes).ok())
+                .filter(|text| !text.is_empty() && text.len() <= 32),
+            None => None,
+        };
+        firmware(version);
         // Set the saved brightness before any status/connection flash. This first
         // encrypted write may prompt for pairing; sample current settings again afterward.
         let initial = [config::read_config().lamp_brightness_percent(&target)];

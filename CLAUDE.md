@@ -111,6 +111,12 @@ grant or board operation: record those acceptance checks separately.
   `--firmware`), reads the lamp's `version` line, and writes the four images with the
   espflash crate at the Python tool's offsets. `install` copies the images into
   `BroGlow.app/Contents/Resources` so the tray can flash from inside the bundle.
+  The popover's Lamp details carry a Firmware section (`renderFirmware` in
+  popover.js): the BLE worker reads each lamp's version characteristic once per
+  connection into `DeviceStatus.firmware`, the payload adds `usb_present` and the
+  bundled version, and **Update firmware** runs `flash::update` on a tray thread
+  with progress events (`FirmwareProgress`/`FirmwareFinished`). `flash_busy`
+  pauses USB setup and lamp edits like `setup_busy` does.
 - **led.rs** — USB detection/driver, aggregate-to-byte mapping, transport dispatch,
   and fresh cross-process worker status in `lamp-status.json`.
 - **ble.rs** — USB-assisted setup, discovery/selection and the macOS BLE worker: service-filtered

@@ -352,6 +352,12 @@ enum UserEvent {
     Popover(PopoverMsg),
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     LampSetupFinished(Option<String>),
+    /// Bytes written so far and the total, from the firmware thread.
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    FirmwareProgress(usize, usize),
+    /// The firmware thread ended: the outcome text, or the failure.
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    FirmwareFinished(Result<String, String>),
     /// The usage refresher produced a new snapshot (design 1a/1c readout).
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     UsageChanged,
@@ -363,7 +369,7 @@ fn start_lamp_setup(
     proxy: &tao::event_loop::EventLoopProxy<UserEvent>,
     mode: crate::ble::SetupMode,
 ) {
-    if popover.setup_busy {
+    if popover.setup_busy || popover.flash_busy {
         return;
     }
     popover.setup_busy = true;
@@ -372,6 +378,36 @@ fn start_lamp_setup(
     thread::spawn(move || {
         let error = crate::ble::pair_from_app(mode).err().map(|e| e.to_string());
         let _ = proxy.send_event(UserEvent::LampSetupFinished(error));
+    });
+}
+
+/// Write the bundled firmware to the single USB lamp in the background. The
+/// flash code pauses mirroring itself; the tray only serializes it against
+/// USB setup and lamp edits.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn start_firmware_update(
+    popover: &mut Popover,
+    proxy: &tao::event_loop::EventLoopProxy<UserEvent>,
+) {
+    if popover.setup_busy || popover.flash_busy {
+        return;
+    }
+    popover.firmware_started();
+    let proxy = proxy.clone();
+    thread::spawn(move || {
+        let progress = proxy.clone();
+        let result = crate::flash::update(
+            None,
+            None,
+            false,
+            &mut |_, _| Ok(true),
+            &mut |done, total| {
+                let _ = progress.send_event(UserEvent::FirmwareProgress(done, total));
+            },
+        )
+        .map(|outcome| outcome.to_string())
+        .map_err(|error| format!("{error:#}"));
+        let _ = proxy.send_event(UserEvent::FirmwareFinished(result));
     });
 }
 
@@ -641,7 +677,7 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                 // Five-second polling can miss a faster unplug/replug; switch
                 // to USB hotplug events if that ever matters.
                 #[cfg(target_os = "macos")]
-                if !popover.setup_busy {
+                if !popover.setup_busy && !popover.flash_busy {
                     if let Some(mode) = usb_auto_pair.poll() {
                         start_lamp_setup(&mut popover, &setup_proxy, mode);
                     }
@@ -717,9 +753,20 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                 popover.lamp_setup_result(error);
             }
             #[cfg(any(target_os = "macos", target_os = "windows"))]
+            Event::UserEvent(UserEvent::FirmwareProgress(done, total)) => {
+                popover.firmware_progress(done, total);
+            }
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            Event::UserEvent(UserEvent::FirmwareFinished(result)) => {
+                popover.firmware_result(result);
+            }
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::UserEvent(UserEvent::Popover(msg)) => match msg {
                 PopoverMsg::AddLamp => {
                     start_lamp_setup(&mut popover, &setup_proxy, crate::ble::SetupMode::Manual);
+                }
+                PopoverMsg::UpdateFirmware => {
+                    start_firmware_update(&mut popover, &setup_proxy);
                 }
                 PopoverMsg::SetLed { .. }
                 | PopoverMsg::ForgetLamp { .. }
@@ -728,7 +775,7 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                 | PopoverMsg::SetBrightness { .. }
                 | PopoverMsg::SetLampBrightness { .. }
                 | PopoverMsg::PreviewBrightness { .. }
-                    if popover.setup_busy => {}
+                    if popover.setup_busy || popover.flash_busy => {}
                 PopoverMsg::Ready => popover.push_state(&read_display_state()),
                 PopoverMsg::Resize { height, dpr } => popover.on_resize(height, dpr),
                 PopoverMsg::Focus { id } => {

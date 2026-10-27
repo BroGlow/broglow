@@ -112,62 +112,118 @@ fn firmware_version(image: &[u8]) -> Option<String> {
     .then(|| version.to_string())
 }
 
+/// What one flash attempt did; the CLI prints it, the tray shows it.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Outcome {
+    /// The lamp already reports the bundled version; nothing was written.
+    UpToDate(String),
+    Cancelled,
+    /// Written, reset and verified: the lamp now reports this version.
+    Flashed(String),
+}
+
+impl std::fmt::Display for Outcome {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Outcome::UpToDate(version) => write!(f, "Lamp already runs firmware {version}."),
+            Outcome::Cancelled => write!(f, "Flash cancelled; nothing was written."),
+            Outcome::Flashed(version) => write!(f, "Flashed and verified firmware {version}."),
+        }
+    }
+}
+
+/// The version of the images installed next to this executable, if any.
+pub fn bundled_version() -> Option<String> {
+    static VERSION: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    VERSION
+        .get_or_init(|| {
+            let image = std::fs::read(bundled_dir()?.join("firmware.bin")).ok()?;
+            firmware_version(&image)
+        })
+        .clone()
+}
+
 pub fn run(args: FlashArgs) -> Result<()> {
-    let dir = args.firmware.or_else(bundled_dir).context(
+    let mut confirm = |current: &str, next: &str| {
+        println!("Flash: firmware {current} -> {next}");
+        if args.yes {
+            return Ok(true);
+        }
+        prompt()
+    };
+    let mut last = 0;
+    let mut report = |done: usize, total: usize| {
+        let percent = done * 100 / total.max(1);
+        if percent / 10 > last / 10 || (percent == 100 && last != 100) {
+            println!("  {percent}%");
+            last = percent;
+        }
+    };
+    let outcome = update(
+        args.port,
+        args.firmware,
+        args.force,
+        &mut confirm,
+        &mut report,
+    )?;
+    println!("{outcome}");
+    Ok(())
+}
+
+/// Flash the bundled (or `dir`) images onto the single USB lamp (or `port`).
+/// `confirm` sees the current and new versions before anything is written;
+/// `report` gets bytes written out of the total. Lamp mirroring is paused for
+/// the duration and restored afterwards, even on failure.
+pub fn update(
+    port: Option<String>,
+    dir: Option<PathBuf>,
+    force: bool,
+    confirm: &mut dyn FnMut(&str, &str) -> Result<bool>,
+    report: &mut dyn FnMut(usize, usize),
+) -> Result<Outcome> {
+    let dir = dir.or_else(bundled_dir).context(
         "No firmware images next to this executable; pass --firmware DIR with the release images",
     )?;
     let images = load(&dir)?;
-    let path = match args.port {
+    let path = match port {
         Some(path) => path,
         None => lamp_port()?,
     };
     // Mirroring may hold the cable; pause it until the lamp is back.
     let resume = pause_mirroring()?;
-    let result = flash_lamp(&path, &images, args.force, args.yes);
+    let result = flash_lamp(&path, &images, force, confirm, report);
     if resume {
         config::update_config(|cfg| {
             cfg.led_enabled = true;
             Ok(())
         })
         .context("Flashing finished, but lamp control could not be re-enabled")?;
-        println!("Restored lamp control.");
     }
     result
 }
 
-fn flash_lamp(path: &str, images: &Images, force: bool, yes: bool) -> Result<()> {
+fn flash_lamp(
+    path: &str,
+    images: &Images,
+    force: bool,
+    confirm: &mut dyn FnMut(&str, &str) -> Result<bool>,
+    report: &mut dyn FnMut(usize, usize),
+) -> Result<Outcome> {
     let mut serial = open_lamp(path)?;
     let current = match lamp_version(serial.as_mut()) {
         Ok(version) => version,
-        Err(e) if force => {
-            println!("Current firmware not recognized ({e}); flashing anyway.");
-            None
-        }
+        Err(_) if force => None,
         Err(e) => return Err(e.context("Use --force to flash a lamp without BroGlow firmware")),
     };
     let current_label = current.as_deref().unwrap_or("unknown");
     if current.as_deref() == Some(images.version.as_str()) && !force {
-        println!("Lamp on {path} already runs firmware {current_label}.");
-        return Ok(());
+        return Ok(Outcome::UpToDate(images.version.clone()));
     }
-    println!(
-        "Flash {path}: firmware {current_label} -> {} ({} bytes)",
-        images.version,
-        images.segments.iter().map(|(_, d)| d.len()).sum::<usize>()
-    );
-    if !yes && !confirm()? {
-        println!("Flash cancelled; nothing was written.");
-        return Ok(());
+    if !confirm(current_label, &images.version)? {
+        return Ok(Outcome::Cancelled);
     }
     drop(serial);
-    let mut last = 0;
-    write(path, images, &mut |done, total| {
-        let percent = done * 100 / total.max(1);
-        if percent / 10 > last / 10 || (percent == 100 && last != 100) {
-            println!("  {percent}%");
-            last = percent;
-        }
-    })?;
+    write(path, images, report)?;
     // The lamp re-enumerates after the reset; then it must report the new version.
     let deadline = Instant::now() + Duration::from_secs(20);
     let flashed = loop {
@@ -185,8 +241,7 @@ fn flash_lamp(path: &str, images: &Images, force: bool, yes: bool) -> Result<()>
         "Flashed, but the lamp reports firmware {flashed} instead of {}",
         images.version
     );
-    println!("Flashed and verified firmware {flashed} on {path}.");
-    Ok(())
+    Ok(Outcome::Flashed(flashed))
 }
 
 /// Exactly one native ESP32 USB candidate; INFO then proves the firmware.
@@ -380,7 +435,7 @@ pub fn write(path: &str, images: &Images, report: &mut dyn FnMut(usize, usize)) 
     Ok(())
 }
 
-fn confirm() -> Result<bool> {
+fn prompt() -> Result<bool> {
     anyhow::ensure!(
         std::io::stdin().is_terminal(),
         "No terminal to confirm on; pass --yes to flash"
