@@ -187,7 +187,7 @@ pub fn update(
     let images = load(&dir)?;
     let path = match port {
         Some(path) => path,
-        None => lamp_port()?,
+        None => usb_lamp_port()?,
     };
     // Only USB mirroring holds the cable. Otherwise answer "up to date" from a
     // plain INFO first, so a Bluetooth lamp never disconnects for a check.
@@ -255,7 +255,7 @@ fn flash_lamp(
 }
 
 /// Exactly one native ESP32 USB candidate; INFO then proves the firmware.
-fn lamp_port() -> Result<String> {
+pub fn usb_lamp_port() -> Result<String> {
     let mut candidates: Vec<String> = serialport::available_ports()?
         .into_iter()
         .filter(|p| {
@@ -288,7 +288,11 @@ fn pause_mirroring() -> Result<bool> {
 
 /// A paused worker releases the port within its next poll; keep trying briefly.
 fn open_lamp(path: &str) -> Result<Box<dyn SerialPort>> {
-    let deadline = Instant::now() + Duration::from_secs(8);
+    open_lamp_within(path, Duration::from_secs(8))
+}
+
+fn open_lamp_within(path: &str, retry: Duration) -> Result<Box<dyn SerialPort>> {
+    let deadline = Instant::now() + retry;
     loop {
         match serialport::new(path, 115_200)
             .timeout(Duration::from_millis(100))
@@ -309,24 +313,56 @@ fn open_lamp(path: &str) -> Result<Box<dyn SerialPort>> {
     }
 }
 
-/// INFO over USB: `Some(version)` from current firmware, `None` from older
-/// BroGlow firmware that only prints the pair line, an error without any reply.
+/// What the lamp on USB answered to INFO.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LampInfo {
+    /// Twelve hex digits of the base MAC, the key of `config.usb_lamps`.
+    pub identity: String,
+    /// `None` from older BroGlow firmware that only prints the pair line.
+    pub version: Option<String>,
+}
+
+/// Ask the single USB lamp once, without retries or pausing anything; the tray
+/// does this in the background so Lamp details can name the lamp and its version.
+pub fn probe(path: &str) -> Result<LampInfo> {
+    lamp_info(open_lamp_within(path, Duration::ZERO)?.as_mut())
+}
+
 pub fn lamp_version(port: &mut dyn SerialPort) -> Result<Option<String>> {
+    Ok(lamp_info(port)?.version)
+}
+
+/// INFO over USB: the pair line proves BroGlow firmware; a `version` line
+/// follows from firmware 1.2.0 on. An error means no BroGlow reply at all.
+pub fn lamp_info(port: &mut dyn SerialPort) -> Result<LampInfo> {
     port.write_all(b"INFO\n")?;
     port.flush()?;
     let deadline = Instant::now() + Duration::from_secs(5);
-    let mut paired_at = None;
+    let mut paired: Option<(String, Instant)> = None;
     let mut line = Vec::new();
     while Instant::now() < deadline {
         let mut byte = [0];
         match port.read(&mut byte) {
             Ok(1) if byte[0] == b'\n' => {
-                if line.starts_with(b"version=") {
-                    let version = std::str::from_utf8(&line[8..])?.trim_end_matches('\r');
-                    return Ok(Some(version.to_string()));
-                }
-                if line.starts_with(b"broglow_pair identity=") {
-                    paired_at = Some(Instant::now());
+                if let Some((identity, _)) = &paired {
+                    if line.starts_with(b"version=") {
+                        let version = std::str::from_utf8(&line[8..])?.trim_end_matches('\r');
+                        return Ok(LampInfo {
+                            identity: identity.clone(),
+                            version: Some(version.to_string()),
+                        });
+                    }
+                } else if let Some(rest) = line.strip_prefix(b"broglow_pair identity=") {
+                    let identity = std::str::from_utf8(rest)?
+                        .split(' ')
+                        .next()
+                        .unwrap_or_default()
+                        .to_string();
+                    anyhow::ensure!(
+                        identity.len() == 12 && identity.bytes().all(|b| b.is_ascii_hexdigit()),
+                        "Unexpected BroGlow identity in the INFO reply"
+                    );
+                    paired = Some((identity, Instant::now()));
                 }
                 line.clear();
             }
@@ -340,8 +376,13 @@ pub fn lamp_version(port: &mut dyn SerialPort) -> Result<Option<String>> {
             _ => {}
         }
         // Older firmware answers INFO with the pair line only.
-        if paired_at.is_some_and(|at| at.elapsed() > Duration::from_millis(500)) {
-            return Ok(None);
+        if let Some((identity, at)) = &paired {
+            if at.elapsed() > Duration::from_millis(500) {
+                return Ok(LampInfo {
+                    identity: identity.clone(),
+                    version: None,
+                });
+            }
         }
     }
     bail!("No BroGlow INFO reply over USB; the lamp runs no BroGlow firmware or another program holds the port")

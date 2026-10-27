@@ -358,6 +358,9 @@ enum UserEvent {
     /// The firmware thread ended: the outcome text, or the failure.
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     FirmwareFinished(Result<String, String>),
+    /// The background INFO probe of the lamp on USB answered (or did not).
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    UsbLampProbed(String, Option<crate::flash::LampInfo>),
     /// The usage refresher produced a new snapshot (design 1a/1c readout).
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     UsageChanged,
@@ -624,6 +627,8 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
     let setup_proxy = event_loop.create_proxy();
     #[cfg(target_os = "macos")]
     let mut usb_auto_pair = crate::ble::UsbAutoPair::default();
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    let mut usb_probe_in_flight = false;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -677,9 +682,43 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
                 // Five-second polling can miss a faster unplug/replug; switch
                 // to USB hotplug events if that ever matters.
                 #[cfg(target_os = "macos")]
-                if !popover.setup_busy && !popover.flash_busy {
+                if !popover.setup_busy && !popover.flash_busy && !usb_probe_in_flight {
                     if let Some(mode) = usb_auto_pair.poll() {
                         start_lamp_setup(&mut popover, &setup_proxy, mode);
+                    }
+                }
+                // Name the lamp on USB and learn its firmware for Lamp details.
+                // One probe per attachment, refreshed each minute; never while
+                // setup or a flash owns the cable, nor while USB mirroring does.
+                #[cfg(any(target_os = "macos", target_os = "windows"))]
+                if !popover.setup_busy && !popover.flash_busy && !usb_probe_in_flight {
+                    match crate::flash::usb_lamp_port() {
+                        Ok(port) => {
+                            let cfg = config::read_config();
+                            let cable_held =
+                                cfg.led_enabled && cfg.led_transport == config::LedTransport::Usb;
+                            let fresh = popover.usb_lamp.as_ref().is_some_and(|lamp| {
+                                lamp.port == port
+                                    && lamp.at.elapsed() < std::time::Duration::from_secs(60)
+                            });
+                            if cable_held {
+                                if popover.usb_lamp.is_some() {
+                                    popover.set_usb_lamp(None);
+                                }
+                            } else if !fresh {
+                                usb_probe_in_flight = true;
+                                let proxy = setup_proxy.clone();
+                                thread::spawn(move || {
+                                    let info = crate::flash::probe(&port).ok();
+                                    let _ = proxy.send_event(UserEvent::UsbLampProbed(port, info));
+                                });
+                            }
+                        }
+                        Err(_) => {
+                            if popover.usb_lamp.is_some() {
+                                popover.set_usb_lamp(None);
+                            }
+                        }
                     }
                 }
                 let state = read_display_state();
@@ -759,6 +798,15 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
             #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::UserEvent(UserEvent::FirmwareFinished(result)) => {
                 popover.firmware_result(result);
+            }
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            Event::UserEvent(UserEvent::UsbLampProbed(port, info)) => {
+                usb_probe_in_flight = false;
+                popover.set_usb_lamp(Some(crate::popover::UsbLamp {
+                    port,
+                    info,
+                    at: std::time::Instant::now(),
+                }));
             }
             #[cfg(any(target_os = "macos", target_os = "windows"))]
             Event::UserEvent(UserEvent::Popover(msg)) => match msg {

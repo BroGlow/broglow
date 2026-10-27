@@ -303,8 +303,9 @@ test('native lamp enable actions restore the illustrative connection detail', as
   child.clickLocal('lamp');
   for (const enabled of [false, true]) {
     child.clickCommand('set_led', enabled);
-    assert.equal(child.element('lampdetail').textContent, 'Simulated USB lamp. No hardware is connected by this website.');
-    assert.doesNotMatch(child.element('lampdetail').textContent, /Waiting for the service|Stopping lamp updates/);
+    // The USB row's Connection details carry the worker detail.
+    assert.equal(child.element('lampdiagnostic-0').textContent, 'Simulated USB lamp. No hardware is connected by this website.');
+    assert.doesNotMatch(child.element('lampdiagnostic-0').textContent, /Waiting for the service|Stopping lamp updates/);
   }
 });
 

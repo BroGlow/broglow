@@ -273,7 +273,26 @@ struct LampPayload {
     brightness_by_id: std::collections::BTreeMap<String, u8>,
     /// An ESP32 USB device is attached, whatever the selected transport.
     usb_present: bool,
+    /// The tray's last INFO probe of that device; absent until probed, or
+    /// while USB mirroring holds the cable.
+    usb_lamp: Option<UsbLampPayload>,
     firmware: FirmwarePayload,
+}
+
+#[derive(Serialize)]
+struct UsbLampPayload {
+    /// The remembered Bluetooth lamp this board was paired as, if any.
+    id: Option<String>,
+    version: Option<String>,
+    /// False when the device gave no BroGlow INFO reply.
+    broglow: bool,
+}
+
+/// The tray's view of the lamp on USB, refreshed by a background INFO probe.
+pub(crate) struct UsbLamp {
+    pub(crate) port: String,
+    pub(crate) info: Option<crate::flash::LampInfo>,
+    pub(crate) at: Instant,
 }
 
 /// The Lamp details firmware section: what this release can write, and
@@ -303,6 +322,7 @@ pub struct Popover {
     /// A firmware write is in progress; USB setup and lamp edits wait for it.
     pub(crate) flash_busy: bool,
     flash_progress: u8,
+    pub(crate) usb_lamp: Option<UsbLamp>,
     window: Window,
     webview: WebView,
     anchor: Option<Rect>,
@@ -371,6 +391,7 @@ impl Popover {
             setup_busy: false,
             flash_busy: false,
             flash_progress: 0,
+            usb_lamp: None,
             window,
             webview,
             anchor: None,
@@ -443,6 +464,7 @@ impl Popover {
             state,
             self.setup_busy,
             (self.flash_busy, self.flash_progress),
+            self.usb_lamp.as_ref(),
             cfg,
         );
         let _ = self
@@ -472,8 +494,14 @@ impl Popover {
     }
 
     /// `Ok` is the outcome text; `Err` the failure. Both end the busy state.
+    pub fn set_usb_lamp(&mut self, lamp: Option<UsbLamp>) {
+        self.usb_lamp = lamp;
+        self.push_state(&crate::state::read_display_state());
+    }
+
     pub fn firmware_result(&mut self, result: Result<String, String>) {
         self.flash_busy = false;
+        self.usb_lamp = None; // The version changed; let the next tick re-probe.
         self.push_state(&crate::state::read_display_state());
         let (message, error) = match &result {
             Ok(message) => (message.as_str(), None),
@@ -741,6 +769,7 @@ fn build_payload(
     state: &HookState,
     setup_busy: bool,
     flash: (bool, u8),
+    usb_lamp: Option<&UsbLamp>,
     cfg: &config::Config,
 ) -> String {
     let connection = crate::led::connection_status();
@@ -782,6 +811,14 @@ fn build_payload(
                 })
                 .collect(),
             usb_present: crate::led::board_present_cached(),
+            usb_lamp: usb_lamp.map(|lamp| UsbLampPayload {
+                id: lamp
+                    .info
+                    .as_ref()
+                    .and_then(|info| cfg.usb_lamps.get(&info.identity).cloned()),
+                version: lamp.info.as_ref().and_then(|info| info.version.clone()),
+                broglow: lamp.info.is_some(),
+            }),
             firmware: FirmwarePayload {
                 available: crate::flash::bundled_version(),
                 busy: flash.0,

@@ -104,9 +104,16 @@ function addLampBusy() { return lampSetupPending || state.lamp?.setup_busy === t
 function firmwareBusy() { return firmwarePending || state.lamp?.firmware?.busy === true; }
 // Both own the USB cable; every lamp control waits for either.
 function lampSetupBusy() { return addLampBusy() || firmwareBusy(); }
+// A probed USB lamp must run BroGlow firmware of another version; while our own
+// USB mirroring holds the cable there is no probe, and the write pauses it.
+function usbUpdateAllowed(lamp) {
+  const usb = lamp.usb_lamp;
+  if (usb) return usb.broglow === true && usb.version !== lamp.firmware?.available;
+  return lamp.usb_present === true && lamp.transport === 'usb' && lamp.enabled === true;
+}
 function canUpdateFirmware() {
   const lamp = state.lamp || {};
-  return !!lamp.firmware?.available && lamp.usb_present === true && !lampSetupBusy() && !lampActionPending();
+  return !!lamp.firmware?.available && usbUpdateAllowed(lamp) && !lampSetupBusy() && !lampActionPending();
 }
 window.__firmwareProgress = percent => {
   firmwareProgress = Math.max(0, Math.min(100, Number(percent) || 0));
@@ -324,8 +331,10 @@ function renderLamp() {
     const error = document.getElementById('lamperror');
     error.textContent = configActionError;
     error.hidden = !configActionError;
-    document.getElementById('lampdetail').textContent = wireless && !l.selected_count ?
-      (l.bluetooth_supported ? 'Connect one lamp by USB, then use Add lamp above.' : 'Bluetooth lamp setup requires macOS.') : (l.detail || '');
+    const detail = document.getElementById('lampdetail');
+    detail.textContent = wireless && !l.selected_count ?
+      (l.bluetooth_supported ? 'Connect one lamp by USB, then use Add lamp above.' : 'Bluetooth lamp setup requires macOS.') : '';
+    detail.hidden = !detail.textContent;
     const control = document.getElementById('lampcontrol');
     control.dataset.cmd = 'set_led';
     control.disabled = setupBusy || (!l.enabled && !l.present && !wireless);
@@ -348,18 +357,28 @@ function renderFirmware(l, devices) {
   const versions = devices.map(device => device.firmware);
   const outdated = [...new Set(versions.filter(version => version && version !== firmware.available))];
   const unknown = versions.filter(version => !version).length;
+  const usb = l.usb_lamp;
+  const usbName = usb?.id ? (l.names?.[usb.id] ||
+    (devices.findIndex(device => device.id === usb.id) >= 0 ? `Lamp ${devices.findIndex(device => device.id === usb.id) + 1}` : 'Lamp')) :
+    'The lamp';
+  const upToDate = !busy && usb?.broglow === true && usb.version === firmware.available;
   let hint;
   if (busy) hint = `Writing firmware ${firmware.available}… ${firmwareProgress}%. Keep the lamp connected.`;
-  else if (l.usb_present) hint = `Firmware ${firmware.available} is ready for the lamp on USB. Lamp control pauses during the write; Bluetooth pairing is kept.`;
+  else if (usb && !usb.broglow) hint = `The USB device gives no BroGlow reply. For a new or damaged board run \`broglow flash --force\` from a terminal.`;
+  else if (upToDate) hint = `${usbName} on USB runs firmware ${firmware.available}, the latest.`;
+  else if (usb) hint = `${usbName} on USB runs firmware ${usb.version || `older than ${firmware.available}`}. Updating pauses lamp control; Bluetooth pairing is kept.`;
+  else if (l.usb_present && l.transport === 'usb' && l.enabled) hint = `Firmware ${firmware.available} is ready for the lamp on USB. Updating pauses lamp control; Bluetooth pairing is kept.`;
+  else if (l.usb_present) hint = 'Checking the lamp on USB…';
   else if (outdated.length) hint = `${versions.filter(version => outdated.includes(version)).length === 1 ? 'A lamp runs' : 'Lamps run'} firmware ${outdated.join(', ')}; ${firmware.available} is available. Connect the lamp by USB to update it.`;
   else if (versions.length && !unknown) hint = `Firmware ${firmware.available} is up to date.`;
   else hint = `Connect a lamp by USB to check or update its firmware (${firmware.available} available).`;
   document.getElementById('lampfirmwarehint').textContent = hint;
   const button = document.getElementById('lampflash');
   button.dataset.cmd = 'update_firmware';
+  button.hidden = upToDate;
   button.disabled = !canUpdateFirmware();
   button.setAttribute('aria-disabled', String(!canUpdateFirmware()));
-  button.textContent = busy ? 'Updating…' : `Update firmware to ${firmware.available}`;
+  button.textContent = busy ? 'Updating…' : usb?.id ? `Update ${usbName} to ${firmware.available}` : `Update firmware to ${firmware.available}`;
   const result = document.getElementById('lampfirmwareresult');
   result.textContent = busy ? '' : firmwareError || firmwareMessage;
   result.className = firmwareError && !busy ? 'error' : '';
@@ -452,8 +471,7 @@ function render() {
         `<p id="lampfirmwarehint"></p>` +
         `<button class="pbtn" type="button" id="lampflash" aria-describedby="lampfirmwarehint">Update firmware</button>` +
         `<p id="lampfirmwareresult" role="status" hidden></p></div>` +
-        `<details class="lamptechnical" id="lamptechnical"><summary>Troubleshooting</summary>` +
-        `<div class="lampdetail" id="lampdetail"></div></details>`;
+        `<p class="lampdetail" id="lampdetail" hidden></p>`;
     }
   } else if (view === 'settings') {
     // Build the controls once; later state pushes only sync their values.
