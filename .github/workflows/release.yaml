@@ -30,6 +30,23 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: uv run --frozen python scripts/package-macos.py --release-tag "$RELEASE_TAG" --check-only
+      - name: Restore PlatformIO downloads
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.platformio/platforms
+            ~/.platformio/packages
+          key: platformio-v1-macos-15-${{ runner.arch }}-py3.14-${{ hashFiles('firmware/esp32-c3-supermini/platformio.ini', 'pyproject.toml', 'uv.lock') }}
+      # The Windows archive ships the same C3 images as the Mac packages.
+      - name: Build and package the C3 firmware
+        run: |
+          uv run --frozen flash --build-only
+          uv run --frozen python scripts/package-firmware.py --output dist/firmware/esp32-c3-supermini
+      - uses: actions/upload-artifact@v7
+        with:
+          name: firmware
+          if-no-files-found: error
+          path: dist/firmware
       - name: Generate, validate and package the enclosure
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -140,7 +157,11 @@ jobs:
           version: '0.12.17'
       - name: Build Windows tray app and CLI
         run: cargo build --release --locked --target x86_64-pc-windows-msvc
-      - name: Package Windows tray app and CLI (no BLE or firmware)
+      - uses: actions/download-artifact@v8
+        with:
+          name: firmware
+          path: target/x86_64-pc-windows-msvc/release/firmware
+      - name: Package Windows tray app, CLI and firmware (no BLE)
         shell: bash
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -148,13 +169,14 @@ jobs:
           set -euo pipefail
           RELEASE=target/x86_64-pc-windows-msvc/release
           test "$("$RELEASE/broglow.exe" --version)" = "broglow ${RELEASE_TAG#v}"
+          test -s "$RELEASE/firmware/esp32-c3-supermini/firmware.bin"
           uv run --no-project --python 3.14 python scripts/third-party-notices.py rust \
             --target x86_64-pc-windows-msvc --output-dir "$RELEASE"
           mkdir dist
           FILE="broglow-${RELEASE_TAG}-x86_64-pc-windows-msvc.tar.gz"
           cp LICENSE "$RELEASE/LICENSE"
           tar czf "dist/$FILE" -C "$RELEASE" broglow.exe LICENSE \
-            THIRD-PARTY-NOTICES.md RUST-STANDARD-LIBRARY-COPYRIGHT.html
+            THIRD-PARTY-NOTICES.md RUST-STANDARD-LIBRARY-COPYRIGHT.html firmware
           cd dist
           sha256sum "$FILE" > "$FILE.sha256"
       - uses: actions/upload-artifact@v7
@@ -192,10 +214,9 @@ jobs:
             FILE="broglow-${RELEASE_TAG}-${TARGET}.tar.gz"
             PREFIX="broglow-${RELEASE_TAG}-${TARGET}/"
             NAMES="THIRD-PARTY-NOTICES.md RUST-STANDARD-LIBRARY-COPYRIGHT.html"
+            NAMES="$NAMES firmware/esp32-c3-supermini/THIRD-PARTY-NOTICES.md firmware/esp32-c3-supermini/firmware.bin"
             if [ "$TARGET" = x86_64-pc-windows-msvc ]; then
               PREFIX=""
-            else
-              NAMES="$NAMES firmware/esp32-c3-supermini/THIRD-PARTY-NOTICES.md"
             fi
             LISTING="$(tar tzf "$FILE")"
             for NAME in $NAMES; do
@@ -232,6 +253,7 @@ jobs:
             ```
 
             Run `broglow install` after installing or upgrading to register agent integrations and start the menu-bar app.
+            A lamp updates its firmware over USB from Lamp details in the app, or with `broglow flash`.
 
             [Setup guide](https://broglow.github.io/broglow/docs/)
 
@@ -245,7 +267,7 @@ jobs:
             - Apple Silicon: `broglow-${{ github.ref_name }}-aarch64-apple-darwin.tar.gz`
             - Intel: `broglow-${{ github.ref_name }}-x86_64-apple-darwin.tar.gz`
 
-            Both contain the native BroGlow app, ESP32-C3 SuperMini firmware and its source, checksums, operating guide and third-party notices. Follow the included guide to install. The app is not Developer ID signed or notarized.
+            Both contain the native BroGlow app, ESP32-C3 SuperMini firmware and its source, checksums, operating guide and third-party notices. Follow the included guide to install. The app is not Developer ID signed or notarized. The app writes the firmware with `broglow flash`; no Python toolchain is needed.
 
             **Windows (x64)**
 
@@ -255,7 +277,7 @@ jobs:
             .\broglow.exe install
             ```
 
-            This registers hooks, enables startup at login and launches the system-tray app. Use `.\broglow.exe menubar` to launch the tray interface directly, or `.\broglow.exe` for the terminal dashboard. The archive includes USB lamp support, its license and third-party notices; no installer, BLE support, firmware or manuals.
+            This registers hooks, enables startup at login and launches the system-tray app. Use `.\broglow.exe menubar` to launch the tray interface directly, or `.\broglow.exe` for the terminal dashboard. The archive includes USB lamp support, the ESP32-C3 firmware images with their source and licenses (`.\broglow.exe flash` writes them), its license and third-party notices; no installer, BLE support or manuals.
 
             **3D-printed enclosure (optional)**
 

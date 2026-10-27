@@ -250,8 +250,8 @@ Options: `--port PATH` for a specific device, `--firmware DIR` for images elsewh
 `--force` to rewrite the same version or a board without BroGlow firmware, and `--yes`
 to skip the prompt. A lamp that already reports the bundled version is left alone.
 
-Without the app, run `uv run --frozen flash` from the package folder after verifying
-its checksums.
+From a source checkout, `uv run --frozen flash` builds and uploads with PlatformIO
+instead.
 
 The manual esptool procedure below is for advanced recovery. First
 [identify the board](#build-and-identify-the-board). Set `PACKAGE_DIR` to the extracted
@@ -497,9 +497,9 @@ settings and keep unrelated changes.
 ### Install a prebuilt package
 
 Download the full Mac package and its `.tar.gz.sha256` file: `aarch64-apple-darwin` for
-Apple Silicon or `x86_64-apple-darwin` for Intel. The Windows archives (tray app and
-CLI) do not contain the Mac app or the C3 firmware. Installing the app needs no Rust,
-Cargo, Node.js or PlatformIO.
+Apple Silicon or `x86_64-apple-darwin` for Intel. The Windows archives (tray app,
+CLI and the same C3 firmware images) do not contain the Mac app. Installing the app
+needs no Rust, Cargo, Node.js, Python or PlatformIO.
 
 ```bash
 # Replace with the actual archive path.
@@ -516,6 +516,7 @@ file bin/broglow
 cat BUILD.json
 ./bin/broglow --version
 ./bin/broglow ble pair --help
+./bin/broglow flash --help
 ```
 
 Require matching checksums and architecture, the expected version and a working
@@ -530,11 +531,13 @@ Gatekeeper globally. After the [snapshot](#install-or-update-the-mac-service), i
 mkdir -p "$HOME/.cargo/bin"
 install -m 755 "$PACKAGE_DIR/bin/broglow" "$HOME/.cargo/bin/broglow"
 cmp "$PACKAGE_DIR/bin/broglow" "$HOME/.cargo/bin/broglow"
-"$HOME/.cargo/bin/broglow" install
+"$PACKAGE_DIR/bin/broglow" install
 export PATH="$HOME/.cargo/bin:$PATH"
 ```
 
-The installer signs the app bundle locally. Then finish the
+Run `install` from the package: it copies the package's firmware images into the app
+bundle, so Lamp details can offer firmware updates. The installer signs the app bundle
+locally. Then finish the
 [PATH setup](#run-broglow-from-any-directory-path), the
 [service validation](#menu-bar-icon-and-service-validation) and
 [USB pairing](#usb-assisted-setup). Only new or unflashed boards need the included

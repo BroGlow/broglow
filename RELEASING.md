@@ -21,7 +21,7 @@ while the repository retains its MIT license. Keep all generated files ignored a
 | --- | --- |
 | `broglow-vVERSION-aarch64-apple-darwin.tar.gz` | Apple Silicon app, C3 firmware and source, operating manual, licenses and checksums. |
 | `broglow-vVERSION-x86_64-apple-darwin.tar.gz` | The same bundle, with a native Intel Mac app. |
-| `broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz` | Windows graphical tray app and CLI in `broglow.exe`, with USB lamp support, license and third-party notices; no installer, BLE, firmware or manuals. |
+| `broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz` | Windows graphical tray app and CLI in `broglow.exe`, with USB lamp support, the C3 firmware images with source and licenses, license and third-party notices; no installer, BLE or manuals. |
 | `broglow-models-vVERSION.zip` | Enclosure print files: the five production parts 01–05 in `stl/` (print orientation) and `step/`, plus `BUILD.json`. |
 | Matching `.sha256` | Checksum of each archive, with its original filename. |
 
@@ -101,7 +101,8 @@ The **Release** workflow runs in this order:
    JavaScript integration, packaging and generated-artifact checks, firmware
    host checks and both C3 firmware builds.
 3. After both pass, native Apple Silicon and Intel runners build and package the
-   Mac app and C3 firmware, and a Windows runner builds the tray app and CLI.
+   Mac app and C3 firmware, and a Windows runner builds the tray app and CLI and
+   adds the firmware directory the source job packaged.
 4. The final job verifies every expected archive, its checksum and the
    third-party notices, then creates a **draft GitHub Release**. Only the
    archives and their `.sha256` files are attached.

@@ -67,7 +67,7 @@ For a new or unflashed C3, follow the [flashing and backup instructions](site/gu
 | Platform | Package | Lamp |
 | --- | --- | --- |
 | macOS | App, C3 firmware and manuals | USB or Bluetooth LE |
-| Windows | Tray app and CLI; no installer, firmware or manuals | USB |
+| Windows | Tray app, CLI and firmware images (`broglow.exe flash`); no installer or manuals | USB |
 | Linux | Build from source | USB |
 
 GitHub Releases also provide the enclosure as a separate download.

@@ -66,7 +66,8 @@ cargo install --locked --path .
 
 Скачайте `broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz` из
 [Releases]({{ repo_url }}/releases): приложение в трее и CLI в `broglow.exe` с
-поддержкой лампы по USB; без установщика, Bluetooth, прошивки и руководств.
+поддержкой лампы по USB и образами прошивки ESP32-C3 (`.\broglow.exe flash` записывает
+их в лампу на USB); без установщика, Bluetooth и руководств.
 Распакуйте архив в постоянную папку (например, `tar -xf <файл>` в PowerShell) и
 выполните из этой папки:
 

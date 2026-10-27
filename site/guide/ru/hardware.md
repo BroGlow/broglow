@@ -275,8 +275,8 @@ broglow flash
 для повторной записи той же версии или платы без прошивки BroGlow и `--yes`, чтобы
 пропустить вопрос. Лампа, которая уже сообщает версию из пакета, не перезаписывается.
 
-Без приложения выполните `uv run --frozen flash` из каталога пакета, проверив его
-контрольные суммы.
+Из чекаута исходников `uv run --frozen flash` вместо этого собирает и загружает
+прошивку через PlatformIO.
 
 Ручная процедура esptool ниже нужна для сложного восстановления. Сначала
 [определите плату](#build-and-identify-the-board). Задайте `PACKAGE_DIR` — распакованный
@@ -542,8 +542,8 @@ fi
 
 Скачайте полный пакет для Mac и его файл `.tar.gz.sha256`: `aarch64-apple-darwin`
 для Apple Silicon или `x86_64-apple-darwin` для Intel. Архивы для Windows (приложение
-в области уведомлений и CLI) не содержат приложения для Mac и прошивки C3. Для
-установки приложения не нужны Rust, Cargo, Node.js и PlatformIO.
+в области уведомлений, CLI и те же образы прошивки C3) не содержат приложения для
+Mac. Для установки приложения не нужны Rust, Cargo, Node.js, Python и PlatformIO.
 
 ```bash
 # Замените фактическим путём к архиву.
@@ -560,6 +560,7 @@ file bin/broglow
 cat BUILD.json
 ./bin/broglow --version
 ./bin/broglow ble pair --help
+./bin/broglow flash --help
 ```
 
 Контрольные суммы и архитектура должны совпасть, версия — быть ожидаемой,
@@ -575,9 +576,12 @@ cat BUILD.json
 mkdir -p "$HOME/.cargo/bin"
 install -m 755 "$PACKAGE_DIR/bin/broglow" "$HOME/.cargo/bin/broglow"
 cmp "$PACKAGE_DIR/bin/broglow" "$HOME/.cargo/bin/broglow"
-"$HOME/.cargo/bin/broglow" install
+"$PACKAGE_DIR/bin/broglow" install
 export PATH="$HOME/.cargo/bin:$PATH"
 ```
+
+Запускайте `install` из пакета: он копирует образы прошивки пакета в бандл
+приложения, чтобы детали лампы могли предлагать обновление прошивки.
 
 Установщик сам подписывает пакет приложения на этом Mac. Затем выполните
 [настройку PATH](#run-broglow-from-any-directory-path),

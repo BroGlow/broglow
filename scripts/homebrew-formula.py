@@ -34,7 +34,7 @@ class {class_name} < Formula
 
   def install
     bin.install "bin/broglow"
-    pkgshare.install "firmware", "site"
+    pkgshare.install "firmware"
     doc.install Dir["*.md"], "RUST-STANDARD-LIBRARY-COPYRIGHT.html"
   end
 
@@ -43,7 +43,9 @@ class {class_name} < Formula
       Finish setup once (registers the coding-agent hooks, installs
       ~/Applications/BroGlow.app and starts it at login); repeat after upgrades:
         broglow install
-      Firmware and manuals: #{{pkgshare}}
+      Update a lamp over USB with `broglow flash` or the app's Lamp details.
+      Firmware images: #{{pkgshare}}/firmware
+      Manual: https://broglow.github.io/broglow/docs/
     EOS
   end
 

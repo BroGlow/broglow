@@ -7,7 +7,6 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
-import sys
 
 import pytest
 
@@ -17,6 +16,7 @@ spec = importlib.util.spec_from_file_location(
 package = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(package)
 notices = package.notices
+firmware = package.firmware
 RUST_TARGETS = tuple(
     pytest.param(target, id=target) for target in notices.SHIPPED_TARGETS
 )
@@ -115,7 +115,7 @@ class FirmwareNotices:
 
 @pytest.fixture(scope="module")
 def local_firmware_notices() -> FirmwareNotices | None:
-    build = package.C3 / ".pio/build/esp32-c3-supermini"
+    build = firmware.C3 / ".pio/build/esp32-c3-supermini"
     platformio = Path.home() / ".platformio/packages"
     toolchain = platformio / "toolchain-riscv32-esp"
     if not (build / "firmware.map").is_file() or not toolchain.is_dir():
@@ -138,17 +138,17 @@ def packaged_manual(
     generated = rust_notices[notices.SHIPPED_TARGETS[0]]
     for name in (notices.NOTICES, notices.RUST_STD):
         shutil.copy2(generated / name, destination / name)
-    firmware = destination / "firmware/esp32-c3-supermini"
-    firmware.mkdir(parents=True)
-    package.write_firmware_dependencies(firmware)
+    images = destination / "firmware/esp32-c3-supermini"
+    images.mkdir(parents=True)
+    firmware.write_firmware_dependencies(images)
     if local_firmware_notices is None:
         for name in ("ARDUINO-LICENSE.md", "BLE-LICENSE.txt", notices.NOTICES):
-            (firmware / name).write_text("Written by the firmware packaging step.\n")
+            (images / name).write_text("Written by the firmware packaging step.\n")
     else:
-        package.write_firmware_notices(
-            firmware, local_firmware_notices.framework, local_firmware_notices.document
+        firmware.write_firmware_notices(
+            images, local_firmware_notices.framework, local_firmware_notices.document
         )
-    shutil.copy2(package.C3 / "platformio.ini", firmware / "platformio.ini")
+    shutil.copy2(firmware.C3 / "platformio.ini", images / "platformio.ini")
     return destination
 
 
@@ -177,21 +177,56 @@ def test_macho_build_info(load_commands: str, expected: dict[str, str]) -> None:
     assert package.macho_build_info(load_commands) == expected
 
 
-def test_packaged_flash_entrypoint_runs_without_the_checkout(tmp_path: Path) -> None:
-    package.copy_flash_tool(tmp_path)
+def test_firmware_package_ships_images_sources_and_notices_only(
+    tmp_path: Path, local_firmware_notices: FirmwareNotices | None
+) -> None:
+    if local_firmware_notices is None:
+        pytest.skip("Pinned firmware has not been built on this machine")
+    destination = tmp_path / "esp32-c3-supermini"
+    version = firmware.cargo_version()
 
-    subprocess.run(
-        [sys.executable, str(tmp_path / "tools/broglow_tools/flash.py"), "--help"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
+    framework_version, linked = firmware.package_firmware(
+        destination, Path.home() / ".platformio", version
     )
 
-    for name in ("pyproject.toml", "uv.lock"):
-        assert (tmp_path / name).read_bytes() == (package.ROOT / name).read_bytes()
-    assert not list(tmp_path.rglob("__pycache__"))
-    assert not list(tmp_path.rglob("*.pyc"))
+    assert framework_version.startswith("4.20017.")
+    assert linked
+    files = {
+        p.relative_to(destination).as_posix()
+        for p in destination.rglob("*")
+        if p.is_file()
+    }
+    assert {
+        "bootloader.bin",
+        "partitions.bin",
+        "boot_app0.bin",
+        "firmware.bin",
+        "flash-manifest.json",
+        "platformio.ini",
+        "version.py",
+        "src/main.cpp",
+        "ARDUINO-LICENSE.md",
+        "BLE-LICENSE.txt",
+        notices.NOTICES,
+        "DEPENDENCIES.md",
+        "DEPENDENCIES.ru.md",
+    } <= files
+    assert not any(
+        name.endswith((".lock", ".toml")) and "/" not in name
+        for name in files - {"platformio.ini"}
+    )
+    assert (
+        f"version={version}\n".encode() in (destination / "firmware.bin").read_bytes()
+    )
+    manifest = json.loads((destination / "flash-manifest.json").read_text())
+    assert [segment["offset"] for segment in manifest["segments"]] == [
+        "0x0",
+        "0x8000",
+        "0xe000",
+        "0x10000",
+    ]
+    with pytest.raises(SystemExit, match="Refusing|exists|File exists"):
+        firmware.package_firmware(destination, Path.home() / ".platformio", version)
 
 
 @pytest.mark.parametrize("target", RUST_TARGETS)

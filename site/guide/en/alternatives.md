@@ -65,7 +65,8 @@ their own startup file. `broglow install` does not change `PATH`.
 
 Download `broglow-vVERSION-x86_64-pc-windows-msvc.tar.gz` from
 [Releases]({{ repo_url }}/releases): the tray app and CLI in `broglow.exe`, with USB
-lamp support; no installer, Bluetooth, firmware or manuals. Extract it into a
+lamp support and the ESP32-C3 firmware images (`.\broglow.exe flash` writes them to a
+lamp on USB); no installer, Bluetooth or manuals. Extract it into a
 permanent folder (for example `tar -xf <file>` in PowerShell) and run from that folder:
 
 ```powershell
