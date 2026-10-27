@@ -358,9 +358,10 @@ function renderFirmware(l, devices) {
   const outdated = [...new Set(versions.filter(version => version && version !== firmware.available))];
   const unknown = versions.filter(version => !version).length;
   const usb = l.usb_lamp;
-  const usbName = usb?.id ? (l.names?.[usb.id] ||
-    (devices.findIndex(device => device.id === usb.id) >= 0 ? `Lamp ${devices.findIndex(device => device.id === usb.id) + 1}` : 'Lamp')) :
-    'The lamp';
+  // A saved name reads as a name only when marked: Lamp “Home”, not Home.
+  const usbIndex = usb?.id ? devices.findIndex(device => device.id === usb.id) : -1;
+  const usbName = !usb?.id ? 'The lamp' : l.names?.[usb.id] ? `Lamp “${l.names[usb.id]}”` :
+    usbIndex >= 0 ? `Lamp ${usbIndex + 1}` : 'The lamp';
   const upToDate = !busy && usb?.broglow === true && usb.version === firmware.available;
   let hint;
   if (busy) hint = `Writing firmware ${firmware.available}… ${firmwareProgress}%. Keep the lamp connected.`;
@@ -378,7 +379,7 @@ function renderFirmware(l, devices) {
   button.hidden = upToDate;
   button.disabled = !canUpdateFirmware();
   button.setAttribute('aria-disabled', String(!canUpdateFirmware()));
-  button.textContent = busy ? 'Updating…' : usb?.id ? `Update ${usbName} to ${firmware.available}` : `Update firmware to ${firmware.available}`;
+  button.textContent = busy ? 'Updating…' : usbName === 'The lamp' ? `Update firmware to ${firmware.available}` : `Update ${usbName} to ${firmware.available}`;
   const result = document.getElementById('lampfirmwareresult');
   result.textContent = busy ? '' : firmwareError || firmwareMessage;
   result.className = firmwareError && !busy ? 'error' : '';

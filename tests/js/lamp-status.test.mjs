@@ -1491,7 +1491,7 @@ test('firmware section offers a USB update only with bundled images and a lamp o
   assert.equal(element('lampflash').disabled, true);
   update(lamp({ firmware, usb_present: true, names: { 'saved-lamp': 'Desk' },
     usb_lamp: { id: 'saved-lamp', version: '1.2.0', broglow: true } }));
-  assert.equal(element('lampfirmwarehint').textContent, 'Desk on USB runs firmware 1.2.0, the latest.');
+  assert.equal(element('lampfirmwarehint').textContent, 'Lamp “Desk” on USB runs firmware 1.2.0, the latest.');
   assert.equal(element('lampflash').hidden, true, 'Nothing to write');
   click('lampflash');
   assert.equal(commands('update_firmware').length, 0);
@@ -1500,6 +1500,11 @@ test('firmware section offers a USB update only with bundled images and a lamp o
   assert.equal(element('lampflash').hidden, false);
   assert.equal(element('lampflash').disabled, false);
   assert.equal(element('lampflash').textContent, 'Update Lamp 1 to 1.2.0');
+  update(lamp({ firmware, usb_present: true, names: { 'saved-lamp': 'Desk' }, usb_lamp: { id: 'saved-lamp', version: '1.1.0', broglow: true } }));
+  assert.equal(element('lampflash').textContent, 'Update Lamp “Desk” to 1.2.0');
+  update(lamp({ firmware, usb_present: true, usb_lamp: { id: 'other-lamp', version: '1.1.0', broglow: true } }));
+  assert.equal(element('lampfirmwarehint').textContent, 'The lamp on USB runs firmware 1.1.0. Updating pauses lamp control; Bluetooth pairing is kept.', 'A paired board that is no longer saved has no row to name it by');
+  assert.equal(element('lampflash').textContent, 'Update firmware to 1.2.0');
   update(lamp({ firmware, usb_present: true, usb_lamp: { id: null, version: null, broglow: true } }));
   assert.equal(element('lampfirmwarehint').textContent, 'The lamp on USB runs firmware older than 1.2.0. Updating pauses lamp control; Bluetooth pairing is kept.');
   assert.equal(element('lampflash').textContent, 'Update firmware to 1.2.0');
