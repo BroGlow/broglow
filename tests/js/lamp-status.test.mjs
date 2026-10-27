@@ -1556,6 +1556,10 @@ test('Settings shows the app version and a quiet update check with Homebrew only
   const refresh = (app, settings = {}) => context.window.__setState({ aggregate: 'none', sessions: [], settings, lamp: lamp(), app });
   refresh({ version: '1.1.0', update: { checking: false, checked: false, latest: null, available: false, url: null, error: null, homebrew: true, upgrading: false } });
   click('settingsbtn');
+  const html = element('groups').innerHTML;
+  assert.match(html, /<div class="grplabel">Updates<\/div><div class="optrow static">/, 'A named group; the version row is not a control');
+  assert.match(html, /<label class="optrow" for="checkupdatesonstartup" title="One request to GitHub[^"]*Never a notification\."/, 'The long explanation lives in the tooltip');
+  assert.match(html, /id="checkupdatesonstartuphint">Checks GitHub releases\.</);
   assert.equal(element('appversion').textContent, 'BroGlow 1.1.0');
   assert.equal(element('updatehint').textContent, 'Not checked yet.');
   assert.equal(element('checkupdatesonstartup').checked, true, 'Startup check defaults on');

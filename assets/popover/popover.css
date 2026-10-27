@@ -128,6 +128,8 @@ body.win .sreason { color: #ff99a4; }
 body.win .optrow { border-radius: 5px; padding: 9px 12px; }
 .optrow:hover { background: rgba(255,255,255,.08); }
 body.win .optrow:hover { background: rgba(255,255,255,.06); }
+/* Read-only rows (the version line) must not light up like controls. */
+.optrow.static:hover { background: none; }
 .setdesc { white-space: normal; line-height: 1.35; }
 #usblampsettings .sname { white-space: normal; }
 .optrow input { margin-top: 2px; accent-color: #3577f6; }

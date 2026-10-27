@@ -556,16 +556,16 @@ function render() {
       `<input type="checkbox" id="showusageinmenubar" aria-describedby="showusageinmenubarhint">` +
       `<span class="sinfo"><span class="sname">Show usage in menu bar</span>` +
       `<span class="smeta setdesc" id="showusageinmenubarhint">Limits and tokens beside the status icon. Hiding them keeps tracking and popover totals on.</span></span></label>` +
-      `<div class="grplabel">BroGlow</div>` +
-      `<div class="optrow"><span class="sinfo"><span class="sname" id="appversion"></span>` +
+      `<div class="grplabel">Updates</div>` +
+      `<div class="optrow static"><span class="sinfo"><span class="sname" id="appversion"></span>` +
       `<span class="smeta setdesc" id="updatehint" role="status"></span></span></div>` +
       `<div class="lampactions"><button class="pbtn" type="button" id="checkupdates" data-cmd="check_updates">Check for updates</button>` +
       `<button class="pbtn" type="button" id="releasenotes" data-cmd="open_release_notes" hidden>Release notes</button>` +
       `<button class="pbtn" type="button" id="upgradeapp" data-cmd="upgrade_app" hidden>Update via Homebrew</button></div>` +
-      `<label class="optrow" for="checkupdatesonstartup">` +
+      `<label class="optrow" for="checkupdatesonstartup" title="One request to GitHub for the latest release when the app starts; nothing about you or this Mac is sent. Never a notification.">` +
       `<input type="checkbox" id="checkupdatesonstartup" aria-describedby="checkupdatesonstartuphint">` +
       `<span class="sinfo"><span class="sname">Check for updates at startup</span>` +
-      `<span class="smeta setdesc" id="checkupdatesonstartuphint">One request to GitHub for the latest release when the app starts; nothing about you or this Mac is sent. Never a notification.</span></span></label>`;
+      `<span class="smeta setdesc" id="checkupdatesonstartuphint">Checks GitHub releases.</span></span></label>`;
     const setting = (key, saved) => key in pendingSettings ? pendingSettings[key] : saved;
     document.getElementById('showdashboard').checked = setting('showDashboardButton', state.settings?.showDashboardButton === true);
     document.getElementById('showagentnames').checked = setting('showAgentNames', state.settings?.showAgentNames !== false);
