@@ -95,3 +95,11 @@ btleplug = "=0.13.1"
 futures-util = "0.3"
 tokio = { version = "1", features = ["rt", "time", "macros", "sync"] }
 uuid = "1"
+
+[profile.release]
+# Whole-program optimization and no symbol table: the shipped binary shrinks
+# from ~8.8 MB to ~5.4 MB (measured 2026-10-27, aarch64). Release builds take
+# about twice as long; dev builds are unaffected.
+lto = "fat"
+codegen-units = 1
+strip = true
