@@ -218,15 +218,18 @@ const HOOK_EVENTS: [&str; 6] = [
 /// lifecycle event, and ensure the data dir exists. Idempotent. Does *not*
 /// touch autostart — `install_hooks` layers that on top; the menu-bar daemon's
 /// first-run path deliberately calls only this (see `first_run_setup_daemon`).
-fn register_hooks() -> anyhow::Result<()> {
+/// Returns the names of the agents that were wired up, Claude Code first.
+fn register_hooks() -> anyhow::Result<Vec<&'static str>> {
     // 1. Ensure the broglow data directory exists. Its existence is also the
     //    "already set up" marker for the first-run paths.
     std::fs::create_dir_all(config::data_dir())?;
 
     // 2. Register the native hook backend in settings.json, detection-gated like
     //    every other adapter so a machine without Claude Code gets no ~/.claude.
+    let mut agents = Vec::new();
     if harness::claude::detected() {
         register_claude_hooks()?;
+        agents.push("Claude Code");
     }
 
     // 3. Set up every detected non-Claude harness (opencode, Codex, Copilot).
@@ -236,9 +239,9 @@ fn register_hooks() -> anyhow::Result<()> {
     //    paths — the TUI's full install and the daemon's hooks-only bootstrap —
     //    set them up; adapters touch no autostart, so this is safe from the
     //    daemon path.
-    harness::install_all();
+    agents.extend(harness::install_all());
 
-    Ok(())
+    Ok(agents)
 }
 
 fn register_claude_hooks() -> anyhow::Result<()> {
@@ -301,7 +304,7 @@ fn adopt_legacy_data_dir() {
 fn install_hooks() -> anyhow::Result<()> {
     adopt_legacy_data_dir();
     // 1./2. Register the hook backend in settings.json.
-    register_hooks()?;
+    let agents = register_hooks()?;
 
     // 3. If a status board is already plugged in on this first setup, turn the
     //    LEDs on automatically so the lamp lights up with no extra step.
@@ -310,8 +313,16 @@ fn install_hooks() -> anyhow::Result<()> {
     // 4. Install autostart for the tray daemon (platform-specific).
     install_autostart()?;
 
+    println!("\nInstallation complete!");
+    match agents.as_slice() {
+        [] => println!(
+            "No coding agent was detected; install Claude Code, opencode, Codex or Copilot and run `broglow install` again."
+        ),
+        [one] => println!("Hooks are active for {one}."),
+        [init @ .., last] => println!("Hooks are active for {} and {last}.", init.join(", ")),
+    }
     println!(
-        "\nInstallation complete! Hooks are now active for Claude Code and every detected coding agent (opencode, Codex, Copilot)."
+        "The tray icon is running and starts at login; its Settings view checks for app updates."
     );
     println!("Run `broglow` to launch the TUI dashboard.");
     if !lamp_enabled {

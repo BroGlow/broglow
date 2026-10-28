@@ -76,14 +76,18 @@ pub const ADAPTERS: &[Adapter] = &[opencode::ADAPTER, codex::ADAPTER, copilot::A
 
 /// Set up every *detected* harness's wiring. Best-effort per adapter: a failure
 /// to write one never blocks the others or the Claude hook registration.
-pub fn install_all() {
+/// Returns the labels of the harnesses actually wired up.
+pub fn install_all() -> Vec<&'static str> {
+    let mut installed = Vec::new();
     for a in ADAPTERS {
         if (a.detected)() {
-            if let Err(e) = (a.install)() {
-                eprintln!("broglow: could not set up the {} adapter: {e:#}", a.name);
+            match (a.install)() {
+                Ok(()) => installed.push(a.label),
+                Err(e) => eprintln!("broglow: could not set up the {} adapter: {e:#}", a.name),
             }
         }
     }
+    installed
 }
 
 /// Remove every harness's wiring. Each `uninstall` is marker-guarded, so this is
