@@ -92,12 +92,15 @@ pub fn upgrade_with_homebrew(brew: &Path) -> Result<PathBuf> {
         brew = brew.display(),
         bin = brew.with_file_name("broglow").display()
     );
+    // One handle, cloned: separate descriptors keep separate offsets, so
+    // stdout would overwrite what stderr already appended.
+    let file = std::fs::File::create(&log)?;
     let mut cmd = Command::new("/bin/sh");
     cmd.arg("-c")
         .arg(script)
         .stdin(Stdio::null())
-        .stdout(std::fs::File::create(&log)?)
-        .stderr(std::fs::File::options().append(true).open(&log)?);
+        .stdout(file.try_clone()?)
+        .stderr(file);
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
