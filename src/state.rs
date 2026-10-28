@@ -506,6 +506,7 @@ mod tests {
                     "state::tests::reader_reconciles_late_capacity_and_dismissal_removes_tracking",
                 ])
                 .env("HOME", home.path())
+                .env("BROGLOW_HOME", home.path().join(".broglow"))
                 .env("BROGLOW_TEST_CAPACITY_READER", "1")
                 .output()
                 .unwrap();
@@ -560,6 +561,7 @@ mod tests {
                     "state::tests::reader_reconciles_expiry_after_stop_and_restart",
                 ])
                 .env("HOME", home.path())
+                .env("BROGLOW_HOME", home.path().join(".broglow"))
                 .env("BROGLOW_TEST_EXPIRY", "1")
                 .output()
                 .unwrap();
