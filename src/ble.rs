@@ -270,7 +270,7 @@ mod mac {
     use std::{
         collections::BTreeMap,
         future::Future,
-        sync::Mutex,
+        sync::{Mutex, OnceLock},
         time::{Duration, Instant as StdInstant},
     };
     use tokio::sync::{broadcast, Notify};
@@ -415,10 +415,16 @@ mod mac {
         Ok(file)
     }
 
-    fn runtime() -> Result<tokio::runtime::Runtime> {
-        Ok(tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()?)
+    /// One runtime for the life of the process; the adapter's event task is
+    /// spawned on the runtime that created it and dies with it.
+    fn runtime() -> &'static tokio::runtime::Runtime {
+        static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+        RUNTIME.get_or_init(|| {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .build()
+                .expect("Tokio runtime")
+        })
     }
 
     // Every radio wait is both bounded and interruptible, including discovery/connect.
@@ -449,8 +455,17 @@ mod mac {
         }
     }
 
+    /// One adapter for the life of the process. btleplug's CoreBluetooth
+    /// thread never exits, so an adapter per run leaked a CBCentralManager,
+    /// and a connect pending in a leaked central completed later as a link no
+    /// task could see or cancel. `radio_lock` keeps the worker, `scan` and
+    /// `pair` from using it at the same time.
     async fn adapter(keep: &impl Fn() -> bool) -> Result<Adapter> {
-        wait(
+        static ADAPTER: Mutex<Option<Adapter>> = Mutex::new(None);
+        if let Some(adapter) = ADAPTER.lock().unwrap().clone() {
+            return Ok(adapter);
+        }
+        let adapter = wait(
             async {
                 let manager = Manager::new().await?;
                 manager
@@ -462,7 +477,9 @@ mod mac {
             },
             keep,
         )
-        .await
+        .await?;
+        *ADAPTER.lock().unwrap() = Some(adapter.clone());
+        Ok(adapter)
     }
 
     async fn start(adapter: &Adapter, keep: &impl Fn() -> bool) -> Result<()> {
@@ -495,7 +512,7 @@ mod mac {
             "Run broglow ble off, wait 3 seconds, then scan"
         );
         let _lock = radio_lock()?;
-        runtime()?.block_on(async {
+        runtime().block_on(async {
             let keep = || !config::read_config().led_enabled;
             let adapter = adapter(&keep).await?;
             let result = async {
@@ -890,7 +907,7 @@ mod mac {
                 "USB lamp identity changed between INFO and PAIR; selection was not saved"
             );
             drop(serial);
-            let id = runtime()?.block_on(async {
+            let id = runtime().block_on(async {
                 let keep = || !config::read_config().led_enabled;
                 let adapter = adapter(&keep).await?;
                 let found = async {
@@ -951,7 +968,7 @@ mod mac {
             "Add lamps: broglow ble off; broglow ble scan; broglow ble add <ID>"
         );
         let _lock = radio_lock()?;
-        runtime()?.block_on(async {
+        runtime().block_on(async {
             let keep_config = RefCell::new((StdInstant::now(), cfg.clone()));
             let keep = || {
                 let mut cached = keep_config.borrow_mut();
@@ -1600,9 +1617,17 @@ mod mac {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        /// Tests run on parallel threads; each gets its own runtime.
+        fn test_runtime() -> tokio::runtime::Runtime {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_time()
+                .build()
+                .unwrap()
+        }
         #[test]
         fn expiry_pulse_through_ble_writer_without_radio() {
-            runtime().unwrap().block_on(async {
+            test_runtime().block_on(async {
                 for (brightness, stop_after, fail) in
                     [(0, 7, false), (37, 4, false), (100, 4, true)]
                 {
@@ -1660,7 +1685,7 @@ mod mac {
 
         #[test]
         fn capacity_burst_uses_fast_acknowledged_ticks_without_changing_brightness() {
-            runtime().unwrap().block_on(async {
+            test_runtime().block_on(async {
                 let wall = chrono::Utc::now();
                 let event = crate::state::CapacityAlert {
                     id: "session:turn".into(),
@@ -1743,7 +1768,7 @@ mod mac {
 
         #[test]
         fn name_changes_send_on_the_existing_connection_and_again_after_reconnect() {
-            runtime().unwrap().block_on(async {
+            test_runtime().block_on(async {
                 let original = Config {
                     led_enabled: true,
                     led_transport: LedTransport::Ble,
@@ -1968,7 +1993,7 @@ mod mac {
             crate::led::publish_ble_status(&cfg, connected());
             PREVIEW.lock().unwrap().clear();
 
-            runtime().unwrap().block_on(async {
+            test_runtime().block_on(async {
                 let active = Cell::new(true);
                 let keep = || active.get();
                 let events = RefCell::new(Vec::new());
@@ -2530,7 +2555,7 @@ mod mac {
 
         #[test]
         fn missing_lamp_does_not_block_another_lamps_heartbeat_or_shutdown() {
-            runtime().unwrap().block_on(async {
+            test_runtime().block_on(async {
                 let active = std::cell::Cell::new(true);
                 let cleaned = std::cell::Cell::new(0);
                 let writes = RefCell::new(Vec::new());
@@ -2576,7 +2601,7 @@ mod mac {
 
         #[test]
         fn saved_lamp_changes_start_and_stop_only_that_lamps_task() {
-            runtime().unwrap().block_on(async {
+            test_runtime().block_on(async {
                 let saved = RefCell::new(vec!["home".to_string(), "work".to_string()]);
                 let started = RefCell::new(Vec::new());
                 let stopped = RefCell::new(Vec::new());
@@ -2627,7 +2652,7 @@ mod mac {
 
         #[test]
         fn brightness_changes_send_without_color_change_and_resend_after_reconnect() {
-            runtime().unwrap().block_on(async {
+            test_runtime().block_on(async {
                 let active = Cell::new(true);
                 let first = "11111111-2222-3333-4444-555555555555";
                 let second = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
@@ -2694,7 +2719,7 @@ mod mac {
             assert!(due(Some(b'R'), b'G', Duration::ZERO));
             assert!(!due(Some(b'G'), b'G', Duration::from_secs(1)));
             assert!(due(Some(b'G'), b'G', HEARTBEAT));
-            runtime().unwrap().block_on(async {
+            test_runtime().block_on(async {
                 let polls = std::cell::Cell::new(0);
                 let keep = || {
                     polls.set(polls.get() + 1);

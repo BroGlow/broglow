@@ -140,7 +140,9 @@ device that gives no BroGlow INFO reply) runs `flash::update` on a tray thread
   disconnected. Each pass therefore asks CoreBluetooth (`retrieve_peripherals`): by
   identifier for a link this process holds (a connect that completed after its future
   was cancelled), driven when it reports connected; then by the BroGlow service for a
-  link macOS or another app holds, which `drive` adopts with a connect. The automatic
+  link macOS or another app holds, which `drive` adopts with a connect. The runtime and
+  adapter are process-wide statics: btleplug's CoreBluetooth thread never exits, so an
+  adapter per run leaked a `CBCentralManager` and the connects pending in it. The automatic
   `remember_usb` guard expects the enable state setup left (`paused`). The tray checks
   USB every five seconds and attempts setup once per new attachment; `usb_lamps`
   records verified boards so Disable/Forget survive restart. A detected replug can
