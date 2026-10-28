@@ -23,12 +23,15 @@ const ESPRESSIF_VID: u16 = 0x303a;
 /// Native USB Serial/JTAG of the ESP32-C3 SuperMini.
 const USB_JTAG_PID: u16 = 0x1001;
 
+/// The application image; the only one carrying a version line.
+const FIRMWARE_IMAGE: &str = "firmware.bin";
+
 /// Flash offset, file name and the room before the next segment or NVS.
 const IMAGES: [(u32, &str, usize); 4] = [
     (0x0000, "bootloader.bin", 0x8000),
     (0x8000, "partitions.bin", 0x1000),
     (0xE000, "boot_app0.bin", 0x2000),
-    (0x10000, "firmware.bin", 0x140000),
+    (0x10000, FIRMWARE_IMAGE, 0x140000),
 ];
 
 /// Release images the same build wrote; the firmware's own version string.
@@ -96,7 +99,7 @@ pub fn load(dir: &Path) -> Result<Images> {
         segments.push((offset, data));
     }
     let version = firmware_version(&segments[3].1)
-        .with_context(|| format!("{} has no version line", dir.join("firmware.bin").display()))?;
+        .with_context(|| format!("{} has no version line", dir.join(FIRMWARE_IMAGE).display()))?;
     Ok(Images { version, segments })
 }
 
@@ -139,7 +142,7 @@ pub fn bundled_version() -> Option<String> {
     static VERSION: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
     VERSION
         .get_or_init(|| {
-            let image = std::fs::read(bundled_dir()?.join("firmware.bin")).ok()?;
+            let image = std::fs::read(bundled_dir()?.join(FIRMWARE_IMAGE)).ok()?;
             firmware_version(&image)
         })
         .clone()
@@ -509,7 +512,7 @@ mod tests {
 
     fn write_images(dir: &Path, version: &str) {
         for (_, name, _) in IMAGES {
-            let data = if name == "firmware.bin" {
+            let data = if name == FIRMWARE_IMAGE {
                 format!("\0\0lamp=%s\nversion={version}\nother").into_bytes()
             } else {
                 vec![0xAA; 64]

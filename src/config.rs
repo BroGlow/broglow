@@ -222,13 +222,18 @@ impl Config {
 
 /// BroGlow's own data directory: `$BROGLOW_HOME`, else `~/.broglow`. Settings,
 /// session state, worker status, locks and the tray's logs all live here.
+/// Overrides the data directory; empty means unset.
+pub const HOME_ENV: &str = "BROGLOW_HOME";
+/// Data directory under the home directory when [`HOME_ENV`] is unset.
+pub const DATA_DIR_NAME: &str = ".broglow";
+
 pub fn data_dir() -> PathBuf {
-    if let Some(home) = std::env::var_os("BROGLOW_HOME").filter(|home| !home.is_empty()) {
+    if let Some(home) = std::env::var_os(HOME_ENV).filter(|home| !home.is_empty()) {
         return PathBuf::from(home);
     }
     dirs::home_dir()
         .expect("Home directory must exist")
-        .join(".broglow")
+        .join(DATA_DIR_NAME)
 }
 
 pub fn config_file_path() -> PathBuf {

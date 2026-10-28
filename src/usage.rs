@@ -914,7 +914,7 @@ mod tests {
                     "usage::tests::scans_codex_without_claude_projects",
                 ])
                 .env("HOME", home.path())
-                .env("CODEX_HOME", home.path().join("codex"))
+                .env(crate::codex::HOME_ENV, home.path().join("codex"))
                 .env("BROGLOW_TEST_CODEX_USAGE", "1")
                 .output()
                 .unwrap();
@@ -960,7 +960,7 @@ mod tests {
                     "usage::tests::scan_includes_archives_and_subagents_and_resets_on_new_day",
                 ])
                 .env("HOME", home.path())
-                .env("CODEX_HOME", home.path().join("codex"))
+                .env(crate::codex::HOME_ENV, home.path().join("codex"))
                 .env("BROGLOW_TEST_MIXED_USAGE", "1")
                 .output()
                 .unwrap();

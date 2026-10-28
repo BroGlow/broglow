@@ -506,7 +506,10 @@ mod tests {
                     "state::tests::reader_reconciles_late_capacity_and_dismissal_removes_tracking",
                 ])
                 .env("HOME", home.path())
-                .env("BROGLOW_HOME", home.path().join(".broglow"))
+                .env(
+                    crate::config::HOME_ENV,
+                    home.path().join(crate::config::DATA_DIR_NAME),
+                )
                 .env("BROGLOW_TEST_CAPACITY_READER", "1")
                 .output()
                 .unwrap();
@@ -561,7 +564,10 @@ mod tests {
                     "state::tests::reader_reconciles_expiry_after_stop_and_restart",
                 ])
                 .env("HOME", home.path())
-                .env("BROGLOW_HOME", home.path().join(".broglow"))
+                .env(
+                    crate::config::HOME_ENV,
+                    home.path().join(crate::config::DATA_DIR_NAME),
+                )
                 .env("BROGLOW_TEST_EXPIRY", "1")
                 .output()
                 .unwrap();
@@ -687,7 +693,7 @@ mod tests {
                     "state::tests::app_generated_codex_rows_do_not_reach_the_display_or_lamp",
                 ])
                 .env("HOME", home.path())
-                .env("CODEX_HOME", home.path().join("codex"))
+                .env(crate::codex::HOME_ENV, home.path().join("codex"))
                 .env("BROGLOW_TEST_BACKGROUND", "1")
                 .output()
                 .unwrap();
@@ -751,7 +757,7 @@ mod tests {
                     "state::tests::codex_renames_refresh_without_hooks",
                 ])
                 .env("HOME", home.path())
-                .env("CODEX_HOME", home.path().join("codex"))
+                .env(crate::codex::HOME_ENV, home.path().join("codex"))
                 .env("BROGLOW_TEST_RENAME", "1")
                 .output()
                 .unwrap();

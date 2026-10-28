@@ -584,10 +584,13 @@ fn record_question_answers(pending: &mut PendingQuestion, text: &str) {
     }
 }
 
+/// Overrides the Codex home directory, as Codex itself reads it.
+pub const HOME_ENV: &str = "CODEX_HOME";
+
 /// Codex's home directory: `$CODEX_HOME` when set (tests, relocated installs),
 /// else `~/.codex`.
 pub fn codex_home() -> Option<PathBuf> {
-    if let Some(h) = std::env::var_os("CODEX_HOME") {
+    if let Some(h) = std::env::var_os(HOME_ENV) {
         if !h.is_empty() {
             return Some(PathBuf::from(h));
         }

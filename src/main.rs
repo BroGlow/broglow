@@ -567,6 +567,8 @@ fn uninstall_run_key() -> anyhow::Result<()> {
 
 #[cfg(target_os = "macos")]
 pub(crate) const LAUNCH_AGENT_LABEL: &str = "io.github.broglow.menubar";
+#[cfg(target_os = "macos")]
+const INFO_PLIST: &str = "Contents/Info.plist";
 
 #[cfg(target_os = "macos")]
 const MAC_INFO_PLIST: &str = include_str!("../assets/macos-info.plist");
@@ -591,7 +593,7 @@ pub(crate) fn mac_bundle_executable() -> anyhow::Result<PathBuf> {
 #[cfg(target_os = "macos")]
 fn check_managed_bundle(bundle: &std::path::Path) -> anyhow::Result<()> {
     if bundle.exists() {
-        let info = std::fs::read_to_string(bundle.join("Contents/Info.plist"))?;
+        let info = std::fs::read_to_string(bundle.join(INFO_PLIST))?;
         anyhow::ensure!(
             info.contains("<key>BroGlowManaged</key><true/>")
                 && info.contains(&format!("<string>{LAUNCH_AGENT_LABEL}</string>")),
@@ -617,7 +619,7 @@ fn create_mac_bundle(
         include_bytes!("../assets/icons/BroGlow.icns"),
     )?;
     std::fs::write(
-        bundle.join("Contents/Info.plist"),
+        bundle.join(INFO_PLIST),
         MAC_INFO_PLIST.replace("{{VERSION}}", env!("CARGO_PKG_VERSION")),
     )?;
     // The tray flashes from inside the bundle, so give it the release images.
@@ -991,7 +993,7 @@ mod mac_install_tests {
     #[test]
     fn a_tray_outside_launchd_holding_the_lock_is_stopped() {
         let dir = tempfile::tempdir().unwrap();
-        let lock = dir.path().join(".menubar.lock");
+        let lock = dir.path().join(crate::menubar::INSTANCE_LOCK_NAME);
         assert!(lock_holders(&lock).unwrap().is_empty());
         let mut tray = std::process::Command::new("/bin/sleep")
             .arg("30")
@@ -1012,7 +1014,7 @@ mod mac_install_tests {
             let bundle = dir.path().join(format!("BroGlow{i}.app"));
             create_mac_bundle(std::path::Path::new(source), &bundle, "-").unwrap();
             check_managed_bundle(&bundle).unwrap();
-            let info = bundle.join("Contents/Info.plist");
+            let info = bundle.join(INFO_PLIST);
             assert!(std::process::Command::new("/usr/bin/plutil")
                 .args(["-lint", "--"])
                 .arg(&info)

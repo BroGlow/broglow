@@ -100,6 +100,10 @@ mod cmdline_tests {
     }
 }
 
+/// Per-session named mutex the daemon holds for its lifetime.
+#[cfg(windows)]
+const MUTEX_NAME: &str = "Local\\broglow-menubar";
+
 /// Windows: the daemon holds a named mutex for its lifetime (see
 /// `acquire_single_instance_lock`); probing it is the liveness check.
 #[cfg(windows)]
@@ -108,7 +112,7 @@ pub fn is_running() -> bool {
     use windows_sys::Win32::System::Threading::OpenMutexW;
     const SYNCHRONIZE: u32 = 0x0010_0000;
 
-    let name: Vec<u16> = "Local\\broglow-menubar"
+    let name: Vec<u16> = MUTEX_NAME
         .encode_utf16()
         .chain(std::iter::once(0))
         .collect();
@@ -594,7 +598,7 @@ pub fn run(_show_on_launch: bool) -> anyhow::Result<()> {
     // would push it off-screen above the monitor, where per-monitor DPI
     // assignment is ambiguous and flip-flops.
     #[cfg(any(target_os = "macos", target_os = "windows"))]
-    if std::env::var_os("BROGLOW_POPOVER_DEBUG").is_some() {
+    if std::env::var_os(crate::popover::DEBUG_ENV).is_some() {
         #[cfg(target_os = "macos")]
         let anchor_y = 0.0;
         #[cfg(target_os = "windows")]
@@ -1224,9 +1228,13 @@ fn launch_dashboard() {
 
 /// Process-lifetime flock beside `config.json`; a second daemon fails to take
 /// it and exits. Released by the OS when this process ends, however it ends.
+/// Lock file name beside `config.json`.
+#[cfg(unix)]
+pub(crate) const INSTANCE_LOCK_NAME: &str = ".menubar.lock";
+
 #[cfg(unix)]
 pub(crate) fn instance_lock_path() -> std::path::PathBuf {
-    config::config_file_path().with_file_name(".menubar.lock")
+    config::config_file_path().with_file_name(INSTANCE_LOCK_NAME)
 }
 
 #[cfg(unix)]
@@ -1253,7 +1261,7 @@ fn acquire_single_instance_lock() -> bool {
     use windows_sys::Win32::System::Threading::CreateMutexW;
 
     // UTF-16, NUL-terminated, "Local\" scope keeps it per-session.
-    let name: Vec<u16> = "Local\\broglow-menubar"
+    let name: Vec<u16> = MUTEX_NAME
         .encode_utf16()
         .chain(std::iter::once(0))
         .collect();

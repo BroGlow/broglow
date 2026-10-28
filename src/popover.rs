@@ -31,6 +31,9 @@ const WIDTH: f64 = 344.0;
 /// Gap between the card edge and the tray icon / taskbar edge (logical px).
 const ANCHOR_GAP: f64 = 6.0;
 
+/// Set to log popover document and bridge events.
+pub(crate) const DEBUG_ENV: &str = "BROGLOW_POPOVER_DEBUG";
+
 /// Clicking the tray icon while the popover is open first steals its focus
 /// (auto-hiding it) and then delivers the click event; without this debounce
 /// the same click would immediately reopen it, making toggle impossible.
@@ -426,7 +429,7 @@ impl Popover {
             // click on a button should act, not just focus the window.
             .with_accept_first_mouse(true)
             .with_ipc_handler(move |req| {
-                if std::env::var_os("BROGLOW_POPOVER_DEBUG").is_some() {
+                if std::env::var_os(DEBUG_ENV).is_some() {
                     eprintln!("popover ipc: {}", req.body());
                 }
                 if let Ok(msg) = serde_json::from_str::<PopoverMsg>(req.body()) {
@@ -455,7 +458,7 @@ impl Popover {
             wanted: None,
             #[cfg(target_os = "windows")]
             enforced_at: None,
-            debug: std::env::var_os("BROGLOW_POPOVER_DEBUG").is_some(),
+            debug: std::env::var_os(DEBUG_ENV).is_some(),
         })
     }
 
