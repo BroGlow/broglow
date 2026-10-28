@@ -262,7 +262,7 @@ mod mac {
     use anyhow::{bail, Context, Result};
     use btleplug::api::{
         Central, CentralEvent, CentralState, CharPropFlags, Manager as _, Peripheral as _,
-        ScanFilter, WriteType,
+        RetrievePeripheralsOptions, ScanFilter, WriteType,
     };
     use btleplug::platform::{Adapter, Manager, Peripheral};
     use futures_util::{future::LocalBoxFuture, stream::FuturesUnordered, FutureExt, StreamExt};
@@ -1252,11 +1252,9 @@ mod mac {
             // Subscribe anew after each disconnect: cached/queued advertisements
             // cannot reconnect a stale native CoreBluetooth peripheral handle.
             let mut fresh = advertisements.subscribe();
-            // CoreBluetooth keeps a link this task lost track of (a pending
-            // connect that completed after its future was cancelled, a
-            // disconnect that never took). A connected lamp stops advertising,
-            // so waiting for one would never end: drive the link we hold.
-            let discovered = match connected_handle(adapter, id).await {
+            // A connected lamp stops advertising, so a link this task does not
+            // hold would never be found by waiting: drive it instead.
+            let discovered = match held_handle(adapter, id).await {
                 Some(peripheral) => Ok(peripheral),
                 None => {
                     publish(
@@ -1314,16 +1312,35 @@ mod mac {
         }
     }
 
-    /// The saved lamp's handle while CoreBluetooth still reports it connected.
-    async fn connected_handle(adapter: &Adapter, id: &str) -> Option<Peripheral> {
-        let peripheral = adapter
-            .peripheral(&Uuid::parse_str(id).ok()?.into())
-            .await
-            .ok()?;
-        match timeout(POLL, peripheral.is_connected()).await {
-            Ok(Ok(true)) => Some(peripheral),
-            _ => None,
+    /// The saved lamp's handle while a link to it exists: one this process
+    /// holds that the lamp's task lost track of (a connect that completed after
+    /// its future was cancelled), or one macOS or another app made to the paired
+    /// lamp. btleplug forgets a peripheral on disconnect, so its cached handle
+    /// reports either link as disconnected; CoreBluetooth's retrieval calls
+    /// give a current handle instead.
+    async fn held_handle(adapter: &Adapter, id: &str) -> Option<Peripheral> {
+        let retrieve = |options| timeout(HEARTBEAT, adapter.retrieve_peripherals(options));
+        let ours = RetrievePeripheralsOptions {
+            identifiers: Some(vec![Uuid::parse_str(id).ok()?.into()]),
+            services: None,
+        };
+        if let Ok(Ok(peripherals)) = retrieve(ours).await {
+            for peripheral in peripherals {
+                if let Ok(Ok(true)) = timeout(POLL, peripheral.is_connected()).await {
+                    return Some(peripheral);
+                }
+            }
         }
+        let system = RetrievePeripheralsOptions {
+            identifiers: None,
+            services: Some(vec![SERVICE]),
+        };
+        retrieve(system)
+            .await
+            .ok()?
+            .ok()?
+            .into_iter()
+            .find(|peripheral| peripheral.id().to_string() == id)
     }
 
     fn name_payload(cfg: &Config, id: &str) -> Vec<u8> {
