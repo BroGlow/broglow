@@ -79,13 +79,16 @@ pub fn homebrew() -> Option<PathBuf> {
         .map(|prefix| prefix.join("bin/brew"))
 }
 
-/// `brew upgrade broglow && broglow install`, detached: `install` restarts
-/// the tray that launched it. Output goes to a log next to the config.
+/// `brew update && brew upgrade broglow && broglow install`, detached:
+/// `install` restarts the tray that launched it. Output goes to a log next to
+/// the config. The explicit `update` matters: `upgrade` refreshes taps on its
+/// own at most once a day, so right after a release it would reinstall the
+/// version already present.
 pub fn upgrade_with_homebrew(brew: &Path) -> Result<PathBuf> {
     let log = crate::config::config_file_path().with_file_name("update.log");
     std::fs::create_dir_all(log.parent().unwrap())?;
     let script = format!(
-        "\"{brew}\" upgrade broglow && \"{bin}\" install",
+        "\"{brew}\" update --quiet && \"{brew}\" upgrade broglow && \"{bin}\" install",
         brew = brew.display(),
         bin = brew.with_file_name("broglow").display()
     );

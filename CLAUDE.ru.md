@@ -178,8 +178,9 @@ BroGlow на INFO) запускает `flash::update` в потоке трея �
   старта трея при включённом `check_updates_on_startup` и по кнопке **Check for
   updates** в Settings. Результат живёт только в Settings (`renderUpdate` в
   popover.js): никаких уведомлений и значков. **Update via Homebrew** появляется
-  только при наличии `<prefix>/opt/broglow` и запускает `brew upgrade broglow &&
-  broglow install` отдельным процессом (`install` перезапускает этот трей), лог в
+  только при наличии `<prefix>/opt/broglow` и запускает `brew update && brew upgrade
+  broglow && broglow install` отдельным процессом (`install` перезапускает этот трей;
+  явный `update` нужен, потому что `upgrade` обновляет tap не чаще раза в сутки), лог в
   `~/.broglow/update.log`. Ошибки показываются как «could not reach
   GitHub» и повторяются при следующем старте или нажатии. О пользователе ничего
   не отправляется.

@@ -25,8 +25,8 @@ Windows or Linux? See [Alternative installations](alternatives.md).
 
 To update later, open Settings in the menu-bar app: it shows your version and, after
 a quiet check (once at startup, or on **Check for updates**), whether a newer release
-exists. **Update via Homebrew** runs `brew upgrade broglow && broglow install` and
-restarts the app; the same two commands work from a terminal. The startup check is
+exists. **Update via Homebrew** runs `brew update && brew upgrade broglow && broglow install`
+and restarts the app; the same commands work from a terminal. The startup check is
 one request to GitHub with nothing about you in it; a Settings switch turns it off.
 
 <a name="open"></a>

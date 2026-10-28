@@ -153,8 +153,9 @@ device that gives no BroGlow INFO reply) runs `flash::update` on a tray thread
   starts when `check_updates_on_startup` is on, and on **Check for updates** in
   Settings. The result lives only in Settings (`renderUpdate` in popover.js):
   never a notification, never a badge. **Update via Homebrew** appears only when
-  `<prefix>/opt/broglow` exists and spawns `brew upgrade broglow && broglow
-  install` detached (the `install` restarts this tray), logging to
+  `<prefix>/opt/broglow` exists and spawns `brew update && brew upgrade broglow &&
+  broglow install` detached (the `install` restarts this tray; the explicit `update`
+  is required because `upgrade` refreshes taps at most once a day), logging to
   `~/.broglow/update.log`. Failures are shown as "could not reach GitHub"
   and retried on the next start or click. Nothing about the user is sent.
 - **notification.rs** — desktop notifications (macOS `osascript`; else `notify-rust`).

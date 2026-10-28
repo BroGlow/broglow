@@ -114,7 +114,7 @@ pub enum PopoverMsg {
     },
     /// Settings: ask GitHub for the latest release now.
     CheckUpdates,
-    /// Settings: run `brew upgrade broglow && broglow install` (macOS, Homebrew installs).
+    /// Settings: run `brew update && brew upgrade broglow && broglow install` (macOS, Homebrew installs).
     UpgradeApp,
     /// Settings: open the latest release page in the browser.
     OpenReleaseNotes,
