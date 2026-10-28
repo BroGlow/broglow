@@ -1013,7 +1013,8 @@ mod mac {
             let scan_error = RefCell::new(None);
             // All futures share one adapter/runtime. A missing lamp or a pairing
             // prompt cannot delay another lamp's writes or heartbeat.
-            let (keep, targets, advertisements, scan_error, update, record_firmware) = (
+            let (adapter, keep, targets, advertisements, scan_error, update, record_firmware) = (
+                &adapter,
                 &keep,
                 &targets,
                 &advertisements,
@@ -1022,7 +1023,7 @@ mod mac {
                 &record_firmware,
             );
             tokio::join!(
-                discover(&adapter, targets, advertisements, scan_error, keep),
+                discover(adapter, targets, advertisements, scan_error, keep),
                 supervise(
                     targets,
                     refresh,
@@ -1030,6 +1031,7 @@ mod mac {
                         async move {
                             let keep = || saved();
                             lamp_loop(
+                                adapter,
                                 &id,
                                 advertisements,
                                 scan_error,
@@ -1236,6 +1238,7 @@ mod mac {
     }
 
     async fn lamp_loop(
+        adapter: &Adapter,
         id: &str,
         advertisements: &Advertisements,
         scan_error: &RefCell<Option<String>>,
@@ -1249,27 +1252,36 @@ mod mac {
             // Subscribe anew after each disconnect: cached/queued advertisements
             // cannot reconnect a stale native CoreBluetooth peripheral handle.
             let mut fresh = advertisements.subscribe();
-            publish(
-                "searching",
-                "Waiting for a fresh advertisement; absent lamps are retried automatically",
-            );
-            let discovered = wait(
-                async {
-                    loop {
-                        match fresh.recv().await {
-                            Ok((candidate, peripheral)) if candidate == id => {
-                                return Ok(peripheral)
+            // CoreBluetooth keeps a link this task lost track of (a pending
+            // connect that completed after its future was cancelled, a
+            // disconnect that never took). A connected lamp stops advertising,
+            // so waiting for one would never end: drive the link we hold.
+            let discovered = match connected_handle(adapter, id).await {
+                Some(peripheral) => Ok(peripheral),
+                None => {
+                    publish(
+                        "searching",
+                        "Waiting for a fresh advertisement; absent lamps are retried automatically",
+                    );
+                    wait(
+                        async {
+                            loop {
+                                match fresh.recv().await {
+                                    Ok((candidate, peripheral)) if candidate == id => {
+                                        return Ok(peripheral)
+                                    }
+                                    Err(broadcast::error::RecvError::Closed) => {
+                                        bail!("Bluetooth discovery stopped")
+                                    }
+                                    _ => {}
+                                }
                             }
-                            Err(broadcast::error::RecvError::Closed) => {
-                                bail!("Bluetooth discovery stopped")
-                            }
-                            _ => {}
-                        }
-                    }
-                },
-                keep,
-            )
-            .await;
+                        },
+                        keep,
+                    )
+                    .await
+                }
+            };
             match discovered {
                 Ok(peripheral) => {
                     publish("connecting", "Connecting to saved lamp");
@@ -1302,6 +1314,18 @@ mod mac {
         }
     }
 
+    /// The saved lamp's handle while CoreBluetooth still reports it connected.
+    async fn connected_handle(adapter: &Adapter, id: &str) -> Option<Peripheral> {
+        let peripheral = adapter
+            .peripheral(&Uuid::parse_str(id).ok()?.into())
+            .await
+            .ok()?;
+        match timeout(POLL, peripheral.is_connected()).await {
+            Ok(Ok(true)) => Some(peripheral),
+            _ => None,
+        }
+    }
+
     fn name_payload(cfg: &Config, id: &str) -> Vec<u8> {
         let Some(name) = cfg.lamp_names.get(id).filter(|name| !name.is_empty()) else {
             return vec![0]; // Explicit reset; empty prepared writes are ignored by firmware.
@@ -1327,7 +1351,10 @@ mod mac {
         let target = id.to_string();
         wait(
             async {
-                p.connect().await?;
+                // connectPeripheral on a live link never answers; reuse it.
+                if !p.is_connected().await.unwrap_or(false) {
+                    p.connect().await?;
+                }
                 p.discover_services().await?;
                 Ok(())
             },
