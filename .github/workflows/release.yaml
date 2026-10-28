@@ -17,6 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
+        id: python
         with:
           python-version: '3.14'
       - uses: astral-sh/setup-uv@v10.3.0
@@ -30,15 +31,25 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: uv run --frozen python scripts/package-macos.py --release-tag "$RELEASE_TAG" --check-only
+      # Every archive ships the same C3 images, built once here. The packaged
+      # directory depends only on these inputs, so it is reused across releases
+      # until one of them changes.
+      - name: Restore the packaged C3 firmware
+        id: firmware
+        uses: actions/cache@v6
+        with:
+          path: dist/firmware
+          key: firmware-v1-${{ hashFiles('firmware/esp32-c3-supermini/**', 'scripts/package-firmware.py', 'scripts/firmware-version.py', 'scripts/third-party-notices.py', 'licenses/arduino-esp32-2.0.17-LICENSE.md', 'pyproject.toml', 'uv.lock') }}
       - name: Restore PlatformIO downloads
+        if: steps.firmware.outputs.cache-hit != 'true'
         uses: actions/cache/restore@v6
         with:
           path: |
             ~/.platformio/platforms
             ~/.platformio/packages
-          key: platformio-v1-macos-15-${{ runner.arch }}-py3.14-${{ hashFiles('firmware/esp32-c3-supermini/platformio.ini', 'pyproject.toml', 'uv.lock') }}
-      # The Windows archive ships the same C3 images as the Mac packages.
+          key: platformio-v1-macos-15-${{ runner.arch }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('firmware/esp32-c3-supermini/platformio.ini', 'pyproject.toml', 'uv.lock') }}
       - name: Build and package the C3 firmware
+        if: steps.firmware.outputs.cache-hit != 'true'
         run: |
           uv run --frozen flash --build-only
           uv run --frozen python scripts/package-firmware.py --output dist/firmware/esp32-c3-supermini
@@ -113,21 +124,16 @@ jobs:
         with:
           version: '0.12.17'
       - run: uv sync --frozen
-      - name: Restore PlatformIO downloads
-        uses: actions/cache/restore@v6
-        with:
-          path: |
-            ~/.platformio/platforms
-            ~/.platformio/packages
-          key: platformio-v1-${{ matrix.os }}-${{ runner.arch }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('firmware/esp32-c3-supermini/platformio.ini', 'pyproject.toml', 'uv.lock') }}
       - name: Build native Mac app
         run: cargo build --release --locked
-      - name: Build C3 firmware
-        run: uv run --frozen flash --build-only
+      - uses: actions/download-artifact@v8
+        with:
+          name: firmware
+          path: dist/firmware
       - name: Package app, firmware and manual
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: uv run --frozen python scripts/package-macos.py --release-tag "$RELEASE_TAG"
+        run: uv run --frozen python scripts/package-macos.py --release-tag "$RELEASE_TAG" --firmware dist/firmware/esp32-c3-supermini
       - uses: actions/upload-artifact@v7
         with:
           name: mac-${{ matrix.target }}

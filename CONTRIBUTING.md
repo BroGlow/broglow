@@ -130,14 +130,16 @@ Native release jobs restore dependency caches populated by the optional
 | Cache | Producer and consumer | Boundaries |
 | --- | --- | --- |
 | Cargo release dependencies | Matching `macos-15` ARM64, `macos-15-intel` x86_64 or `windows-latest` MSVC x86_64 jobs. | Separate release-profile keys by runner/target; compiler, image version, build/SDK environment and dependency hashes are included. Compatible older dependency caches may be restored after dependency changes; Cargo rebuilds what changed. |
-| PlatformIO downloads | The two Mac jobs; Windows ships no firmware. | Only `~/.platformio/platforms` and `~/.platformio/packages`; exact key includes runner/architecture, Python version, `platformio.ini`, `pyproject.toml` and `uv.lock`. No broader fallback. |
+| PlatformIO downloads | The `source` job on `macos-15`, the one job that builds the firmware. | Only `~/.platformio/platforms` and `~/.platformio/packages`; exact key includes runner/architecture, Python version, `platformio.ini`, `pyproject.toml` and `uv.lock`. No broader fallback. |
+| Packaged C3 firmware | The `source` job writes it; every platform job takes it as the `firmware` artifact. | `dist/firmware`; exact key is the hash of the firmware sources, the packaging scripts, the firmware licenses, `pyproject.toml` and `uv.lock`. A hit skips the PlatformIO build entirely. Release runs populate it. |
 
-Rust source and app-version-only changes retain the Cargo dependency cache;
-firmware source changes retain the PlatformIO downloads. Final app binaries,
-virtual environments (`.venv`), `.pio` build outputs and packaged assets are
-not cached. Releases always run the locked app and firmware builds and preserve
-the source, version, freshness, license and checksum checks. Mac Rust and firmware
-builds remain separate steps.
+Rust source and app-version-only changes retain the Cargo dependency cache and
+the packaged firmware; firmware source changes retain the PlatformIO downloads.
+Final app binaries, virtual environments (`.venv`), `.pio` build outputs and
+release archives are not cached. Releases always run the locked app build, build
+the firmware only when its inputs changed, and preserve the source, version,
+freshness, license and checksum checks. The Mac jobs build only Rust and package
+the firmware artifact with `package-macos.py --firmware`.
 
 Optionally populate these caches on the default branch:
 
@@ -146,8 +148,8 @@ gh workflow run cache-warm.yaml --ref master
 ```
 
 Wait for all three native jobs before expecting their caches in future tags.
-The workflow only runs on the default branch; it installs PlatformIO dependencies
-without flashing and saves them before compiling Rust. An exact Cargo cache hit
+The workflow only runs on the default branch; on `macos-15` it installs PlatformIO
+dependencies without flashing and saves them before compiling Rust. An exact Cargo cache hit
 skips compilation in the warm-up job. It does not package or publish a release.
 
 Warm-up consumes runner time and cache storage; it is not required before every

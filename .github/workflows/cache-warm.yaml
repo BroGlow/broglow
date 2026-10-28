@@ -44,8 +44,9 @@ jobs:
           enable-cache: false
       - if: runner.os == 'macOS'
         run: uv sync --frozen
+      # Only the release's source job (macos-15) builds the firmware now.
       - name: Restore PlatformIO downloads
-        if: runner.os == 'macOS'
+        if: matrix.os == 'macos-15'
         uses: actions/cache/restore@v6
         id: platformio-cache
         with:
@@ -54,10 +55,10 @@ jobs:
             ~/.platformio/packages
           key: platformio-v1-${{ matrix.os }}-${{ runner.arch }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('firmware/esp32-c3-supermini/platformio.ini', 'pyproject.toml', 'uv.lock') }}
       - name: Install PlatformIO dependencies
-        if: runner.os == 'macOS'
+        if: matrix.os == 'macos-15'
         run: uv run --frozen python -m platformio pkg install --project-dir firmware/esp32-c3-supermini --environment esp32-c3-supermini
       - name: Save PlatformIO downloads
-        if: runner.os == 'macOS' && steps.platformio-cache.outputs.cache-hit != 'true'
+        if: matrix.os == 'macos-15' && steps.platformio-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
         with:
           path: |
