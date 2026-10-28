@@ -162,6 +162,11 @@ def main():
         "--platformio-core", type=Path, default=Path.home() / ".platformio"
     )
     parser.add_argument(
+        "--firmware",
+        type=Path,
+        help="A directory scripts/package-firmware.py wrote; skips the local PlatformIO build.",
+    )
+    parser.add_argument(
         "--release-tag",
         help="Require a clean matching tag and use a versioned filename.",
     )
@@ -230,11 +235,15 @@ def main():
         (package / "bin").mkdir(parents=True)
         shutil.copy2(binary, package / "bin/broglow")
         (package / "bin/broglow").chmod(0o755)
-        framework_version, linked = firmware.package_firmware(
-            package / "firmware/esp32-c3-supermini",
-            args.platformio_core,
-            firmware.firmware_version(),
-        )
+        images = package / "firmware/esp32-c3-supermini"
+        if args.firmware:
+            framework_version, linked = firmware.prebuilt_firmware(
+                args.firmware.resolve(), images, firmware.firmware_version()
+            )
+        else:
+            framework_version, linked = firmware.package_firmware(
+                images, args.platformio_core, firmware.firmware_version()
+            )
         copy_manual(package)
         try:
             crates, unlicensed = notices.write_rust_notices(package, target)
@@ -261,7 +270,7 @@ def main():
                 "rust_crates_without_license_files": [
                     f"{crate['name']} {crate['version']}" for crate, _ in unlicensed
                 ],
-                "firmware_linked_archives": len(linked),
+                "firmware_linked_archives": linked,
             },
             "source_inputs_sha256": {
                 str(p.relative_to(ROOT)): sha256(p)

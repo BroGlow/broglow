@@ -231,6 +231,36 @@ def test_firmware_package_ships_images_sources_and_notices_only(
         firmware.package_firmware(destination, Path.home() / ".platformio", version)
 
 
+def test_prebuilt_firmware_is_copied_only_when_it_is_this_checkouts(
+    tmp_path: Path,
+) -> None:
+    version = firmware.firmware_version()
+    source = tmp_path / "packaged"
+    source.mkdir()
+    (source / "firmware.bin").write_bytes(b"\0\0version=" + version.encode() + b"\n")
+    (source / "src").mkdir()
+    (source / "src/main.cpp").write_text("// shipped source\n")
+    record = {
+        "firmware_version": version,
+        "arduino_framework_package": "4.20017.0",
+        "linked_archives": 3,
+    }
+    (source / firmware.BUILD_RECORD).write_text(json.dumps(record))
+    destination = tmp_path / "esp32-c3-supermini"
+
+    assert firmware.prebuilt_firmware(source, destination, version) == ("4.20017.0", 3)
+    assert (destination / "src/main.cpp").read_text() == "// shipped source\n"
+    with pytest.raises(SystemExit, match="Refusing"):
+        firmware.prebuilt_firmware(source, destination, version)
+
+    record["firmware_version"] = "1999.01.01"
+    (source / firmware.BUILD_RECORD).write_text(json.dumps(record))
+    with pytest.raises(SystemExit, match="not version"):
+        firmware.prebuilt_firmware(source, tmp_path / "other", version)
+    with pytest.raises(SystemExit, match="not a packaged firmware"):
+        firmware.prebuilt_firmware(tmp_path, tmp_path / "other", version)
+
+
 @pytest.mark.parametrize("target", RUST_TARGETS)
 def test_rust_notices_have_license_texts_and_resolvable_anchors(
     rust_notices: dict[str, Path], target: str

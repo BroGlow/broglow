@@ -135,6 +135,9 @@ def firmware_sources():
     ]
 
 
+BUILD_RECORD = "BUILD.json"
+
+
 def package_firmware(destination, platformio_core, version):
     """Verify the pinned build in firmware/esp32-c3-supermini and write the
     release firmware directory. Returns (framework_version, linked_archives)."""
@@ -238,7 +241,29 @@ def package_firmware(destination, platformio_core, version):
     (destination / "flash-manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n"
     )
-    return framework_version, linked
+    record = {
+        "firmware_version": version,
+        "arduino_framework_package": framework_version,
+        "linked_archives": len(linked),
+    }
+    (destination / BUILD_RECORD).write_text(json.dumps(record, indent=2) + "\n")
+    return framework_version, len(linked)
+
+
+def prebuilt_firmware(source, destination, version):
+    """Copy a directory package_firmware already wrote, checking it is this
+    checkout's firmware. Returns (framework_version, linked_archives)."""
+    require(not destination.exists(), f"Refusing to overwrite {destination}")
+    record_path = source / BUILD_RECORD
+    require(record_path.is_file(), f"Missing {record_path}; not a packaged firmware.")
+    record = json.loads(record_path.read_text())
+    require(
+        record.get("firmware_version") == version
+        and f"version={version}\n".encode() in (source / "firmware.bin").read_bytes(),
+        f"Packaged firmware is not version {version}; rebuild it from this checkout.",
+    )
+    shutil.copytree(source, destination)
+    return record["arduino_framework_package"], record["linked_archives"]
 
 
 def firmware_version():
@@ -265,7 +290,7 @@ def main():
     framework_version, linked = package_firmware(
         output, args.platformio_core, firmware_version()
     )
-    print(f"{output}: Arduino-ESP32 {framework_version}, {len(linked)} linked archives")
+    print(f"{output}: Arduino-ESP32 {framework_version}, {linked} linked archives")
 
 
 if __name__ == "__main__":
