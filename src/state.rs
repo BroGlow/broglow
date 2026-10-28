@@ -405,7 +405,6 @@ mod tests {
     use super::*;
     use crate::config::YellowMode;
 
-    #[cfg(unix)]
     fn done_at(state: &mut HookState, id: &str, status: Status, at: DateTime<Utc>) {
         state.sessions.insert(
             id.into(),
