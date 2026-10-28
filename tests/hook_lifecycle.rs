@@ -1,6 +1,6 @@
 //! End-to-end tests of the hook backend: drive the real `broglow` binary the
 //! way Claude Code does — one lifecycle event as JSON on stdin — and observe
-//! the resulting `~/.claude/broglow/state.json`.
+//! the resulting `~/.broglow/state.json`.
 //!
 //! Each test gets its own throwaway home directory. `dirs::home_dir()` follows
 //! `$HOME` on unix, which is what sandboxes these; Windows resolves the profile

@@ -194,11 +194,7 @@ pub fn aggregate(state: &HookState, yellow_mode: crate::config::YellowMode) -> A
 }
 
 pub fn state_file_path() -> PathBuf {
-    dirs::home_dir()
-        .expect("Home directory must exist")
-        .join(".claude")
-        .join("broglow")
-        .join("state.json")
+    crate::config::data_dir().join("state.json")
 }
 
 pub fn read_hook_state() -> HookState {

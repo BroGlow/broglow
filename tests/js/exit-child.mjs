@@ -20,7 +20,7 @@ import { pathToFileURL } from "node:url";
 const pluginFile = process.env.PLUGIN_FILE;
 const sessionId = process.env.SESSION_ID;
 const firstEvent = process.env.FIRST_EVENT || "session.created";
-const statePath = join(process.env.HOME, ".claude", "broglow", "state.json");
+const statePath = join(process.env.HOME, ".broglow", "state.json");
 
 const mod = await import(pathToFileURL(pluginFile));
 const hooks = await mod.broglow({ directory: "/tmp/exit-proj" });

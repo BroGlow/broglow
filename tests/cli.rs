@@ -19,7 +19,7 @@ fn version_identifies_the_release() {
 #[test]
 fn dashboard_visibility_persists_without_touching_other_settings_or_installing() {
     let home = tempfile::tempdir().unwrap();
-    let path = home.path().join(".claude/broglow/config.json");
+    let path = home.path().join(".broglow/config.json");
     let run = |value: &str| {
         broglow()
             .env("HOME", home.path())
@@ -61,7 +61,7 @@ fn concurrent_settings_commands_preserve_disjoint_edits() {
     use std::process::Stdio;
 
     let home = tempfile::tempdir().unwrap();
-    let dir = home.path().join(".claude/broglow");
+    let dir = home.path().join(".broglow");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("config.json");
     let first = "11111111-2222-3333-4444-555555555555";
@@ -135,7 +135,7 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
         .join("Applications/BroGlow.app/Contents/MacOS/broglow");
     std::fs::create_dir_all(bundled.parent().unwrap()).unwrap();
     std::fs::copy(broglow().get_program(), &bundled).unwrap();
-    let dir = home.path().join(".claude/broglow");
+    let dir = home.path().join(".broglow");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("config.json");
     let original = r#"{"led_enabled":true,"ble_peripherals":["keep"],"unrelated":{"retain":true}}"#;
@@ -236,7 +236,7 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
 #[test]
 fn remembered_lamps_add_remove_and_list_without_radio() {
     let home = tempfile::tempdir().unwrap();
-    let dir = home.path().join(".claude/broglow");
+    let dir = home.path().join(".broglow");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("config.json");
     let first = "11111111-2222-3333-4444-555555555555";
@@ -331,7 +331,7 @@ fn remembered_lamps_add_remove_and_list_without_radio() {
 #[test]
 fn brightness_settings_are_independent_and_save_offline_without_enabling() {
     let home = tempfile::tempdir().unwrap();
-    let dir = home.path().join(".claude/broglow");
+    let dir = home.path().join(".broglow");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("config.json");
     let first = "11111111-2222-3333-4444-555555555555";
@@ -414,7 +414,7 @@ fn brightness_settings_are_independent_and_save_offline_without_enabling() {
 #[test]
 fn ble_selection_preserves_settings_without_radio() {
     let home = tempfile::tempdir().unwrap();
-    let dir = home.path().join(".claude/broglow");
+    let dir = home.path().join(".broglow");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("config.json");
     std::fs::write(
@@ -471,7 +471,7 @@ fn ble_selection_preserves_settings_without_radio() {
 #[test]
 fn flash_needs_release_images_and_a_reachable_lamp_without_touching_settings() {
     let home = tempfile::tempdir().unwrap();
-    let config = home.path().join(".claude/broglow/config.json");
+    let config = home.path().join(".broglow/config.json");
     let missing_port = home.path().join("nonexistent-serial-port");
 
     // The test binary has no release layout around it.

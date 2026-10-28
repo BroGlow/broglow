@@ -112,7 +112,8 @@ BLE не даёт поиску устройств и рабочему проце
   одинаково; `NO_PROJECT` для неизвестной директории) и `group_by_project`
   (порядок для настройки `group_by_project`: проекты по самой срочной сессии,
   затем по свежести, затем по пути; «No project» последним).
-- **config.rs** — `~/.claude/broglow/config.json`: явное включение LED,
+- **config.rs** — `data_dir()`, единственная директория данных BroGlow (`$BROGLOW_HOME`,
+  иначе `~/.broglow`); все остальные пути выводятся из неё. `~/.broglow/config.json`: явное включение LED,
   `led_transport` по умолчанию USB, необязательный `led_port`, сохранённые
   `ble_peripherals`, `yellow_mode`, `show_agent_names` (по умолчанию включено)
   и `group_by_project` (по умолчанию выключено).
@@ -179,7 +180,7 @@ BroGlow на INFO) запускает `flash::update` в потоке трея �
   popover.js): никаких уведомлений и значков. **Update via Homebrew** появляется
   только при наличии `<prefix>/opt/broglow` и запускает `brew upgrade broglow &&
   broglow install` отдельным процессом (`install` перезапускает этот трей), лог в
-  `~/.claude/broglow/update.log`. Ошибки показываются как «could not reach
+  `~/.broglow/update.log`. Ошибки показываются как «could not reach
   GitHub» и повторяются при следующем старте или нажатии. О пользователе ничего
   не отправляется.
 - **notification.rs** — уведомления рабочего стола (`osascript` на macOS,
@@ -207,7 +208,7 @@ BroGlow на INFO) запускает `flash::update` в потоке трея �
 ## Поток данных
 
 Claude Code вызывает хук → `broglow hook` читает JSON события из stdin →
-обновляет запись сессии в `~/.claude/broglow/state.json`. TUI и служба трея
+обновляет запись сессии в `~/.broglow/state.json`. TUI и служба трея
 наблюдают за этим файлом через `notify` и перерисовываются при изменениях.
 Соответствие событий статусам:
 

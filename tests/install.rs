@@ -76,7 +76,7 @@ fn install_registers_hooks_and_uninstall_reverts_them() {
     }
     let autostart = home.path().join(".config/autostart/broglow.desktop");
     assert!(autostart.exists(), "XDG autostart entry written");
-    assert!(claude_dir.join("broglow").exists(), "state dir created");
+    assert!(home.path().join(".broglow").exists(), "state dir created");
 
     run(&home, "uninstall");
 
@@ -87,7 +87,7 @@ fn install_registers_hooks_and_uninstall_reverts_them() {
         "empty hooks object removed entirely"
     );
     assert!(!autostart.exists(), "autostart entry removed");
-    assert!(!claude_dir.join("broglow").exists(), "state dir removed");
+    assert!(!home.path().join(".broglow").exists(), "state dir removed");
 }
 
 #[test]

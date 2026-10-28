@@ -461,7 +461,7 @@ BACKUP_DIR="$RECOVERY_ROOT/install-$(date +%Y%m%d-%H%M%S)"
 mkdir -m 700 "$BACKUP_DIR"
 for item in \
   "$HOME/.claude/settings.json" \
-  "$HOME/.claude/broglow/config.json" \
+  "$HOME/.broglow/config.json" \
   "$HOME/.cargo/bin/broglow" \
   "${CODEX_HOME:-$HOME/.codex}/hooks.json" \
   "$HOME/.config/opencode/plugins/broglow.js" \
@@ -659,7 +659,7 @@ needing help come first, and **Clear paused** moves to the **By project** headin
 saves `group_by_project`, off by default. The TUI then sorts its rows the same way and
 brightens the project name on the first row of each project, and the Linux tray menu
 adds a 📁 heading per project. On Linux, where there is no Settings view, set
-`"group_by_project": true` in `~/.claude/broglow/config.json`.
+`"group_by_project": true` in `~/.broglow/config.json`.
 
 | Icon | Session state |
 | --- | --- |
@@ -698,7 +698,7 @@ launchctl kickstart -k "gui/$(id -u)/io.github.broglow.menubar"
 ```
 
 Repeat the checks. If the app or the service registration is missing, repeat your
-installation route. After unexpected exits, read `~/.claude/broglow/menubar.log` and
+installation route. After unexpected exits, read `~/.broglow/menubar.log` and
 `menubar.err`. Never start another tray instance as a health check. The first TUI
 launch on an unconfigured Mac can install the hooks and login startup.
 
@@ -855,7 +855,7 @@ scan`, `broglow ble add`. Both IDs stay saved. **Lamps 1/2** is normal while one
 elsewhere; expect **Lamps 2/2** with both nearby. Each lamp has its own writes and
 expiry, so one lamp cannot block or mask the other.
 
-`~/.claude/broglow/config.json` stores `ble_peripherals` and `led_transport: "ble"`.
+`~/.broglow/config.json` stores `ble_peripherals` and `led_transport: "ble"`.
 To forget a lamp, use **Lamps → lamp row → Forget lamp**, or:
 
 ```bash
@@ -965,7 +965,7 @@ Protocol details: [firmware reference](firmware.md#ble-contract-and-firmware-beh
 In **Lamps**, expand a lamp and set **Light brightness: 0–100%**. **All lamps** sets
 every saved lamp, clears per-lamp overrides and becomes the default for new lamps.
 The default is 100%. The Mac stores `led_brightness`
-and optional per-ID `lamp_brightness` values in `~/.claude/broglow/config.json`.
+and optional per-ID `lamp_brightness` values in `~/.broglow/config.json`.
 
 Moving a slider previews all three lights on the selected connected lamps; status
 returns **two seconds** after the last preview. Holding the pointer keeps the preview
@@ -1002,7 +1002,7 @@ broglow ble usb
 This selects USB with lamp control disabled and keeps the existing USB settings and
 saved Bluetooth IDs. Connect the identified board, then enable it with `l` or in
 **Lamps**. With several Espressif devices attached, set `led_port` in
-`~/.claude/broglow/config.json` to the board's current identified path and keep the
+`~/.broglow/config.json` to the board's current identified path and keep the
 other keys; the VID alone is not enough.
 
 For a USB-only diagnostic in the foreground:
@@ -1041,6 +1041,6 @@ installation was interrupted and `~/Applications/.BroGlow.previous.*.app` remain
 holds the previous app; keep it until BroGlow works again.
 
 `broglow uninstall` removes the login service, the app, BroGlow's hooks and
-`~/.claude/broglow` (session state, logs and lamp settings, including saved lamp IDs).
+`~/.broglow` (session state, logs and lamp settings, including saved lamp IDs).
 It keeps `~/.cargo/bin/broglow`. Do not use it for routine troubleshooting. To remove
 BroGlow on purpose, run `broglow ble off` first, then `broglow uninstall`.

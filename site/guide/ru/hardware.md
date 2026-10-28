@@ -503,7 +503,7 @@ BACKUP_DIR="$RECOVERY_ROOT/install-$(date +%Y%m%d-%H%M%S)"
 mkdir -m 700 "$BACKUP_DIR"
 for item in \
   "$HOME/.claude/settings.json" \
-  "$HOME/.claude/broglow/config.json" \
+  "$HOME/.broglow/config.json" \
   "$HOME/.cargo/bin/broglow" \
   "${CODEX_HOME:-$HOME/.codex}/hooks.json" \
   "$HOME/.config/opencode/plugins/broglow.js" \
@@ -713,7 +713,7 @@ AGENT и показывает имя или короткую метку (`cc` Cl
 выключено. TUI тогда сортирует строки так же и подсвечивает имя проекта в первой
 строке каждого проекта, а меню в трее Linux добавляет заголовок 📁 на каждый проект.
 На Linux, где нет окна Settings, задайте `"group_by_project": true` в
-`~/.claude/broglow/config.json`.
+`~/.broglow/config.json`.
 
 | Значок | Состояние сессий |
 | --- | --- |
@@ -754,7 +754,7 @@ launchctl kickstart -k "gui/$(id -u)/io.github.broglow.menubar"
 
 Повторите проверки. Если пропало приложение или регистрация службы, повторите
 установку выбранным способом. После неожиданного завершения прочитайте
-`~/.claude/broglow/menubar.log` и `menubar.err`. Никогда не запускайте второй
+`~/.broglow/menubar.log` и `menubar.err`. Никогда не запускайте второй
 экземпляр в строке меню для проверки. Первый запуск TUI на ненастроенном Mac может
 установить хуки и автозапуск.
 
@@ -933,7 +933,7 @@ macOS о сопряжении: по наблюдениям, запрос зак�
 лампы свои записи и свой срок свежести, поэтому одна лампа не блокирует и не
 маскирует другую.
 
-`~/.claude/broglow/config.json` хранит `ble_peripherals` и `led_transport: "ble"`.
+`~/.broglow/config.json` хранит `ble_peripherals` и `led_transport: "ble"`.
 Чтобы забыть лампу, используйте **Lamps → строка лампы → Forget lamp** или:
 
 ```bash
@@ -1060,7 +1060,7 @@ Back или Escape возвращает к сессиям. В TUI `d` откры
 задаёт уровень всем сохранённым лампам, сбрасывает индивидуальные значения и становится
 значением по умолчанию для новых ламп. По умолчанию яркость 100%.
 Mac хранит `led_brightness` и необязательные значения
-`lamp_brightness` для отдельных ID в `~/.claude/broglow/config.json`.
+`lamp_brightness` для отдельных ID в `~/.broglow/config.json`.
 
 При движении ползунка выбранные подключённые лампы показывают предпросмотр всех трёх
 цветов; через **две секунды** после последнего предпросмотра возвращается статус.
@@ -1102,7 +1102,7 @@ broglow ble usb
 Команда выбирает USB с отключённым управлением лампой и сохраняет прежние настройки
 USB и сохранённые ID Bluetooth. Подключите определённую плату и включите её клавишей `l`
 или в **Lamps**. Если подключено несколько устройств Espressif, задайте `led_port`
-в `~/.claude/broglow/config.json` равным текущему пути определённой платы и не меняйте
+в `~/.broglow/config.json` равным текущему пути определённой платы и не меняйте
 остальные ключи; одного VID недостаточно.
 
 Для диагностики только по USB в терминале:
@@ -1143,7 +1143,7 @@ broglow led --port "$BOARD_PORT"
 установка прервалась и осталась папка `~/Applications/.BroGlow.previous.*.app`,
 в ней предыдущее приложение; не удаляйте её, пока BroGlow снова не заработает.
 
-`broglow uninstall` удаляет службу входа, приложение, хуки BroGlow и `~/.claude/broglow`
+`broglow uninstall` удаляет службу входа, приложение, хуки BroGlow и `~/.broglow`
 (состояние сессий, журналы и настройки ламп, включая сохранённые ID). `~/.cargo/bin/broglow`
 остаётся. Не используйте эту команду для обычного исправления. Чтобы намеренно удалить
 BroGlow, сначала выполните `broglow ble off`, затем `broglow uninstall`.

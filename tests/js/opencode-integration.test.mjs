@@ -8,7 +8,7 @@
 // plugin's event mapping or the binary's ingestion drift apart.
 //
 // Run: `cargo build --locked && node --test tests/js/*.test.mjs`.
-// Unix only: sessions land in `$HOME/.claude/broglow/state.json`, sandboxed
+// Unix only: sessions land in `$HOME/.broglow/state.json`, sandboxed
 // per test via a throwaway HOME — the same reason the Rust suite is unix-gated.
 
 import { test, after } from "node:test";
@@ -107,7 +107,7 @@ function sandbox(t) {
 }
 
 function statePath(home) {
-  return join(home, ".claude", "broglow", "state.json");
+  return join(home, ".broglow", "state.json");
 }
 
 function readState(home) {
@@ -116,7 +116,7 @@ function readState(home) {
 }
 
 function seedState(home, sessions) {
-  const dir = join(home, ".claude", "broglow");
+  const dir = join(home, ".broglow");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "state.json"), JSON.stringify({ sessions }));
 }
@@ -143,11 +143,11 @@ function usagePath(home, completed) {
   const date = new Date(completed);
   const day = [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0")].join("-");
-  return join(home, ".claude", "broglow", `opencode-usage-${day}.json`);
+  return join(home, ".broglow", `opencode-usage-${day}.json`);
 }
 
 function enableUsage(home) {
-  const dir = join(home, ".claude", "broglow");
+  const dir = join(home, ".broglow");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "config.json"), JSON.stringify({ usage_enabled: true }));
 }
@@ -197,7 +197,7 @@ test("usage opt-out and incomplete messages create no tracking files or message 
   const completed = Date.now();
   await plugin.emit("message.updated", assistantUsage("ses-api", "msg-api", completed));
   await plugin.drain();
-  assert.ok(!existsSync(join(home, ".claude", "broglow")), "opt-out writes nothing");
+  assert.ok(!existsSync(join(home, ".broglow")), "opt-out writes nothing");
 
   enableUsage(home);
   const incomplete = assistantUsage("ses-api", "msg-api", completed);

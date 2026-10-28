@@ -1,4 +1,4 @@
-//! Persistent user settings at `~/.claude/broglow/config.json`.
+//! Persistent user settings at `~/.broglow/config.json`.
 //!
 //! Kept separate from the hook-written `state.json` so the daemon and the TUI
 //! can share opt-in preferences: lamp transport, remembered lamps and
@@ -178,12 +178,19 @@ impl Config {
     }
 }
 
-pub fn config_file_path() -> PathBuf {
+/// BroGlow's own data directory: `$BROGLOW_HOME`, else `~/.broglow`. Settings,
+/// session state, worker status, locks and the tray's logs all live here.
+pub fn data_dir() -> PathBuf {
+    if let Some(home) = std::env::var_os("BROGLOW_HOME").filter(|home| !home.is_empty()) {
+        return PathBuf::from(home);
+    }
     dirs::home_dir()
         .expect("Home directory must exist")
-        .join(".claude")
-        .join("broglow")
-        .join("config.json")
+        .join(".broglow")
+}
+
+pub fn config_file_path() -> PathBuf {
+    data_dir().join("config.json")
 }
 
 /// Read the config, falling back to defaults if it's missing or unreadable.

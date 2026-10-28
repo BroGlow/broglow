@@ -198,13 +198,6 @@ fn run_tui() -> anyhow::Result<()> {
     result
 }
 
-fn hook_dir() -> PathBuf {
-    dirs::home_dir()
-        .expect("Home directory must exist")
-        .join(".claude")
-        .join("broglow")
-}
-
 fn settings_path() -> PathBuf {
     dirs::home_dir()
         .expect("Home directory must exist")
@@ -233,7 +226,7 @@ const HOOK_EVENTS: [&str; 6] = [
 /// first-run path deliberately calls only this (see `first_run_setup_daemon`).
 fn register_hooks() -> anyhow::Result<()> {
     // 1. Ensure the broglow state/log directory exists.
-    std::fs::create_dir_all(hook_dir())?;
+    std::fs::create_dir_all(config::data_dir())?;
 
     // 2. Register the native hook backend in settings.json. The hook command is
     //    this very binary invoked as `broglow hook`.
@@ -461,7 +454,7 @@ fn uninstall_hooks() -> anyhow::Result<()> {
     uninstall_autostart()?;
 
     // Remove hook state and logs
-    let dir = hook_dir();
+    let dir = config::data_dir();
     if dir.exists() {
         std::fs::remove_dir_all(&dir)?;
         println!("Removed {}", dir.display());
@@ -697,9 +690,9 @@ const LAUNCH_AGENT_PLIST: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
     <key>RunAtLoad</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>{{HOME}}/.claude/broglow/menubar.log</string>
+    <string>{{DATA}}/menubar.log</string>
     <key>StandardErrorPath</key>
-    <string>{{HOME}}/.claude/broglow/menubar.err</string>
+    <string>{{DATA}}/menubar.err</string>
 </dict>
 </plist>
 "#;
@@ -728,7 +721,6 @@ pub(crate) fn current_uid() -> anyhow::Result<String> {
 #[cfg(target_os = "macos")]
 fn install_launch_agent() -> anyhow::Result<()> {
     let exe = std::env::current_exe().context("Resolving current executable path")?;
-    let home = dirs::home_dir().context("No home directory")?;
     let bundle = mac_bundle_path()?;
     check_managed_bundle(&bundle)?;
     let applications = bundle.parent().context("Bundle must have a parent")?;
@@ -746,7 +738,10 @@ fn install_launch_agent() -> anyhow::Result<()> {
             "{{BIN}}",
             &xml_escape(&mac_bundle_executable()?.display().to_string()),
         )
-        .replace("{{HOME}}", &xml_escape(&home.display().to_string()));
+        .replace(
+            "{{DATA}}",
+            &xml_escape(&config::data_dir().display().to_string()),
+        );
 
     let plist_path = launch_agent_path();
     if let Some(parent) = plist_path.parent() {
@@ -807,7 +802,7 @@ fn install_launch_agent() -> anyhow::Result<()> {
         }
         anyhow::bail!(
             "The BroGlow tray did not start; see {}",
-            home.join(".claude/broglow/menubar.err").display()
+            config::data_dir().join("menubar.err").display()
         )
     })();
     if let Err(error) = installed {

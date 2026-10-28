@@ -96,7 +96,8 @@ grant or board operation: record those acceptance checks separately.
   folders share a name; `NO_PROJECT` for an unknown directory) and `group_by_project`
   (the order behind the `group_by_project` setting: projects by their most urgent
   session, then recency, then path; "No project" last).
-- **config.rs** — `~/.claude/broglow/config.json` (LED opt-in, `led_transport`
+- **config.rs** — `data_dir()`, BroGlow's one data directory (`$BROGLOW_HOME`, else
+  `~/.broglow`); every other path derives from it. `~/.broglow/config.json` (LED opt-in, `led_transport`
   defaulting to USB, optional `led_port`, remembered `ble_peripherals`, `yellow_mode`,
   `show_agent_names`, on by default, and `group_by_project`, off by default).
   Use `ble_ids()` to deduplicate remembered `ble_peripherals`.
@@ -154,7 +155,7 @@ device that gives no BroGlow INFO reply) runs `flash::update` on a tray thread
   never a notification, never a badge. **Update via Homebrew** appears only when
   `<prefix>/opt/broglow` exists and spawns `brew upgrade broglow && broglow
   install` detached (the `install` restarts this tray), logging to
-  `~/.claude/broglow/update.log`. Failures are shown as "could not reach GitHub"
+  `~/.broglow/update.log`. Failures are shown as "could not reach GitHub"
   and retried on the next start or click. Nothing about the user is sent.
 - **notification.rs** — desktop notifications (macOS `osascript`; else `notify-rust`).
 - **spawn.rs** — Windows-only detached/windowless child-process flags (no-op elsewhere).
@@ -174,7 +175,7 @@ device that gives no BroGlow INFO reply) runs `flash::update` on a tray thread
 ## Data flow
 
 Claude Code fires a hook → `broglow hook` reads the event JSON on stdin → updates the
-session's entry in `~/.claude/broglow/state.json`. The TUI and the tray daemon both
+session's entry in `~/.broglow/state.json`. The TUI and the tray daemon both
 watch that file (via `notify`) and re-render on change. Status mapping:
 
 - `SessionStart` / `UserPromptSubmit` / `PreToolUse` → `Active`

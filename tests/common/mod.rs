@@ -33,7 +33,7 @@ pub fn command(home: &TempDir) -> Command {
 }
 
 pub fn state_path(home: &TempDir) -> PathBuf {
-    home.path().join(".claude/broglow/state.json")
+    home.path().join(".broglow/state.json")
 }
 
 pub fn codex_home(home: &TempDir) -> PathBuf {
