@@ -13,6 +13,11 @@ use common::{command, read_state, run_hook, seed_state, session_status, state_pa
 use serde_json::json;
 use tempfile::TempDir;
 
+/// A `last_updated` the done-session retention will not prune.
+fn now() -> String {
+    chrono::Utc::now().to_rfc3339()
+}
+
 /// Run `broglow event` inside the sandbox home with the given stdin.
 fn run_event(home: &TempDir, stdin: &str) -> assert_cmd::assert::Assert {
     command(home)
@@ -379,7 +384,7 @@ fn reconnected_sweeps_stale_opencode_sessions_but_spares_other_harnesses() {
                 // stale on reconnect and swept to done.
                 "ses-stale": {
                     "status": "active",
-                    "last_updated": "2020-01-01T00:00:00Z",
+                    "last_updated": now(),
                     "project_path": null,
                     "notification_type": null,
                     "name": null,
@@ -499,9 +504,9 @@ fn a_foreign_harness_flows_through_and_sweeps_stay_scoped() {
         &home,
         &json!({
             "sessions": {
-                "cx-stale": {"status": "active", "last_updated": "2020-01-01T00:00:00Z",
+                "cx-stale": {"status": "active", "last_updated": now(),
                     "project_path": null, "notification_type": null, "name": null, "harness": "codex"},
-                "oc-stale": {"status": "active", "last_updated": "2020-01-01T00:00:00Z",
+                "oc-stale": {"status": "active", "last_updated": now(),
                     "project_path": null, "notification_type": null, "name": null, "harness": "opencode"},
             }
         }),
@@ -554,4 +559,43 @@ fn reconnected_spares_a_session_whose_owner_is_alive() {
     .success();
 
     assert_eq!(session_status(&read_state(&home), "ses-live"), "active");
+}
+
+#[test]
+fn a_write_prunes_done_sessions_by_the_configured_retention() {
+    let home = temp_home();
+    let seed = || {
+        seed_state(
+            &home,
+            &json!({
+                "sessions": {
+                    "ancient-done": {"status": "done", "last_updated": "2020-01-01T00:00:00Z",
+                        "project_path": null, "notification_type": null, "name": null},
+                    "ancient-live": {"status": "active", "last_updated": "2020-01-01T00:00:00Z",
+                        "project_path": null, "notification_type": null, "name": null},
+                }
+            }),
+        );
+    };
+    let event =
+        json!({"harness": "opencode", "event": "working", "session_id": "oc-1"}).to_string();
+
+    // Default retention (14 days) drops the done session; live ones stay.
+    seed();
+    run_event(&home, &event).success();
+    let state = read_state(&home);
+    assert!(state["sessions"].get("ancient-done").is_none());
+    assert_eq!(session_status(&state, "ancient-live"), "active");
+
+    // Zero disables both limits.
+    let config = home.path().join(".broglow").join("config.json");
+    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+    std::fs::write(
+        &config,
+        json!({"done_sessions": {"keep_days": 0, "keep_max": 0}}).to_string(),
+    )
+    .unwrap();
+    seed();
+    run_event(&home, &event).success();
+    assert_eq!(session_status(&read_state(&home), "ancient-done"), "done");
 }

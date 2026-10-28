@@ -286,6 +286,44 @@ fn reap_ended_sessions(state: &mut HookState, now: DateTime<Utc>, is_alive: impl
     }
 }
 
+/// Drop finished sessions nobody will see again: `done` entries older than
+/// `keep_days`, then all but the `keep_max` newest by `last_updated`. Zero
+/// disables either limit. Live sessions are never touched. Returns whether
+/// anything was dropped. Callers hold the state lock and write afterwards.
+pub fn prune_done_sessions(
+    state: &mut HookState,
+    now: DateTime<Utc>,
+    keep: &crate::config::DoneSessions,
+) -> bool {
+    let count = state.sessions.len();
+    if keep.keep_days > 0 {
+        let cutoff = now - chrono::Duration::days(i64::from(keep.keep_days));
+        state.sessions.retain(|_, s| {
+            s.status != Status::Done
+                || s.last_updated
+                    .parse::<DateTime<Utc>>()
+                    .is_ok_and(|ts| ts >= cutoff)
+        });
+    }
+    if keep.keep_max > 0 {
+        let mut done: Vec<(&String, &String)> = state
+            .sessions
+            .iter()
+            .filter(|(_, s)| s.status == Status::Done)
+            .map(|(id, s)| (id, &s.last_updated))
+            .collect();
+        // RFC 3339 UTC timestamps sort as strings.
+        done.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+        let drop: std::collections::HashSet<String> = done
+            .into_iter()
+            .skip(usize::from(keep.keep_max))
+            .map(|(id, _)| id.clone())
+            .collect();
+        state.sessions.retain(|id, _| !drop.contains(id));
+    }
+    state.sessions.len() != count
+}
+
 pub fn clear_session(session_id: &str) -> anyhow::Result<()> {
     clear_sessions_matching(|id, _| id == session_id)
 }
@@ -309,13 +347,18 @@ fn clear_sessions_matching(matches: impl Fn(&str, &SessionStatus) -> bool) -> an
     let mut state: HookState = serde_json::from_str(&content)?;
     let count = state.sessions.len();
     state.sessions.retain(|id, session| !matches(id, session));
+    let pruned = prune_done_sessions(
+        &mut state,
+        Utc::now(),
+        &crate::config::read_config().done_sessions,
+    );
     state
         .codex_questions
         .retain(|id, _| state.sessions.contains_key(id));
     state
         .codex_turns
         .retain(|id, _| state.sessions.contains_key(id));
-    if state.sessions.len() == count {
+    if state.sessions.len() == count && !pruned {
         return Ok(());
     }
 
@@ -363,6 +406,97 @@ mod tests {
     use crate::config::YellowMode;
 
     #[cfg(unix)]
+    fn done_at(state: &mut HookState, id: &str, status: Status, at: DateTime<Utc>) {
+        state.sessions.insert(
+            id.into(),
+            SessionStatus {
+                status,
+                last_updated: at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                project_path: None,
+                notification_type: None,
+                name: None,
+                terminal: None,
+                harness: None,
+                codex_background: false,
+            },
+        );
+    }
+
+    #[test]
+    fn prune_drops_old_done_sessions_and_keeps_live_ones() {
+        let now = Utc::now();
+        let mut state = HookState::default();
+        done_at(
+            &mut state,
+            "old-done",
+            Status::Done,
+            now - chrono::Duration::days(15),
+        );
+        done_at(
+            &mut state,
+            "new-done",
+            Status::Done,
+            now - chrono::Duration::days(13),
+        );
+        done_at(
+            &mut state,
+            "old-live",
+            Status::Active,
+            now - chrono::Duration::days(40),
+        );
+        let keep = crate::config::DoneSessions::default();
+
+        assert!(prune_done_sessions(&mut state, now, &keep));
+        let mut ids: Vec<_> = state.sessions.keys().cloned().collect();
+        ids.sort();
+        assert_eq!(ids, ["new-done", "old-live"]);
+        assert!(!prune_done_sessions(&mut state, now, &keep));
+    }
+
+    #[test]
+    fn prune_caps_done_sessions_to_the_newest() {
+        let now = Utc::now();
+        let mut state = HookState::default();
+        for i in 0..5 {
+            done_at(
+                &mut state,
+                &format!("d{i}"),
+                Status::Done,
+                now - chrono::Duration::hours(i),
+            );
+        }
+        let keep = crate::config::DoneSessions {
+            keep_days: 0,
+            keep_max: 2,
+        };
+
+        assert!(prune_done_sessions(&mut state, now, &keep));
+        let mut ids: Vec<_> = state.sessions.keys().cloned().collect();
+        ids.sort();
+        assert_eq!(ids, ["d0", "d1"]);
+    }
+
+    #[test]
+    fn prune_zero_limits_keep_everything() {
+        let now = Utc::now();
+        let mut state = HookState::default();
+        for i in 0..3 {
+            done_at(
+                &mut state,
+                &format!("d{i}"),
+                Status::Done,
+                now - chrono::Duration::days(400 * i),
+            );
+        }
+        let keep = crate::config::DoneSessions {
+            keep_days: 0,
+            keep_max: 0,
+        };
+
+        assert!(!prune_done_sessions(&mut state, now, &keep));
+        assert_eq!(state.sessions.len(), 3);
+    }
+
     #[test]
     fn reader_reconciles_late_capacity_and_dismissal_removes_tracking() {
         if std::env::var_os("BROGLOW_TEST_CAPACITY_READER").is_none() {

@@ -29,6 +29,25 @@ pub enum LedTransport {
     Ble,
 }
 
+/// How long finished sessions stay in `state.json`. The popover shows only a
+/// few of them; the rest is history nobody reads, yet every hook rewrites the
+/// whole file. Each write drops `done` sessions older than `keep_days` and all
+/// but the `keep_max` newest; `0` disables that limit. Hand-edited only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DoneSessions {
+    pub keep_days: u16,
+    pub keep_max: u16,
+}
+
+impl Default for DoneSessions {
+    fn default() -> Self {
+        Self {
+            keep_days: 14,
+            keep_max: 100,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -87,6 +106,9 @@ pub struct Config {
     /// One request to GitHub for the latest release when the tray starts; the
     /// result shows only in Settings. On by default; Settings can turn it off.
     pub check_updates_on_startup: bool,
+    /// Retention of finished sessions in `state.json`; see [`DoneSessions`].
+    #[serde(deserialize_with = "deserialize_done_sessions")]
+    pub done_sessions: DoneSessions,
     /// Preserve settings introduced by newer versions or local integrations.
     #[serde(flatten)]
     pub extra: std::collections::BTreeMap<String, serde_json::Value>,
@@ -113,6 +135,7 @@ impl Default for Config {
             usage_enabled: false,
             show_usage_in_menu_bar: true,
             check_updates_on_startup: true,
+            done_sessions: DoneSessions::default(),
             extra: Default::default(),
         }
     }
@@ -127,6 +150,25 @@ fn deserialize_popover_reset_minutes<'de, D: serde::Deserializer<'de>>(
         .as_u64()
         .filter(|minutes| (1..=1440).contains(minutes))
         .unwrap_or(5) as u16)
+}
+
+fn deserialize_done_sessions<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<DoneSessions, D::Error> {
+    // Invalid hand edits keep the default limit without resetting other settings.
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let defaults = DoneSessions::default();
+    let limit = |key: &str, default: u16| {
+        value
+            .get(key)
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|n| u16::try_from(n).ok())
+            .unwrap_or(default)
+    };
+    Ok(DoneSessions {
+        keep_days: limit("keep_days", defaults.keep_days),
+        keep_max: limit("keep_max", defaults.keep_max),
+    })
 }
 
 fn deserialize_led_brightness<'de, D: serde::Deserializer<'de>>(

@@ -421,6 +421,11 @@ thin:
   when `popover_reset_enabled` is on (the default). Count continuous closure, including
   sleep; preserve the current page for shorter closures or when disabled. Visible idle
   time never resets navigation. Preserve lamp settings and background setup.
+- **Done sessions expire.** `state.json` is rewritten whole on every hook, so it must
+  stay small: `hook::update_state` and `clear_sessions_matching` call
+  `state::prune_done_sessions`, dropping `done` entries older than
+  `done_sessions.keep_days` (default 14) and beyond the `keep_max` newest (default 100);
+  `0` disables a limit. Config-only, no popover UI. Live sessions are never pruned.
 - **Escape before shelling out.** The macOS notification path builds an AppleScript
   string — escape `\` before `"`.
 - Platform-specific code is `#[cfg(...)]`-gated in place (autostart in main.rs, console

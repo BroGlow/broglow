@@ -626,6 +626,15 @@ time spent with the popover open does not count, and sleep while it is closed do
 This saves `popover_reset_enabled` and `popover_reset_minutes`. Returning to chats
 preserves lamp settings and any background setup.
 
+Finished sessions are kept in `state.json` for **14 days**, at most the **100** newest.
+Older ones are dropped the next time a hook writes state. There is no setting in the
+popover; edit `done_sessions` in `~/.broglow/config.json` by hand, where `0` disables
+a limit:
+
+```json
+"done_sessions": { "keep_days": 14, "keep_max": 100 }
+```
+
 Dashboard shortcuts are hidden by default. Turn on **Settings → Appearance → Show
 Dashboard button**, or run:
 

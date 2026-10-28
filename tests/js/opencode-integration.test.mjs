@@ -304,7 +304,8 @@ test("server.connected sweeps this harness's stale sessions to done", {
   seedState(home, {
     ses_old: {
       status: "active",
-      last_updated: "2020-01-01T00:00:00Z",
+      // Fresh enough to survive the done-session retention after the sweep.
+      last_updated: new Date().toISOString(),
       project_path: null,
       notification_type: null,
       name: "leftover",

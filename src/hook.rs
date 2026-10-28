@@ -46,6 +46,11 @@ pub(crate) fn update_state(mutate: impl FnOnce(&mut HookState) -> bool) -> anyho
         LoadedState::Unreadable => return Ok(()),
     };
     let changed = mutate(&mut state);
+    let pruned = crate::state::prune_done_sessions(
+        &mut state,
+        Utc::now(),
+        &crate::config::read_config().done_sessions,
+    );
     let count = state.codex_questions.len();
     state.codex_questions.retain(|id, _| {
         state
@@ -60,7 +65,11 @@ pub(crate) fn update_state(mutate: impl FnOnce(&mut HookState) -> bool) -> anyho
             .get(id)
             .is_some_and(|s| s.harness.as_deref() == Some("codex") && !s.codex_background)
     });
-    if changed || state.codex_questions.len() != count || state.codex_turns.len() != turn_count {
+    if changed
+        || pruned
+        || state.codex_questions.len() != count
+        || state.codex_turns.len() != turn_count
+    {
         write_state_atomic(&state)?;
     }
     Ok(())
