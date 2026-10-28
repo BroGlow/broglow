@@ -90,11 +90,7 @@ fn startup_backfill_titles_only_unnamed_live_claude_sessions() {
         );
         return;
     }
-    let project = dirs::home_dir()
-        .unwrap()
-        .join(".claude")
-        .join("projects")
-        .join("-work-app");
+    let project = crate::harness::claude::projects_dir().join("-work-app");
     std::fs::create_dir_all(&project).unwrap();
     for id in ["idle", "named", "done", "codex"] {
         std::fs::write(
@@ -1255,7 +1251,7 @@ fn find_claude_transcript(session_id: &str) -> Option<std::path::PathBuf> {
         return None;
     }
     let file = format!("{session_id}.jsonl");
-    std::fs::read_dir(dirs::home_dir()?.join(".claude").join("projects"))
+    std::fs::read_dir(crate::harness::claude::projects_dir())
         .ok()?
         .flatten()
         .map(|entry| entry.path().join(&file))

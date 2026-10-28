@@ -328,13 +328,16 @@ thin:
 ## Conventions & gotchas
 
 - **First-run auto-setup is asymmetric on purpose** (main.rs). Both entry points check
-  `hooks_registered()` (a broglow hook command present in `settings.json`) and act only
-  when it's false. The **TUI** (`first_run_setup_tui`) runs the *full* `install_hooks`
+  `already_set_up()` (the data dir exists; `register_hooks` creates it, `uninstall`
+  removes it — harness-agnostic, since a Codex-only machine has no Claude settings)
+  and act only when it's false. The **TUI** (`first_run_setup_tui`) runs the *full* `install_hooks`
   (hooks + autostart), so first launch can finish setup after installing our binary. The
   **tray daemon** (`first_run_setup_daemon`) runs `register_hooks` **only** — never
   autostart: the daemon is already running, and bootstrapping/kickstarting its own
   LaunchAgent (or spawning a detached `menubar` on Linux/Windows) would create a duplicate
-  tray. Unparseable `settings.json` counts as "registered" so we stay hands-off.
+  tray. Claude's `settings.json` is written only when Claude Code is detected
+  (`harness::claude::detected`: `~/.claude` exists or `claude` on PATH), like every
+  other adapter; every `~/.claude` path is built in `harness::claude`.
 - **Never byte-slice user/LLM strings.** Session names come from prompts, transcript
   summaries, and LLM-generated titles — all arbitrary UTF-8. Slice by chars (see
   `truncate` / `char_prefix` in session.rs); a byte cut inside a multibyte char panics

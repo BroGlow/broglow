@@ -91,6 +91,24 @@ fn install_registers_hooks_and_uninstall_reverts_them() {
 }
 
 #[test]
+fn install_without_claude_code_creates_no_claude_dir() {
+    let home = TempDir::new().unwrap();
+    std::fs::create_dir_all(home.path().join(".codex")).unwrap();
+
+    run(&home, "install");
+
+    assert!(
+        !home.path().join(".claude").exists(),
+        "no phantom ~/.claude"
+    );
+    assert!(home.path().join(".broglow").exists(), "data dir created");
+    assert!(
+        home.path().join(".codex/hooks.json").exists(),
+        "detected adapters are still wired"
+    );
+}
+
+#[test]
 fn install_adopts_the_previous_data_dir() {
     let home = TempDir::new().unwrap();
     let old = home.path().join(".claude").join("broglow");
@@ -176,8 +194,9 @@ fn uninstall_leaves_no_placeholder_in_front_of_a_foreign_claude_hook() {
     // Codex trusts hooks by position, so there ours becomes an inert
     // placeholder; Claude does not, so ours must simply disappear.
     let home = TempDir::new().unwrap();
-    run(&home, "install");
     let dir = home.path().join(".claude");
+    std::fs::create_dir_all(&dir).unwrap();
+    run(&home, "install");
     let mut settings = read_settings(&home);
     let foreign = json!({"matcher":"*", "hooks":[{"type":"command","command":"guard.sh"}]});
     settings["hooks"]["Stop"]

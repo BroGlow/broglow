@@ -198,13 +198,6 @@ fn run_tui() -> anyhow::Result<()> {
     result
 }
 
-fn settings_path() -> PathBuf {
-    dirs::home_dir()
-        .expect("Home directory must exist")
-        .join(".claude")
-        .join("settings.json")
-}
-
 // ----------------------------------------------------------------------------
 // Install / uninstall
 // ----------------------------------------------------------------------------
@@ -221,19 +214,38 @@ const HOOK_EVENTS: [&str; 6] = [
 ];
 
 /// Register broglow's native hook backend in ~/.claude/settings.json for every
-/// lifecycle event, and ensure the state/log dir exists. Idempotent. Does *not*
+/// lifecycle event, and ensure the data dir exists. Idempotent. Does *not*
 /// touch autostart — `install_hooks` layers that on top; the menu-bar daemon's
 /// first-run path deliberately calls only this (see `first_run_setup_daemon`).
 fn register_hooks() -> anyhow::Result<()> {
-    // 1. Ensure the broglow state/log directory exists.
+    // 1. Ensure the broglow data directory exists. Its existence is also the
+    //    "already set up" marker for the first-run paths.
     std::fs::create_dir_all(config::data_dir())?;
 
-    // 2. Register the native hook backend in settings.json. The hook command is
-    //    this very binary invoked as `broglow hook`.
+    // 2. Register the native hook backend in settings.json, detection-gated like
+    //    every other adapter so a machine without Claude Code gets no ~/.claude.
+    if harness::claude::detected() {
+        register_claude_hooks()?;
+    }
+
+    // 3. Set up every detected non-Claude harness (opencode, Codex, Copilot).
+    //    Best-effort and detection-gated per adapter: a failure never breaks
+    //    Claude hook registration, and machines without those agents see
+    //    nothing. Sits in register_hooks (not install_hooks) so both first-run
+    //    paths — the TUI's full install and the daemon's hooks-only bootstrap —
+    //    set them up; adapters touch no autostart, so this is safe from the
+    //    daemon path.
+    harness::install_all();
+
+    Ok(())
+}
+
+fn register_claude_hooks() -> anyhow::Result<()> {
+    // The hook command is this very binary invoked as `broglow hook`.
     let exe = std::env::current_exe().context("Resolving current executable path")?;
     let hook_cmd = format!("\"{}\" hook", exe.display());
 
-    let settings_file = settings_path();
+    let settings_file = harness::claude::settings_path();
     let mut settings: serde_json::Value = if settings_file.exists() {
         let content = std::fs::read_to_string(&settings_file).context("Reading settings.json")?;
         serde_json::from_str(&content).context("Parsing settings.json")?
@@ -270,15 +282,6 @@ fn register_hooks() -> anyhow::Result<()> {
     codex::write_json_atomic(&settings_file, &settings)?;
 
     println!("Updated {}", settings_file.display());
-
-    // Set up every detected non-Claude harness (opencode, Codex, Copilot). Best-effort and
-    // detection-gated per adapter: a failure never breaks Claude hook
-    // registration, and machines without those agents see nothing. Sits in
-    // register_hooks (not install_hooks) so both first-run paths — the TUI's full
-    // install and the daemon's hooks-only bootstrap — set them up; adapters
-    // touch no autostart, so this is safe from the daemon path.
-    harness::install_all();
-
     Ok(())
 }
 
@@ -361,37 +364,16 @@ fn maybe_autoenable_led() -> bool {
     }
 }
 
-/// True if broglow's hook backend is already wired into settings.json for at
-/// least one lifecycle event. Gates the first-run auto-setup so a normal launch
-/// (TUI or tray daemon) doesn't rewrite settings — or, on the TUI path,
-/// re-bootstrap the LaunchAgent — every time.
-fn hooks_registered() -> bool {
-    let Ok(content) = std::fs::read_to_string(settings_path()) else {
-        return false;
-    };
-    let Ok(settings) = serde_json::from_str::<serde_json::Value>(&content) else {
-        // Unparseable settings.json (a mid-write snapshot, or a schema we don't
-        // understand): stay hands-off rather than auto-clobber a file we can't
-        // read — mirrors hook.rs's "never write on a failed read" rule.
-        return true;
-    };
-    let Some(hooks) = settings.get("hooks").and_then(|h| h.as_object()) else {
-        return false;
-    };
-    HOOK_EVENTS.iter().any(|event| {
-        hooks
-            .get(*event)
-            .and_then(|v| v.as_array())
-            .into_iter()
-            .flatten()
-            .filter_map(|matcher| matcher.get("hooks").and_then(|h| h.as_array()))
-            .flatten()
-            .filter_map(|hook| hook.get("command").and_then(|c| c.as_str()))
-            .any(|cmd| codex::broglow_command_args(cmd) == Some("hook"))
-    })
+/// True once `register_hooks` has run on this machine: it creates the data
+/// dir, and `uninstall` removes it. Gates the first-run auto-setup so a normal
+/// launch (TUI or tray daemon) doesn't rewrite agent settings — or, on the TUI
+/// path, re-bootstrap the LaunchAgent — every time. Harness-agnostic on
+/// purpose: a Codex-only machine has no Claude settings to inspect.
+fn already_set_up() -> bool {
+    config::data_dir().exists()
 }
 
-/// First-run onboarding for the TUI. If broglow isn't wired into Claude Code
+/// First-run onboarding for the TUI. If broglow isn't set up on this machine
 /// yet, run the full install (hooks + login autostart, which also brings up the
 /// tray daemon) so that `brew install broglow && broglow` — or a plain
 /// `cargo install` then launch — is a complete setup with no manual step.
@@ -401,7 +383,7 @@ fn hooks_registered() -> bool {
 /// with on a fresh machine. Best-effort — a failure just leaves `broglow
 /// install` as the manual fallback and never blocks the dashboard.
 fn first_run_setup_tui() {
-    if hooks_registered() {
+    if already_set_up() {
         return;
     }
     println!(
@@ -419,7 +401,7 @@ fn first_run_setup_tui() {
 /// doing so would spin up a duplicate tray. Login autostart is established by
 /// the TUI's first run or by `broglow install`.
 pub fn first_run_setup_daemon() {
-    if hooks_registered() {
+    if already_set_up() {
         return;
     }
     if let Err(e) = register_hooks() {
@@ -438,7 +420,7 @@ fn uninstall_hooks() -> anyhow::Result<()> {
     harness::uninstall_all();
 
     // Remove hooks from settings.json
-    let settings_file = settings_path();
+    let settings_file = harness::claude::settings_path();
     if settings_file.exists() {
         let content = std::fs::read_to_string(&settings_file)?;
         let mut settings: serde_json::Value = serde_json::from_str(&content)?;

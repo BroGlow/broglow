@@ -307,11 +307,9 @@ impl App {
         }
 
         // Watch projects directory
-        if let Some(home) = dirs::home_dir() {
-            let projects_dir = home.join(".claude").join("projects");
-            if projects_dir.exists() {
-                let _ = watcher.watch(&projects_dir, RecursiveMode::Recursive);
-            }
+        let projects_dir = crate::harness::claude::projects_dir();
+        if projects_dir.exists() {
+            let _ = watcher.watch(&projects_dir, RecursiveMode::Recursive);
         }
 
         let mut last_refresh = Instant::now();

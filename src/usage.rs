@@ -211,7 +211,7 @@ struct RawUsage {
 }
 
 fn projects_dir() -> Option<PathBuf> {
-    Some(dirs::home_dir()?.join(".claude").join("projects"))
+    Some(crate::harness::claude::projects_dir())
 }
 
 /// Recursively collect `*.jsonl` under `dir`, bounded to `depth` levels —
@@ -796,7 +796,7 @@ fn read_access_token() -> Option<String> {
 }
 
 fn read_credentials_file() -> Option<Credentials> {
-    let path = dirs::home_dir()?.join(".claude").join(".credentials.json");
+    let path = crate::harness::claude::credentials_path();
     serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()
 }
 

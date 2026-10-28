@@ -2,10 +2,11 @@
 //!
 //! broglow mirrors more than one coding agent. Claude Code is the built-in
 //! default — its sessions carry no `harness` tag and use the native hook
-//! backend, so it has no entry here (its UI identity is [`CLAUDE_LABEL`] and
-//! [`CLAUDE_ICON`]). Every *other* agent (opencode, Codex CLI, GitHub Copilot
-//! CLI) is one [`Adapter`]: its detection, its plugin/hook install + uninstall,
-//! and its UI badge, label and icon, all behind one small table.
+//! backend, so it has no entry in the table; its paths and detection live in
+//! [`claude`] and its UI identity is [`CLAUDE_LABEL`] and [`CLAUDE_ICON`].
+//! Every *other* agent (opencode, Codex CLI, GitHub Copilot CLI) is one
+//! [`Adapter`]: its detection, its plugin/hook install + uninstall, and its UI
+//! badge, label and icon, all behind one small table.
 //!
 //! Everything harness-specific lives here, so adding the next harness is a
 //! single [`ADAPTERS`] entry plus its embedded asset — not edits scattered
@@ -36,6 +37,37 @@ pub struct Adapter {
     /// Remove what `install` wrote — only files that still carry our managed-by
     /// marker, so a user's hand-rolled file is never deleted.
     pub uninstall: fn(),
+}
+
+/// Claude Code's own files. Every `~/.claude` path broglow reads or writes is
+/// built here, and nothing is written there unless Claude looks installed.
+pub mod claude {
+    use std::path::PathBuf;
+
+    pub fn home() -> PathBuf {
+        dirs::home_dir()
+            .expect("Home directory must exist")
+            .join(".claude")
+    }
+
+    /// `settings.json`, where the native hook backend is registered.
+    pub fn settings_path() -> PathBuf {
+        home().join("settings.json")
+    }
+
+    /// Transcripts: `projects/<encoded working dir>/<session id>.jsonl`.
+    pub fn projects_dir() -> PathBuf {
+        home().join("projects")
+    }
+
+    /// OAuth credentials, read only for opt-in usage limits.
+    pub fn credentials_path() -> PathBuf {
+        home().join(".credentials.json")
+    }
+
+    pub fn detected() -> bool {
+        home().exists() || super::is_on_path("claude")
+    }
 }
 
 /// Every non-Claude harness broglow supports. Add an entry (and its asset) to
