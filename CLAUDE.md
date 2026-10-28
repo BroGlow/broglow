@@ -134,10 +134,13 @@ device that gives no BroGlow INFO reply) runs `flash::update` on a tray thread
   advertisements to `ble-sightings.json` only while asked, and exactly one fresh
   exact match is saved; `supervise` then starts its task. No worker answer, no
   sighting, disabled/USB mirroring or a lamp connected to this Mac (it stops
-  advertising) fall back to the pause and own scan under `radio_lock`. A saved lamp
-  CoreBluetooth still reports connected (a connect that completed after its future
-  was cancelled, a disconnect that never took) is driven from that handle by
-  `lamp_loop` instead of waiting for an advertisement it will never send. The automatic
+  advertising) fall back to the pause and own scan under `radio_lock`. A connected lamp
+  never advertises, and btleplug forgets a peripheral on disconnect, so a cached handle
+  (`adapter.peripheral` + `is_connected`) reports a link `lamp_loop` lost track of as
+  disconnected. Each pass therefore asks CoreBluetooth (`retrieve_peripherals`): by
+  identifier for a link this process holds (a connect that completed after its future
+  was cancelled), driven when it reports connected; then by the BroGlow service for a
+  link macOS or another app holds, which `drive` adopts with a connect. The automatic
   `remember_usb` guard expects the enable state setup left (`paused`). The tray checks
   USB every five seconds and attempts setup once per new attachment; `usb_lamps`
   records verified boards so Disable/Forget survive restart. A detected replug can
