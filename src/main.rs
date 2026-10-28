@@ -282,7 +282,20 @@ fn register_hooks() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Temporary: adopts data from the previous layout. Remove in the release after next.
+fn adopt_legacy_data_dir() {
+    let Some(home) = dirs::home_dir() else {
+        return;
+    };
+    let old = home.join(".claude").join("broglow");
+    let new = config::data_dir();
+    if old.is_dir() && !new.exists() {
+        let _ = std::fs::rename(old, new);
+    }
+}
+
 fn install_hooks() -> anyhow::Result<()> {
+    adopt_legacy_data_dir();
     // 1./2. Register the hook backend in settings.json.
     register_hooks()?;
 
