@@ -32,40 +32,7 @@ jobs:
         with:
           shared-key: release-${{ matrix.os }}-${{ matrix.target }}
           env-vars: ImageOS ImageVersion MACOSX_DEPLOYMENT_TARGET SDKROOT DEVELOPER_DIR
-      - uses: actions/setup-python@v7
-        if: runner.os == 'macOS'
-        id: python
-        with:
-          python-version: '3.14'
-      - uses: astral-sh/setup-uv@v10.3.0
-        if: runner.os == 'macOS'
-        with:
-          version: '0.12.17'
-          enable-cache: false
-      - if: runner.os == 'macOS'
-        run: uv sync --frozen
-      # Only the release's source job (macos-15) builds the firmware now.
-      - name: Restore PlatformIO downloads
-        if: matrix.os == 'macos-15'
-        uses: actions/cache/restore@v6
-        id: platformio-cache
-        with:
-          path: |
-            ~/.platformio/platforms
-            ~/.platformio/packages
-          key: platformio-v1-${{ matrix.os }}-${{ runner.arch }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('firmware/esp32-c3-supermini/platformio.ini', 'pyproject.toml', 'uv.lock') }}
-      - name: Install PlatformIO dependencies
-        if: matrix.os == 'macos-15'
-        run: uv run --frozen python -m platformio pkg install --project-dir firmware/esp32-c3-supermini --environment esp32-c3-supermini
-      - name: Save PlatformIO downloads
-        if: matrix.os == 'macos-15' && steps.platformio-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
-        with:
-          path: |
-            ~/.platformio/platforms
-            ~/.platformio/packages
-          key: ${{ steps.platformio-cache.outputs.cache-primary-key }}
-      # Install flaky registry downloads before spending time on Rust compilation.
+      # The firmware and its PlatformIO downloads are cached by firmware-cache.yaml.
       - name: Compile Mac release dependencies
         if: runner.os == 'macOS' && steps.rust-cache.outputs.cache-hit != 'true'
         run: cargo build --release --locked

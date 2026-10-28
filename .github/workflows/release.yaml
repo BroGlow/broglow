@@ -31,12 +31,13 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: uv run --frozen python scripts/package-macos.py --release-tag "$RELEASE_TAG" --check-only
-      # Every archive ships the same C3 images, built once here. The packaged
-      # directory depends only on these inputs, so it is reused across releases
-      # until one of them changes.
+      # Every archive ships the same C3 images. firmware-cache.yaml builds and
+      # packages them on master whenever an input changes; a cache saved by a
+      # tag run would be invisible to the next tag, so this job only restores
+      # and builds itself on a miss.
       - name: Restore the packaged C3 firmware
         id: firmware
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: dist/firmware
           key: firmware-v1-${{ hashFiles('firmware/esp32-c3-supermini/**', 'scripts/package-firmware.py', 'scripts/firmware-version.py', 'scripts/third-party-notices.py', 'licenses/arduino-esp32-2.0.17-LICENSE.md', 'pyproject.toml', 'uv.lock') }}

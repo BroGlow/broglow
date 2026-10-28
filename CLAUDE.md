@@ -494,7 +494,9 @@ grouping by project.
 
 `.github/workflows/release.yaml` builds and packages release binaries per platform.
 CI runs the C3 firmware's host mock checks but does not build it with PlatformIO;
-the release's `source` job does, once: the packaged firmware directory is cached by
-a hash of its inputs (firmware sources, the packaging scripts, licenses, `uv.lock`)
-and reused across releases until one changes, and every platform job takes it as
-the `firmware` artifact (`package-macos.py --firmware`) instead of rebuilding.
+`firmware-cache.yaml` does, on every master push that touches a firmware input,
+and saves the packaged directory under a hash of those inputs (firmware sources,
+the packaging scripts, licenses, `uv.lock`). The release's `source` job restores
+it, builds only on a miss, and every platform job takes it as the `firmware`
+artifact (`package-macos.py --firmware`). The cache lives on master on purpose: a
+cache saved by a tag run is invisible to every other tag.
