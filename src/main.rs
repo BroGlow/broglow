@@ -24,6 +24,7 @@ mod update;
 mod usage;
 
 use std::io;
+#[cfg(not(windows))]
 use std::path::PathBuf;
 
 use anyhow::Context;
