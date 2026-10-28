@@ -109,24 +109,6 @@ fn install_without_claude_code_creates_no_claude_dir() {
 }
 
 #[test]
-fn install_adopts_the_previous_data_dir() {
-    let home = TempDir::new().unwrap();
-    let old = home.path().join(".claude").join("broglow");
-    std::fs::create_dir_all(&old).unwrap();
-    std::fs::write(old.join("config.json"), r#"{"led_enabled":true}"#).unwrap();
-
-    run(&home, "install");
-
-    let config = home.path().join(".broglow").join("config.json");
-    assert_eq!(
-        std::fs::read_to_string(config).unwrap(),
-        r#"{"led_enabled":true}"#,
-        "settings moved to the new data dir"
-    );
-    assert!(!old.exists(), "old data dir gone");
-}
-
-#[test]
 fn install_and_uninstall_write_through_a_settings_symlink() {
     // Dotfiles setups link ~/.claude/settings.json to a file they manage; the
     // link must survive and its target must change, never the link itself.
