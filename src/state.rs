@@ -210,7 +210,7 @@ pub fn read_hook_state() -> HookState {
 
     if !state.codex_questions.is_empty() || !state.codex_turns.is_empty() {
         // Stop can precede the terminal record; readers retry without a hook.
-        let _ = crate::hook::update_state(crate::codex::reconcile_rollouts);
+        let _ = crate::hook::try_update_state(crate::codex::reconcile_rollouts);
         if let Some(updated) = std::fs::read_to_string(&path)
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
@@ -371,19 +371,30 @@ fn clear_sessions_matching(matches: impl Fn(&str, &SessionStatus) -> bool) -> an
 /// `File` drops. Returns `None` if the lock can't be acquired (e.g. the dir
 /// can't be created); callers must skip the write when locking fails.
 pub fn acquire_state_lock() -> Option<File> {
+    let file = open_state_lock()?;
+    file.lock().ok()?;
+    Some(file)
+}
+
+/// UI and lamp readers use the last snapshot while a hook owns the writer lock.
+pub(crate) fn try_acquire_state_lock() -> Option<File> {
+    let file = open_state_lock()?;
+    file.try_lock().ok()?;
+    Some(file)
+}
+
+fn open_state_lock() -> Option<File> {
     let path = state_file_path();
     let dir = path.parent()?;
     std::fs::create_dir_all(dir).ok()?;
     let lock_path = dir.join(".state.lock");
-    let file = File::options()
+    File::options()
         .create(true)
         .write(true)
         // The lock file is only ever empty; keep (non-)contents as-is.
         .truncate(false)
         .open(&lock_path)
-        .ok()?;
-    file.lock().ok()?;
-    Some(file)
+        .ok()
 }
 
 /// Atomic write: serialize to a sibling temp file, then rename onto the
@@ -743,6 +754,80 @@ mod tests {
                 .all(|s| s.session_id != "remembered"));
         }
         assert_eq!(std::fs::read(state_file_path()).unwrap(), disk);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn display_refresh_does_not_wait_for_a_hook_writer() {
+        if std::env::var_os("BROGLOW_TEST_READ_LOCK").is_none() {
+            let home = tempfile::tempdir().unwrap();
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "state::tests::display_refresh_does_not_wait_for_a_hook_writer",
+                    "--nocapture",
+                ])
+                .env("BROGLOW_HOME", home.path())
+                .env(crate::codex::HOME_ENV, home.path().join("codex"))
+                .env("BROGLOW_TEST_READ_LOCK", "1")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+
+        let rollout = tempfile::NamedTempFile::new().unwrap();
+        let terminal = serde_json::json!({
+            "timestamp": Utc::now().to_rfc3339(),
+            "type": "event_msg",
+            "payload": {
+                "type": "task_complete",
+                "turn_id": "turn",
+                "error": {"codex_error_info": "server_overloaded"}
+            }
+        });
+        std::fs::write(rollout.path(), format!("{terminal}\n")).unwrap();
+        let mut state = state_with(&[Status::Active]);
+        state.sessions.get_mut("s0").unwrap().harness = Some("codex".into());
+        state.codex_turns.insert(
+            "s0".into(),
+            crate::codex::MonitoredTurn {
+                turn_id: "turn".into(),
+                transcript_path: rollout.path().to_str().unwrap().into(),
+                offset: 0,
+                created_offset: 0,
+                discard_line: false,
+                terminal: false,
+            },
+        );
+        write_state_atomic(&state).unwrap();
+        let disk = std::fs::read(state_file_path()).unwrap();
+        let writer = acquire_state_lock().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let reader = std::thread::spawn(move || tx.send(read_display_state()).unwrap());
+        let snapshot = rx.recv_timeout(std::time::Duration::from_millis(200));
+        let while_locked = std::fs::read(state_file_path()).unwrap();
+        drop(writer);
+        reader.join().unwrap();
+
+        let snapshot = snapshot.expect("UI refresh must not wait beyond the 200 ms AX budget");
+        assert_eq!(snapshot.sessions["s0"].status, Status::Active);
+        assert_eq!(while_locked, disk, "a busy writer must not be overwritten");
+        assert_eq!(
+            read_display_state().sessions["s0"].status,
+            Status::NeedsHelp
+        );
+        let saved: HookState =
+            serde_json::from_slice(&std::fs::read(state_file_path()).unwrap()).unwrap();
+        assert_eq!(
+            saved.sessions["s0"].notification_type.as_deref(),
+            Some("codex_capacity")
+        );
     }
 
     #[cfg(unix)]

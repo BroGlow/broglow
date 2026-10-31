@@ -38,7 +38,19 @@ enum LoadedState {
 /// `true`. The lock is held for the whole span and released when this returns.
 /// If locking fails, skip this update rather than risk clobbering another writer.
 pub(crate) fn update_state(mutate: impl FnOnce(&mut HookState) -> bool) -> anyhow::Result<()> {
-    let Some(_lock) = acquire_state_lock() else {
+    update_state_with_lock(acquire_state_lock(), mutate)
+}
+
+/// A display refresh must not wait for another writer; the next refresh retries.
+pub(crate) fn try_update_state(mutate: impl FnOnce(&mut HookState) -> bool) -> anyhow::Result<()> {
+    update_state_with_lock(crate::state::try_acquire_state_lock(), mutate)
+}
+
+fn update_state_with_lock(
+    lock: Option<File>,
+    mutate: impl FnOnce(&mut HookState) -> bool,
+) -> anyhow::Result<()> {
+    let Some(_lock) = lock else {
         return Ok(());
     };
     let mut state = match read_state_raw() {
