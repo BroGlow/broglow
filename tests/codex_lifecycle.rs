@@ -557,6 +557,201 @@ fn unmapped_codex_events_touch_nothing() {
 }
 
 #[test]
+fn codex_manual_side_chats_keep_their_lifecycle_without_a_transcript() {
+    for transcript in [Some(Value::Null), Some(json!("")), None] {
+        let home = temp_home();
+        let parent = "parent-chat";
+        let side = "manual-side";
+        let parent_rollout = home.path().join("parent.jsonl");
+        std::fs::write(
+            &parent_rollout,
+            json!({"type": "session_meta", "payload": {"id": parent}}).to_string(),
+        )
+        .unwrap();
+        run_codex_hook(
+            &home,
+            &json!({
+                "hook_event_name": "PreToolUse", "session_id": parent,
+                "tool_name": "request_user_input_async", "tool_use_id": "parent-question",
+                "turn_id": "parent-turn", "transcript_path": parent_rollout,
+            })
+            .to_string(),
+        )
+        .success();
+        let pending = read_state(&home);
+        let pending_parent = session(&pending, parent);
+        assert!(pending["codex_questions"][parent].is_object());
+        run_codex_hook(
+            &home,
+            &json!({
+                "hook_event_name": "SessionStart", "session_id": side,
+                "source": "fork", "transcript_path": null,
+            })
+            .to_string(),
+        )
+        .success();
+        assert_eq!(session(&read_state(&home), side)["status"], "active");
+
+        // Only SessionStart identifies /side. Later processes need the saved
+        // identity even if the path stays null, becomes empty, or is omitted.
+        for (event, expected) in [
+            ("UserPromptSubmit", "active"),
+            ("PreToolUse", "active"),
+            ("PostToolUse", "active"),
+            ("PermissionRequest", "needs_help"),
+            ("PreToolUse", "needs_help"),
+            ("PostToolUse", "active"),
+            ("Stop", "done"),
+            ("UserPromptSubmit", "active"),
+            ("Stop", "done"),
+        ] {
+            let mut payload = json!({
+                "hook_event_name": event, "session_id": side,
+                "prompt": "Check this in a side chat",
+            });
+            if let Some(path) = &transcript {
+                payload["transcript_path"] = path.clone();
+            }
+            run_codex_hook(&home, &payload.to_string()).success();
+            let state = read_state(&home);
+            assert_eq!(
+                session(&state, side)["status"],
+                expected,
+                "{event}: {transcript:?}"
+            );
+            assert_ne!(session(&state, side)["codex_background"], true);
+            assert_eq!(session(&state, parent), pending_parent, "{event}");
+            assert_eq!(
+                state["codex_questions"], pending["codex_questions"],
+                "{event}"
+            );
+        }
+    }
+}
+
+#[test]
+fn codex_manual_side_start_recovers_its_own_background_tombstone() {
+    let home = temp_home();
+    let side = "manual-side";
+    run_codex_hook(
+        &home,
+        &json!({"hook_event_name": "SessionStart", "session_id": side, "transcript_path": null})
+            .to_string(),
+    )
+    .success();
+    assert_eq!(session(&read_state(&home), side)["codex_background"], true);
+    run_codex_hook(
+        &home,
+        &json!({
+            "hook_event_name": "SessionStart", "session_id": side,
+            "source": "fork", "transcript_path": null,
+        })
+        .to_string(),
+    )
+    .success();
+    let row = session(&read_state(&home), side);
+    assert_eq!(row["status"], "active");
+    assert_ne!(row["codex_background"], true);
+    run_codex_hook(&home, &ev("Stop", side)).success();
+    assert_eq!(session(&read_state(&home), side)["status"], "done");
+}
+
+#[test]
+fn codex_saved_forks_keep_the_normal_paused_lifecycle() {
+    let home = temp_home();
+    let id = "saved-fork";
+    let rollout = home.path().join("saved-fork.jsonl");
+    std::fs::write(
+        &rollout,
+        json!({"type": "session_meta", "payload": {
+            "id": id, "source": "vscode", "thread_source": "user",
+        }})
+        .to_string(),
+    )
+    .unwrap();
+    run_codex_hook(
+        &home,
+        &json!({
+            "hook_event_name": "SessionStart", "session_id": id,
+            "source": "fork", "transcript_path": rollout,
+        })
+        .to_string(),
+    )
+    .success();
+    run_codex_hook(
+        &home,
+        &ev_with_transcript("Stop", id, rollout.to_str().unwrap()),
+    )
+    .success();
+    assert_eq!(session(&read_state(&home), id)["status"], "inactive");
+}
+
+#[test]
+fn codex_manual_side_followup_stays_visible_after_its_finished_row_is_pruned() {
+    let home = temp_home();
+    let side = "manual-side";
+    run_codex_hook(
+        &home,
+        &json!({
+            "hook_event_name": "SessionStart", "session_id": side,
+            "source": "fork", "transcript_path": null,
+        })
+        .to_string(),
+    )
+    .success();
+    run_codex_hook(&home, &ev("Stop", side)).success();
+    let mut state = read_state(&home);
+    state["sessions"][side]["last_updated"] = json!("2000-01-01T00:00:00Z");
+    std::fs::write(state_path(&home), state.to_string()).unwrap();
+    run_codex_hook(&home, &ev("SessionStart", "ordinary-chat")).success();
+    let state = read_state(&home);
+    assert!(session(&state, side).is_null());
+    assert_eq!(state["codex_side_chats"], json!([side]));
+
+    // Finished rows expire, but the same /side session can receive a followup.
+    run_codex_hook(
+        &home,
+        &json!({"hook_event_name": "UserPromptSubmit", "session_id": side, "transcript_path": null})
+            .to_string(),
+    )
+    .success();
+    assert_eq!(session(&read_state(&home), side)["status"], "active");
+    run_codex_hook(
+        &home,
+        &json!({"hook_event_name": "SessionEnd", "session_id": side, "transcript_path": null})
+            .to_string(),
+    )
+    .success();
+    let state = read_state(&home);
+    assert_eq!(session(&state, side)["status"], "done");
+    assert!(state["codex_side_chats"]
+        .as_array()
+        .is_none_or(Vec::is_empty));
+}
+
+#[test]
+fn codex_manual_side_start_does_not_replace_another_harness_with_the_same_id() {
+    let home = temp_home();
+    let id = "shared-id";
+    command(&home)
+        .arg("event")
+        .write_stdin(json!({"harness": "opencode", "event": "idle", "session_id": id}).to_string())
+        .assert()
+        .success();
+    let original = read_state(&home);
+    run_codex_hook(
+        &home,
+        &json!({
+            "hook_event_name": "SessionStart", "session_id": id,
+            "source": "fork", "transcript_path": null,
+        })
+        .to_string(),
+    )
+    .success();
+    assert_eq!(read_state(&home), original);
+}
+
+#[test]
 fn codex_transient_background_runs_do_not_become_paused_chats() {
     let home = temp_home();
     run_codex_hook(&home, &ev("SessionStart", "real-chat")).success();

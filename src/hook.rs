@@ -250,6 +250,27 @@ fn dismissed_session_returns_on_activity() {
     assert_eq!(read(), cleared);
     event("paused-1", "resumed");
     assert_eq!(read()["sessions"]["paused-1"]["status"], "active");
+    let side_event = |hook, event, start| {
+        ingest_event(
+            &serde_json::json!({
+                "harness": "codex", "session_id": "side", "event": event,
+                "hook_event_name": hook, "codex_background": true,
+                "codex_unsaved": true, "codex_side_chat": start,
+            }),
+            None,
+        )
+        .unwrap();
+    };
+    side_event("SessionStart", "working", true);
+    crate::state::clear_session("side").unwrap();
+    side_event("UserPromptSubmit", "resumed", false);
+    assert_eq!(read()["sessions"]["side"]["status"], "active");
+    crate::state::clear_session("side").unwrap();
+    side_event("SessionEnd", "ended", false);
+    assert!(read()["codex_side_chats"]
+        .as_array()
+        .is_none_or(Vec::is_empty));
+    assert!(read()["sessions"].get("side").is_none());
     std::fs::write(state_file_path(), "invalid JSON").unwrap();
     assert!(crate::state::clear_session("paused").is_err());
     assert!(crate::state::clear_paused_sessions().is_err());
@@ -541,15 +562,25 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
         // in-flight tool hook can recreate a just-filtered background session.
         if harness == "codex" {
             let existing = state.sessions.get(&session_id);
-            if existing.is_some_and(SessionStatus::is_codex_background)
-                || v["codex_background"] == true
+            if v["codex_side_chat"] == true
+                && existing.is_some_and(|s| s.harness.as_deref() != Some("codex"))
+            {
+                return false;
+            }
+            let side_chat =
+                state.codex_side_chats.contains(&session_id) || v["codex_side_chat"] == true;
+            // `/side` has no rollout; only its fork start proves user provenance.
+            if (existing.is_some_and(SessionStatus::is_codex_background)
+                || v["codex_background"] == true)
+                && !(side_chat && v["codex_unsaved"] == true)
             {
                 // A colliding ID is not authority to replace another agent.
                 if existing.is_some_and(|s| s.harness.as_deref() != Some("codex")) {
                     return false;
                 }
+                let side_removed = state.codex_side_chats.remove(&session_id);
                 if existing.is_some_and(|s| s.codex_background && s.status == Status::Done) {
-                    return false;
+                    return side_removed;
                 }
                 state.sessions.insert(
                     session_id.clone(),
@@ -567,13 +598,32 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
                 return true;
             }
         }
+        // A finished/dismissed side row can return on another prompt. Keep its
+        // provenance until the conversation closes, independently of row retention.
+        let side_changed = if harness != "codex" {
+            false
+        } else if v["hook_event_name"] == "SessionEnd" {
+            state.codex_side_chats.remove(&session_id)
+        } else {
+            v["codex_side_chat"] == true && state.codex_side_chats.insert(session_id.clone())
+        };
+        let status = if harness == "codex"
+            && state.codex_side_chats.contains(&session_id)
+            && v["hook_event_name"] == "Stop"
+        {
+            Status::Done
+        } else {
+            status.clone()
+        };
         // A rollout can identify a desktop host after the first hook captured
         // stale terminal variables. Repair it even on suppressed working events.
-        let mut terminal_changed = if harness == "codex" {
-            crate::codex::reconcile_turns(state) | crate::codex::monitor_turn(state, &session_id, v)
-        } else {
-            false
-        };
+        let mut terminal_changed = side_changed
+            | if harness == "codex" {
+                crate::codex::reconcile_turns(state)
+                    | crate::codex::monitor_turn(state, &session_id, v)
+            } else {
+                false
+            };
         if let (Some(terminal), Some(s)) = (&terminal, state.sessions.get_mut(&session_id)) {
             if s.terminal.as_ref() != Some(terminal) {
                 s.terminal = Some(terminal.clone());
@@ -763,7 +813,7 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
         // ghost. The plugin's exit handler can emit `ended` for ids whose first
         // event was dropped.
         if event == "ended" && existing.is_none() {
-            return false;
+            return terminal_changed;
         }
 
         // A pending permission (`NeedsHelp`) is the product's core red signal.
@@ -861,8 +911,9 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
 ///   what clears the red; a plain `working` deliberately would not.
 /// - `UserPromptSubmit` → `resumed`: the user typing is also them dealing
 ///   with a pending request (e.g. rejecting the tool and redirecting).
-/// - `Stop` → `idle`, except for one-shot `codex exec` rollouts → `ended`
-///   (nobody resumes those). `Interrupt` → `idle`; `SessionEnd` → `ended`.
+/// - `Stop` → `idle`, except one-shot `codex exec` rollouts → `ended`.
+///   Ingestion also finishes remembered ephemeral `/side` forks on Stop.
+///   `Interrupt` → `idle`; `SessionEnd` → `ended`.
 /// - Titles: Codex names its own threads (`session_index.jsonl`); the thread
 ///   name rides along as the event title. Unnamed sessions use the submitted
 ///   prompt immediately, with the rollout at `Stop` as a fallback for older hooks.
@@ -932,6 +983,9 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
         "session_id": session_id,
         "hook_event_name": hook_event,
         "codex_background": background,
+        "codex_side_chat": crate::codex::hook_starts_side_chat(&v),
+        "codex_unsaved": matches!(v.get("transcript_path"), Some(Value::Null))
+            || v["transcript_path"] == "",
         "turn_id": field("turn_id"),
         "transcript_path": transcript_path,
     });

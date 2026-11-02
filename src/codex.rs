@@ -865,8 +865,17 @@ pub fn rollout_thread_id(transcript_path: &str) -> Option<String> {
     })
 }
 
+/// `/side` creates an ephemeral fork; app suggestion helpers start fresh runs.
+/// Only the initial SessionStart carries the fork source.
+pub fn hook_starts_side_chat(v: &Value) -> bool {
+    v["hook_event_name"] == "SessionStart"
+        && v["source"] == "fork"
+        && (matches!(v.get("transcript_path"), Some(Value::Null)) || v["transcript_path"] == "")
+}
+
 /// Unsaved app jobs have no transcript to reopen. Internal agents and approval
 /// reviewers can have rollouts, but belong to their parent chat's status.
+/// Ingestion exempts remembered user forks from the unsaved-path rule.
 /// An omitted path or unreadable metadata is inconclusive on older Codex builds.
 pub fn hook_is_background(v: &Value) -> bool {
     match v.get("transcript_path") {

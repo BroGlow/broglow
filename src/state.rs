@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::path::PathBuf;
 
@@ -135,6 +135,9 @@ pub struct HookState {
     pub codex_questions: HashMap<String, crate::codex::PendingQuestion>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub codex_turns: HashMap<String, crate::codex::MonitoredTurn>,
+    /// Ephemeral user forks (`/side`): later hooks omit their fork provenance.
+    #[serde(default, skip_serializing_if = "HashSet::is_empty")]
+    pub codex_side_chats: HashSet<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capacity_alert: Option<CapacityAlert>,
 }

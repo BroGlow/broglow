@@ -284,9 +284,17 @@ thin:
   ID differs from the hook's `session_id`: subagent hooks can carry their parent's
   ID and must not clear its question or status. Use `session_meta.id`, falling back
   to `session_meta.session_id`; missing or unknown IDs keep existing behavior.
-  Hooks with an explicit null/empty `transcript_path` are unsaved runs and are
-  ignored, as are rollouts with `source.subagent` or `thread_source` equal to
-  `subagent`, `guardian_review`, `ambient_suggestions` or
+  A `SessionStart` with `source: fork` and an explicit null/empty `transcript_path`
+  identifies a manual `/side` chat: persist its ID in `HookState.codex_side_chats`
+  so later hooks with null, empty or omitted paths or omitted source keep tracking
+  it. It can show `Active` or `NeedsHelp` independently of its parent, and `Stop`
+  finishes it instead of leaving a paused row. Keep the marker through dismissal
+  and finished-row pruning until `SessionEnd` or confirmed internal-job metadata:
+  a completed side tab can receive another prompt. Saved ordinary forks still
+  pause on `Stop`.
+  Other hooks with an explicit null/empty `transcript_path` are unsaved background
+  runs and are ignored, as are rollouts with `source.subagent` or `thread_source`
+  equal to `subagent`, `guardian_review`, `ambient_suggestions` or
   `ambient_suggestion_safety`. For every confirmed background run, persist a
   hidden `Done` tombstone so later hooks without a prompt or path cannot revive
   it. The rollout/parent ID mismatch guard applies before this filtering too.
@@ -298,7 +306,8 @@ thin:
   suggestion helpers. Old rows without structural evidence cannot be hidden
   automatically; dismiss a stale row once with its × button.
   `Interrupt` → `idle`, `SessionEnd` → `ended`, and `Stop` → `idle` — or `ended` for
-  one-shot `codex exec` rollouts. Older Codex versions retain the owner-pid reap backstop.
+  manual `/side` chats and one-shot `codex exec` rollouts. Older Codex versions
+  retain the owner-pid reap backstop.
   On macOS, `session_meta.originator: Codex Desktop` repairs captured terminal identity
   even during an already-active turn, so Focus opens the chat rather than an inherited
   terminal or IDE. CLI/extension sessions keep their captured host.

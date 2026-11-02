@@ -83,6 +83,11 @@ opt-in with the updated plugin are counted.
    reviewer; otherwise permission requests show **Needs help**. Interrupting a turn
    pauses it; ending the session removes it from live status.
 
+Manual `/side` chats show **Working** while they run and **Needs help** when they
+need your input, without changing the original chat's status. After the response,
+they leave live status rather than remaining paused. Ordinary saved forks still
+show **Paused** after a response.
+
 Unsaved background jobs, internal subagents, approval reviewers and temporary
 helpers that prepare app suggestions do not appear as separate chats or affect
 the lamp. A subagent's activity does not clear its parent chat's unanswered
