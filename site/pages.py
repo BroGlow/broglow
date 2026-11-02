@@ -1,7 +1,8 @@
-"""Build the landing and MkDocs guide as one GitHub Pages artifact."""
+"""Build the landing and MkDocs guide as one static website artifact."""
 
 import argparse
 import base64
+import gzip
 from html import escape, unescape
 import mimetypes
 import posixpath
@@ -400,20 +401,24 @@ a {{ color: #ff8a3d; }}
 """
 
 
-def landing_page(home, repo_url=None):
-    return (
+def landing_page(home, repo_url=None, canonical=None):
+    html = (
         (SITE / "index.html")
         .read_text()
         .replace("https://broglow.github.io/broglow/", home)
         .replace("https://github.com/broglow/broglow", repo_url or repository_url())
     )
+    return html.replace(
+        f'<link rel="canonical" href="{home}">',
+        f'<link rel="canonical" href="{canonical or home}">',
+    )
 
 
-def write_landing(output, home, repo_url=None):
+def write_landing(output, home, repo_url=None, canonical=None):
     """Package the landing beside the guide, preserving the native UI source bytes."""
     output.mkdir(parents=True, exist_ok=True)
     (output / "index.html").write_text(
-        landing_page(home, repo_url)
+        landing_page(home, repo_url, canonical)
         .replace("../assets/", "app-ui/")
         .replace("guide/assets/favicon.svg", "assets/favicon.svg")
     )
@@ -454,31 +459,105 @@ def write_landing(output, home, repo_url=None):
         shutil.copy2(native / "icons" / name, output / "app-ui/icons" / name)
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--repository", required=True, help="Your GitHub OWNER/REPOSITORY"
-    )
-    args = parser.parse_args()
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repository):
-        parser.error("--repository must be a GitHub OWNER/REPOSITORY")
-    output = SITE / "_pages"
+def public_url(value):
+    """A URL prefix safe to embed in generated HTML and append routes to."""
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be an absolute HTTP(S) URL") from error
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or "?" in value
+        or "#" in value
+        or re.search(r"[\s\x00-\x1f\x7f\\<>\"'&]", value)
+        or any(part in {".", ".."} for part in unquote(parsed.path).split("/"))
+        or "//" in parsed.path
+        or (port is not None and port == 0)
+    ):
+        raise argparse.ArgumentTypeError(
+            "must be an absolute HTTP(S) URL without credentials, query or fragment"
+        )
+    return value.rstrip("/") + "/"
+
+
+def output_directory(value):
+    """Only the two generated website roots may be cleaned by this command."""
+    output = Path(value)
+    if output.is_symlink() or output.resolve() not in {
+        SITE / "_pages",
+        SITE / "_vps",
+    }:
+        raise argparse.ArgumentTypeError(
+            "must be site/_pages or site/_vps, not a symlink"
+        )
+    if output.exists() and not output.is_dir():
+        raise argparse.ArgumentTypeError("must be a directory")
+    return output.resolve()
+
+
+def build_site(repository, home, canonical, output):
     if output.exists():
         shutil.rmtree(output)
-    # Default GitHub Pages address; fixes sitemap/canonical URLs and the 404 page.
-    home = "https://{}.github.io/{}/".format(*args.repository.lower().split("/"))
     config = load_config(
         str(SITE / "mkdocs.yaml"),
         strict=True,
-        repo_url=f"https://github.com/{args.repository}",
+        repo_url=f"https://github.com/{repository}",
         site_url=home + "docs/",
         site_dir=str(output / "docs"),
     )
     build(config)
-    write_landing(output, home, config.repo_url)
+    if canonical != home:
+        # Keep MkDocs navigation/search on this host; only indexing URLs use the mirror's canonical.
+        for path in (output / "docs").rglob("*.html"):
+            path.write_text(
+                path.read_text().replace(
+                    f'<link rel="canonical" href="{home}',
+                    f'<link rel="canonical" href="{canonical}',
+                )
+            )
+        sitemap = output / "docs/sitemap.xml"
+        sitemap.write_text(sitemap.read_text().replace(home, canonical))
+        sitemap.with_suffix(".xml.gz").write_bytes(
+            gzip.compress(sitemap.read_bytes(), mtime=0)
+        )
+    write_landing(output, home, config.repo_url, canonical)
     (output / "404.html").write_text(not_found_page(home))
     (output / ".nojekyll").touch()
-    print(f"Pages artifact: {output}")
+    print(f"Website artifact: {output}")
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--repository", required=True, help="Your GitHub OWNER/REPOSITORY"
+    )
+    parser.add_argument(
+        "--site-url",
+        type=public_url,
+        help="Public website base URL (defaults to GitHub Pages)",
+    )
+    parser.add_argument(
+        "--canonical-url",
+        type=public_url,
+        help="Preferred indexing base URL (defaults to --site-url)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=output_directory,
+        default=str(SITE / "_pages"),
+        help="Generated site/_pages (default) or site/_vps directory",
+    )
+    args = parser.parse_args(argv)
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repository):
+        parser.error("--repository must be a GitHub OWNER/REPOSITORY")
+    home = args.site_url or "https://{}.github.io/{}/".format(
+        *args.repository.lower().split("/")
+    )
+    build_site(args.repository, home, args.canonical_url or home, args.output_dir)
 
 
 if __name__ == "__main__":

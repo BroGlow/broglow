@@ -4,8 +4,12 @@ from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import urljoin, urlsplit
+import argparse
+import gzip
 import os
 import re
+import xml.etree.ElementTree as ET
 
 import markdown
 import pytest
@@ -513,3 +517,167 @@ def test_not_found_page_uses_absolute_links_under_repository_prefix() -> None:
 
     for path in ("", "docs/", "docs/ru/"):
         assert f'href="{home}{path}"' in rendered
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    (
+        ("https://broglow.mahenzon.ru", "https://broglow.mahenzon.ru/"),
+        ("https://example.com/project/", "https://example.com/project/"),
+    ),
+)
+def test_public_url_normalizes_a_root_or_subpath(value: str, expected: str) -> None:
+    assert pages.public_url(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "example.com",
+        "//example.com/",
+        "ftp://example.com/",
+        "https://user:password@example.com/",
+        "https://example.com/?tracking=1",
+        "https://example.com/#section",
+        "https://example.com/../source/",
+        "https://example.com/%2e%2e/source/",
+        "https://example.com//project/",
+        "https://example.com/\nproject/",
+        "https://example.com/\x00project/",
+        "https://example.com/one&two/",
+        'https://example.com/"quoted"/',
+        "https://example.com:invalid/",
+    ),
+)
+def test_public_url_rejects_ambiguous_or_unsafe_prefixes(value: str) -> None:
+    with pytest.raises(argparse.ArgumentTypeError):
+        pages.public_url(value)
+
+
+def test_output_directory_only_accepts_generated_roots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    site = tmp_path / "site"
+    site.mkdir()
+    monkeypatch.setattr(pages, "SITE", site)
+    monkeypatch.chdir(tmp_path)
+    for name in ("_pages", "_vps"):
+        assert pages.output_directory(f"site/{name}") == site / name
+
+    protected = write(tmp_path, "site/guide/source.md", "Keep this source")
+    for path in (site, site / "guide", tmp_path / "outside", site / "_other"):
+        with pytest.raises(argparse.ArgumentTypeError):
+            pages.output_directory(str(path))
+    (site / "_vps").symlink_to(site / "guide", target_is_directory=True)
+    with pytest.raises(argparse.ArgumentTypeError):
+        pages.output_directory(str(site / "_vps"))
+    assert protected.read_text() == "Keep this source"
+
+
+@pytest.mark.parametrize(
+    "custom,preferred",
+    (
+        (False, None),
+        (True, None),
+        (True, "https://broglow.github.io/broglow/"),
+        (False, "https://broglow.mahenzon.ru/"),
+    ),
+)
+def test_builder_cli_keeps_repository_identity_separate_from_public_urls(
+    custom: bool, preferred: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = []
+    monkeypatch.setattr(pages, "build_site", lambda *args: calls.append(args))
+    arguments = ["--repository", "Example/Lamp"]
+    home = "https://example.github.io/lamp/"
+    output = pages.SITE / "_pages"
+    canonical = home
+    if custom:
+        home = "https://broglow.mahenzon.ru/"
+        canonical = home
+        output = pages.SITE / "_vps"
+        arguments += [
+            "--site-url",
+            home.rstrip("/"),
+            "--output-dir",
+            str(output),
+        ]
+    if preferred:
+        canonical = preferred
+        arguments += ["--canonical-url", canonical]
+
+    pages.main(arguments)
+
+    assert calls == [("Example/Lamp", home, canonical, output)]
+
+
+@pytest.mark.parametrize(
+    "home,canonical",
+    (
+        ("https://example.github.io/lamp/", "https://example.github.io/lamp/"),
+        ("https://example.github.io/lamp/", "https://broglow.mahenzon.ru/"),
+        ("https://broglow.mahenzon.ru/", "https://broglow.mahenzon.ru/"),
+        ("https://broglow.mahenzon.ru/", "https://broglow.github.io/broglow/"),
+        ("https://example.com/mirror/", "https://broglow.github.io/broglow/"),
+    ),
+)
+def test_complete_site_uses_own_routes_and_preferred_canonical_urls(
+    home: str, canonical: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    load_config = pages.load_config
+
+    def offline_config(*args, **kwargs):
+        config = load_config(*args, **kwargs)
+        monkeypatch.setattr(
+            config.hooks["pages.py"], "release_checksum", lambda *args: None
+        )
+        return config
+
+    monkeypatch.setattr(pages, "load_config", offline_config)
+    output = tmp_path / "website"
+    write(output, "stale.html", "Removed when rebuilding")
+
+    pages.build_site("example/lamp", home, canonical, output)
+
+    assert not (output / "stale.html").exists()
+    landing = Landing()
+    landing.feed((output / "index.html").read_text())
+    assert ("link", {"rel": "canonical", "href": canonical}) in landing.elements
+    assert ("meta", {"property": "og:url", "content": home}) in landing.elements
+    assert (
+        "meta",
+        {
+            "property": "og:image",
+            "content": home + "assets/photos/broglow-all-lights.jpg",
+        },
+    ) in landing.elements
+    assert f"phoneUrl('{home}')" in (output / "ar.js").read_text()
+    assert f'href="{home}docs/"' in (output / "404.html").read_text()
+    for route in ("", "installation/", "ru/", "ru/hardware/"):
+        document = Landing()
+        document.feed((output / "docs" / route / "index.html").read_text())
+        assert (
+            "link",
+            {"rel": "canonical", "href": canonical + "docs/" + route},
+        ) in document.elements
+        alternates = [
+            attributes["href"]
+            for tag, attributes in document.elements
+            if tag == "link" and attributes.get("rel") == "alternate"
+        ]
+        assert len(alternates) == 2
+        for target in alternates:
+            assert urljoin(home + "docs/" + route, target).startswith(home + "docs/")
+        for tag, attributes in document.elements:
+            target = (
+                attributes.get("src") if tag == "script" else attributes.get("href")
+            )
+            if target and not urlsplit(target).scheme and not target.startswith("#"):
+                assert urljoin(home + "docs/" + route, target).startswith(home)
+    assert f"{REPOSITORY_URL}/releases" in (output / "docs/index.html").read_text()
+    sitemap = (output / "docs/sitemap.xml").read_bytes()
+    locations = ET.fromstring(sitemap).findall("{*}url/{*}loc")
+    assert locations and all(
+        location.text.startswith(canonical + "docs/") for location in locations
+    )
+    assert gzip.decompress((output / "docs/sitemap.xml.gz").read_bytes()) == sitemap

@@ -51,7 +51,7 @@ on:
   workflow_call:
     inputs:
       check-only:
-        description: Build and check the website without uploading or deploying Pages.
+        description: Build and check both websites without uploading or deploying.
         type: boolean
         default: false
 
@@ -97,19 +97,31 @@ jobs:
           uv run --frozen --only-group docs python site/check-translations.py
           node --test site/*.test.cjs
           node --test tests/js/lamp-status.test.mjs tests/js/popover-library.test.mjs
-          uv run --frozen --only-group test pytest site/test_pages.py
+          uv run --frozen --only-group test pytest site/test_pages.py site/deploy/test_deploy.py
           uv run --no-project --python 3.14 python scripts/export-web-model.py --check
           uv run --no-project --python 3.14 python scripts/export-web-model.py --exploded --check
       - name: Build and check the complete website
         env:
           WEBSITE_REPOSITORY: ${{ github.repository }}
         run: |
-          uv run --frozen --only-group docs python site/pages.py --repository "$WEBSITE_REPOSITORY"
+          uv run --frozen --only-group docs python site/pages.py --repository "$WEBSITE_REPOSITORY" --canonical-url https://broglow.mahenzon.ru/
           uv run --no-project --python 3.14 python site/check-links.py --site-dir site/_pages
+      - name: Build and check the additional domain
+        env:
+          WEBSITE_REPOSITORY: ${{ github.repository }}
+        run: |
+          uv run --frozen --only-group docs python site/pages.py --repository "$WEBSITE_REPOSITORY" --site-url https://broglow.mahenzon.ru/ --canonical-url https://broglow.mahenzon.ru/ --output-dir site/_vps
+          uv run --no-project --python 3.14 python site/check-links.py --site-dir site/_vps
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request' && !inputs.check-only
         with:
           path: site/_pages
+      - uses: actions/upload-artifact@v7
+        if: github.event_name != 'pull_request' && !inputs.check-only
+        with:
+          name: vps-site
+          path: site/_vps
+          if-no-files-found: error
 
   deploy:
     if: github.event_name != 'pull_request' && !inputs.check-only && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
@@ -127,3 +139,37 @@ jobs:
       - uses: actions/configure-pages@v6
       - uses: actions/deploy-pages@v5
         id: deployment
+
+  deploy-vps:
+    if: vars.VPS_DEPLOY_ENABLED == 'true' && github.event_name != 'pull_request' && !inputs.check-only && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs:
+      - build
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      actions: read
+    concurrency:
+      group: vps-production
+      cancel-in-progress: false
+    environment:
+      name: vps
+      url: https://broglow.mahenzon.ru/
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: vps-site
+          path: site/_vps
+      - name: Upload and activate the checked website
+        env:
+          VPS_DEPLOY_ENABLED: ${{ vars.VPS_DEPLOY_ENABLED }}
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_PORT: ${{ vars.VPS_PORT }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 site/deploy/deploy.py site/_vps

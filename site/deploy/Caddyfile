@@ -1,0 +1,12 @@
+# Import this site block into the existing Caddyfile; keep its other sites.
+broglow.mahenzon.ru {
+	root * /srv/broglow/current
+	encode zstd gzip
+	header /assets/*.glb Content-Type model/gltf-binary
+	file_server
+
+	handle_errors {
+		rewrite * /404.html
+		file_server
+	}
+}
