@@ -8,11 +8,12 @@ Confirmed issues that remain unresolved, with reproduction steps and conditions 
 
 <a name="codex-side-approval"></a>
 
-## False red while a Codex side chat sends a message
+## False red during Codex side-chat permission checks
 
 **Open; not fixed.** Reproduced on 2026-11-03 with BroGlow 1.4.1. When a manual
-`/side` chat sends a message to the main chat, BroGlow can show **Needs help** and
-red even though Codex is not asking the user to do anything. The three observed
+`/side` chat checks permission for an operation, BroGlow can show **Needs help**
+and red even though Codex is not asking the user to do anything. This was confirmed
+while sending a message to the main chat. The three observed
 waits lasted 3.2–5.0 seconds; these are observations, not a guaranteed time limit.
 Check the affected chat in Codex for an actual question or approval prompt.
 
@@ -22,6 +23,11 @@ during **Sending message to chat**. In all three captured attempts, message
 delivery succeeded and the side chat returned to **Working** after the tool
 finished, then left live status after its response. Other waiting sessions can
 keep the aggregate red throughout, so compare the affected session's status.
+
+An additional screenshot report involved a local edit and commit in another
+`/side` chat. On follow-up that session was already **Done**, with no pending
+question. No hook trace was available for its red interval, so the exact trigger
+and whether it had the same cause remain unconfirmed.
 
 ### Why this remains unresolved {#codex-side-approval-cause}
 
@@ -40,6 +46,8 @@ ephemeral side chats have no rollout. Their null transcript initially classifies
 them as background, skipping that check; remembered fork provenance later keeps
 the side chat visible. The result is the conservative human-approval status.
 Removing the background guard alone cannot supply the missing reviewer.
+This permission mapping is not restricted to message forwarding: another tool's
+`PermissionRequest` can take the same path.
 
 The hook contains `permission_mode`, but the investigation did not record its
 value or establish that it distinguishes reviewers. `PermissionRequest` also
@@ -56,7 +64,8 @@ both automatic and human review. An existing `waitingOnApproval` flag alone has
 not been shown to distinguish them, nor has a usable observer connection to the
 running desktop server been established in this setup.
 
-A fix must keep automatic forwarding out of **Needs help**, show genuine human
+A fix must keep automatic permission checks, including forwarding and local tools,
+out of **Needs help**, show genuine human
 approvals and questions immediately, resolve them correctly, and preserve parent
 and unrelated session state. Cover missing, null and empty transcript paths and
 concurrent calls. No delay, blanket suppression of side-chat permissions or

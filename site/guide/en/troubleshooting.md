@@ -48,4 +48,4 @@ by looking at the lamp.
 
 <a name="codex-side-approval"></a>
 
-For a false red signal while a Codex side chat sends a message, see [Known issues](known-issues.md#codex-side-approval).
+For a false red signal during Codex side-chat permission checks, see [Known issues](known-issues.md#codex-side-approval).

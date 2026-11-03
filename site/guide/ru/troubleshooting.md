@@ -52,4 +52,4 @@
 
 <a name="codex-side-approval"></a>
 
-Ложный красный при отправке сообщения из side-чата Codex описан на странице [«Известные проблемы»](known-issues.md#codex-side-approval).
+Ложный красный при проверке разрешений в side-чатах Codex описан на странице [«Известные проблемы»](known-issues.md#codex-side-approval).
