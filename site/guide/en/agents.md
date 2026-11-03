@@ -88,9 +88,7 @@ need your input, without changing the original chat's status. After the response
 they leave live status rather than remaining paused. Ordinary saved forks still
 show **Paused** after a response.
 
-**Known issue:** sending a message from `/side` to the main chat can briefly show
-**Needs help** and red while Codex checks permission, without a prompt to the user.
-This remains unresolved; see [reproduction and conditions for a future fix](troubleshooting.md#codex-side-approval).
+For a known false red signal during `/side` forwarding, see [Known issues](known-issues.md#codex-side-approval).
 
 Unsaved background jobs, internal subagents, approval reviewers and temporary
 helpers that prepare app suggestions do not appear as separate chats or affect
