@@ -27,6 +27,7 @@ Edit Markdown sources; never edit or commit generated HTML.
 | Coding agents (Claude Code, Codex, opencode, Copilot) | `guide/en/agents.md` | `guide/ru/agents.md` |
 | Sessions: return, names, dismiss | `guide/en/sessions.md` | `guide/ru/sessions.md` |
 | Troubleshooting and agent prompt | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
+| Known unresolved issues | `guide/en/known-issues.md` | `guide/ru/known-issues.md` |
 | Hardware reference | `guide/en/hardware.md` | `guide/ru/hardware.md` |
 | Printing and assembly (includes `../models/magnetic/GUIDE_ROUND3X2*.md`) | `guide/en/printing.md` | `guide/ru/printing.md` |
 | Firmware reference | `guide/en/firmware.md` | `guide/ru/firmware.md` |

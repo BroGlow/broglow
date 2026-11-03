@@ -45,3 +45,7 @@ Constraints:
 Report: what you checked and the result, the likely cause, and what I still need to check
 by looking at the lamp.
 ```
+
+<a name="codex-side-approval"></a>
+
+For a false red signal during Codex side-chat permission checks, see [Known issues](known-issues.md#codex-side-approval).

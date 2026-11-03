@@ -33,6 +33,7 @@ Vue, React, зависимости npm и отдельная сборка дем
 | Coding-агенты (Claude Code, Codex, opencode, Copilot) | `guide/en/agents.md` | `guide/ru/agents.md` |
 | Сессии: возврат, названия, скрытие | `guide/en/sessions.md` | `guide/ru/sessions.md` |
 | Решение проблем и запрос агенту | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
+| Известные нерешённые проблемы | `guide/en/known-issues.md` | `guide/ru/known-issues.md` |
 | Справочник по оборудованию | `guide/en/hardware.md` | `guide/ru/hardware.md` |
 | Печать и сборка (включает `../models/magnetic/GUIDE_ROUND3X2*.md`) | `guide/en/printing.md` | `guide/ru/printing.md` |
 | Справочник прошивки | `guide/en/firmware.md` | `guide/ru/firmware.md` |
