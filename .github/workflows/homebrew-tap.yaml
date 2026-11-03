@@ -68,6 +68,7 @@ jobs:
           set -euo pipefail
           brew tap-new --no-git broglow/tap
           cp ./*.rb "$(brew --repository broglow/tap)/Formula/"
+          brew trust --tap broglow/tap
           brew style broglow/tap/broglow "broglow/tap/broglow@${TAG#v}"
           brew audit --strict broglow/tap/broglow "broglow/tap/broglow@${TAG#v}"
       # Archives of a private repository cannot be fetched anonymously.
