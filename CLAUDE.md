@@ -5,7 +5,8 @@
 Follow the standalone product scope and routing in [AGENTS.md](AGENTS.md).
 
 A single Rust binary that monitors local Claude Code, Codex, opencode, Copilot CLI
-and T3 Code sessions in real time. It ships three faces of the same executable:
+and T3 Code sessions, plus linked T3 peer machines. It ships three faces of the
+same executable:
 
 - **TUI dashboard** (`broglow`) — a ratatui table of all sessions with live status.
 - **Menu bar / system tray daemon** (`broglow menubar`) — a color-coded status-light icon
@@ -85,13 +86,18 @@ grant or board operation: record those acceptance checks separately.
   Copilot payloads don't carry it; ownership proven by the `copilot-hook` command
   string — JSON has no comments for the managed-by marker).
 - **t3.rs** — read-only T3 Code v2 SQLite projection, automatic source discovery
-  (`T3CODE_HOME`, `~/.t3`, `~/.t3-yandex`), local-server PID liveness, provider-session
+  (`userdata` and `dev` under `~/.t3`/`~/.t3-yandex`; explicit `T3CODE_HOME` selects
+  only `userdata`), local-server PID liveness, provider-session
   deduplication and activity-based dismissal. The shared state reader polls it;
   T3 uses the `t3code` harness, **T3 Code** label and `t3` badge, with no hook install.
   Upstream contracts: [v2 schema](https://github.com/pingdotgg/t3code/blob/main/apps/server/src/persistence/Migrations/055_OrchestrationV2.ts),
   [home paths](https://github.com/pingdotgg/t3code/blob/main/apps/server/src/config.ts),
   [server runtime](https://github.com/pingdotgg/t3code/blob/main/apps/server/src/serverRuntimeState.ts)
   and [thread links](https://github.com/pingdotgg/t3code/blob/main/packages/shared/src/promptLinks.ts).
+- **t3_remote.rs** — separate bounded background polling of existing T3 peer links
+  through read-only MCP tools; credentials stay out of argv and logs. Honor
+  `t3_linked_machines_enabled` (default `true`) before connecting and applying results.
+  See [T3 coverage and opt-out](site/guide/en/agents.md#t3-code-setup).
 - **state.rs** — `HookState`/`SessionStatus`/`Status` types (incl. the optional
   `harness` tag: absent = Claude, `"opencode"` = opencode), `state.json` read/write
   (atomic temp-file + rename), the shared `.state.lock` (`acquire_state_lock`), the
@@ -216,18 +222,20 @@ See `state::aggregate`.
 Sessions from other coding agents flow into the *same* `state.json` and so light up the
 TUI, tray, aggregate, and LED with no reader changes — every reader lists hook-state
 sessions, whatever agent wrote them. The adapter is deliberately
-thin. T3 Code is the polling exception: the shared state reader refreshes its local
-projection without hooks, using the same locked BroGlow state writer and existing
-session/aggregate consumers.
+thin. T3 Code is the polling exception: the shared state reader refreshes local
+and linked-peer state without hooks, using the same locked BroGlow state writer
+and existing session/aggregate consumers.
 
 - **T3 Code never writes external state.** Open its v2 SQLite database read-only,
-  with a bounded query/lock wait; do not change T3 hooks/settings or connect to remote
-  servers. Keep archived/deleted projects and threads, hidden subagents and side chats
-  out of live status. Pending approvals/questions override active turns; completed or
+  with a bounded query/lock wait; use existing peer credentials only for read-only
+  MCP tools when linked-machine monitoring is enabled. Keep archived/deleted
+  projects and threads, hidden subagents and side chats out of live status.
+  Pending approvals/questions override active turns; completed or
   interrupted turns pause; a dead local server ends live status. Keep underlying
-  Claude/Codex hooks deduplicated by provider session ID. Dismissal resumes only on
-  activity, not a rename. Usage belongs to existing provider totals, never an extra
-  T3 total or an invented subscription quota.
+  Claude/Codex hooks deduplicated by provider session ID and hook provenance, so a
+  native CLI resume remains visible. Dismissal resumes only on activity, not a
+  rename or automatic idle compaction. Usage belongs to existing provider totals,
+  never an extra T3 total or an invented subscription quota.
 - **`broglow event`** (`hook::run_event`) is the ingestion path. It reads one *normalized*
   event as JSON on stdin: `{ harness, event, session_id, title?, directory? }`. The status
   verbs are harness-agnostic — adapters emit the same shape (opencode via its JS plugin,
@@ -515,9 +523,10 @@ these over unit tests for new behavior. A `Stop` event with a `transcript_path` 
 namer — tests must omit it or pre-seed a name.
 
 T3 projection tests use temporary SQLite v2 fixtures in `src/t3.rs`; focus/URL tests
-live in `src/terminal.rs`. Isolate `T3CODE_HOME` in subprocess tests so the developer's
-real threads cannot enter fixtures. Check status precedence, hidden/archived rows,
-provider deduplication, dismissal/rename behavior and read-only database access.
+live in `src/terminal.rs`; `src/t3_remote.rs` uses mock MCP peers. Isolate
+`T3CODE_HOME` in subprocess tests so the developer's real threads cannot enter
+fixtures. Check status precedence, hidden/archived rows,
+provider deduplication, dismissal/rename behavior, config opt-out and read-only access.
 Live T3 return-to-thread and lamp checks remain separate acceptance checks.
 
 `tests/js/` holds two `node --test` suites (Linux CI). opencode-integration.test.mjs

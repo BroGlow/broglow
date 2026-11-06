@@ -14,12 +14,13 @@ agent is connected is a status change in BroGlow's session list, not a lit lamp.
 | Codex | Adds hooks to `$CODEX_HOME/hooks.json` (default `~/.codex`). | [Trust them in `/hooks`](#codex-setup). |
 | opencode | Installs the plugin `~/.config/opencode/plugins/broglow.js`. | Restart running sessions. |
 | GitHub Copilot CLI | Writes `~/.copilot/hooks/broglow.json`. | Restart sessions open during installation. |
-| T3 Code | Reads the local v2 state database; changes no T3 settings. | Open T3 Code 0.1 or newer; see [T3 Code](#t3-code-setup). |
+| T3 Code | Reads local v2 state and already linked machines; changes no T3 settings. | Open T3 Code 0.1 or newer; see [T3 Code](#t3-code-setup). |
 
 Installed an agent after BroGlow? Run `broglow install` again.
 
-BroGlow reads local agent state. It does not connect to remote T3 servers or collect
-cloud tasks or ordinary ChatGPT chats; see the T3 Code coverage below. Returning to,
+BroGlow reads local agent state and monitors already linked T3 peer machines by
+default; see the T3 Code coverage and opt-out below. It does not collect ordinary
+ChatGPT chats or cloud tasks outside these sources. Returning to,
 naming and dismissing sessions is the same for every agent: [Working with sessions](sessions.md).
 
 <a name="usage"></a>
@@ -68,10 +69,12 @@ opt-in with the updated plugin are counted.
 ## T3 Code
 
 T3 Code **0.1 or newer** with the v2 state database is monitored automatically for
-all its providers. BroGlow reads `userdata/statev2.sqlite` under `~/.t3` (official
-app) and `~/.t3-yandex` (Yandex build). For a custom location, set `T3CODE_HOME` for
-the BroGlow process to that T3 home directory. The older pre-v2 database is not
-supported. BroGlow never changes T3 settings, installs hooks, or writes to its database.
+all its providers. BroGlow reads `userdata/statev2.sqlite` and development-build
+`dev/statev2.sqlite` under `~/.t3` (official app) and `~/.t3-yandex` (Yandex build).
+For a custom location, set `T3CODE_HOME` for the BroGlow process to that T3 home
+directory; an explicit home selects only its `userdata` database. The older pre-v2
+database is not supported. BroGlow never changes T3 settings, installs hooks, or
+writes to its database.
 
 1. Open T3 Code and send a prompt in a visible, unarchived thread.
 2. Check that the thread appears as **T3 Code** in BroGlow: **Working** during a turn,
@@ -81,14 +84,36 @@ supported. BroGlow never changes T3 settings, installs hooks, or writes to its d
 
 Titles and projects come from T3 itself; a thread's worktree takes precedence over
 its project directory. Archived or deleted threads/projects and hidden subagents or
-side chats do not affect the lamp. A thread already represented by T3 is not shown
-again as a separate underlying Claude/Codex/opencode session. When the local T3 server
+side chats do not affect the lamp. Pending background work keeps a parent working;
+automatic idle compaction does not wake a dismissed thread. Local provider-session
+references suppress duplicate Claude/Codex/opencode rows. When the local T3 server
 exits, its threads leave live status.
 
-BroGlow reads the local projection only and does not connect to remote servers.
-A linked remote task may appear if T3 includes it in that projection; this is not
-independent monitoring of its remote server. Usage stays with the underlying
-provider, as described [above](#usage).
+Claude/Codex hooks identify native CLI resumes separately. OpenCode's shared SDK
+server exposes no equivalent provenance: a native resume can remain represented
+by its T3 row while that T3 server is running.
+
+**Already linked peer machines are monitored by default.** BroGlow reads T3's peer
+links and reuses their existing credentials for read-only MCP project/thread tools.
+It does not pair machines or start remote tasks. Polling runs in the background, so
+an unreachable machine does not block local updates. To turn this off, add this
+field to your existing `~/.broglow/config.json` (or `$BROGLOW_HOME/config.json`),
+preserving the other fields:
+
+```json
+{
+  "t3_linked_machines_enabled": false
+}
+```
+
+Set it to `true` or remove the field to restore monitoring. Saved connections in
+the desktop app's encrypted connection catalog are not read; the connection must
+exist as a T3 peer link. Remote MCP data exposes less detail than the local
+database: pending approvals/questions conservatively show **Needs help**, and native
+provider references, some background tasks and PR-watch activity are unavailable.
+Remote provider rows therefore cannot always be deduplicated. Usage stays in the
+existing local provider totals, as described [above](#usage); remote usage is not
+added.
 
 <a name="codex-setup"></a>
 

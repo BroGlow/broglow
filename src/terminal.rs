@@ -360,8 +360,19 @@ fn t3_thread_url(info: Option<&TerminalInfo>) -> Option<String> {
                 .bytes()
                 .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
     };
-    (valid(environment) && valid(thread))
-        .then(|| format!("t3code://threads/{environment}/{thread}"))
+    if !valid(environment) || !crate::t3::valid_thread_id(thread) {
+        return None;
+    }
+    use std::fmt::Write;
+    let mut encoded = String::new();
+    for byte in thread.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_') {
+            encoded.push(char::from(byte));
+        } else {
+            write!(encoded, "%{byte:02X}").unwrap();
+        }
+    }
+    Some(format!("t3code://threads/{environment}/{encoded}"))
 }
 
 #[cfg(target_os = "macos")]
@@ -942,18 +953,43 @@ mod host_tests {
             link("local-environment/thread_123"),
             Some("t3code://threads/local-environment/thread_123".into())
         );
+        assert_eq!(
+            link("environment/mcp:thread_123"),
+            Some("t3code://threads/environment/mcp%3Athread_123".into())
+        );
+        assert_eq!(
+            link("environment/thread:mcp:namespace:request:0"),
+            Some("t3code://threads/environment/thread%3Amcp%3Anamespace%3Arequest%3A0".into())
+        );
+        assert_eq!(
+            link("environment/thread:mcp:client%3Auuid:key:0"),
+            Some("t3code://threads/environment/thread%3Amcp%3Aclient%253Auuid%3Akey%3A0".into())
+        );
+        for (id, encoded) in [
+            ("a/b", "a%2Fb"),
+            ("a?prompt=run", "a%3Fprompt%3Drun"),
+            ("a#fragment", "a%23fragment"),
+            ("../", "%2E%2E%2F"),
+            ("a%2fb", "a%252fb"),
+            ("$(command)", "%24%28command%29"),
+            ("日本語", "%E6%97%A5%E6%9C%AC%E8%AA%9E"),
+        ] {
+            assert_eq!(
+                link(&format!("env/{id}")),
+                Some(format!("t3code://threads/env/{encoded}"))
+            );
+        }
         assert_eq!(t3_thread_url(None), None);
         for id in [
             "",
             "env",
             "/thread",
             "env/",
-            "env/a/b",
-            "env/a?prompt=run",
-            "env/a#fragment",
-            "env/../",
-            "env/a%2fb",
-            "env/$(command)",
+            "env/ ",
+            "env/a ",
+            "bad?env/thread",
+            "bad#env/thread",
+            "../thread",
         ] {
             assert_eq!(link(id), None, "reject {id}");
         }
@@ -1128,8 +1164,13 @@ mod tests {
                 );
                 t3.host_session_id = Some("environment/thread?prompt=run".into());
                 std::fs::write(&log, "").unwrap();
-                assert!(!focus("id", Some("t3code"), Some(&t3), None));
-                assert!(std::fs::read_to_string(&log).unwrap().is_empty());
+                assert!(focus("id", Some("t3code"), Some(&t3), None));
+                assert_eq!(
+                    std::fs::read_to_string(&log).unwrap(),
+                    format!(
+                        "open\n-b\n{bundle}\nt3code://threads/environment/thread%3Fprompt%3Drun\n"
+                    )
+                );
             }
 
             std::fs::write(std::path::Path::new(&dir).join("fail-open"), "").unwrap();

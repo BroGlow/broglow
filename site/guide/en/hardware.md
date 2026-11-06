@@ -730,12 +730,14 @@ up BroGlow, these rules apply:
 ## Connect local T3 Code sessions
 
 T3 Code needs no hooks or settings changes. BroGlow reads the local v2 database for
-all T3 providers and uses the local server PID to end status after exit. See
+all T3 providers and uses the local server PID to end status after exit. Already
+linked T3 peer machines are also monitored through read-only MCP by default; set
+`"t3_linked_machines_enabled": false` in BroGlow's config to opt out. See
 [T3 Code setup]({{ repo_url }}/blob/HEAD/site/guide/en/agents.md#t3-code-setup)
 for supported homes, coverage and status checks. Verify a real visible thread changes
 from **Working** to **Paused**, and on macOS that clicking it opens the same thread.
-Manual lamp events do not verify T3 integration. Keep T3's database read-only;
-BroGlow does not connect to remote T3 servers.
+Manual lamp events do not verify T3 integration. Keep T3's database read-only and
+check linked-machine status separately from local status.
 
 ## Bluetooth identity and permission
 

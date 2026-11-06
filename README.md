@@ -22,7 +22,7 @@
   <img alt="Runs on macOS, Windows and Linux" src="https://img.shields.io/badge/runs%20on-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-3D444D?style=for-the-badge&labelColor=181A19">
 </p>
 
-A local session monitor for Claude Code, opencode, Codex, GitHub Copilot CLI and T3 Code,
+A session monitor for Claude Code, opencode, Codex, GitHub Copilot CLI and T3 Code,
 with a menu-bar app, terminal dashboard and optional ESP32-C3 status lamp.
 The lamp, connected over USB or Bluetooth LE, shows working, idle and needs-input states.
 
@@ -108,7 +108,7 @@ it detects. T3 Code is monitored automatically without hooks. Details per agent:
 | opencode | Installed plugin; restart running sessions. |
 | Codex | Codex >= 0.144; approve hooks via `/hooks`. [Connect Codex](site/guide/en/agents.md#codex-setup). |
 | GitHub Copilot CLI | Installed hooks; restart sessions open during installation. |
-| T3 Code | Automatic, read-only local session monitoring; no hooks. [T3 Code setup](site/guide/en/agents.md#t3-code-setup). |
+| T3 Code | Automatic monitoring of local sessions and already linked machines, without hooks; linked machines have a config opt-out. [T3 Code setup](site/guide/en/agents.md#t3-code-setup). |
 
 Cloud tasks and ordinary ChatGPT conversations do not trigger this Mac's local hooks.
 

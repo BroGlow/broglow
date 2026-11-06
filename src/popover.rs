@@ -1117,6 +1117,7 @@ mod tests {
             terminal: None,
             harness: None,
             codex_background: false,
+            t3_hosted: None,
         };
         let mut state = HookState::default();
         state

@@ -360,13 +360,17 @@ pub fn run() -> anyhow::Result<()> {
     // span (it depends on the pre-existing name) and acted on afterward, off the
     // lock, so the detached spawn never blocks other writers.
     let mut spawn_naming = false;
+    let t3_hosted = crate::t3::hook_hosted(None);
 
     update_state(|state| {
         // PreToolUse fires very frequently; skip the write if already active,
         // unless it brings the session's first title.
         if hook_event == "PreToolUse" && question.is_none() {
             if let Some(s) = state.sessions.get(&session_id) {
-                if s.status == Status::Active && (claude_title.is_none() || s.name.is_some()) {
+                if s.status == Status::Active
+                    && (claude_title.is_none() || s.name.is_some())
+                    && s.t3_hosted == t3_hosted
+                {
                     return false;
                 }
             }
@@ -399,7 +403,12 @@ pub fn run() -> anyhow::Result<()> {
         // sessions first seen mid-flight; otherwise carried over unchanged so
         // routine updates skip the capture's `ps` spawn.
         let terminal = match existing.and_then(|s| s.terminal.clone()) {
-            Some(t) if hook_event != "SessionStart" => Some(t),
+            Some(t)
+                if hook_event != "SessionStart"
+                    && existing.is_some_and(|s| s.t3_hosted == t3_hosted) =>
+            {
+                Some(t)
+            }
             _ => Some(crate::terminal::capture()),
         };
 
@@ -417,6 +426,7 @@ pub fn run() -> anyhow::Result<()> {
                 // Claude Code sessions carry no harness tag (absent = claude).
                 harness: None,
                 codex_background: false,
+                t3_hosted,
             },
         );
 
@@ -558,6 +568,7 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
         // sending something new): drop it rather than guess.
         _ => return Ok(()),
     };
+    let t3_hosted = crate::t3::hook_hosted(Some(&harness));
 
     update_state(|state| {
         // Keep this decision under the same lock as ingestion. Otherwise an
@@ -595,6 +606,7 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
                         terminal: None,
                         harness: Some("codex".into()),
                         codex_background: true,
+                        t3_hosted: None,
                     },
                 );
                 return true;
@@ -629,6 +641,16 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
         if let (Some(terminal), Some(s)) = (&terminal, state.sessions.get_mut(&session_id)) {
             if s.terminal.as_ref() != Some(terminal) {
                 s.terminal = Some(terminal.clone());
+                terminal_changed = true;
+            }
+        }
+        if let (Some(hosted), Some(existing)) = (t3_hosted, state.sessions.get_mut(&session_id)) {
+            if existing.t3_hosted != Some(hosted) {
+                existing.terminal = terminal
+                    .clone()
+                    .or_else(|| Some(crate::terminal::capture()));
+                existing.last_updated = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+                existing.t3_hosted = Some(hosted);
                 terminal_changed = true;
             }
         }
@@ -837,7 +859,13 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
         // forces a write. (The needs-help guard above already ran, so a
         // `resumed` that actually clears red always gets here with a
         // non-Active status and writes.)
-        if matches!(event.as_str(), "working" | "resumed") && title.is_none() {
+        if matches!(event.as_str(), "working" | "resumed")
+            && title.is_none()
+            && !matches!(
+                v["hook_event_name"].as_str(),
+                Some("SessionStart" | "UserPromptSubmit")
+            )
+        {
             if let Some(s) = existing {
                 if s.status == Status::Active {
                     return terminal_changed;
@@ -890,6 +918,7 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
                 terminal,
                 harness: Some(harness.clone()),
                 codex_background: false,
+                t3_hosted,
             },
         );
         true

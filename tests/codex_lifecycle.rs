@@ -82,6 +82,56 @@ fn codex_lifecycle_maps_onto_normalized_statuses() {
 }
 
 #[test]
+fn native_resume_replaces_t3_provenance_even_on_suppressed_hooks() {
+    let home = temp_home();
+    let id = "native-resume";
+    command(&home)
+        .env("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", "T3 Code")
+        .arg("codex-hook")
+        .write_stdin(ev("SessionStart", id))
+        .assert()
+        .success();
+    assert_eq!(session(&read_state(&home), id)["t3_hosted"], true);
+
+    // An already-active hook takes the fast path, but must still release ownership.
+    run_codex_hook(&home, &ev("PreToolUse", id)).success();
+    let s = session(&read_state(&home), id);
+    assert_eq!(s["status"], "active");
+    assert_eq!(s["t3_hosted"], false);
+
+    // Older BroGlow rows may still carry T3's host identity without provenance.
+    let mut legacy = read_state(&home);
+    legacy["sessions"][id]["last_updated"] = json!("2020-01-01T00:00:00Z");
+    legacy["sessions"][id]
+        .as_object_mut()
+        .unwrap()
+        .remove("t3_hosted");
+    legacy["sessions"][id]["terminal"] = json!({
+        "bundle_id":"ru.yandex.t3code", "owner_pid":999999, "host_session_id":"stale"
+    });
+    std::fs::write(state_path(&home), legacy.to_string()).unwrap();
+    run_codex_hook(&home, &ev("PreToolUse", id)).success();
+    let s = session(&read_state(&home), id);
+    assert_eq!(s["t3_hosted"], false);
+    assert_ne!(s["terminal"]["owner_pid"], 999999);
+    assert_ne!(s["terminal"]["host_session_id"], "stale");
+    assert_ne!(s["last_updated"], "2020-01-01T00:00:00Z");
+
+    command(&home)
+        .env("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", "T3 Code")
+        .arg("codex-hook")
+        .write_stdin(ev("PermissionRequest", id))
+        .assert()
+        .success();
+    assert_eq!(session(&read_state(&home), id)["t3_hosted"], true);
+    // The red-preserving fast path must release ownership too.
+    run_codex_hook(&home, &ev("PreToolUse", id)).success();
+    let s = session(&read_state(&home), id);
+    assert_eq!(s["status"], "needs_help");
+    assert_eq!(s["t3_hosted"], false);
+}
+
+#[test]
 fn automatic_approval_review_does_not_ask_the_user_for_help() {
     let home = temp_home();
     let id = "auto-review";

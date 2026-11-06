@@ -24,7 +24,7 @@
   <img alt="Работает на macOS, Windows и Linux" src="https://img.shields.io/badge/%D0%BF%D0%BB%D0%B0%D1%82%D1%84%D0%BE%D1%80%D0%BC%D1%8B-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-3D444D?style=for-the-badge&labelColor=181A19">
 </p>
 
-Монитор локальных сессий Claude Code, opencode, Codex, GitHub Copilot CLI и T3 Code
+Монитор сессий Claude Code, opencode, Codex, GitHub Copilot CLI и T3 Code
 с приложением в строке меню, терминальной панелью и необязательной лампой ESP32-C3.
 Лампа, подключённая по USB или Bluetooth LE, показывает работу, ожидание и запрос ввода.
 
@@ -117,7 +117,7 @@ broglow install
 | opencode | Устанавливается плагин; перезапустите работающие сессии. |
 | Codex | Codex >= 0.144; одобрите хуки через `/hooks`. [Подключение Codex](site/guide/ru/agents.md#codex-setup). |
 | GitHub Copilot CLI | Устанавливаются хуки; перезапустите сессии, открытые во время установки. |
-| T3 Code | Автоматическое чтение локальных сессий без хуков. [Настройка T3 Code](site/guide/ru/agents.md#t3-code-setup). |
+| T3 Code | Автоматическое наблюдение за локальными сессиями и уже связанными машинами без хуков; связанные машины отключаются в конфигурации. [Настройка T3 Code](site/guide/ru/agents.md#t3-code-setup). |
 
 Облачные задачи и обычные разговоры в ChatGPT не вызывают локальные хуки на этом Mac.
 

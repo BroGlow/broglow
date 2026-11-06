@@ -27,6 +27,9 @@ pub fn command(home: &TempDir) -> Command {
         .env("CODEX_HOME", codex_home(home))
         .env("COPILOT_HOME", home.path().join(".copilot"))
         .env("T3CODE_HOME", home.path().join(".t3"))
+        .env_remove("T3CODE_THREAD_ID")
+        .env_remove("T3_ACP_MCP_NODE")
+        .env_remove("CODEX_INTERNAL_ORIGINATOR_OVERRIDE")
         .env_remove("BROGLOW_NAMING")
         .env_remove("DISPLAY")
         .env_remove("WAYLAND_DISPLAY");

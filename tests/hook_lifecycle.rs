@@ -55,6 +55,47 @@ fn full_lifecycle_maps_events_to_statuses() {
 }
 
 #[test]
+fn native_resume_replaces_t3_and_acp_provenance() {
+    let home = temp_home();
+    let id = "native-resume";
+    for marker in ["T3CODE_THREAD_ID", "T3_ACP_MCP_NODE"] {
+        command(&home)
+            .env(marker, "t3-host")
+            .arg("hook")
+            .write_stdin(event("SessionStart", id))
+            .assert()
+            .success();
+        assert_eq!(read_state(&home)["sessions"][id]["t3_hosted"], true);
+        run_hook(&home, &event("PreToolUse", id)).success();
+        let state = read_state(&home);
+        assert_eq!(session_status(&state, id), "active");
+        assert_eq!(state["sessions"][id]["t3_hosted"], false);
+    }
+    let mut legacy = read_state(&home);
+    legacy["sessions"][id]["last_updated"] = json!("2020-01-01T00:00:00Z");
+    legacy["sessions"][id]
+        .as_object_mut()
+        .unwrap()
+        .remove("t3_hosted");
+    legacy["sessions"][id]["terminal"] = json!({
+        "bundle_id":"ru.yandex.t3code", "owner_pid":999999, "host_session_id":"stale"
+    });
+    seed_state(&home, &legacy);
+    run_hook(&home, &event("PreToolUse", id)).success();
+    let state = read_state(&home);
+    assert_eq!(state["sessions"][id]["t3_hosted"], false);
+    assert_ne!(state["sessions"][id]["terminal"]["owner_pid"], 999999);
+    assert_ne!(
+        state["sessions"][id]["last_updated"],
+        "2020-01-01T00:00:00Z"
+    );
+    assert_ne!(
+        state["sessions"][id]["terminal"]["host_session_id"],
+        "stale"
+    );
+}
+
+#[test]
 fn idle_prompt_notification_is_ignored() {
     let home = temp_home();
     run_hook(&home, &event("SessionStart", "sess-idle")).success();
@@ -80,6 +121,7 @@ fn pre_tool_use_skips_the_write_when_already_active() {
             "sessions": {
                 "sess-hot": {
                     "status": "active",
+                    "t3_hosted": false,
                     "last_updated": old_timestamp,
                     "project_path": null,
                     "notification_type": null,
@@ -596,6 +638,7 @@ fn a_named_active_session_keeps_skipping_pre_tool_use_writes() {
                 "sess-titled": {
                     "status": "active",
                     "last_updated": old_timestamp,
+                    "t3_hosted": false,
                     "project_path": null,
                     "notification_type": null,
                     "name": "First title",

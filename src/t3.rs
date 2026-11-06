@@ -1,6 +1,9 @@
 //! T3 Code's v2 projections are the source of truth; this adapter never writes
 //! its database or configuration. A deferred read transaction includes WAL data.
 
+#[path = "t3_remote.rs"]
+mod remote;
+
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -41,6 +44,7 @@ pub struct ProviderSession {
 #[derive(Clone)]
 struct Source {
     home: PathBuf,
+    state_dir: &'static str,
     key: String,
     bundle: &'static str,
     owner_pid: Option<u32>,
@@ -58,6 +62,7 @@ impl Source {
         };
         Self {
             home,
+            state_dir: "userdata",
             key: format!("t3code:{key:016x}:"),
             bundle,
             owner_pid: None,
@@ -65,7 +70,18 @@ impl Source {
     }
 
     fn data(&self) -> PathBuf {
-        self.home.join("userdata")
+        self.home.join(self.state_dir)
+    }
+
+    fn development(mut self) -> Self {
+        self.state_dir = "dev";
+        let data = self.data().canonicalize().unwrap_or_else(|_| self.data());
+        self.key = format!(
+            "t3code:{:016x}:",
+            stable_hash(data.to_string_lossy().as_bytes())
+        );
+        self.bundle = "com.t3tools.t3code.dev";
+        self
     }
 }
 
@@ -81,6 +97,7 @@ fn sources() -> Vec<Source> {
     paths
         .into_iter()
         .map(Source::new)
+        .flat_map(|source| [source.clone(), source.development()])
         .filter(|source| seen.insert(source.key.clone()))
         .collect()
 }
@@ -157,6 +174,7 @@ fn file_stamp(path: &Path) -> Option<(u64, SystemTime)> {
 /// Readers may run on several tray/LED threads. Neither the polling mutex nor
 /// the shared state lock is ever waited on; skipped state writes retry later.
 pub fn refresh() {
+    remote::refresh();
     if POLLING.load(Ordering::Relaxed) {
         return;
     }
@@ -203,7 +221,10 @@ fn poll_sources() {
     cache.last_attempt = Some(Instant::now());
     let mut snapshots = Vec::new();
     let mut queried = Vec::new();
-    for mut source in sources() {
+    let selected = sources();
+    let selected_keys: Vec<_> = selected.iter().map(|source| source.key.clone()).collect();
+    cache.sources.retain(|key, _| selected_keys.contains(key));
+    for mut source in selected {
         let runtime = match runtime(&source) {
             Ok(Some(runtime)) => runtime,
             Ok(None) => {
@@ -216,10 +237,11 @@ fn poll_sources() {
             Err(_) => continue,
         };
         source.owner_pid = Some(runtime.pid);
-        if runtime
-            .server_version
-            .as_deref()
-            .is_some_and(|version| version.contains("yandex"))
+        if source.state_dir != "dev"
+            && runtime
+                .server_version
+                .as_deref()
+                .is_some_and(|version| version.contains("yandex"))
         {
             source.bundle = "ru.yandex.t3code";
         }
@@ -246,14 +268,18 @@ fn poll_sources() {
     if snapshots
         .iter()
         .all(|snapshot| snapshot.threads.is_empty() && snapshot.provider_sessions.is_empty())
-        && !crate::state::state_file_path().exists()
+        && !std::fs::read(crate::state::state_file_path())
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<HookState>(&bytes).ok())
+            .is_some_and(|state| !state.t3_threads.is_empty())
     {
         return;
     }
     let mut applied = false;
     let result = crate::hook::try_update_state(|state| {
         applied = true;
-        apply_snapshots(state, &snapshots)
+        let retired = retire_unselected_sources(state, &selected_keys);
+        apply_snapshots(state, &snapshots) || retired
     });
     if applied && result.is_ok() {
         for (key, stamp, snapshot) in queried {
@@ -321,7 +347,7 @@ fn read_snapshot(connection: &Connection, source: &Source) -> anyhow::Result<Sna
                 .filter(|_| matches!(status, Status::Active | Status::NeedsHelp)),
             host_session_id: environment
                 .as_ref()
-                .filter(|_| plain_id(&thread_id))
+                .filter(|_| valid_thread_id(&thread_id))
                 .map(|env| format!("{env}/{thread_id}")),
             ..Default::default()
         });
@@ -337,6 +363,7 @@ fn read_snapshot(connection: &Connection, source: &Source) -> anyhow::Result<Sna
                 terminal,
                 harness: Some("t3code".to_owned()),
                 codex_background: false,
+                t3_hosted: None,
             },
         });
     }
@@ -349,6 +376,25 @@ fn plain_id(id: &str) -> bool {
         && id
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+}
+
+pub(crate) fn valid_thread_id(id: &str) -> bool {
+    !id.is_empty() && id.trim() == id
+}
+
+pub(crate) fn hook_hosted(harness: Option<&str>) -> Option<bool> {
+    let acp = std::env::var_os("T3_ACP_MCP_NODE").is_some_and(|id| !id.is_empty());
+    match harness {
+        Some("codex") => Some(
+            acp || std::env::var("CODEX_INTERNAL_ORIGINATOR_OVERRIDE").as_deref() == Ok("T3 Code"),
+        ),
+        None | Some("claude") => {
+            Some(acp || std::env::var_os("T3CODE_THREAD_ID").is_some_and(|id| !id.is_empty()))
+        }
+        // shortcut: OpenCode SDK exposes no hook-time owner marker; retain ID
+        // deduplication until T3 supplies provenance for shared-server events.
+        _ => None,
+    }
 }
 
 fn native_sessions(connection: &Connection) -> anyhow::Result<Vec<ProviderSession>> {
@@ -416,19 +462,57 @@ struct Request {
     capability: Option<String>,
 }
 
+fn idle_compaction_message(alias: &str) -> String {
+    format!(
+        "({alias}.role = 'user'
+          AND lower(trim(json_extract({alias}.payload_json, '$.text'),
+              char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279))) = '/compact'
+          AND coalesce(json_array_length({alias}.payload_json, '$.attachments'), 0) = 0
+          AND (json_extract({alias}.payload_json, '$.idleCompaction') IS NOT NULL
+               OR (json_extract({alias}.payload_json, '$.createdBy') = 'agent'
+                   AND json_extract({alias}.payload_json, '$.creationSource') = 'server')))"
+    )
+}
+
+fn silent_run(alias: &str) -> String {
+    let prompt = idle_compaction_message("prompt");
+    format!(
+        "({alias}.status != 'failed'
+          AND EXISTS (SELECT 1 FROM {PREFIX}messages prompt
+              WHERE prompt.message_id = json_extract({alias}.payload_json, '$.userMessageId') AND {prompt})
+          AND NOT EXISTS (SELECT 1 FROM {PREFIX}turn_items compaction
+              WHERE compaction.thread_id = {alias}.thread_id AND compaction.run_id = {alias}.run_id
+                AND compaction.type = 'compaction' AND compaction.status = 'failed'))"
+    )
+}
+
 fn read_run(connection: &Connection, thread: &str, active: bool) -> rusqlite::Result<Option<Run>> {
     let condition = if active {
         "status IN ('preparing', 'starting', 'running', 'waiting')"
     } else {
         "NOT(status = 'queued' AND COALESCE(json_extract(payload_json, '$.queueHeld'), 0) = 1)"
     };
+    let silent = silent_run("r");
     connection
         .query_row(
             &format!(
-                "SELECT run_id, status, requested_at, completed_at,
+                "WITH visible AS (
+                    SELECT r.* FROM {PREFIX}runs r WHERE r.thread_id = ?1 AND NOT {silent}
+                 ), executed AS (
+                    SELECT * FROM visible WHERE status != 'queued'
+                      AND NOT(status = 'cancelled' AND json_extract(payload_json, '$.startedAt') IS NULL)
+                    ORDER BY (completed_at IS NULL) DESC, julianday(completed_at) DESC, ordinal DESC LIMIT 1
+                 ), limited AS (
+                    SELECT e.run_id FROM executed e WHERE e.status = 'failed' AND (
+                      SELECT json_extract(i.payload_json, '$.failure.class') FROM {PREFIX}turn_items i WHERE i.run_id = e.run_id
+                        AND i.node_id IS json_extract(e.payload_json, '$.rootNodeId')
+                        AND i.type = 'error' AND i.status = 'failed'
+                        ORDER BY julianday(i.updated_at) DESC, i.ordinal DESC, i.turn_item_id DESC LIMIT 1) = 'usage_limit'
+                 )
+                 SELECT run_id, status, requested_at, completed_at,
                         COALESCE(json_extract(payload_json, '$.workStartedAt'), json_extract(payload_json, '$.startedAt'))
-                 FROM {PREFIX}runs WHERE thread_id = ?1 AND {condition}
-                 ORDER BY ordinal DESC LIMIT 1"
+                 FROM visible WHERE {condition}
+                 ORDER BY (run_id IN (SELECT run_id FROM limited)) DESC, ordinal DESC LIMIT 1"
             ),
             [thread],
             |row| {
@@ -445,6 +529,8 @@ fn read_run(connection: &Connection, thread: &str, active: bool) -> rusqlite::Re
 }
 
 fn thread_facts(connection: &Connection, thread: &str) -> anyhow::Result<Facts> {
+    let silent = silent_run("r");
+    let idle_prompt = idle_compaction_message("m");
     let latest = read_run(connection, thread, false)?;
     let active = read_run(connection, thread, true)?;
     let request = connection
@@ -490,8 +576,10 @@ fn thread_facts(connection: &Connection, thread: &str) -> anyhow::Result<Facts> 
     let message = connection
         .query_row(
             &format!(
-                "SELECT message_id, updated_at FROM {PREFIX}messages
-                 WHERE thread_id = ?1 ORDER BY updated_at DESC LIMIT 1"
+                "SELECT m.message_id, m.updated_at FROM {PREFIX}messages m
+                 WHERE m.thread_id = ?1 AND NOT COALESCE({idle_prompt}, 0)
+                   AND NOT EXISTS (SELECT 1 FROM {PREFIX}runs r WHERE r.run_id = m.run_id AND {silent})
+                 ORDER BY m.updated_at DESC LIMIT 1"
             ),
             [thread],
             |row| Ok((row.get(0)?, row.get(1)?)),
@@ -500,8 +588,10 @@ fn thread_facts(connection: &Connection, thread: &str) -> anyhow::Result<Facts> 
     let item = connection
         .query_row(
             &format!(
-                "SELECT turn_item_id, status, updated_at FROM {PREFIX}turn_items
-                 WHERE thread_id = ?1 ORDER BY ordinal DESC LIMIT 1"
+                "SELECT i.turn_item_id, i.status, i.updated_at FROM {PREFIX}turn_items i
+                 WHERE i.thread_id = ?1
+                   AND NOT EXISTS (SELECT 1 FROM {PREFIX}runs r WHERE r.run_id = i.run_id AND {silent})
+                 ORDER BY i.ordinal DESC LIMIT 1"
             ),
             [thread],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
@@ -527,7 +617,8 @@ fn thread_facts(connection: &Connection, thread: &str) -> anyhow::Result<Facts> 
                             OR (SELECT active_provider_thread_id FROM {PREFIX}threads WHERE thread_id = ?1) IS NULL)
                        AND (json_extract(task.value, '$.awaited') = 1 OR json_extract(task.value, '$.kind') IN ('subagent', 'background_task')))
                  OR EXISTS(SELECT 1 FROM {PREFIX}turn_items i LEFT JOIN {PREFIX}runs r ON r.run_id = i.run_id
-                     WHERE i.thread_id = ?1 AND i.status IN ('running', 'waiting') AND COALESCE(r.status, '') != 'rolled_back'
+                     WHERE i.thread_id = ?1 AND i.status IN ('pending', 'running', 'waiting') AND COALESCE(r.status, '') != 'rolled_back'
+                       AND NOT COALESCE({silent}, 0)
                        AND (i.type = 'subagent' OR (i.type = 'dynamic_tool' AND COALESCE(json_extract(i.payload_json, '$.input.persistent'), 0) != 1)))"
         ),
         [thread],
@@ -608,6 +699,27 @@ impl Facts {
             .map(|time| time.with_timezone(&Utc).to_rfc3339())
             .unwrap_or_else(|| created.to_owned())
     }
+}
+
+fn retire_unselected_sources(state: &mut HookState, selected: &[String]) -> bool {
+    let mut changed = false;
+    for (id, tracking) in &mut state.t3_threads {
+        if selected.iter().any(|key| tracking.source.starts_with(key)) {
+            continue;
+        }
+        if !tracking.provider_sessions.is_empty() {
+            tracking.provider_sessions.clear();
+            changed = true;
+        }
+        if let Some(session) = state.sessions.get_mut(id) {
+            if session.harness.as_deref() == Some("t3code") && session.status != Status::Done {
+                session.status = Status::Done;
+                session.notification_type = None;
+                changed = true;
+            }
+        }
+    }
+    changed
 }
 
 fn apply_snapshots(state: &mut HookState, snapshots: &[Snapshot]) -> bool {
@@ -720,6 +832,8 @@ pub fn dismiss(state: &mut HookState, id: &str) {
 /// Display-only: hooks retain their own state, but never duplicate their host
 /// T3 thread, including descendants and threads the user dismissed or archived.
 pub fn hide_provider_sessions(state: &mut HookState) {
+    let include_remote =
+        crate::config::read_config_strict().is_ok_and(|cfg| cfg.t3_linked_machines_enabled);
     let mut native = HashMap::<(&str, &str), Option<DateTime<Utc>>>::new();
     for tracking in state.t3_threads.values() {
         let cutoff = tracking
@@ -739,6 +853,17 @@ pub fn hide_provider_sessions(state: &mut HookState) {
         }
     }
     state.sessions.retain(|id, session| {
+        if !include_remote
+            && state
+                .t3_threads
+                .get(id)
+                .is_some_and(|tracking| remote::is_remote_source(&tracking.source))
+        {
+            return false;
+        }
+        if session.t3_hosted == Some(false) {
+            return true;
+        }
         match native.get(&(session.harness.as_deref().unwrap_or("claude"), id.as_str())) {
             None => true,
             Some(None) => false,
@@ -776,7 +901,7 @@ mod tests {
              CREATE TABLE orchestration_v2_projection_runtime_requests (runtime_request_id TEXT PRIMARY KEY, thread_id TEXT,
                kind TEXT, status TEXT, created_at TEXT, resolved_at TEXT, payload_json TEXT);
              CREATE TABLE orchestration_v2_projection_messages (message_id TEXT PRIMARY KEY, thread_id TEXT, role TEXT,
-               updated_at TEXT, payload_json TEXT);
+               updated_at TEXT, payload_json TEXT, run_id TEXT);
              CREATE TABLE orchestration_v2_projection_turn_items (turn_item_id TEXT PRIMARY KEY, thread_id TEXT,
                run_id TEXT, node_id TEXT, type TEXT, ordinal INTEGER, status TEXT, updated_at TEXT, payload_json TEXT);
              CREATE TABLE orchestration_v2_projection_provider_threads (provider_thread_id TEXT PRIMARY KEY, thread_id TEXT,
@@ -896,7 +1021,7 @@ mod tests {
             .unwrap();
         assert_eq!(status(&connection, &source), Status::NeedsHelp);
         connection.execute(
-            "INSERT INTO orchestration_v2_projection_messages VALUES ('reply', 'thread', 'user', ?1, '{\"createdBy\":\"agent\"}')",
+            "INSERT INTO orchestration_v2_projection_messages (message_id, thread_id, role, updated_at, payload_json) VALUES ('reply', 'thread', 'user', ?1, '{\"createdBy\":\"agent\"}')",
             [LATER],
         ).unwrap();
         assert_eq!(status(&connection, &source), Status::NeedsHelp);
@@ -921,6 +1046,105 @@ mod tests {
         ).unwrap();
         assert_eq!(status(&connection, &source), Status::Active);
         connection.execute("UPDATE orchestration_v2_projection_turn_items SET payload_json = '{\"input\":{\"persistent\":true}}'", []).unwrap();
+        assert_eq!(status(&connection, &source), Status::Inactive);
+    }
+
+    #[test]
+    fn pending_child_work_keeps_a_completed_parent_active() {
+        for kind in ["subagent", "dynamic_tool"] {
+            let (_directory, source, connection) = fixture();
+            add_run(&connection, "run", 1, "completed", json!({}));
+            connection.execute(
+                "INSERT INTO orchestration_v2_projection_turn_items VALUES ('child', 'thread', 'run', 'node', ?1, 1, 'pending', ?2, '{}')",
+                params![kind, AT],
+            ).unwrap();
+            assert_eq!(status(&connection, &source), Status::Active, "{kind}");
+        }
+    }
+
+    #[test]
+    fn silent_compaction_does_not_restore_dismissed_threads() {
+        for (automatic, run_status, item_status, visible) in [
+            (true, "running", "running", false),
+            (false, "running", "running", true),
+            (true, "failed", "failed", true),
+            (true, "completed", "failed", true),
+        ] {
+            let (_directory, source, connection) = fixture();
+            add_run(&connection, "run", 1, "completed", json!({}));
+            let snapshot = read_snapshot(&connection, &source).unwrap();
+            let id = snapshot.threads[0].id.clone();
+            let mut state = HookState::default();
+            apply_snapshots(&mut state, &[snapshot]);
+            dismiss(&mut state, &id);
+            state.sessions.remove(&id);
+            let prompt = if automatic {
+                json!({"text":"/compact", "createdBy":"agent", "creationSource":"server"})
+            } else {
+                json!({"text":"/compact", "createdBy":"user"})
+            };
+            add_run(
+                &connection,
+                "compact",
+                2,
+                run_status,
+                json!({"userMessageId":"compact-prompt"}),
+            );
+            connection.execute(
+                "INSERT INTO orchestration_v2_projection_messages VALUES ('compact-prompt', 'thread', 'user', ?1, ?2, 'compact')",
+                params![LATER, prompt.to_string()],
+            ).unwrap();
+            connection.execute(
+                "INSERT INTO orchestration_v2_projection_messages VALUES ('compact-result', 'thread', 'assistant', ?1, '{}', 'compact')",
+                [LATER],
+            ).unwrap();
+            connection.execute(
+                "INSERT INTO orchestration_v2_projection_turn_items VALUES ('compaction', 'thread', 'compact', 'root', 'compaction', 1, ?1, ?2, '{}')",
+                params![item_status, LATER],
+            ).unwrap();
+            apply_snapshots(&mut state, &[read_snapshot(&connection, &source).unwrap()]);
+            assert_eq!(
+                state.sessions.contains_key(&id),
+                visible,
+                "automatic={automatic}, run={run_status}, item={item_status}"
+            );
+        }
+    }
+
+    #[test]
+    fn cancelled_unstarted_queue_preserves_the_last_usage_limit_failure() {
+        let (_directory, source, connection) = fixture();
+        add_run(
+            &connection,
+            "limited",
+            1,
+            "failed",
+            json!({"rootNodeId":"root"}),
+        );
+        connection.execute(
+            "INSERT INTO orchestration_v2_projection_turn_items VALUES ('failure', 'thread', 'limited', 'root', 'error', 1, 'failed', ?1, ?2)",
+            params![AT, json!({"failure":{"class":"usage_limit","message":"Usage limit reached"}}).to_string()],
+        ).unwrap();
+        add_run(
+            &connection,
+            "cancelled",
+            2,
+            "cancelled",
+            json!({"startedAt":null}),
+        );
+        assert_eq!(status(&connection, &source), Status::NeedsHelp);
+        connection.execute(
+            "INSERT INTO orchestration_v2_projection_turn_items VALUES ('newer-error', 'thread', 'limited', 'root', 'error', 2, 'failed', ?1, ?2)",
+            params![LATER, json!({"failure":{"class":"provider_error"}}).to_string()],
+        ).unwrap();
+        assert_eq!(status(&connection, &source), Status::Inactive);
+        add_run(
+            &connection,
+            "executed",
+            3,
+            "completed",
+            json!({"startedAt":LATER}),
+        );
         assert_eq!(status(&connection, &source), Status::Inactive);
     }
 
@@ -982,6 +1206,23 @@ mod tests {
         assert!(!state.sessions.contains_key("claude-native"));
         assert!(!state.sessions.contains_key("opencode-native"));
         assert!(state.sessions.contains_key("unrelated"));
+        for (id, harness) in [("codex-native", Some("codex")), ("claude-native", None)] {
+            for status in [Status::Active, Status::NeedsHelp] {
+                for hosted in [true, false] {
+                    let mut resumed = thread.session.clone();
+                    resumed.harness = harness.map(str::to_owned);
+                    resumed.status = status.clone();
+                    resumed.t3_hosted = Some(hosted);
+                    state.sessions.insert(id.to_owned(), resumed);
+                    hide_provider_sessions(&mut state);
+                    assert_eq!(
+                        state.sessions.contains_key(id),
+                        !hosted,
+                        "independent native {harness:?} {status:?} must be visible with T3 online"
+                    );
+                }
+            }
+        }
         connection
             .execute("UPDATE projection_projects SET deleted_at = ?1", [AT])
             .unwrap();
@@ -1181,6 +1422,111 @@ mod tests {
         let started = Instant::now();
         refresh();
         assert!(started.elapsed() < Duration::from_millis(100));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn development_instances_are_discovered_separately() {
+        if std::env::var_os("BROGLOW_TEST_T3_DEV").is_none() {
+            let home = tempfile::tempdir().unwrap();
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "t3::tests::development_instances_are_discovered_separately",
+                ])
+                .env("HOME", home.path())
+                .env("BROGLOW_HOME", home.path().join(".broglow"))
+                .env_remove("T3CODE_HOME")
+                .env("BROGLOW_TEST_T3_DEV", "1")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+        let (_directory, fixture_source, connection) = fixture();
+        add_run(&connection, "run", 1, "running", json!({}));
+        drop(connection);
+        let base = dirs::home_dir().unwrap().join(".t3");
+        std::fs::create_dir_all(&base).unwrap();
+        std::fs::rename(fixture_source.data(), base.join("dev")).unwrap();
+        std::fs::write(
+            base.join("dev/server-runtime.json"),
+            json!({"version":1,"pid":std::process::id()}).to_string(),
+        )
+        .unwrap();
+        let found: Vec<_> = sources()
+            .into_iter()
+            .filter(|source| source.data().join("statev2.sqlite").exists())
+            .collect();
+        assert_eq!(found.len(), 1, "development source must be found");
+        let snapshot = read_source(&found[0]).unwrap();
+        assert_eq!(
+            snapshot.threads[0]
+                .session
+                .terminal
+                .as_ref()
+                .unwrap()
+                .bundle_id
+                .as_deref(),
+            Some("com.t3tools.t3code.dev")
+        );
+        assert_ne!(found[0].key, Source::new(base).key);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn switching_home_retires_the_previous_source() {
+        if std::env::var_os("BROGLOW_TEST_T3_SWITCH").is_some() {
+            poll_sources();
+            let state: HookState =
+                serde_json::from_slice(&std::fs::read(crate::state::state_file_path()).unwrap())
+                    .unwrap();
+            assert_eq!(
+                state
+                    .sessions
+                    .values()
+                    .filter(|s| s.status == Status::Active)
+                    .count(),
+                1,
+                "only the selected home may retain live T3 rows"
+            );
+            return;
+        }
+        let home = tempfile::tempdir().unwrap();
+        let (_first_dir, first, first_connection) = fixture();
+        let (_second_dir, second, second_connection) = fixture();
+        for (source, connection) in [(&first, &first_connection), (&second, &second_connection)] {
+            add_run(connection, "run", 1, "running", json!({}));
+            std::fs::write(
+                source.data().join("server-runtime.json"),
+                json!({"version":1,"pid":std::process::id()}).to_string(),
+            )
+            .unwrap();
+        }
+        for source in [&first, &second] {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "t3::tests::switching_home_retires_the_previous_source",
+                ])
+                .env("HOME", home.path())
+                .env("BROGLOW_HOME", home.path().join(".broglow"))
+                .env("T3CODE_HOME", &source.home)
+                .env("BROGLOW_TEST_T3_SWITCH", "1")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
     }
 
     #[test]

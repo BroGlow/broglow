@@ -48,6 +48,9 @@ pub struct SessionStatus {
     /// Absent in state files written before this field existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub harness: Option<String>,
+    /// Hook-time host provenance. A native CLI resume must not inherit T3 ownership.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub t3_hosted: Option<bool>,
     /// Remember app housekeeping across hook processes, including hooks with
     /// no prompt/transcript. Readers hide these Done tombstones.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -445,6 +448,7 @@ mod tests {
                 terminal: None,
                 harness: None,
                 codex_background: false,
+                t3_hosted: None,
             },
         );
     }
@@ -899,6 +903,7 @@ mod tests {
                     terminal: None,
                     harness: harness.map(str::to_string),
                     codex_background: false,
+                    t3_hosted: None,
                 },
             );
         }
@@ -965,6 +970,7 @@ mod tests {
                     terminal: None,
                     harness: None,
                     codex_background: false,
+                    t3_hosted: None,
                 },
             );
         }
@@ -1023,6 +1029,7 @@ mod tests {
                 }),
                 harness: None,
                 codex_background: false,
+                t3_hosted: None,
             },
         );
         state

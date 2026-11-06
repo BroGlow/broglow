@@ -61,6 +61,8 @@ pub struct Config {
     /// of under their status. Off by default; set from the popover's
     /// Settings view, or by hand on Linux.
     pub group_by_project: bool,
+    /// Include machines already linked through T3 Code. On by default.
+    pub t3_linked_machines_enabled: bool,
     /// Return to chats after the popover stays closed for the configured interval.
     pub popover_reset_enabled: bool,
     #[serde(deserialize_with = "deserialize_popover_reset_minutes")]
@@ -120,6 +122,7 @@ impl Default for Config {
             show_dashboard_button: false,
             show_agent_names: true,
             group_by_project: false,
+            t3_linked_machines_enabled: true,
             popover_reset_enabled: true,
             popover_reset_minutes: 5,
             led_enabled: false,
@@ -316,6 +319,22 @@ pub fn write_config(cfg: &Config) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::Config;
+
+    #[test]
+    fn linked_t3_machines_default_on_and_preserve_explicit_opt_out() {
+        for cfg in [Config::default(), serde_json::from_str("{}").unwrap()] {
+            assert!(cfg.t3_linked_machines_enabled);
+            assert!(!cfg.usage_enabled);
+        }
+        let cfg: Config = serde_json::from_str(
+            r#"{"t3_linked_machines_enabled":false,"led_enabled":true,"custom":42}"#,
+        )
+        .unwrap();
+        let saved = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(saved["t3_linked_machines_enabled"], false);
+        assert_eq!(saved["led_enabled"], true);
+        assert_eq!(saved["custom"], 42);
+    }
 
     #[test]
     fn menu_bar_usage_defaults_on_without_enabling_tracking_and_preserves_preferences() {
