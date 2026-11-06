@@ -185,10 +185,13 @@ pub fn ensure_running() -> String {
 /// its names from `session::load_all_sessions`.
 #[cfg(any(test, target_os = "macos", target_os = "windows"))]
 pub(crate) fn display_name(id: &str, s: &state::SessionStatus) -> String {
-    s.name.clone().unwrap_or_else(|| {
-        let prefix: String = id.chars().take(8).collect();
-        format!("Session {prefix}")
-    })
+    s.name
+        .as_deref()
+        .map(crate::session::display_title)
+        .unwrap_or_else(|| {
+            let prefix: String = id.chars().take(8).collect();
+            format!("Session {prefix}")
+        })
 }
 
 /// One row of the Linux tray menu's session list.

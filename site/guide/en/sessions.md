@@ -31,6 +31,9 @@ short generated one at the end of its first turn. Before any prompt, a session s
 as `Session <id>`. A new or renamed title appears within five seconds while the list
 is open; hover over a name to see the full title.
 
+Inline Markdown links are displayed as their readable label: `[book](book)`
+appears as `book`. This changes only the display, not the agent's stored title.
+
 <a name="question-expiry"></a>
 
 ## Expired Codex questions

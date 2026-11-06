@@ -160,6 +160,136 @@ pub(crate) fn truncate(s: &str, max: usize) -> String {
     }
 }
 
+/// Plain-text surfaces show inline links by their label. Keep other formatting,
+/// literal brackets and code spans intact; stored titles remain authoritative.
+pub(crate) fn display_title(title: &str) -> String {
+    let chars: Vec<char> = title.chars().collect();
+    let mut result = String::with_capacity(title.len());
+    let (mut cursor, mut literal) = (0, 0);
+    while cursor < chars.len() {
+        match chars[cursor] {
+            '\\' => cursor = (cursor + 2).min(chars.len()),
+            '`' => cursor = code_span_end(&chars, cursor).unwrap_or(chars.len()),
+            '[' => match inline_link_end(&chars, cursor) {
+                Ok((_, end)) if cursor > 0 && chars[cursor - 1] == '!' => cursor = end,
+                Ok((label_end, end)) => {
+                    result.extend(chars[literal..cursor].iter());
+                    result.extend(chars[cursor + 1..label_end].iter());
+                    cursor = end;
+                    literal = end;
+                }
+                Err(end) => cursor = end,
+            },
+            _ => cursor += 1,
+        }
+    }
+    result.extend(chars[literal..].iter());
+    result
+}
+
+fn code_span_end(chars: &[char], start: usize) -> Option<usize> {
+    let width = chars[start..].iter().take_while(|&&b| b == '`').count();
+    let mut cursor = start + width;
+    while cursor < chars.len() {
+        if chars[cursor] == '`' {
+            let closing = chars[cursor..].iter().take_while(|&&b| b == '`').count();
+            cursor += closing;
+            if closing == width {
+                return Some(cursor);
+            }
+        } else {
+            cursor += 1;
+        }
+    }
+    None
+}
+
+fn inline_link_end(chars: &[char], start: usize) -> Result<(usize, usize), usize> {
+    let (mut cursor, mut brackets) = (start + 1, 1);
+    while cursor < chars.len() {
+        match chars[cursor] {
+            '\\' => cursor += 1,
+            '`' => {
+                let Some(end) = code_span_end(chars, cursor) else {
+                    return Err(chars.len());
+                };
+                cursor = end;
+                continue;
+            }
+            '[' => brackets += 1,
+            ']' => {
+                brackets -= 1;
+                if brackets == 0 {
+                    if chars.get(cursor + 1) != Some(&'(') {
+                        return Err(cursor + 1);
+                    }
+                    return link_destination_end(chars, cursor + 2)
+                        .map(|end| (cursor, end))
+                        .ok_or(chars.len());
+                }
+            }
+            _ => {}
+        }
+        cursor += 1;
+    }
+    Err(chars.len())
+}
+
+fn link_destination_end(chars: &[char], mut cursor: usize) -> Option<usize> {
+    while chars.get(cursor).is_some_and(|b| *b == ' ' || *b == '\t') {
+        cursor += 1;
+    }
+    let mut parentheses = 0;
+    let angle = chars.get(cursor) == Some(&'<');
+    if angle {
+        cursor += 1;
+    }
+    while let Some(&byte) = chars.get(cursor) {
+        match byte {
+            '\\' => cursor += 1,
+            '\r' | '\n' => return None,
+            '<' if angle => return None,
+            '>' if angle => {
+                cursor += 1;
+                break;
+            }
+            '(' if !angle => parentheses += 1,
+            ')' if !angle && parentheses == 0 => return Some(cursor + 1),
+            ')' if !angle => parentheses -= 1,
+            ' ' | '\t' if !angle && parentheses == 0 => break,
+            ' ' | '\t' | '<' if !angle => return None,
+            _ => {}
+        }
+        cursor += 1;
+    }
+    let destination_end = cursor;
+    while chars.get(cursor).is_some_and(|b| *b == ' ' || *b == '\t') {
+        cursor += 1;
+    }
+    if matches!(chars.get(cursor), Some('"' | '\'')) {
+        if cursor == destination_end {
+            return None;
+        }
+        let quote = chars[cursor];
+        cursor += 1;
+        loop {
+            match chars.get(cursor)? {
+                '\\' => cursor += 2,
+                '\r' | '\n' => return None,
+                byte if *byte == quote => {
+                    cursor += 1;
+                    break;
+                }
+                _ => cursor += 1,
+            }
+        }
+        while chars.get(cursor).is_some_and(|b| *b == ' ' || *b == '\t') {
+            cursor += 1;
+        }
+    }
+    (parentheses == 0 && chars.get(cursor) == Some(&')')).then_some(cursor + 1)
+}
+
 /// Char-safe first-N-chars prefix, used for the `Session <id-prefix>` fallback
 /// name. Session IDs are ASCII UUIDs today, but slicing them by chars keeps the
 /// helper reusable and immune to the non-boundary panic that byte-slicing hits.
@@ -179,7 +309,8 @@ pub fn load_all_sessions(hook_state: &HookState, grouped: bool) -> Vec<DisplaySe
         .map(|(session_id, session_status)| {
             let name = session_status
                 .name
-                .clone()
+                .as_deref()
+                .map(display_title)
                 .unwrap_or_else(|| format!("Session {}", char_prefix(session_id, 8)));
             DisplaySession {
                 session_id: session_id.clone(),
@@ -272,6 +403,85 @@ mod tests {
         assert_eq!(oc.name, "Wire opencode");
         assert_eq!(cc.harness, None);
         assert_eq!(cc.name, "Session 日本語日本語日本");
+    }
+
+    #[test]
+    fn display_titles_use_inline_link_labels_without_rendering_other_formatting() {
+        for (title, expected) in [
+            (
+                "working on the [book](book) here",
+                "working on the book here",
+            ),
+            ("[**book**](docs/book(2).md)", "**book**"),
+            ("[[book] `name[x]`](url(foo(bar)))", "[book] `name[x]`"),
+            (
+                "Книга [📘日本語](../本(改).md) готова",
+                "Книга 📘日本語 готова",
+            ),
+            ("[book](<https://example.test/a b>)", "book"),
+            ("[book](url \"A (title)\")", "book"),
+            ("[label]()", "label"),
+            (
+                "`[book](book)` and [guide](guide)",
+                "`[book](book)` and guide",
+            ),
+            (
+                "`` `[book](book)` `` and [guide](guide)",
+                "`` `[book](book)` `` and guide",
+            ),
+            ("[<b>book</b>](book)", "<b>book</b>"),
+        ] {
+            assert_eq!(super::display_title(title), expected, "{title}");
+        }
+    }
+
+    #[test]
+    fn display_titles_preserve_literal_brackets_paths_code_and_malformed_links() {
+        for title in [
+            "",
+            "tasks [1] and [2]",
+            "src/books[old]/book_v2.rs",
+            "C:\\books[old]\\book_v2.rs",
+            "`[book](book)`",
+            "![book](cover.png)",
+            "![a [book](book)](cover.png)",
+            "\\[book](book)",
+            "[book] (book)",
+            "[book](unfinished",
+            "[book](two words)",
+            "[book](url(foo)",
+            "[book](<broken)",
+            "[book](<<broken>)",
+            "[book](<url>\"title\")",
+            "[book](url \"unfinished)",
+        ] {
+            assert_eq!(super::display_title(title), title);
+        }
+    }
+
+    #[test]
+    fn malformed_titles_are_preserved_without_repeated_suffix_scans() {
+        let brackets = "[".repeat(50_000);
+        assert_eq!(super::display_title(&brackets), brackets);
+        let backticks = (1..400)
+            .map(|n| format!("{} ", "`".repeat(n)))
+            .collect::<String>();
+        assert_eq!(super::display_title(&backticks), backticks);
+    }
+
+    #[test]
+    fn every_surface_cleans_link_titles_without_changing_the_stored_name() {
+        let title = "working on the [book](book) here";
+        let expected = "working on the book here";
+        let session = SessionStatus {
+            name: Some(title.into()),
+            ..stored_session(Status::Active, "2026-01-01T00:00:00Z", None)
+        };
+        assert_eq!(crate::menubar::display_name("session", &session), expected);
+        let mut state = HookState::default();
+        state.sessions.insert("session".into(), session);
+        assert_eq!(super::load_all_sessions(&state, false)[0].name, expected);
+        assert_eq!(state.sessions["session"].name.as_deref(), Some(title));
     }
 
     #[test]

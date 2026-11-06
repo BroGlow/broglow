@@ -1165,6 +1165,29 @@ mod tests {
     }
 
     #[test]
+    fn renamed_t3_threads_update_without_changing_activity_or_provider_identity() {
+        let (_directory, source, connection) = fixture();
+        add_run(&connection, "run", 1, "running", json!({}));
+        let initial = read_snapshot(&connection, &source).unwrap();
+        let id = initial.threads[0].id.clone();
+        let activity = initial.threads[0].activity.clone();
+        let updated = initial.threads[0].session.last_updated.clone();
+        let mut state = HookState::default();
+        apply_snapshots(&mut state, &[initial]);
+        connection.execute("UPDATE orchestration_v2_projection_threads SET title = 'Humanize Book Text and Check Rules', updated_at = ?1", [LATER]).unwrap();
+        let renamed = read_snapshot(&connection, &source).unwrap();
+        assert_eq!(renamed.threads[0].activity, activity);
+        assert!(apply_snapshots(&mut state, &[renamed]));
+        assert_eq!(
+            state.sessions[&id].name.as_deref(),
+            Some("Humanize Book Text and Check Rules")
+        );
+        assert_eq!(state.sessions[&id].harness.as_deref(), Some("t3code"));
+        assert_eq!(state.sessions[&id].status, Status::Active);
+        assert_eq!(state.sessions[&id].last_updated, updated);
+    }
+
+    #[test]
     fn imported_history_does_not_suppress_native_sessions() {
         for (driver, harness) in [
             ("codex", Some("codex")),
