@@ -16,6 +16,7 @@
   <a href="https://github.com/openai/codex"><img alt="Работает с Codex" src="https://img.shields.io/badge/%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%B0%D0%B5%D1%82%20%D1%81-Codex-10A37F?style=for-the-badge&labelColor=181A19&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBmaWxsPSIjZmZmIiByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU%2BT3BlbkFJPC90aXRsZT48cGF0aCBkPSJNMjIuMjgxOSA5LjgyMTFhNS45ODQ3IDUuOTg0NyAwIDAgMC0uNTE1Ny00LjkxMDggNi4wNDYyIDYuMDQ2MiAwIDAgMC02LjUwOTgtMi45QTYuMDY1MSA2LjA2NTEgMCAwIDAgNC45ODA3IDQuMTgxOGE1Ljk4NDcgNS45ODQ3IDAgMCAwLTMuOTk3NyAyLjkgNi4wNDYyIDYuMDQ2MiAwIDAgMCAuNzQyNyA3LjA5NjYgNS45OCA1Ljk4IDAgMCAwIC41MTEgNC45MTA3IDYuMDUxIDYuMDUxIDAgMCAwIDYuNTE0NiAyLjkwMDFBNS45ODQ3IDUuOTg0NyAwIDAgMCAxMy4yNTk5IDI0YTYuMDU1NyA2LjA1NTcgMCAwIDAgNS43NzE4LTQuMjA1OCA1Ljk4OTQgNS45ODk0IDAgMCAwIDMuOTk3Ny0yLjkwMDEgNi4wNTU3IDYuMDU1NyAwIDAgMC0uNzQ3NS03LjA3Mjl6bS05LjAyMiAxMi42MDgxYTQuNDc1NSA0LjQ3NTUgMCAwIDEtMi44NzY0LTEuMDQwOGwuMTQxOS0uMDgwNCA0Ljc3ODMtMi43NTgyYS43OTQ4Ljc5NDggMCAwIDAgLjM5MjctLjY4MTN2LTYuNzM2OWwyLjAyIDEuMTY4NmEuMDcxLjA3MSAwIDAgMSAuMDM4LjA1MnY1LjU4MjZhNC41MDQgNC41MDQgMCAwIDEtNC40OTQ1IDQuNDk0NHptLTkuNjYwNy00LjEyNTRhNC40NzA4IDQuNDcwOCAwIDAgMS0uNTM0Ni0zLjAxMzdsLjE0Mi4wODUyIDQuNzgzIDIuNzU4MmEuNzcxMi43NzEyIDAgMCAwIC43ODA2IDBsNS44NDI4LTMuMzY4NXYyLjMzMjRhLjA4MDQuMDgwNCAwIDAgMS0uMDMzMi4wNjE1TDkuNzQgMTkuOTUwMmE0LjQ5OTIgNC40OTkyIDAgMCAxLTYuMTQwOC0xLjY0NjR6TTIuMzQwOCA3Ljg5NTZhNC40ODUgNC40ODUgMCAwIDEgMi4zNjU1LTEuOTcyOFYxMS42YS43NjY0Ljc2NjQgMCAwIDAgLjM4NzkuNjc2NWw1LjgxNDQgMy4zNTQzLTIuMDIwMSAxLjE2ODVhLjA3NTcuMDc1NyAwIDAgMS0uMDcxIDBsLTQuODMwMy0yLjc4NjVBNC41MDQgNC41MDQgMCAwIDEgMi4zNDA4IDcuODcyem0xNi41OTYzIDMuODU1OEwxMy4xMDM4IDguMzY0IDE1LjExOTIgNy4yYS4wNzU3LjA3NTcgMCAwIDEgLjA3MSAwbDQuODMwMyAyLjc5MTNhNC40OTQ0IDQuNDk0NCAwIDAgMS0uNjc2NSA4LjEwNDJ2LTUuNjc3MmEuNzkuNzkgMCAwIDAtLjQwNy0uNjY3em0yLjAxMDctMy4wMjMxbC0uMTQyLS4wODUyLTQuNzczNS0yLjc4MThhLjc3NTkuNzc1OSAwIDAgMC0uNzg1NCAwTDkuNDA5IDkuMjI5N1Y2Ljg5NzRhLjA2NjIuMDY2MiAwIDAgMSAuMDI4NC0uMDYxNWw0LjgzMDMtMi43ODY2YTQuNDk5MiA0LjQ5OTIgMCAwIDEgNi42ODAyIDQuNjZ6TTguMzA2NSAxMi44NjNsLTIuMDItMS4xNjM4YS4wODA0LjA4MDQgMCAwIDEtLjAzOC0uMDU2N1Y2LjA3NDJhNC40OTkyIDQuNDk5MiAwIDAgMSA3LjM3NTctMy40NTM3bC0uMTQyLjA4MDVMOC43MDQgNS40NTlhLjc5NDguNzk0OCAwIDAgMC0uMzkyNy42ODEzem0xLjA5NzYtMi4zNjU0bDIuNjAyLTEuNDk5OCAyLjYwNjkgMS40OTk4djIuOTk5NGwtMi41OTc0IDEuNDk5Ny0yLjYwNjctMS40OTk3WiIvPjwvc3ZnPg%3D%3D&logoColor=white"></a>
   <a href="https://opencode.ai"><img alt="Работает с opencode" src="https://img.shields.io/badge/%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%B0%D0%B5%D1%82%20%D1%81-opencode-3D444D?style=for-the-badge&labelColor=181A19&logo=opencode&logoColor=white"></a>
   <a href="https://github.com/github/copilot-cli"><img alt="Работает с GitHub Copilot CLI" src="https://img.shields.io/badge/%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%B0%D0%B5%D1%82%20%D1%81-Copilot%20CLI-6E40C9?style=for-the-badge&labelColor=181A19&logo=githubcopilot&logoColor=white"></a>
+  <a href="site/guide/ru/agents.md#t3-code-setup"><img alt="Работает с T3 Code" src="https://img.shields.io/badge/T3%20Code-3D444D?style=for-the-badge&labelColor=181A19"></a>
 </p>
 <p align="center">
   <img alt="Лампа: ESP32-C3" src="https://img.shields.io/badge/%D0%BB%D0%B0%D0%BC%D0%BF%D0%B0-ESP32--C3-3D444D?style=for-the-badge&labelColor=181A19&logo=espressif&logoColor=white">
@@ -23,7 +24,7 @@
   <img alt="Работает на macOS, Windows и Linux" src="https://img.shields.io/badge/%D0%BF%D0%BB%D0%B0%D1%82%D1%84%D0%BE%D1%80%D0%BC%D1%8B-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-3D444D?style=for-the-badge&labelColor=181A19">
 </p>
 
-Монитор локальных сессий Claude Code, opencode, Codex и GitHub Copilot CLI
+Монитор локальных сессий Claude Code, opencode, Codex, GitHub Copilot CLI и T3 Code
 с приложением в строке меню, терминальной панелью и необязательной лампой ESP32-C3.
 Лампа, подключённая по USB или Bluetooth LE, показывает работу, ожидание и запрос ввода.
 
@@ -106,8 +107,8 @@ broglow install
 
 ## Подключение агентов
 
-Установка всегда регистрирует хуки Claude Code и добавляет хуки для других
-обнаруженных агентов.
+Установка регистрирует хуки Claude Code и добавляет хуки или плагин для других
+обнаруженных агентов. T3 Code отслеживается автоматически без хуков.
 Подробности по каждому агенту: [Подключите coding-агентов](site/guide/ru/agents.md).
 
 | Агент | Особенности настройки |
@@ -116,6 +117,7 @@ broglow install
 | opencode | Устанавливается плагин; перезапустите работающие сессии. |
 | Codex | Codex >= 0.144; одобрите хуки через `/hooks`. [Подключение Codex](site/guide/ru/agents.md#codex-setup). |
 | GitHub Copilot CLI | Устанавливаются хуки; перезапустите сессии, открытые во время установки. |
+| T3 Code | Автоматическое чтение локальных сессий без хуков. [Настройка T3 Code](site/guide/ru/agents.md#t3-code-setup). |
 
 Облачные задачи и обычные разговоры в ChatGPT не вызывают локальные хуки на этом Mac.
 

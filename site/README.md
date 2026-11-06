@@ -24,7 +24,7 @@ Edit Markdown sources; never edit or commit generated HTML.
 | Homebrew installation, PATH and Bluetooth | `guide/en/installation.md` | `guide/ru/installation.md` |
 | Why BroGlow | `guide/en/why.md` | `guide/ru/why.md` |
 | Mac package, source builds, Windows and Linux | `guide/en/alternatives.md` | `guide/ru/alternatives.md` |
-| Coding agents (Claude Code, Codex, opencode, Copilot) | `guide/en/agents.md` | `guide/ru/agents.md` |
+| Coding agents (Claude Code, Codex, opencode, Copilot, T3 Code) | `guide/en/agents.md` | `guide/ru/agents.md` |
 | Sessions: return, names, dismiss | `guide/en/sessions.md` | `guide/ru/sessions.md` |
 | Troubleshooting and agent prompt | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
 | Known unresolved issues | `guide/en/known-issues.md` | `guide/ru/known-issues.md` |

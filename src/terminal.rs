@@ -298,6 +298,9 @@ pub fn focus(
     info: Option<&TerminalInfo>,
     project_path: Option<&str>,
 ) -> bool {
+    if harness == Some("t3code") {
+        return open_t3_thread(info);
+    }
     if harness == Some("codex")
         && info.is_some_and(|t| t.bundle_id.as_deref() == Some("com.openai.codex"))
     {
@@ -346,6 +349,52 @@ fn open_codex_thread(session_id: &str) -> bool {
     };
     // The same bundle ID is used when the desktop app is named ChatGPT.app.
     open_bundle("com.openai.codex", Some(&format!("codex://threads/{id}")))
+}
+
+/// T3's route selects both the owning environment and the conversation.
+fn t3_thread_url(info: Option<&TerminalInfo>) -> Option<String> {
+    let (environment, thread) = info?.host_session_id.as_deref()?.split_once('/')?;
+    let valid = |id: &str| {
+        (1..=256).contains(&id.len())
+            && id
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+    };
+    (valid(environment) && valid(thread))
+        .then(|| format!("t3code://threads/{environment}/{thread}"))
+}
+
+#[cfg(target_os = "macos")]
+fn open_t3_thread(info: Option<&TerminalInfo>) -> bool {
+    let Some(url) = t3_thread_url(info) else {
+        return false;
+    };
+    match info.and_then(|i| i.bundle_id.as_deref()) {
+        Some(bundle @ ("com.t3tools.t3code" | "com.t3tools.t3code.dev" | "ru.yandex.t3code")) => {
+            open_bundle(bundle, Some(&url))
+        }
+        _ => false,
+    }
+}
+
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+fn open_t3_thread(info: Option<&TerminalInfo>) -> bool {
+    let Some(url) = t3_thread_url(info) else {
+        return false;
+    };
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = std::process::Command::new("rundll32.exe");
+        command.arg("url.dll,FileProtocolHandler");
+        crate::spawn::configure_detached(&mut command);
+        command
+    };
+    #[cfg(target_os = "linux")]
+    let mut command = Command::new("xdg-open");
+    command
+        .arg(url)
+        .output()
+        .is_ok_and(|output| output.status.success())
 }
 
 /// IDE bundles that focus the window showing a folder when asked to "open"
@@ -588,10 +637,13 @@ fn open_bundle(bundle: &str, path: Option<&str>) -> bool {
 #[cfg(target_os = "windows")]
 pub fn focus(
     _session_id: &str,
-    _harness: Option<&str>,
+    harness: Option<&str>,
     info: Option<&TerminalInfo>,
     _project_path: Option<&str>,
 ) -> bool {
+    if harness == Some("t3code") {
+        return open_t3_thread(info);
+    }
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         IsIconic, SetForegroundWindow, ShowWindow, SW_RESTORE,
     };
@@ -664,10 +716,13 @@ fn main_window_of(pid: u32) -> Option<windows_sys::Win32::Foundation::HWND> {
 #[cfg(target_os = "linux")]
 pub fn focus(
     _session_id: &str,
-    _harness: Option<&str>,
+    harness: Option<&str>,
     info: Option<&TerminalInfo>,
     _project_path: Option<&str>,
 ) -> bool {
+    if harness == Some("t3code") {
+        return open_t3_thread(info);
+    }
     let Some(ancestors) = info.and_then(|t| t.ancestors.as_ref()) else {
         return false;
     };
@@ -764,6 +819,12 @@ const TERM_PROGRAMS: &[(&str, &str)] = &[
 /// carry no terminal identity at all, so an identity-less Codex session is its
 /// desktop app — the same rule focusing uses. `None` when nothing is known.
 pub fn host(harness: Option<&str>, info: Option<&TerminalInfo>) -> Option<Host> {
+    if harness == Some("t3code") {
+        return Some(Host {
+            kind: HostKind::App,
+            name: "T3 Code".to_string(),
+        });
+    }
     let info = info?;
     let found = |kind, name: &str| {
         Some(Host {
@@ -865,6 +926,37 @@ mod host_tests {
         let mut info = TerminalInfo::default();
         change(&mut info);
         info
+    }
+
+    #[test]
+    fn t3_links_select_the_environment_and_thread_without_url_injection() {
+        assert_eq!(
+            host(Some("t3code"), None),
+            Some(Host {
+                kind: HostKind::App,
+                name: "T3 Code".into(),
+            })
+        );
+        let link = |id: &str| t3_thread_url(Some(&info(|i| i.host_session_id = Some(id.into()))));
+        assert_eq!(
+            link("local-environment/thread_123"),
+            Some("t3code://threads/local-environment/thread_123".into())
+        );
+        assert_eq!(t3_thread_url(None), None);
+        for id in [
+            "",
+            "env",
+            "/thread",
+            "env/",
+            "env/a/b",
+            "env/a?prompt=run",
+            "env/a#fragment",
+            "env/../",
+            "env/a%2fb",
+            "env/$(command)",
+        ] {
+            assert_eq!(link(id), None, "reject {id}");
+        }
     }
 
     fn name(harness: Option<&str>, info: &TerminalInfo) -> Option<(HostKind, String)> {
@@ -1020,6 +1112,25 @@ mod tests {
                 std::fs::read_to_string(&log).unwrap(),
                 format!("open\n-b\n{CLAUDE_BUNDLE}\n")
             );
+
+            for bundle in ["com.t3tools.t3code", "ru.yandex.t3code"] {
+                let mut t3 = TerminalInfo {
+                    bundle_id: Some(bundle.into()),
+                    host_session_id: Some("environment/thread".into()),
+                    term_program: Some("Apple_Terminal".into()),
+                    ..Default::default()
+                };
+                std::fs::write(&log, "").unwrap();
+                assert!(focus("namespaced-id", Some("t3code"), Some(&t3), None));
+                assert_eq!(
+                    std::fs::read_to_string(&log).unwrap(),
+                    format!("open\n-b\n{bundle}\nt3code://threads/environment/thread\n")
+                );
+                t3.host_session_id = Some("environment/thread?prompt=run".into());
+                std::fs::write(&log, "").unwrap();
+                assert!(!focus("id", Some("t3code"), Some(&t3), None));
+                assert!(std::fs::read_to_string(&log).unwrap().is_empty());
+            }
 
             std::fs::write(std::path::Path::new(&dir).join("fail-open"), "").unwrap();
             assert!(!focus(id, Some("codex"), None, Some("/tmp/project")));

@@ -100,6 +100,7 @@ fn startup_backfill_titles_only_unnamed_live_claude_sessions() {
                 "--nocapture",
             ])
             .env("HOME", home.path())
+            .env("T3CODE_HOME", home.path().join(".t3"))
             .env("BROGLOW_TEST_BACKFILL", "1")
             .output()
             .unwrap();
@@ -170,6 +171,7 @@ fn dismissed_session_returns_on_activity() {
                 "--nocapture",
             ])
             .env("HOME", home.path())
+            .env("T3CODE_HOME", home.path().join(".t3"))
             .env("BROGLOW_TEST_DISMISS", "1")
             .output()
             .unwrap();

@@ -30,7 +30,7 @@ Vue, React, зависимости npm и отдельная сборка дем
 | Установка через Homebrew, PATH и Bluetooth | `guide/en/installation.md` | `guide/ru/installation.md` |
 | Почему BroGlow | `guide/en/why.md` | `guide/ru/why.md` |
 | Пакет для Mac, сборка из исходников, Windows и Linux | `guide/en/alternatives.md` | `guide/ru/alternatives.md` |
-| Coding-агенты (Claude Code, Codex, opencode, Copilot) | `guide/en/agents.md` | `guide/ru/agents.md` |
+| Coding-агенты (Claude Code, Codex, opencode, Copilot, T3 Code) | `guide/en/agents.md` | `guide/ru/agents.md` |
 | Сессии: возврат, названия, скрытие | `guide/en/sessions.md` | `guide/ru/sessions.md` |
 | Решение проблем и запрос агенту | `guide/en/troubleshooting.md` | `guide/ru/troubleshooting.md` |
 | Известные нерешённые проблемы | `guide/en/known-issues.md` | `guide/ru/known-issues.md` |

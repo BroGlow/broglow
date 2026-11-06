@@ -129,6 +129,9 @@ pub struct Ancestor {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct HookState {
     pub sessions: HashMap<String, SessionStatus>,
+    /// Source activity and dismissals for read-only T3 Code projections.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub t3_threads: HashMap<String, crate::t3::Tracking>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub question_expiry: Option<QuestionExpiry>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
@@ -201,6 +204,7 @@ pub fn state_file_path() -> PathBuf {
 }
 
 pub fn read_hook_state() -> HookState {
+    crate::t3::refresh();
     let path = state_file_path();
     if !path.exists() {
         return HookState::default();
@@ -226,6 +230,7 @@ pub fn read_hook_state() -> HookState {
     // Keep the tombstones on disk so later hooks cannot resurrect these runs.
     state.sessions.retain(|_, s| !s.is_codex_background());
     reap_ended_sessions(&mut state, Utc::now(), crate::terminal::is_alive);
+    crate::t3::hide_provider_sessions(&mut state);
     state
 }
 
@@ -349,7 +354,16 @@ fn clear_sessions_matching(matches: impl Fn(&str, &SessionStatus) -> bool) -> an
     let content = std::fs::read_to_string(&path)?;
     let mut state: HookState = serde_json::from_str(&content)?;
     let count = state.sessions.len();
-    state.sessions.retain(|id, session| !matches(id, session));
+    let removed: Vec<String> = state
+        .sessions
+        .iter()
+        .filter(|(id, session)| matches(id, session))
+        .map(|(id, _)| id.clone())
+        .collect();
+    for id in removed {
+        crate::t3::dismiss(&mut state, &id);
+        state.sessions.remove(&id);
+    }
     let pruned = prune_done_sessions(
         &mut state,
         Utc::now(),
@@ -520,6 +534,7 @@ mod tests {
                     "state::tests::reader_reconciles_late_capacity_and_dismissal_removes_tracking",
                 ])
                 .env("HOME", home.path())
+                .env("T3CODE_HOME", home.path().join(".t3"))
                 .env(
                     crate::config::HOME_ENV,
                     home.path().join(crate::config::DATA_DIR_NAME),
@@ -578,6 +593,7 @@ mod tests {
                     "state::tests::reader_reconciles_expiry_after_stop_and_restart",
                 ])
                 .env("HOME", home.path())
+                .env("T3CODE_HOME", home.path().join(".t3"))
                 .env(
                     crate::config::HOME_ENV,
                     home.path().join(crate::config::DATA_DIR_NAME),
@@ -707,6 +723,7 @@ mod tests {
                     "state::tests::app_generated_codex_rows_do_not_reach_the_display_or_lamp",
                 ])
                 .env("HOME", home.path())
+                .env("T3CODE_HOME", home.path().join(".t3"))
                 .env(crate::codex::HOME_ENV, home.path().join("codex"))
                 .env("BROGLOW_TEST_BACKGROUND", "1")
                 .output()
@@ -771,6 +788,7 @@ mod tests {
                     "--nocapture",
                 ])
                 .env("BROGLOW_HOME", home.path())
+                .env("T3CODE_HOME", home.path().join(".t3"))
                 .env(crate::codex::HOME_ENV, home.path().join("codex"))
                 .env("BROGLOW_TEST_READ_LOCK", "1")
                 .output()
@@ -845,6 +863,7 @@ mod tests {
                     "state::tests::codex_renames_refresh_without_hooks",
                 ])
                 .env("HOME", home.path())
+                .env("T3CODE_HOME", home.path().join(".t3"))
                 .env(crate::codex::HOME_ENV, home.path().join("codex"))
                 .env("BROGLOW_TEST_RENAME", "1")
                 .output()

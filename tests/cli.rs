@@ -23,6 +23,7 @@ fn dashboard_visibility_persists_without_touching_other_settings_or_installing()
     let run = |value: &str| {
         broglow()
             .env("HOME", home.path())
+            .env("T3CODE_HOME", home.path().join(".t3"))
             .args(["dashboard-button", value])
             .assert()
     };
@@ -91,6 +92,7 @@ fn concurrent_settings_commands_preserve_disjoint_edits() {
         .map(|args| {
             std::process::Command::new(broglow().get_program())
                 .env("HOME", home.path())
+                .env("T3CODE_HOME", home.path().join(".t3"))
                 .args(args)
                 .stdout(Stdio::null())
                 .stderr(Stdio::piped())
@@ -150,6 +152,7 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
         }
         command
             .env("HOME", home.path())
+            .env("T3CODE_HOME", home.path().join(".t3"))
             .arg("--port")
             .arg(&missing_port)
             .assert()
@@ -185,6 +188,7 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
         worker.lock().unwrap();
         let child = std::process::Command::new(broglow().get_program())
             .env("HOME", home.path())
+            .env("T3CODE_HOME", home.path().join(".t3"))
             .args(["ble", "pair", "--automatic", "--port"])
             .arg(&missing_port)
             .stdout(Stdio::null())
@@ -203,6 +207,7 @@ fn usb_pair_failure_restores_configuration_and_forwards_the_explicit_port() {
         }
         broglow()
             .env("HOME", home.path())
+            .env("T3CODE_HOME", home.path().join(".t3"))
             .timeout(Duration::from_secs(3))
             .args(["dashboard-button", "show"])
             .assert()
@@ -249,6 +254,7 @@ fn remembered_lamps_add_remove_and_list_without_radio() {
     let run = |args: &[&str]| {
         broglow()
             .env("HOME", home.path())
+            .env("T3CODE_HOME", home.path().join(".t3"))
             .args(args)
             .assert()
             .success();
@@ -268,6 +274,7 @@ fn remembered_lamps_add_remove_and_list_without_radio() {
     for name in ["a".repeat(41), "a\nb".into()] {
         broglow()
             .env("HOME", home.path())
+            .env("T3CODE_HOME", home.path().join(".t3"))
             .args(["ble", "rename", first, &name])
             .assert()
             .failure();
@@ -281,6 +288,7 @@ fn remembered_lamps_add_remove_and_list_without_radio() {
     run(&["ble", "rename", first, "Дом 💡"]);
     let listed = broglow()
         .env("HOME", home.path())
+        .env("T3CODE_HOME", home.path().join(".t3"))
         .args(["ble", "list"])
         .assert()
         .success();
@@ -299,6 +307,7 @@ fn remembered_lamps_add_remove_and_list_without_radio() {
     for id in [second, "invalid"] {
         broglow()
             .env("HOME", home.path())
+            .env("T3CODE_HOME", home.path().join(".t3"))
             .args(["ble", "remove", id])
             .assert()
             .failure();
@@ -321,6 +330,7 @@ fn remembered_lamps_add_remove_and_list_without_radio() {
     std::fs::write(&path, "{corrupt").unwrap();
     broglow()
         .env("HOME", home.path())
+        .env("T3CODE_HOME", home.path().join(".t3"))
         .args(["ble", "remove", first])
         .assert()
         .failure();
@@ -349,6 +359,7 @@ fn brightness_settings_are_independent_and_save_offline_without_enabling() {
     let run = |args: &[&str]| {
         broglow()
             .env("HOME", home.path())
+            .env("T3CODE_HOME", home.path().join(".t3"))
             .args(args)
             .assert()
             .success();
@@ -381,6 +392,7 @@ fn brightness_settings_are_independent_and_save_offline_without_enabling() {
     ] {
         broglow()
             .env("HOME", home.path())
+            .env("T3CODE_HOME", home.path().join(".t3"))
             .args(args)
             .assert()
             .failure();
@@ -403,6 +415,7 @@ fn brightness_settings_are_independent_and_save_offline_without_enabling() {
     ] {
         broglow()
             .env("HOME", home.path())
+            .env("T3CODE_HOME", home.path().join(".t3"))
             .args(args)
             .assert()
             .failure();
@@ -425,6 +438,7 @@ fn ble_selection_preserves_settings_without_radio() {
     let id = "11111111-2222-3333-4444-555555555555";
     broglow()
         .env("HOME", home.path())
+        .env("T3CODE_HOME", home.path().join(".t3"))
         .args(["ble", "add", id])
         .assert()
         .success();
@@ -437,12 +451,14 @@ fn ble_selection_preserves_settings_without_radio() {
     assert_eq!(cfg["led_port"], "keep");
     broglow()
         .env("HOME", home.path())
+        .env("T3CODE_HOME", home.path().join(".t3"))
         .args(["ble", "add", "invalid"])
         .assert()
         .failure();
     assert_eq!(std::fs::read(&path).unwrap(), selected);
     broglow()
         .env("HOME", home.path())
+        .env("T3CODE_HOME", home.path().join(".t3"))
         .args(["ble", "off"])
         .assert()
         .success();
@@ -451,6 +467,7 @@ fn ble_selection_preserves_settings_without_radio() {
     assert_eq!(cfg["led_enabled"], false);
     broglow()
         .env("HOME", home.path())
+        .env("T3CODE_HOME", home.path().join(".t3"))
         .args(["ble", "on"])
         .assert()
         .success();
@@ -461,6 +478,7 @@ fn ble_selection_preserves_settings_without_radio() {
     std::fs::write(&path, "{corrupt").unwrap();
     broglow()
         .env("HOME", home.path())
+        .env("T3CODE_HOME", home.path().join(".t3"))
         .args(["ble", "usb"])
         .assert()
         .failure();
@@ -477,6 +495,7 @@ fn flash_needs_release_images_and_a_reachable_lamp_without_touching_settings() {
     // The test binary has no release layout around it.
     let failed = broglow()
         .env("HOME", home.path())
+        .env("T3CODE_HOME", home.path().join(".t3"))
         .args(["flash", "--yes", "--port"])
         .arg(&missing_port)
         .assert()
@@ -491,6 +510,7 @@ fn flash_needs_release_images_and_a_reachable_lamp_without_touching_settings() {
     std::fs::write(images.join("firmware.bin"), b"\0lamp=%s\nversion=9.9.9\n").unwrap();
     let failed = broglow()
         .env("HOME", home.path())
+        .env("T3CODE_HOME", home.path().join(".t3"))
         .args(["flash", "--yes", "--firmware"])
         .arg(&images)
         .arg("--port")

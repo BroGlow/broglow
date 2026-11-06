@@ -4,8 +4,8 @@
 
 # Connect your coding agents
 
-`broglow install` registers hooks for Claude Code and for every other supported agent
-it finds on this computer. Only Codex asks you to confirm them. The proof that an
+`broglow install` registers hooks or a plugin for supported agents it finds on this
+computer. T3 Code sessions are detected automatically without hooks. Only Codex asks you to confirm them. The proof that an
 agent is connected is a status change in BroGlow's session list, not a lit lamp.
 
 | Agent | What `broglow install` does | What you do |
@@ -14,11 +14,12 @@ agent is connected is a status change in BroGlow's session list, not a lit lamp.
 | Codex | Adds hooks to `$CODEX_HOME/hooks.json` (default `~/.codex`). | [Trust them in `/hooks`](#codex-setup). |
 | opencode | Installs the plugin `~/.config/opencode/plugins/broglow.js`. | Restart running sessions. |
 | GitHub Copilot CLI | Writes `~/.copilot/hooks/broglow.json`. | Restart sessions open during installation. |
+| T3 Code | Reads the local v2 state database; changes no T3 settings. | Open T3 Code 0.1 or newer; see [T3 Code](#t3-code-setup). |
 
 Installed an agent after BroGlow? Run `broglow install` again.
 
-Only tasks running on this computer are tracked: cloud or remote tasks and ordinary
-ChatGPT chats never reach the local BroGlow service. Returning to,
+BroGlow reads local agent state. It does not connect to remote T3 servers or collect
+cloud tasks or ordinary ChatGPT chats; see the T3 Code coverage below. Returning to,
 naming and dismissing sessions is the same for every agent: [Working with sessions](sessions.md).
 
 <a name="usage"></a>
@@ -37,6 +38,7 @@ The popover groups these totals under one **Usage** heading, with each agent's n
 | Codex | Local Codex rollout records. | The latest limits observed in those records, when available; they can lag account usage. |
 | opencode | Completed assistant messages observed by the BroGlow plugin after tracking is enabled. | No subscription limits are inferred from tokens. |
 | GitHub Copilot CLI | Token usage is unavailable. | Unavailable. |
+| T3 Code | No separate total; locally recorded usage remains in its Claude, Codex or opencode total. | No T3-specific limits are inferred. |
 
 Claude and Codex limits are independent: BroGlow labels each source and never adds
 their percentages. A weekly limit can appear on its own. Missing limits stay
@@ -60,6 +62,33 @@ does not consume your Claude or Codex subscription allowance. After upgrading
 BroGlow, run `broglow install` to update the opencode plugin and restart opencode.
 BroGlow does not import opencode's historical usage; only messages observed after
 opt-in with the updated plugin are counted.
+
+<a name="t3-code-setup"></a>
+
+## T3 Code
+
+T3 Code **0.1 or newer** with the v2 state database is monitored automatically for
+all its providers. BroGlow reads `userdata/statev2.sqlite` under `~/.t3` (official
+app) and `~/.t3-yandex` (Yandex build). For a custom location, set `T3CODE_HOME` for
+the BroGlow process to that T3 home directory. The older pre-v2 database is not
+supported. BroGlow never changes T3 settings, installs hooks, or writes to its database.
+
+1. Open T3 Code and send a prompt in a visible, unarchived thread.
+2. Check that the thread appears as **T3 Code** in BroGlow: **Working** during a turn,
+   **Needs help** for a blocking approval or question, and **Paused** after a response
+   or interruption. Allow up to five seconds for the open session list to refresh.
+3. On macOS, click the row to return to that exact thread in the matching T3 app.
+
+Titles and projects come from T3 itself; a thread's worktree takes precedence over
+its project directory. Archived or deleted threads/projects and hidden subagents or
+side chats do not affect the lamp. A thread already represented by T3 is not shown
+again as a separate underlying Claude/Codex/opencode session. When the local T3 server
+exits, its threads leave live status.
+
+BroGlow reads the local projection only and does not connect to remote servers.
+A linked remote task may appear if T3 includes it in that projection; this is not
+independent monitoring of its remote server. Usage stays with the underlying
+provider, as described [above](#usage).
 
 <a name="codex-setup"></a>
 

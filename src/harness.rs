@@ -72,7 +72,21 @@ pub mod claude {
 
 /// Every non-Claude harness broglow supports. Add an entry (and its asset) to
 /// support a new one — nothing else in the codebase needs to change.
-pub const ADAPTERS: &[Adapter] = &[opencode::ADAPTER, codex::ADAPTER, copilot::ADAPTER];
+pub const ADAPTERS: &[Adapter] = &[
+    opencode::ADAPTER,
+    codex::ADAPTER,
+    copilot::ADAPTER,
+    Adapter {
+        name: "t3code",
+        badge: "t3",
+        label: "T3 Code",
+        // A T and three horizontal strokes, drawn for BroGlow.
+        icon: "M1.5 3h7M5 3v10M10 3h4M10 8h4M10 13h4",
+        detected: crate::t3::detected,
+        install: crate::t3::install,
+        uninstall: crate::t3::uninstall,
+    },
+];
 
 /// Set up every *detected* harness's wiring. Best-effort per adapter: a failure
 /// to write one never blocks the others or the Claude hook registration.

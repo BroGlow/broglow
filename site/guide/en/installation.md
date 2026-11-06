@@ -22,6 +22,8 @@ broglow install
 agents (Claude Code always; Codex, opencode and GitHub Copilot CLI when they are
 installed), installs the menu-bar app and starts it at login. No Homebrew, or on
 Windows or Linux? See [Alternative installations](alternatives.md).
+T3 Code is detected automatically from local state without hooks; see
+[T3 Code setup](agents.md#t3-code-setup).
 
 To update later, open Settings in the menu-bar app: it shows your version and, after
 a quiet check (once at startup, or on **Check for updates**), whether a newer release

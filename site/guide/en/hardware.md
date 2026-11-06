@@ -21,6 +21,7 @@ separate print package.
 | Connect an already flashed lamp | [USB-assisted setup](#usb-assisted-setup) |
 | Find the icon or validate the service | [Menu bar icon and service validation](#menu-bar-icon-and-service-validation) |
 | Show local Codex task statuses from the desktop app | [Connect local Codex sessions](#connect-local-codex-sessions) |
+| Show T3 Code thread statuses | [Connect local T3 Code sessions](#connect-local-t3-code-sessions) |
 | Flash a new C3 using ready firmware | [Flash prebuilt C3 firmware](#flash-prebuilt-c3-firmware) |
 | Test LED wiring without Bluetooth or session control | [Standalone LED test firmware](#standalone-led-test-firmware) |
 
@@ -649,12 +650,12 @@ Running `broglow` directly still opens the TUI, and **Quit** stays in the right-
 menu.
 
 Under each session title, an icon and a name show the session's agent (Claude, Codex,
-opencode or Copilot) before the project. A second glyph shows where it runs: a window
+opencode, Copilot or T3 Code) before the project. A second glyph shows where it runs: a window
 for the agent's desktop app, `>_` for a terminal, `</>` for an IDE. Hover it for the
 exact host, such as **Claude app**, **Ghostty** or **VS Code**. Turn off **Settings →
 Appearance → Show agent names** to keep only the icon; hover it to see the name. This
 saves `show_agent_names`. The TUI follows the same setting in its AGENT column, showing
-the name or a short tag (`cc` Claude, `cx` Codex, `oc` opencode, `co` Copilot), and
+the name or a short tag (`cc` Claude, `cx` Codex, `oc` opencode, `co` Copilot, `t3` T3 Code), and
 names the host in its HOST column (**app** for the agent's desktop app). The Linux tray
 menu shows the tag instead of the icon.
 
@@ -725,6 +726,16 @@ up BroGlow, these rules apply:
 - `broglow ble status` and manual test events do not prove that Codex hooks work.
   Only a real local Codex task that shows **Working**, then **Paused** in BroGlow's
   session list does.
+
+## Connect local T3 Code sessions
+
+T3 Code needs no hooks or settings changes. BroGlow reads the local v2 database for
+all T3 providers and uses the local server PID to end status after exit. See
+[T3 Code setup]({{ repo_url }}/blob/HEAD/site/guide/en/agents.md#t3-code-setup)
+for supported homes, coverage and status checks. Verify a real visible thread changes
+from **Working** to **Paused**, and on macOS that clicking it opens the same thread.
+Manual lamp events do not verify T3 integration. Keep T3's database read-only;
+BroGlow does not connect to remote T3 servers.
 
 ## Bluetooth identity and permission
 

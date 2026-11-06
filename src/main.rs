@@ -17,6 +17,7 @@ mod popover;
 mod session;
 mod spawn;
 mod state;
+mod t3;
 mod terminal;
 mod ui;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -42,7 +43,7 @@ use crate::app::App;
 #[command(
     name = "broglow",
     version,
-    about = "TUI dashboard for Claude Code, opencode, Codex CLI, and GitHub Copilot CLI sessions"
+    about = "TUI dashboard for Claude Code, opencode, Codex CLI, GitHub Copilot CLI, and T3 Code sessions"
 )]
 struct Cli {
     #[command(subcommand)]

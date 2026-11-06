@@ -21,9 +21,9 @@ the original idea and project.
 
 | What's better | What you gain |
 | --- | --- |
-| **Open the right conversation** | Click a session to land in its Claude desktop chat, Codex desktop task or terminal window. |
-| **Real session names** | Sessions carry Claude's own titles and renamed Codex tasks instead of "Session abc123". |
-| **Agent and host at a glance** | Each row shows which agent is working (Claude, Codex, opencode, Copilot) and where (desktop app, terminal, IDE). |
+| **Open the right conversation** | Click a session to land in its Claude desktop chat, Codex desktop task, T3 Code thread or terminal window. |
+| **Real session names** | Sessions carry Claude's own titles and renamed Codex/T3 Code threads instead of "Session abc123". |
+| **Agent and host at a glance** | Each row shows which agent is working (Claude, Codex, opencode, Copilot, T3 Code) and where (desktop app, terminal, IDE). |
 | **Group by project** | Sessions sit under one heading per working directory; same-named folders are told apart. |
 | **Improved status handling** | Working, idle and needs-input states follow what the agent is doing more closely, for Claude and Codex alike. |
 | **Clear paused sessions** | Remove clutter in one click while keeping active work and approval requests visible. |
