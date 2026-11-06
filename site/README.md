@@ -241,135 +241,94 @@ The [media policy](../MEDIA.md) lists the landing photos and 3D outputs;
 
 ## Publish to GitHub Pages
 
-1. Push the intended sources, including CAD, to your repository's default branch.
-2. Select **Settings → Pages → Build and deployment → Source → GitHub Actions**.
-3. Run **Actions → Website → Run workflow** on the default branch.
-4. Open the `deploy` job's URL. If required, allow the default branch and approve
-   deployment in the `github-pages` environment.
-
 The [Website workflow](../.github/workflows/pages.yaml) publishes the landing at
-`https://OWNER.github.io/REPOSITORY/` and guides at `docs/` and `docs/ru/`.
-Pushes to `master` that touch the site, docs, models or other paths listed in the workflow's `push.paths` deploy automatically; adjust `push.branches` for another
-default branch. PRs check without deploying. Configure custom domains in Pages
-settings; relative paths support both domain roots and repository prefixes.
+`https://broglow.mahenzon.ru/` and guides at `/docs/` and `/docs/ru/`.
+It builds one `site/_pages/` artifact with this domain as both the working URL
+and canonical URL. Downloads live in GitHub Releases. See the
+[release distribution](../RELEASING.md#distribution).
 
-Downloads live in GitHub Releases; see the [release distribution](../RELEASING.md#distribution).
+Complete these steps in the GitHub and DNS provider websites. Local GitHub CLI
+authentication is optional.
+
+1. Push the intended sources, including the website workflow, to `master`.
+2. In **BroGlow/broglow → Settings → Pages**, select **Build and deployment →
+   Source → GitHub Actions**. Set **Custom domain** to `broglow.mahenzon.ru` and
+   select **Save** before changing DNS. A pending DNS check is expected at this stage.
+3. In the DNS zone for `mahenzon.ru`, replace the old `A` and any `AAAA` records
+   for `broglow` with a `CNAME` named `broglow` targeting `broglow.github.io`.
+   Enter the hostname alone, without a scheme or `/broglow/` path. Use DNS-only
+   mode if the provider offers HTTP proxying.
+4. Run **Actions → Website → Run workflow** on `master`. Open the `deploy` job's
+   URL. If required, allow `master` and approve deployment in the `github-pages`
+   environment.
+5. Once the Pages DNS check passes and the certificate is ready, enable
+   **Settings → Pages → Enforce HTTPS**. Open `/`, `/docs/`, `/docs/ru/` and a nested
+   guide on the custom domain. Check search, language switching, downloads, 3D
+   assets, canonical/social metadata and a missing URL. Verify that
+   `https://broglow.github.io/broglow/` redirects to `https://broglow.mahenzon.ru/`.
+
+DNS propagation and certificate provisioning can delay availability during the
+switch. Return to Pages settings to check progress and enable HTTPS when ready.
+GitHub Pages supplies the redirect from the default `github.io` address after
+custom-domain setup. The DNS `CNAME` routes the hostname to Pages.
+
+GitHub Actions publishing uses the custom-domain setting above. GitHub ignores
+`CNAME` files in an Actions deployment artifact. Optional domain verification
+under **BroGlow organization → Settings → Pages** uses GitHub's TXT record to
+protect the domain against takeover. It is separate from the repository's
+custom-domain setup.
+
+Pushes to `master` that touch the site, docs, models or other paths listed in the
+workflow's `push.paths` deploy automatically. PRs and reusable release checks
+with `check-only: true` run checks. Published releases trigger the existing
+workflow on the default branch to refresh download metadata.
 
 ### Check the exact Pages artifact locally
 
-Replace `OWNER/REPOSITORY`; build from a full checkout. No GitHub access is needed:
+Build from a full checkout with the same public URL as CI.
 
 ```bash
-uv run --frozen --only-group docs python site/pages.py --repository OWNER/REPOSITORY --canonical-url https://broglow.mahenzon.ru/
+uv run --frozen --only-group docs python site/pages.py --repository BroGlow/broglow --site-url https://broglow.mahenzon.ru/ --canonical-url https://broglow.mahenzon.ru/
 uv run --no-project --python 3.14 python site/check-links.py --site-dir site/_pages
 uv run --no-project --python 3.14 python -m http.server 8081 --bind 127.0.0.1 --directory site/_pages
 ```
 
-Open http://127.0.0.1:8081/. Only ignored `site/_pages/` is uploaded: landing,
-generated docs and assets, including the GLB, provenance and native UI copies in
-`app-ui/`. `site/pages.py` is the sole production builder; it remaps source paths
-from `../assets/` to `app-ui/` so the artifact runs without the checkout.
-`comparison.html`, `viewport-check.html`, tests and developer Markdown are excluded.
-Rebuild after changing the landing or shared UI. CAD, print files,
+Open http://127.0.0.1:8081/. Only ignored `site/_pages/` is uploaded. It contains
+the landing, generated docs and assets, including the GLB, provenance and native
+UI copies in `app-ui/`. `site/pages.py` is the sole production builder. It remaps
+source paths from `../assets/` to `app-ui/` so the artifact runs without the
+checkout. `comparison.html`, `viewport-check.html`, tests and developer Markdown
+are excluded. Rebuild after changing the landing or shared UI. CAD, print files,
 app packages and the Python environment stay outside the artifact. Public builds
 keep translated guide links on-site and direct other source links to GitHub.
 Verify GitHub Actions, the live site and release downloads after publishing.
 
-## Additional domain on an existing Caddy server
+<a name="additional-domain-on-an-existing-caddy-server"></a>
+<a name="move-the-existing-domain-from-the-vps"></a>
 
-The Website workflow also builds the landing and both guide languages for
-`https://broglow.mahenzon.ru/`. GitHub Pages keeps its existing address and
-configuration. The two deployments use the same sources, with separate generated
-outputs: `site/_pages/` and `site/_vps/`. Both are ignored and must not be committed.
+## Move the existing domain from the VPS
 
-Build and check the additional-domain artifact locally:
+Follow the publishing steps above to move `broglow.mahenzon.ru` to Pages.
+Keep the existing VPS copy available until the custom domain, HTTPS and redirects
+have passed the live checks. During propagation, cached DNS can still send
+visitors to the VPS. To roll back the DNS cutover, restore the previous `A` and
+`AAAA` records for `broglow` from the DNS provider's saved configuration.
 
-```bash
-uv run --frozen --only-group docs python site/pages.py \
-  --repository BroGlow/broglow \
-  --site-url https://broglow.mahenzon.ru/ \
-  --canonical-url https://broglow.mahenzon.ru/ \
-  --output-dir site/_vps
-uv run --no-project --python 3.14 python site/check-links.py --site-dir site/_vps
-uv run --no-project --python 3.14 python -m http.server 8082 --bind 127.0.0.1 --directory site/_vps
-```
+After the updated workflow is merged and the Pages deployment is verified,
+clean up the retired deployment settings in the repository's GitHub UI.
 
-Open http://127.0.0.1:8082/. `--site-url` controls each host's working URLs,
-social images and 404 recovery links. Both deployments use
-`https://broglow.mahenzon.ru/` for canonical links and sitemap URLs, making the
-custom domain the preferred address for search results. GitHub Pages stays
-fully browseable at its existing address; canonical tags do not redirect visitors.
-Share `https://broglow.mahenzon.ru/` on social networks; its preview metadata
-uses that domain. Search engines can still choose a different canonical URL.
-`--canonical-url` sets the preferred indexing URL independently from the host's
-working URL; omitting it uses `--site-url` or the default GitHub Pages address.
-Source and release links still point to `--repository`.
-`--output-dir` accepts only the generated `site/_pages` and `site/_vps` roots;
-it rejects symlinks and source directories before cleaning output.
+1. Under **Settings → Secrets and variables → Actions → Variables**, delete
+   `VPS_DEPLOY_ENABLED`, `VPS_HOST`, `VPS_USER` and `VPS_PORT`.
+2. Under **Settings → Environments**, delete the retired `vps` environment,
+   including its `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS` secrets. If either secret
+   was stored under **Actions → Secrets** instead, delete that copy there.
 
-### Prepare the server without enabling deployment
+Pages uses the `github-pages` environment and the workflow's automatic GitHub
+token. Retire the BroGlow Caddy site block and deployment account when the
+retained VPS copy is no longer needed. Scope server cleanup to BroGlow's site
+and account.
 
-The checked-in configuration is inactive by default. Preparing or testing this
-branch does not connect to the VPS, change DNS, reload Caddy or deploy the site.
-The following are manual setup steps for a later authorized deployment:
-
-1. Ensure the server has Python 3.10 or newer and GNU tar. Create a dedicated SSH
-   deployment account with write access to `/srv/broglow/` and its pre-created
-   `releases/` directory. It needs
-   no root access or sudo. Give the existing Caddy service read and directory
-   traversal access. Keep this location separate from other hosted sites.
-2. Add the dedicated deployment public key to that account. Obtain the VPS's SSH
-   host key through a trusted console or provider channel; do not trust a fresh
-   `ssh-keyscan` result by itself. Keep the private key out of the repository.
-3. Review [the Caddy site block](deploy/Caddyfile) and import it into the existing
-   Caddy configuration. Preserve all other site blocks and global settings. It
-   serves `/srv/broglow/current`, including a real HTTP 404 for missing paths.
-   For example, install the block as `/etc/caddy/sites-enabled/broglow.caddy`
-   and add `import /etc/caddy/sites-enabled/broglow.caddy` to the main Caddyfile
-   if that location is not already covered by an import.
-4. When publishing is authorized, point the domain's `A` record to the VPS. Add
-   `AAAA` only when IPv6 works. Ensure ports 80 and 443 are reachable and the
-   existing Caddy service can obtain and renew its certificate. Validate the
-   complete Caddy configuration before reloading it.
-5. Configure the GitHub environment and settings below. Leave deployment disabled
-   until the first release and server configuration are ready to review.
-
-### GitHub settings and activation
-
-Create a GitHub Actions environment named `vps` restricted to the default branch.
-Configure these repository variables and environment secrets:
-
-| Setting | Kind | Value |
-| --- | --- | --- |
-| `VPS_DEPLOY_ENABLED` | Repository variable | Leave unset or `false` during preparation; only `true` enables deployment. |
-| `VPS_HOST` | Repository variable | SSH hostname or IP address of the existing VPS. |
-| `VPS_USER` | Repository variable | Dedicated deployment account. |
-| `VPS_PORT` | Repository variable | SSH port; defaults to `22`. |
-| `VPS_SSH_KEY` | `vps` environment secret | Dedicated deployment private key. |
-| `VPS_KNOWN_HOSTS` | `vps` environment secret | Trusted OpenSSH `known_hosts` entry; include `[host]:port` for a nonstandard port. |
-
-The VPS job requires the explicit enable flag, a default-branch run and a
-non-PR event. Reusable release checks with `check-only: true` never deploy.
-GitHub Pages and VPS deployment are independent jobs; either can succeed while
-the other fails. Published releases still refresh both builds and their download
-checksums through the existing default-branch workflow.
-
-The deployment helper uploads to a new release directory and switches the
-`current` symlink only after upload and validation. Earlier releases stay
-available for rollback. Never edit the files served through `current` in place.
-After selecting a retained release, an administrator can roll back later using
-the dedicated SSH identity and a trusted local `known_hosts` file:
-
-```bash
-ssh -o StrictHostKeyChecking=yes -p PORT DEPLOY_USER@VPS_HOST \
-  python3 - --rollback SHA-RUNID-ATTEMPT < site/deploy/deploy.py
-```
-
-Replace the placeholders; release names are visible under `/srv/broglow/releases/`.
-Releases are not deleted automatically. Failed or superseded uploads can leave
-`/srv/broglow/incoming-SHA-RUNID-ATTEMPT` for inspection; the live symlink stays
-unchanged. Manually prune obsolete uploads and non-current releases when needed.
-After the first authorized deployment, verify `/`, `/docs/`, `/docs/ru/`, nested
-guide URLs, search, language switching, downloads, 3D assets, canonical/social
-metadata and a missing URL on both hosts. A local build does not verify live DNS,
-TLS, SSH permissions or the existing Caddy installation.
+The Website workflow publishes solely to GitHub Pages. Administrators can use
+the standalone [Caddy block](deploy/Caddyfile) and [deployment helper](deploy/deploy.py)
+for a separately arranged manual fallback, building into the ignored
+`site/_vps/` output directory.
