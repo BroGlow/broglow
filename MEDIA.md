@@ -16,6 +16,19 @@ site assets and reviewed validation data in Git.
 [`scripts/check-generated-artifacts.py`](scripts/check-generated-artifacts.py)
 rejects tracked previews, CAD exports and archives.
 
+## Social preview
+
+`site/assets/social/broglow-og-v1.png` is the reviewed 1200 × 630 social image.
+It combines the approved cutout in `site/social/buddy.png`, prepared from our
+own product photo using AI background removal and cleanup, with the shipped
+app UI rendered using three fixed sample sessions. The source photograph has
+all three lights lit for demonstration. The editable layout and refresh command
+live in `site/social/`.
+Track these approved sources and the published PNG in Git. Release and website
+builds validate and copy the reviewed image. Follow the
+[social preview workflow](site/README.md#social-preview) to render and review a
+new revision.
+
 ## 3D and AR preview
 
 The website shows the magnetic enclosure from `models/magnetic/`, with reference
@@ -25,8 +38,8 @@ magnets and electronics. Tracked outputs in `site/assets/`:
   (`models/magnetic/appearance.py`), used for the browser preview and phone AR;
 - `assembly.glb` and `assembly-model.json`: the assembly explorer
   (`models/magnetic/exploded.py`);
-- `photos/broglow-all-lights.jpg`: the permanent landing hero photo, also used
-  by the README and social previews, with all three LEDs glowing;
+- `photos/broglow-all-lights.jpg` supplies the permanent landing hero and README
+  photo, with all three LEDs glowing.
 - `photos/signal-green.jpg`: the 3D preview's initial poster and no-JavaScript
   fallback, matching the selected **Working** state;
 - `broglow.jpg`: the photo of the built lamp with the LEDs off, used by the

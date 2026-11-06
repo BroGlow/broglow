@@ -62,6 +62,10 @@ def test_landing_preview_without_javascript(home: str, repo_url: str) -> None:
     assert metadata["og:description"] == metadata["twitter:description"]
     assert metadata["og:image"] == metadata["twitter:image"]
     assert metadata["og:image:alt"] == metadata["twitter:image:alt"]
+    assert metadata["og:image"] == home + "assets/social/broglow-og-v1.png"
+    assert metadata["og:image:type"] == "image/png"
+    assert metadata["og:image:width"] == "1200"
+    assert metadata["og:image:height"] == "630"
     for key in ("description", "og:title", "og:description", "og:image:alt"):
         assert metadata[key] and not re.search(r"[А-Яа-яЁё]", metadata[key])
     image = metadata["og:image"].removeprefix(home)
@@ -92,7 +96,7 @@ def test_published_landing_is_self_contained_and_reuses_native_ui(
     assert guide.read_text() == "Existing guide"
     html = (tmp_path / "index.html").read_text()
     assert f'href="{home}"' in html
-    assert f'content="{home}assets/photos/broglow-all-lights.jpg"' in html
+    assert f'content="{home}assets/social/broglow-og-v1.png"' in html
     assert f'href="{REPOSITORY_URL}"' in html
     assert 'href="assets/favicon.svg"' in html
     for name in (
@@ -147,6 +151,7 @@ def test_published_landing_is_self_contained_and_reuses_native_ui(
         "assets/photos/signal-green.jpg",
         "assets/photos/signal-yellow.jpg",
         "assets/photos/signal-red.jpg",
+        "assets/social/broglow-og-v1.png",
         "vendor/model-viewer-module-4.3.1.min.js",
         "vendor/qrcode-generator-2.0.4.js",
         "vendor/three-0.183.0/three.module.min.js",
@@ -156,6 +161,7 @@ def test_published_landing_is_self_contained_and_reuses_native_ui(
     assert (tmp_path / "assets/favicon.svg").read_bytes() == (
         pages.SITE / "guide/assets/favicon.svg"
     ).read_bytes()
+    assert not (tmp_path / "social").exists()
 
 
 @pytest.fixture
@@ -648,7 +654,7 @@ def test_complete_site_uses_own_routes_and_preferred_canonical_urls(
         "meta",
         {
             "property": "og:image",
-            "content": home + "assets/photos/broglow-all-lights.jpg",
+            "content": home + "assets/social/broglow-og-v1.png",
         },
     ) in landing.elements
     assert f"phoneUrl('{home}')" in (output / "ar.js").read_text()

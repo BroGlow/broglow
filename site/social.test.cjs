@@ -27,30 +27,26 @@ test('social crawlers receive complete, matching metadata without executing Java
   }
 });
 
-test('canonical and social image use final HTTPS URLs and the existing photo dimensions', () => {
+test('canonical and social image use final HTTPS URLs and the approved landscape PNG', () => {
   assert.equal(canonical, 'https://broglow.github.io/broglow/');
   assert.equal(meta('og:url'), canonical);
-  assert.equal(meta('og:image'), `${canonical}assets/photos/broglow-all-lights.jpg`);
+  assert.equal(meta('og:image'), `${canonical}assets/social/broglow-og-v1.png`);
   for (const url of [canonical, meta('og:url'), meta('og:image'), meta('twitter:image')]) {
     assert.equal(new URL(url).protocol, 'https:');
     assert.doesNotMatch(url, /localhost|127\.0\.0\.1|outputs\//);
   }
-  assert.equal(meta('og:image:type'), 'image/jpeg');
-  const photo = readFileSync(resolve(__dirname, './assets/photos/broglow-all-lights.jpg'));
-  assert.equal(photo.readUInt16BE(0), 0xffd8);
-  let dimensions;
-  for (let offset = 2; offset < photo.length;) {
-    assert.equal(photo[offset], 0xff);
-    const marker = photo[offset + 1];
-    const length = photo.readUInt16BE(offset + 2);
-    if ([0xc0, 0xc1, 0xc2].includes(marker)) {
-      dimensions = {width: photo.readUInt16BE(offset + 7), height: photo.readUInt16BE(offset + 5)};
-      break;
-    }
-    offset += length + 2;
-  }
+  assert.equal(meta('og:image:type'), 'image/png');
+  const image = readFileSync(resolve(__dirname, './assets/social/broglow-og-v1.png'));
+  assert.deepEqual(image.subarray(0, 8), Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  assert.equal(image.readUInt32BE(8), 13);
+  assert.equal(image.toString('ascii', 12, 16), 'IHDR');
+  const dimensions = {width: image.readUInt32BE(16), height: image.readUInt32BE(20)};
+  assert.deepEqual(dimensions, {width: 1200, height: 630});
   assert.deepEqual(dimensions, {width: Number(meta('og:image:width')), height: Number(meta('og:image:height'))});
-  assert.ok(dimensions.width >= 1200);
+  for (const prefix of ['og', 'twitter']) {
+    const alt = tags.find(tag => tag.property === `${prefix}:image:alt` || tag.name === `${prefix}:image:alt`);
+    assert.equal(alt['data-i18n-content'], 'social.imageAlt');
+  }
 });
 
 test('language switching updates title, descriptions, image alternatives and locale together', () => {
@@ -83,7 +79,8 @@ test('language switching updates title, descriptions, image alternatives and loc
     for (const prefix of ['og', 'twitter']) {
       assert.equal(rendered(`${prefix}:title`), title.textContent);
       assert.equal(rendered(`${prefix}:description`), rendered('description'));
-      assert.equal(rendered(`${prefix}:image:alt`), browser.BroGlowI18n.t('desk.photoAlt'));
+      assert.equal(rendered(`${prefix}:image:alt`), browser.BroGlowI18n.t('social.imageAlt'));
+      assert.notEqual(rendered(`${prefix}:image:alt`), browser.BroGlowI18n.t('desk.photoAlt'));
     }
   }
 });

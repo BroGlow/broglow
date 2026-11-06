@@ -133,6 +133,34 @@ build123d pin when the CAD tree is present;
 it reports skipped comparisons in reduced exports. Keep optional codecs self-hosted if
 adding Draco/KTX compression.
 
+## Social preview
+
+The reviewed Open Graph and Twitter image is the 1200 × 630 PNG at
+`assets/social/broglow-og-v1.png`. It combines an approved cutout of our own
+product photo, prepared using AI background removal and cleanup, with the
+shipped app UI and three fixed sample sessions. The photograph shows all three
+lights lit for demonstration.
+The editable layout, approved cutout and rendering command are tracked under
+`social/`. The website builder packages the reviewed PNG from `assets/social/`.
+The authoring directory is excluded from the published artifact.
+
+Refresh the image after changing the design, copy or relevant app UI. Run from
+the repository root with Node.js 24 and Google Chrome on macOS, the approved
+rendering and system-font baseline.
+
+```bash
+node site/social/render.cjs --output .recovery/social-preview/candidate.png
+```
+
+Use `--browser` to select a Chrome or Chromium executable. The command creates
+the output parent directory and requires a fresh output filename. It waits for
+fonts, images and the app crop to be ready, then checks the 1200 × 630 result.
+Review the candidate at full size and at 320px. Save approved artwork under a
+fresh versioned filename and update both social image URLs together. Keep the
+dedicated EN/RU `social.imageAlt` descriptions accurate and commit the image
+with its authoring sources. Release and website builds validate and copy the
+checked-in PNG through the normal website asset build.
+
 ## Languages and behavior
 
 The landing defaults to English, including its static HTML and metadata. The
@@ -145,10 +173,10 @@ page/section and query parameters when storage is blocked. Browser language does
 not override these defaults. Without JavaScript, links and installation commands
 remain usable in the static page's language.
 
-The landing's Open Graph and Twitter cards use English text and our real
-`assets/photos/broglow-all-lights.jpg` lamp photo. Absolute canonical and preview
-URLs point to the published site; `pages.py` adjusts them for `--site-url`, or
-the default GitHub Pages URL derived from `--repository`.
+The landing's Open Graph and Twitter cards use the reviewed English
+[social preview](#social-preview). Absolute canonical and preview URLs point to
+the published site; `pages.py` adjusts them for `--site-url`, or the default
+GitHub Pages URL derived from `--repository`.
 Browser metadata follows a manual language change; crawlers receive static English.
 
 The hero demonstrates session monitoring with the real app renderer in a

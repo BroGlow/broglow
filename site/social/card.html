@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BroGlow warm wide preview</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+    h1, p { margin: 0; }
+    .card { position: relative; width: 1200px; height: 630px; overflow: hidden; background: #fcf5ee; color: #32231e; }
+    .brand { position: absolute; left: 56px; top: 35px; display: flex; align-items: center; gap: 13px; font-size: 34px; font-weight: 750; letter-spacing: -1.4px; }
+    .brand img { width: 37px; height: 37px; }
+    .category { position: absolute; top: 43px; right: 56px; color: #765846; font-size: 23px; font-weight: 600; letter-spacing: .4px; }
+    h1 { position: absolute; left: 56px; top: 133px; font-size: 74px; line-height: 1.08; letter-spacing: -2.8px; font-weight: 740; white-space: nowrap; }
+    h1 span { color: #a04723; }
+    .subtitle { position: absolute; left: 59px; top: 244px; font-size: 40px; line-height: 1.3; letter-spacing: -.6px; color: #6d5145; }
+    .attention { position: absolute; left: 59px; top: 341px; font-size: 30px; line-height: 1.2; font-weight: 700; color: #a23f35; letter-spacing: .2px; }
+    .product-field { position: absolute; right: 52px; top: 104px; width: 350px; height: 252px; border-radius: 36px; background: #f5e4cf; }
+    .buddy { position: absolute; right: 52px; top: 104px; width: 350px; height: 270px; object-fit: contain; filter: drop-shadow(0 10px 10px #653e2320); }
+    .app-detail { position: absolute; left: 56px; top: 409px; width: 1088px; height: 149px; overflow: hidden; border-radius: 18px; background: #372527; box-shadow: 0 8px 16px #653e2310; }
+    .app { position: absolute; width: 338px; height: 350px; border: 0; transform-origin: top left; background: transparent; }
+    .footer { position: absolute; left: 59px; right: 56px; bottom: 15px; display: flex; align-items: center; line-height: 1.2; }
+    .footer strong { font-size: 32px; font-weight: 600; letter-spacing: -.8px; }
+  </style>
+</head>
+<body>
+  <section class="card active" data-variant="w1" aria-label="W1, warm wide app preview with full buddy and traffic light">
+    <div class="brand"><img src="../guide/assets/favicon.svg" alt="">BroGlow</div>
+    <p class="category">Your coding agents, at a glance</p>
+    <h1>Know who <span>needs you.</span></h1>
+    <p class="subtitle">The menu bar app for your coding agents.</p>
+    <p class="attention">3 LIVE SESSIONS · 1 NEEDS HELP</p>
+    <div class="product-field"></div>
+    <img class="buddy" src="buddy.png" alt="Full orange BroGlow buddy beside its traffic light, all three lights lit for the photograph">
+    <div class="app-detail"><iframe class="app" title="Shipped BroGlow app with a sample approval request"></iframe></div>
+    <div class="footer"><strong>Stay in flow. We’ll glow.</strong></div>
+  </section>
+  <script>
+    const card = document.querySelector('.card');
+    const frame = card.querySelector('.app');
+    window.addEventListener('message', event => {
+      if (event.source !== frame.contentWindow || event.data?.type !== 'broglow:sample-row') return;
+      const bounds = event.data.bounds;
+      if (!bounds || !['left', 'top', 'width', 'height'].every(key => Number.isFinite(bounds[key]))
+        || bounds.width <= 0 || bounds.height <= 0) return;
+      const detail = card.querySelector('.app-detail');
+      const scale = detail.clientWidth / bounds.width;
+      frame.style.transform = `scale(${scale})`;
+      frame.style.left = `${-bounds.left * scale}px`;
+      frame.style.top = `${-bounds.top * scale}px`;
+      detail.style.height = `${bounds.height * scale}px`;
+      detail.dataset.ready = 'true';
+    });
+    frame.srcdoc = __BROGLOW_APP_DOCUMENT__;
+  </script>
+</body>
+</html>
