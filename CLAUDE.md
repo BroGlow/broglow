@@ -233,7 +233,9 @@ and existing session/aggregate consumers.
   Pending approvals/questions override active turns; completed or
   interrupted turns pause; a dead local server ends live status. Keep underlying
   Claude/Codex hooks deduplicated by provider session ID and hook provenance, so a
-  native CLI resume remains visible. Dismissal resumes only on activity, not a
+  native CLI resume remains visible. Exclude local import-only history from live
+  T3 work and native-session ownership; MCP import filtering requires known markers.
+  Dismissal resumes only on activity, not a
   rename or automatic idle compaction. Usage belongs to existing provider totals,
   never an extra T3 total or an invented subscription quota.
 - **`broglow event`** (`hook::run_event`) is the ingestion path. It reads one *normalized*

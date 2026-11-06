@@ -86,7 +86,10 @@ Titles and projects come from T3 itself; a thread's worktree takes precedence ov
 its project directory. Archived or deleted threads/projects and hidden subagents or
 side chats do not affect the lamp. Pending background work keeps a parent working;
 automatic idle compaction does not wake a dismissed thread. Local provider-session
-references suppress duplicate Claude/Codex/opencode rows. When the local T3 server
+references suppress duplicate Claude/Codex/opencode rows after T3 uses the provider
+thread. Locally, importing or opening existing history alone does not hide its native row
+or count as live T3 work. Continuing the conversation through T3 makes it a T3
+session. When the local T3 server
 exits, its threads leave live status.
 
 Claude/Codex hooks identify native CLI resumes separately. OpenCode's shared SDK
@@ -111,7 +114,9 @@ the desktop app's encrypted connection catalog are not read; the connection must
 exist as a T3 peer link. Remote MCP data exposes less detail than the local
 database: pending approvals/questions conservatively show **Needs help**, and native
 provider references, some background tasks and PR-watch activity are unavailable.
-Remote provider rows therefore cannot always be deduplicated. Usage stays in the
+Remote provider rows therefore cannot always be deduplicated. Imported history
+is excluded when MCP supplies a known import marker; unmarked remote manual
+imports can still appear as paused T3 sessions. Usage stays in the
 existing local provider totals, as described [above](#usage); remote usage is not
 added.
 

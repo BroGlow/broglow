@@ -812,6 +812,20 @@ fn project_thread(
                 .is_none_or(|source| source == id)
         })
         .collect();
+    let imported_history_only = detail["runCount"] == 0
+        && detail["latestRunId"].is_null()
+        && detail["activeRunId"].is_null()
+        && runs.is_empty()
+        && items.iter().all(|item| item["runId"].is_null())
+        && ((id.starts_with("import:")
+            && detail["createdBy"] == "system"
+            && detail["creationSource"] == "server")
+            || items.iter().any(|item| {
+                item["itemId"].as_str().is_some_and(|id| {
+                    id.starts_with("agent-session-import:v2:turn-item:")
+                        || id.starts_with("migration:v1:turn-item:")
+                })
+            }));
     let status = detail["status"]
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("missing T3 thread status"))?;
@@ -863,6 +877,8 @@ fn project_thread(
             (Status::Active, None)
         } else if status == "failed" {
             (Status::NeedsHelp, Some("t3code_error".to_owned()))
+        } else if imported_history_only {
+            (Status::Done, None)
         } else {
             (Status::Inactive, None)
         };
@@ -1326,6 +1342,83 @@ mod tests {
                 .session
                 .status,
             Status::Inactive
+        );
+    }
+
+    #[test]
+    fn imported_history_stays_hidden_until_a_real_t3_run_without_hiding_new_threads() {
+        let (_directory, source) = fixture();
+        let mut metadata = detail();
+        metadata["status"] = json!("idle");
+        metadata["runCount"] = json!(0);
+        metadata["latestRunId"] = Value::Null;
+        metadata["createdBy"] = json!("system");
+        metadata["creationSource"] = json!("server");
+        let imported_id = "import:codex:session-id";
+        assert_eq!(
+            project_thread(&source, "remote", imported_id, &metadata, &[], &[])
+                .unwrap()
+                .session
+                .status,
+            Status::Done
+        );
+        metadata["pendingRequestCount"] = json!(1);
+        assert_eq!(
+            project_thread(&source, "remote", imported_id, &metadata, &[], &[])
+                .unwrap()
+                .session
+                .status,
+            Status::NeedsHelp
+        );
+        metadata["pendingRequestCount"] = json!(0);
+        metadata["status"] = json!("queued");
+        assert_eq!(
+            project_thread(&source, "remote", imported_id, &metadata, &[], &[])
+                .unwrap()
+                .session
+                .status,
+            Status::Active
+        );
+        metadata["status"] = json!("idle");
+        for prefix in [
+            "agent-session-import:v2:turn-item:",
+            "migration:v1:turn-item:",
+        ] {
+            let item = json!({"itemId":format!("{prefix}message"),"sourceThreadId":"thread","runId":null,"type":"user_message","status":"completed","updatedAt":AT});
+            assert_eq!(
+                project_thread(&source, "remote", "thread", &metadata, &[], &[item])
+                    .unwrap()
+                    .session
+                    .status,
+                Status::Done
+            );
+        }
+        assert_eq!(
+            project_thread(&source, "remote", "thread", &metadata, &[], &[])
+                .unwrap()
+                .session
+                .status,
+            Status::Inactive
+        );
+        let inherited = json!({"itemId":"migration:v1:turn-item:message","sourceThreadId":"ancestor","runId":null,"type":"user_message","status":"completed","updatedAt":AT});
+        assert_eq!(
+            project_thread(&source, "remote", "thread", &metadata, &[], &[inherited])
+                .unwrap()
+                .session
+                .status,
+            Status::Inactive
+        );
+        metadata["runCount"] = json!(1);
+        metadata["latestRunId"] = json!("run");
+        metadata["activeRunId"] = json!("run");
+        metadata["status"] = json!("running");
+        let run = json!({"runId":"run","status":"running","requestedAt":LATER,"startedAt":LATER,"completedAt":null});
+        assert_eq!(
+            project_thread(&source, "remote", imported_id, &metadata, &[run], &[])
+                .unwrap()
+                .session
+                .status,
+            Status::Active
         );
     }
 

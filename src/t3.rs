@@ -312,6 +312,8 @@ fn read_snapshot(connection: &Connection, source: &Source) -> anyhow::Result<Sna
         provider_sessions: native_sessions(connection)?,
         ..Default::default()
     };
+    // Imported history carries native references before any T3 work exists.
+    let silent = silent_run("r");
     let sql = format!(
         "SELECT t.thread_id, t.title, t.created_at, p.workspace_root,
                 json_extract(t.payload_json, '$.worktreePath')
@@ -321,6 +323,17 @@ fn read_snapshot(connection: &Connection, source: &Source) -> anyhow::Result<Sna
            AND p.archived_at IS NULL AND p.deleted_at IS NULL
            AND COALESCE(json_extract(t.payload_json, '$.lineage.relationshipToParent'), '') != 'subagent'
            AND COALESCE(json_extract(t.payload_json, '$.lineage.sideChat'), 0) != 1
+           AND (
+             (COALESCE(json_extract(t.payload_json, '$.historyOrigin'), '') != 'v1_import'
+               AND NOT EXISTS (SELECT 1 FROM {PREFIX}provider_threads pt
+                   WHERE pt.thread_id = t.thread_id
+                     AND json_extract(pt.payload_json, '$.nativeThreadRef.strength') = 'strong'
+                     AND json_extract(pt.payload_json, '$.ownerNodeId') IS NULL))
+             OR EXISTS (SELECT 1 FROM {PREFIX}runs r WHERE r.thread_id = t.thread_id AND NOT {silent})
+             OR EXISTS (SELECT 1 FROM {PREFIX}runtime_requests request WHERE request.thread_id = t.thread_id)
+             OR EXISTS (SELECT 1 FROM json_each(t.payload_json, '$.pullRequests') pr
+                   WHERE json_extract(pr.value, '$.watch') IS NOT NULL)
+           )
          ORDER BY t.updated_at DESC LIMIT ?1"
     );
     let mut statement = connection.prepare(&sql)?;
@@ -399,11 +412,14 @@ pub(crate) fn hook_hosted(harness: Option<&str>) -> Option<bool> {
 
 fn native_sessions(connection: &Connection) -> anyhow::Result<Vec<ProviderSession>> {
     let sql = format!(
-        "SELECT json_extract(payload_json, '$.nativeThreadRef.driver'),
-                json_extract(payload_json, '$.nativeThreadRef.nativeId')
-         FROM {PREFIX}provider_threads
-         WHERE json_extract(payload_json, '$.nativeThreadRef.strength') = 'strong'
-           AND json_extract(payload_json, '$.nativeThreadRef.nativeId') IS NOT NULL
+        "SELECT json_extract(pt.payload_json, '$.nativeThreadRef.driver'),
+                json_extract(pt.payload_json, '$.nativeThreadRef.nativeId')
+         FROM {PREFIX}provider_threads pt JOIN {PREFIX}threads t ON t.thread_id = pt.thread_id
+         WHERE json_extract(pt.payload_json, '$.nativeThreadRef.strength') = 'strong'
+           AND json_extract(pt.payload_json, '$.nativeThreadRef.nativeId') IS NOT NULL
+           AND (json_extract(pt.payload_json, '$.firstRunOrdinal') IS NOT NULL
+                OR json_extract(pt.payload_json, '$.ownerNodeId') IS NOT NULL
+                OR json_extract(t.payload_json, '$.lineage.relationshipToParent') = 'subagent')
          LIMIT ?1"
     );
     let mut statement = connection.prepare(&sql)?;
@@ -1149,8 +1165,112 @@ mod tests {
     }
 
     #[test]
+    fn imported_history_does_not_suppress_native_sessions() {
+        for (driver, harness) in [
+            ("codex", Some("codex")),
+            ("claudeAgent", None),
+            ("opencode", Some("opencode")),
+        ] {
+            let (_directory, source, connection) = fixture();
+            let mut native = read_snapshot(&connection, &source).unwrap().threads[0]
+                .session
+                .clone();
+            native.harness = harness.map(str::to_owned);
+            native.status = Status::Active;
+            connection.execute(
+                "UPDATE orchestration_v2_projection_threads SET active_provider_thread_id = 'provider', payload_json = ?1",
+                [json!({"historyOrigin":"v1_import","settledOverride":"settled"}).to_string()],
+            ).unwrap();
+            connection.execute(
+                "INSERT INTO orchestration_v2_projection_provider_threads VALUES ('provider', 'thread', ?1)",
+                [json!({"providerSessionId":null,"firstRunOrdinal":null,
+                    "nativeThreadRef":{"driver":driver,"nativeId":"native","strength":"strong"}}).to_string()],
+            ).unwrap();
+            let mut state = HookState::default();
+            state.sessions.insert("native".into(), native.clone());
+            apply_snapshots(&mut state, &[read_snapshot(&connection, &source).unwrap()]);
+            hide_provider_sessions(&mut state);
+            assert!(
+                state.sessions.contains_key("native"),
+                "importing {driver} must not claim its native session"
+            );
+
+            // Opening an imported conversation attaches a runtime before any turn.
+            connection.execute("UPDATE orchestration_v2_projection_provider_threads SET payload_json = json_set(payload_json, '$.providerSessionId', 'opened')", []).unwrap();
+            apply_snapshots(&mut state, &[read_snapshot(&connection, &source).unwrap()]);
+            hide_provider_sessions(&mut state);
+            assert!(
+                state.sessions.contains_key("native"),
+                "opening imported history must not claim it"
+            );
+
+            // Manual imports have the same native reference but no historyOrigin.
+            connection
+                .execute(
+                    "UPDATE orchestration_v2_projection_threads SET payload_json = '{}'",
+                    [],
+                )
+                .unwrap();
+            let manual = read_snapshot(&connection, &source).unwrap();
+            assert!(manual.threads.is_empty(), "manual imports need T3 work too");
+            assert!(manual.provider_sessions.is_empty());
+
+            add_run(
+                &connection,
+                "continued",
+                1,
+                "running",
+                json!({"providerThreadId":"provider"}),
+            );
+            connection.execute("UPDATE orchestration_v2_projection_provider_threads SET payload_json = json_set(payload_json, '$.firstRunOrdinal', 1)", []).unwrap();
+            let continued = read_snapshot(&connection, &source).unwrap();
+            assert_eq!(continued.threads.len(), 1);
+            apply_snapshots(&mut state, &[continued]);
+            hide_provider_sessions(&mut state);
+            assert!(
+                !state.sessions.contains_key("native"),
+                "real T3 work must still deduplicate {driver}"
+            );
+            native.t3_hosted = Some(false);
+            state.sessions.insert("native".into(), native);
+            hide_provider_sessions(&mut state);
+            assert!(
+                state.sessions.contains_key("native"),
+                "native resumes must remain independent"
+            );
+        }
+    }
+
+    #[test]
+    fn imported_history_is_not_live_t3_work_until_a_t3_run() {
+        let (_directory, source, connection) = fixture();
+        connection
+            .execute(
+                "UPDATE orchestration_v2_projection_threads SET payload_json = ?1",
+                [json!({"historyOrigin":"v1_import","settledOverride":"settled"}).to_string()],
+            )
+            .unwrap();
+        connection.execute(
+            "INSERT INTO orchestration_v2_projection_messages (message_id,thread_id,role,updated_at,payload_json,run_id) VALUES ('imported-message','thread','user',?1,?2,NULL)",
+            params![AT, json!({"text":"Imported history","createdBy":"user"}).to_string()],
+        ).unwrap();
+        assert!(read_snapshot(&connection, &source)
+            .unwrap()
+            .threads
+            .is_empty());
+        connection.execute("UPDATE orchestration_v2_projection_threads SET title = 'Renamed import', updated_at = ?1", [LATER]).unwrap();
+        assert!(read_snapshot(&connection, &source)
+            .unwrap()
+            .threads
+            .is_empty());
+        add_run(&connection, "continued", 1, "running", json!({}));
+        assert_eq!(status(&connection, &source), Status::Active);
+    }
+
+    #[test]
     fn thread_metadata_filters_namespace_and_provider_dedup() {
         let (_directory, source, connection) = fixture();
+        add_run(&connection, "run", 1, "running", json!({}));
         add_thread(
             &connection,
             "child",
@@ -1166,7 +1286,7 @@ mod tests {
         ] {
             connection.execute(
                 "INSERT INTO orchestration_v2_projection_provider_threads VALUES (?1, ?2, ?3)",
-                params![provider, thread, json!({"nativeThreadRef":{"driver":driver,"nativeId":native,"strength":"strong"}}).to_string()],
+                params![provider, thread, json!({"firstRunOrdinal":(thread != "child").then_some(1),"nativeThreadRef":{"driver":driver,"nativeId":native,"strength":"strong"}}).to_string()],
             ).unwrap();
         }
         let snapshot = read_snapshot(&connection, &source).unwrap();
@@ -1306,7 +1426,7 @@ mod tests {
         add_run(&connection, "run", 1, "running", json!({}));
         connection.execute(
             "INSERT INTO orchestration_v2_projection_provider_threads VALUES ('provider', 'thread', ?1)",
-            [json!({"nativeThreadRef":{"driver":"codex","nativeId":"native","strength":"strong"}}).to_string()],
+            [json!({"firstRunOrdinal":1,"nativeThreadRef":{"driver":"codex","nativeId":"native","strength":"strong"}}).to_string()],
         ).unwrap();
         let snapshot = read_snapshot(&connection, &source).unwrap();
         let id = snapshot.threads[0].id.clone();
