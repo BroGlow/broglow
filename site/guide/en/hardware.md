@@ -731,7 +731,10 @@ up BroGlow, these rules apply:
 
 T3 Code needs no hooks or settings changes. BroGlow reads the local v2 database for
 all T3 providers and uses the local server PID to end status after exit. Already
-linked T3 peer machines are also monitored through read-only MCP by default; set
+linked T3 peer machines with compatible access limits are also monitored through
+read-only MCP by default; a desktop SSH connection alone is insufficient. See
+[linked-machine requirements]({{ repo_url }}/blob/HEAD/site/guide/en/agents.md#t3-linked-machines)
+if a remote thread is missing or T3 rejects a link. Set
 `"t3_linked_machines_enabled": false` in BroGlow's config to opt out. See
 [T3 Code setup]({{ repo_url }}/blob/HEAD/site/guide/en/agents.md#t3-code-setup)
 for supported homes, coverage and status checks. Verify a real visible thread changes
@@ -1052,6 +1055,7 @@ connected, the board ignores serial color commands; read-only diagnostics still 
 | Connected, but dark or wrong color | Check for 0% brightness, live sessions and **Settings → Mixed sessions**; disable Bluetooth and run the [wiring check](#check-the-wiring-before-connecting-broglow). An acknowledged write is not electrical proof. |
 | Faint LED, or one color dark | Disconnect power; check polarity, GPIO, resistor, contacts and the shared GND. Use the [standalone test](#standalone-led-test-firmware); its logic readback cannot prove voltage, current or board damage. |
 | No local Codex sessions | Trust the BroGlow hooks in Codex `/hooks` and send a new prompt in a local task. If Codex was installed after BroGlow, run `broglow install` again ([Codex setup]({{ repo_url }}/blob/HEAD/site/guide/en/agents.md#codex-missing-hooks)). |
+| No remote T3 Code sessions | Check that a compatible read-only T3 peer link exists, not only a desktop SSH connection. If linking rejects an older server, update the remote T3 build and retry ([linked machines]({{ repo_url }}/blob/HEAD/site/guide/en/agents.md#t3-linked-machines)). |
 | Serial colors ignored | Disconnect Bluetooth. |
 | Light fades while the Mac sleeps | Expected; after wake, a fresh status restores the latest color. |
 | `unavailable`, or no tray icon | Check launchd and the logs and recover the existing service; never start a second tray. |

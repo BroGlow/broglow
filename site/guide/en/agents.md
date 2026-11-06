@@ -70,7 +70,7 @@ opt-in with the updated plugin are counted.
 
 T3 Code **0.1 or newer** with the v2 state database is monitored automatically for
 all its providers. BroGlow reads `userdata/statev2.sqlite` and development-build
-`dev/statev2.sqlite` under `~/.t3` (official app) and `~/.t3-yandex` (Yandex build).
+`dev/statev2.sqlite` under `~/.t3`.
 For a custom location, set `T3CODE_HOME` for the BroGlow process to that T3 home
 directory; an explicit home selects only its `userdata` database. The older pre-v2
 database is not supported. BroGlow never changes T3 settings, installs hooks, or
@@ -96,9 +96,15 @@ Claude/Codex hooks identify native CLI resumes separately. OpenCode's shared SDK
 server exposes no equivalent provenance: a native resume can remain represented
 by its T3 row while that T3 server is running.
 
-**Already linked peer machines are monitored by default.** BroGlow reads T3's peer
-links and reuses their existing credentials for read-only MCP project/thread tools.
-It does not pair machines or start remote tasks. Polling runs in the background, so
+<a name="t3-linked-machines"></a>
+
+### Linked machines
+
+**Already linked peer machines are monitored by default.** BroGlow reads T3's
+existing links that enforce linked-agent access limits and reuses their credentials
+for read-only MCP project/thread tools. A saved SSH connection in the desktop app
+alone does not create such a link. Create a read-only machine link in T3 first;
+BroGlow does not pair machines or start remote tasks. Polling runs in the background, so
 an unreachable machine does not block local updates. To turn this off, add this
 field to your existing `~/.broglow/config.json` (or `$BROGLOW_HOME/config.json`),
 preserving the other fields:
@@ -109,9 +115,16 @@ preserving the other fields:
 }
 ```
 
-Set it to `true` or remove the field to restore monitoring. Saved connections in
-the desktop app's encrypted connection catalog are not read; the connection must
-exist as a T3 peer link. Remote MCP data exposes less detail than the local
+Set it to `true` or remove the field to restore monitoring. BroGlow does not read
+the desktop app's encrypted connection catalog.
+
+If T3 rejects linking because the remote version cannot keep a linked agent's
+limits, update the **remote T3 server** to a compatible T3 Code version, restart
+it and retry the link. Updating BroGlow or only the local T3 app does not update
+that server. BroGlow requires the remote server's access-limit and link-fence
+capabilities and does not bypass this check.
+
+Remote MCP data exposes less detail than the local
 database: pending approvals/questions conservatively show **Needs help**, and native
 provider references, some background tasks and PR-watch activity are unavailable.
 Remote provider rows therefore cannot always be deduplicated. Imported history

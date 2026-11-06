@@ -108,7 +108,7 @@ it detects. T3 Code is monitored automatically without hooks. Details per agent:
 | opencode | Installed plugin; restart running sessions. |
 | Codex | Codex >= 0.144; approve hooks via `/hooks`. [Connect Codex](site/guide/en/agents.md#codex-setup). |
 | GitHub Copilot CLI | Installed hooks; restart sessions open during installation. |
-| T3 Code | Automatic monitoring of local sessions and already linked machines, without hooks; linked machines have a config opt-out. [T3 Code setup](site/guide/en/agents.md#t3-code-setup). |
+| T3 Code | Automatic local v2 session monitoring without hooks. Compatible MCP peer links are monitored by default, with a config opt-out; a desktop SSH connection alone is insufficient. [T3 Code setup](site/guide/en/agents.md#t3-code-setup). |
 
 Cloud tasks and ordinary ChatGPT conversations do not trigger this Mac's local hooks.
 

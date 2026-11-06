@@ -86,7 +86,7 @@ grant or board operation: record those acceptance checks separately.
   Copilot payloads don't carry it; ownership proven by the `copilot-hook` command
   string — JSON has no comments for the managed-by marker).
 - **t3.rs** — read-only T3 Code v2 SQLite projection, automatic source discovery
-  (`userdata` and `dev` under `~/.t3`/`~/.t3-yandex`; explicit `T3CODE_HOME` selects
+  (`userdata` and `dev` under `~/.t3`; explicit `T3CODE_HOME` selects
   only `userdata`), local-server PID liveness, provider-session
   deduplication and activity-based dismissal. The shared state reader polls it;
   T3 uses the `t3code` harness, **T3 Code** label and `t3` badge, with no hook install.

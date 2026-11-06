@@ -15,7 +15,7 @@ Click a session in BroGlow (TUI: **Enter**) to bring it to the front: the termin
 window or tab that hosts it, the conversation in the Claude desktop app, or a Codex
 desktop task through its task link (also when the app is named ChatGPT). If its host
 can't be focused, a Codex session opens its task link in the Codex app. On macOS,
-a T3 Code row opens its exact thread in the matching official or Yandex T3 app.
+a T3 Code row opens its exact thread in the matching T3 Code app.
 
 <a name="session-names"></a>
 
