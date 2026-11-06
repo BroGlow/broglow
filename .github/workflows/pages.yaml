@@ -122,8 +122,14 @@ jobs:
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outcome == 'success' && steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}
     steps:
       - uses: actions/configure-pages@v6
       - uses: actions/deploy-pages@v5
         id: deployment
+        # Pages can fail after accepting a deployment; retry once without masking a second failure.
+        continue-on-error: true
+      - name: Retry website deployment
+        if: ${{ !cancelled() && steps.deployment.outcome == 'failure' }}
+        uses: actions/deploy-pages@v5
+        id: deployment_retry
