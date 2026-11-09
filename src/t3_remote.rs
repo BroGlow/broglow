@@ -925,12 +925,38 @@ fn project_thread(
         .ok_or_else(|| anyhow::anyhow!("invalid T3 activity time"))?
         .with_timezone(&Utc)
         .to_rfc3339();
+    // MCP preserves explicit cancellation of a real question item, but omits
+    // runtime-request answers and failure codes; failed items are ambiguous.
+    let question_expiry = items
+        .iter()
+        .filter(|item| {
+            item["type"] == "user_input_request"
+                && item["status"] == "cancelled"
+                && item["sourceThreadId"] == id
+        })
+        .filter_map(|item| {
+            Some((
+                item["itemId"]
+                    .as_str()
+                    .filter(|id| super::valid_thread_id(id))?,
+                DateTime::parse_from_rfc3339(item["updatedAt"].as_str()?).ok()?,
+            ))
+        })
+        .max_by_key(|(_, at)| *at)
+        .map(|(item, at)| crate::state::QuestionExpiry {
+            id: format!("{}{id}:{item}", source.key),
+            session_id: Some(format!("{}{id}", source.key)),
+            occurred_at: at.with_timezone(&Utc).to_rfc3339(),
+        });
     Ok(Thread {
         id: format!("{}{id}", source.key),
         activity,
+        question_expiry: question_expiry.clone(),
+        capacity_alert: None,
         session: SessionStatus {
             status,
             notification_type,
+            question_skipped_at: question_expiry.map(|event| event.occurred_at),
             last_updated,
             name: detail["title"]
                 .as_str()
@@ -1420,6 +1446,31 @@ mod tests {
                 .status,
             Status::Active
         );
+    }
+
+    #[test]
+    fn cancelled_questions_are_exact_chat_skips_but_failed_or_inherited_items_are_not() {
+        let (_directory, source) = fixture();
+        for (status, source_thread, expected) in [
+            ("cancelled", "thread", true),
+            ("completed", "thread", false),
+            ("failed", "thread", false),
+            ("waiting", "thread", false),
+            ("cancelled", "ancestor", false),
+        ] {
+            let item = json!({"itemId":"question","sourceThreadId":source_thread,"type":"user_input_request","status":status,"updatedAt":LATER});
+            let thread =
+                project_thread(&source, "remote", "thread", &detail(), &[], &[item]).unwrap();
+            assert_eq!(
+                thread.question_expiry.is_some(),
+                expected,
+                "{status} {source_thread}"
+            );
+            assert_eq!(thread.session.question_skipped_at.is_some(), expected);
+            if let Some(event) = thread.question_expiry {
+                assert_eq!(event.session_id.as_deref(), Some(thread.id.as_str()));
+            }
+        }
     }
 
     #[test]

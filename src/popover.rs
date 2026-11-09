@@ -203,6 +203,8 @@ struct SessionPayload<'a> {
     capacity_blocked: bool,
     #[serde(rename = "lastUpdated")]
     last_updated: &'a str,
+    #[serde(rename = "questionSkippedAt", skip_serializing_if = "Option::is_none")]
+    question_skipped_at: Option<&'a str>,
     /// The session's coding agent, for the icon and name in the meta line.
     agent: AgentPayload,
     /// Where the session runs, for the host glyph; absent when unknown.
@@ -827,8 +829,9 @@ fn session_payloads(state: &HookState) -> Vec<SessionPayload<'_>> {
                 .unwrap_or_else(|| crate::session::NO_PROJECT.to_string()),
             project_path: s.project_path.as_deref().unwrap_or_default(),
             status: &s.status,
-            capacity_blocked: s.is_codex_capacity(),
+            capacity_blocked: s.is_capacity(),
             last_updated: &s.last_updated,
+            question_skipped_at: s.question_skipped_at.as_deref(),
             agent: crate::harness::agent(s.harness.as_deref()).into(),
             host: crate::terminal::host(s.harness.as_deref(), s.terminal.as_ref()).map(Into::into),
         })
@@ -1117,6 +1120,7 @@ mod tests {
             terminal: None,
             harness: None,
             codex_background: false,
+            question_skipped_at: None,
             t3_hosted: None,
         };
         let mut state = HookState::default();
@@ -1193,6 +1197,43 @@ mod tests {
         state.sessions.get_mut("capacity").unwrap().status = Status::Active;
         let payloads = serde_json::to_value(session_payloads(&state)).unwrap();
         assert_eq!(payloads[0]["capacityBlocked"], false);
+    }
+
+    #[test]
+    fn skipped_question_payload_is_per_chat_and_does_not_retain_done_rows() {
+        let mut state = HookState::default();
+        for (id, status, skipped) in [
+            ("skipped", "inactive", Some("2026-11-09T10:00:00Z")),
+            ("ordinary", "active", None),
+            ("done", "done", Some("2026-11-09T10:00:00Z")),
+        ] {
+            state.sessions.insert(
+                id.into(),
+                serde_json::from_value(serde_json::json!({
+                    "status": status, "last_updated": "2026-11-09T11:00:00Z",
+                    "harness": "t3code", "question_skipped_at": skipped,
+                }))
+                .unwrap(),
+            );
+        }
+        let rows = serde_json::to_value(session_payloads(&state)).unwrap();
+        assert_eq!(rows.as_array().unwrap().len(), 2);
+        let skipped = rows
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["id"] == "skipped")
+            .unwrap();
+        assert_eq!(skipped["questionSkippedAt"], "2026-11-09T10:00:00Z");
+        assert_eq!(skipped["lastUpdated"], "2026-11-09T11:00:00Z");
+        assert_eq!(skipped["status"], "inactive");
+        let ordinary = rows
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["id"] == "ordinary")
+            .unwrap();
+        assert!(ordinary.get("questionSkippedAt").is_none());
     }
 
     #[test]

@@ -34,18 +34,27 @@ pub(crate) struct ExpiryPulse {
     seen_capacity: Option<String>,
     generation: u64,
     phase: Option<(u8, Option<Instant>, bool)>,
+    displayed: Option<u8>,
+    scan_color: u8,
+    pending_scans: usize,
+    connected_at: chrono::DateTime<chrono::Utc>,
 }
 
 impl ExpiryPulse {
     pub(crate) fn new(
         expiry: Option<&state::QuestionExpiry>,
         capacity: Option<&state::CapacityAlert>,
+        connected_at: chrono::DateTime<chrono::Utc>,
     ) -> Self {
         Self {
             seen: expiry.map(|event| event.id.clone()),
             seen_capacity: capacity.map(|event| event.id.clone()),
             generation: 0,
             phase: None,
+            displayed: None,
+            scan_color: b'R',
+            pending_scans: 0,
+            connected_at,
         }
     }
 
@@ -61,18 +70,25 @@ impl ExpiryPulse {
         let fresh = |timestamp: &str, seconds| {
             chrono::DateTime::parse_from_rfc3339(timestamp).is_ok_and(|time| {
                 let age = wall.signed_duration_since(time);
-                age >= chrono::Duration::zero() && age <= chrono::Duration::seconds(seconds)
+                time >= self.connected_at
+                    && age >= chrono::Duration::zero()
+                    && age <= chrono::Duration::seconds(seconds)
             })
         };
         if let Some(event) = expiry.filter(|event| self.seen.as_ref() != Some(&event.id)) {
             self.seen = Some(event.id.clone());
-            if fresh(&event.occurred_at, 5)
-                && aggregate != b'R'
-                && !masked
-                && !self.phase.is_some_and(|(_, _, capacity)| capacity)
+            // Linked T3 polling can spend 10s between reads plus a 30s request budget.
+            let window = if event
+                .session_id
+                .as_deref()
+                .is_some_and(|id| id.starts_with("t3code:"))
             {
-                self.generation = self.generation.wrapping_add(1);
-                self.phase = Some((0, None, false));
+                45
+            } else {
+                5
+            };
+            if fresh(&event.occurred_at, window) && !masked {
+                self.pending_scans = self.pending_scans.saturating_add(1);
             }
         }
         if let Some(event) = capacity.filter(|event| self.seen_capacity.as_ref() != Some(&event.id))
@@ -82,44 +98,67 @@ impl ExpiryPulse {
             // Allow the daemon's five-second reconciliation tick plus transport polling.
             let fresh = fresh(&event.occurred_at, 10);
             if fresh || self.phase.is_some_and(|(_, _, capacity)| capacity) {
+                if self.phase.is_some_and(|(_, _, capacity)| !capacity) {
+                    self.pending_scans = self.pending_scans.saturating_add(1);
+                }
                 self.generation = self.generation.wrapping_add(1);
                 self.phase = (fresh && !masked).then_some((0, None, true));
             }
         }
-        if masked
-            || self.phase.is_some_and(|(_, _, is_capacity)| {
-                if is_capacity {
-                    capacity.is_none()
-                } else {
-                    aggregate == b'R'
-                }
-            })
-        {
+        if masked {
+            self.phase = None;
+            self.pending_scans = 0;
+            // Identify owns the physical LEDs; cached status ACKs cannot describe them.
+            self.displayed = None;
+        } else if capacity.is_none() && self.phase.is_some_and(|(_, _, capacity)| capacity) {
             self.phase = None;
         }
         if let Some((phase, Some(written), capacity)) = self.phase {
-            let (duration, last) = if capacity {
-                (Duration::from_millis(150), 10)
-            } else {
-                (Duration::from_millis(500), 5)
-            };
-            if now.duration_since(written) >= duration {
-                self.phase = (phase < last).then_some((phase + 1, None, capacity));
+            if now.duration_since(written) >= Duration::from_millis(150) {
+                if capacity {
+                    self.phase = (phase < 10).then_some((phase + 1, None, true));
+                } else if phase >= 6 && (self.scan_color == aggregate || aggregate == b'N') {
+                    self.phase = None;
+                } else {
+                    self.scan_color = next_scan_color(self.scan_color);
+                    // Settling can follow a changing aggregate indefinitely without overflow.
+                    self.phase = Some(((phase + 1).min(6), None, false));
+                    self.generation = self.generation.wrapping_add(1);
+                }
             }
+        }
+        if !masked && self.phase.is_none() && self.pending_scans > 0 {
+            self.pending_scans -= 1;
+            self.generation = self.generation.wrapping_add(1);
+            // An off/unknown lamp has no position in the cycle: enter at red.
+            self.scan_color = self
+                .displayed
+                .filter(|byte| b"RYG".contains(byte))
+                .unwrap_or(b'R');
+            self.phase = Some((0, None, false));
         }
         match self.phase {
             // Start dark so each red flash is distinct even from an existing help signal.
-            Some((phase, _, _)) => (
-                if phase % 2 == 0 { b'N' } else { b'R' },
+            Some((phase, _, capacity)) => (
+                if capacity {
+                    if phase % 2 == 0 {
+                        b'N'
+                    } else {
+                        b'R'
+                    }
+                } else {
+                    self.scan_color
+                },
                 Some((self.generation, phase)),
             ),
             None => (aggregate, None),
         }
     }
 
-    pub(crate) fn acknowledged(&mut self, phase: Option<(u64, u8)>, now: Instant) {
+    pub(crate) fn acknowledged(&mut self, output: (u8, Option<(u64, u8)>), now: Instant) {
+        self.displayed = Some(output.0);
         if let Some((current, written, _)) = self.phase.as_mut() {
-            if Some((self.generation, *current)) == phase && written.is_none() {
+            if Some((self.generation, *current)) == output.1 && written.is_none() {
                 *written = Some(now);
             }
         }
@@ -127,7 +166,7 @@ impl ExpiryPulse {
 
     pub(crate) fn poll_interval(&self, normal: Duration, now: Instant) -> Duration {
         match self.phase {
-            Some((_, Some(written), true)) => {
+            Some((_, Some(written), _)) => {
                 normal.min(Duration::from_millis(150).saturating_sub(now.duration_since(written)))
             }
             _ => normal,
@@ -135,12 +174,31 @@ impl ExpiryPulse {
     }
 }
 
+fn next_scan_color(color: u8) -> u8 {
+    match color {
+        b'R' => b'Y',
+        b'Y' => b'G',
+        _ => b'R',
+    }
+}
+
+fn write_usb_status(
+    port: &mut impl Write,
+    pulse: &mut ExpiryPulse,
+    output: (u8, Option<(u64, u8)>),
+) -> std::io::Result<()> {
+    port.write_all(&[output.0, b'\n'])?;
+    port.flush()?;
+    pulse.acknowledged(output, Instant::now());
+    Ok(())
+}
+
 pub(crate) fn current_capacity(state: &state::HookState) -> Option<&state::CapacityAlert> {
     state.capacity_alert.as_ref().filter(|alert| {
         state
             .sessions
             .get(&alert.session_id)
-            .is_some_and(|session| session.is_codex_capacity())
+            .is_some_and(|session| session.is_capacity())
     })
 }
 
@@ -343,7 +401,11 @@ fn drive(
     let mut state = read_hook_state();
     let mut cfg = config::read_config();
     let mut sampled = Instant::now();
-    let mut pulse = ExpiryPulse::new(state.question_expiry.as_ref(), current_capacity(&state));
+    let mut pulse = ExpiryPulse::new(
+        state.question_expiry.as_ref(),
+        current_capacity(&state),
+        chrono::Utc::now(),
+    );
     let mut last_sent = None;
     let mut last_write = Instant::now();
 
@@ -367,13 +429,11 @@ fn drive(
             Instant::now(),
             chrono::Utc::now(),
         );
-        let (byte, phase) = output;
+        let (byte, _) = output;
         let changed = last_sent != Some(output);
 
         if changed || last_write.elapsed() >= HEARTBEAT {
-            port.write_all(&[byte, b'\n'])?;
-            port.flush()?;
-            pulse.acknowledged(phase, Instant::now());
+            write_usb_status(&mut port, &mut pulse, output)?;
             if let Some(cfg) = status_config {
                 publish_status(cfg, "connected", "USB write succeeded");
             }
@@ -573,59 +633,155 @@ fn status_for(cfg: &config::Config, record: Option<StatusRecord>, now: u64) -> C
 #[cfg(test)]
 mod transport_tests {
     #[test]
-    fn expiry_pulse_preserves_every_phase_until_acknowledged() {
-        use super::*;
+    fn expiry_scan_starts_at_acknowledged_color_and_holds_each_phase() {
         let wall = chrono::Utc::now();
         let event = state::QuestionExpiry {
             id: "new".into(),
+            session_id: None,
             occurred_at: wall.to_rfc3339(),
         };
-        let mut pulse = ExpiryPulse::new(None, None);
-        let start = Instant::now();
-        let mut now = start;
-        let mut writes = Vec::new();
-        for phase in 0..6 {
-            let expected = (if phase % 2 == 0 { b'N' } else { b'R' }, Some((1, phase)));
-            let output = pulse.sample(Some(&event), None, b'G', false, now, wall);
-            assert_eq!(output, expected);
-            // A failed/pending write must never advance the animation, even after seconds.
-            now += Duration::from_secs(3);
+        for initial in *b"RYGN" {
+            let mut pulse = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
+            let mut now = Instant::now();
+            pulse.acknowledged((initial, None), now);
+            let start = if initial == b'N' { b'R' } else { initial };
+            let mut color = start;
+            for phase in 0..=6 {
+                // Aggregate intentionally differs from the physical color at event arrival.
+                let output = pulse.sample(Some(&event), None, start, false, now, wall);
+                assert_eq!(output.0, color);
+                assert_eq!(output.1.unwrap().1, phase);
+                now += Duration::from_secs(3);
+                assert_eq!(
+                    pulse.sample(Some(&event), None, b'R', false, now, wall),
+                    output
+                );
+                pulse.acknowledged(output, now);
+                now += Duration::from_millis(149);
+                assert_eq!(
+                    pulse.sample(Some(&event), None, start, false, now, wall),
+                    output
+                );
+                assert_eq!(
+                    pulse.poll_interval(POLL_INTERVAL, now),
+                    Duration::from_millis(1)
+                );
+                pulse.acknowledged(output, now);
+                now += Duration::from_millis(1);
+                color = next_scan_color(color);
+            }
             assert_eq!(
-                pulse.sample(Some(&event), None, b'Y', false, now, wall),
-                expected
+                pulse.sample(Some(&event), None, start, false, now, wall),
+                (start, None)
             );
-            writes.push(output.0);
-            pulse.acknowledged(output.1, now);
-            now += Duration::from_millis(499);
-            assert_eq!(
-                pulse.sample(Some(&event), None, b'Y', false, now, wall),
-                expected
-            );
-            // Duplicate ACK/heartbeat must not extend the phase.
-            pulse.acknowledged(output.1, now);
-            now += Duration::from_millis(1);
         }
-        assert_eq!(writes, b"NRNRNR");
+    }
+
+    #[test]
+    fn usb_write_tracks_actual_color_only_after_write_and_flush_succeed() {
+        let wall = chrono::Utc::now();
+        struct FlushFails(Vec<u8>);
+        impl Write for FlushFails {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Err(std::io::Error::other("injected USB flush failure"))
+            }
+        }
+        let mut pulse = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
+        let mut bytes = Vec::new();
+        write_usb_status(&mut bytes, &mut pulse, (b'Y', None)).unwrap();
+        assert_eq!(bytes, b"Y\n");
+        assert_eq!(pulse.displayed, Some(b'Y'));
+        assert!(write_usb_status(&mut FlushFails(Vec::new()), &mut pulse, (b'G', None)).is_err());
+        assert_eq!(pulse.displayed, Some(b'Y'));
+        assert!(write_usb_status(&mut std::io::sink(), &mut pulse, (b'R', None)).is_ok());
+        let wall = chrono::Utc::now();
+        let expiry = state::QuestionExpiry {
+            id: "new".into(),
+            session_id: None,
+            occurred_at: wall.to_rfc3339(),
+        };
         assert_eq!(
-            pulse.sample(Some(&event), None, b'Y', false, now, wall),
-            (b'Y', None)
-        );
-        assert_eq!(
-            pulse.sample(Some(&event), None, b'G', false, now, wall),
-            (b'G', None)
+            pulse
+                .sample(Some(&expiry), None, b'G', false, Instant::now(), wall)
+                .0,
+            b'R'
         );
     }
 
     #[test]
-    fn expiry_pulse_consumes_startup_stale_and_suppressed_events() {
-        use super::*;
+    fn expiry_scan_settles_forward_to_latest_state_including_off() {
+        let wall = chrono::Utc::now();
+        let event = state::QuestionExpiry {
+            id: "new".into(),
+            session_id: None,
+            occurred_at: wall.to_rfc3339(),
+        };
+        for target in *b"RYGN" {
+            let mut now = Instant::now();
+            let mut pulse = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
+            pulse.acknowledged((b'R', None), now);
+            let mut writes = Vec::new();
+            for _ in 0..10 {
+                let output = pulse.sample(Some(&event), None, target, false, now, wall);
+                writes.push(output.0);
+                pulse.acknowledged(output, now);
+                now += Duration::from_millis(150);
+                if output.1.is_none() {
+                    break;
+                }
+            }
+            let expected: &[u8] = match target {
+                b'R' => b"RYGRYGRR",
+                b'Y' => b"RYGRYGRYY",
+                b'G' => b"RYGRYGRYGG",
+                _ => b"RYGRYGRN",
+            };
+            assert_eq!(writes, expected);
+        }
+    }
+
+    #[test]
+    fn expiry_scan_follows_target_changes_during_settling() {
+        let wall = chrono::Utc::now();
+        let event = state::QuestionExpiry {
+            id: "new".into(),
+            session_id: None,
+            occurred_at: wall.to_rfc3339(),
+        };
+        let mut now = Instant::now();
+        let mut pulse = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
+        pulse.acknowledged((b'R', None), now);
+        for expected in *b"RYGRYGRY" {
+            let output = pulse.sample(Some(&event), None, b'G', false, now, wall);
+            assert_eq!(output.0, expected);
+            pulse.acknowledged(output, now);
+            now += Duration::from_millis(150);
+        }
+        // Target changes to red while the scan is at yellow: finish via green.
+        for expected in *b"GRR" {
+            let output = pulse.sample(Some(&event), None, b'R', false, now, wall);
+            assert_eq!(output.0, expected);
+            pulse.acknowledged(output, now);
+            now += Duration::from_millis(150);
+        }
+        assert!(pulse.phase.is_none());
+    }
+
+    #[test]
+    fn expiry_scan_consumes_startup_stale_and_masked_events() {
         let wall = chrono::Utc::now();
         let now = Instant::now();
         let event = state::QuestionExpiry {
             id: "new".into(),
+            session_id: None,
             occurred_at: wall.to_rfc3339(),
         };
-        let mut startup = ExpiryPulse::new(Some(&event), None);
+        let mut startup =
+            ExpiryPulse::new(Some(&event), None, wall - chrono::Duration::seconds(60));
         assert_eq!(
             startup.sample(Some(&event), None, b'G', false, now, wall),
             (b'G', None)
@@ -639,38 +795,118 @@ mod transport_tests {
                 occurred_at: timestamp,
                 ..event.clone()
             };
-            let mut pulse = ExpiryPulse::new(None, None);
+            let mut pulse = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
             assert_eq!(
                 pulse.sample(Some(&stale), None, b'G', false, now, wall),
                 (b'G', None)
             );
         }
-        for (aggregate, masked) in [(b'R', false), (b'G', true)] {
-            let mut pulse = ExpiryPulse::new(None, None);
-            assert_eq!(
-                pulse.sample(Some(&event), None, aggregate, masked, now, wall),
-                (aggregate, None)
-            );
-            assert_eq!(
-                pulse.sample(Some(&event), None, b'G', false, now, wall),
-                (b'G', None)
-            );
-            let second = state::QuestionExpiry {
-                id: "second".into(),
-                ..event.clone()
+        let mut pulse = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
+        assert_eq!(
+            pulse.sample(Some(&event), None, b'R', true, now, wall),
+            (b'R', None)
+        );
+        assert_eq!(
+            pulse.sample(Some(&event), None, b'G', false, now, wall),
+            (b'G', None)
+        );
+        let second = state::QuestionExpiry {
+            id: "second".into(),
+            ..event
+        };
+        assert!(pulse
+            .sample(Some(&second), None, b'R', false, now, wall)
+            .1
+            .is_some());
+        assert_eq!(
+            pulse.sample(Some(&second), None, b'R', true, now, wall),
+            (b'R', None)
+        );
+        assert_eq!(
+            pulse.sample(Some(&second), None, b'R', false, now, wall),
+            (b'R', None)
+        );
+    }
+
+    #[test]
+    fn linked_t3_expiry_allows_polling_delay_without_replaying_baselines() {
+        let wall = chrono::Utc::now();
+        let now = Instant::now();
+        for (session_id, age, scans) in [
+            (Some("t3code:peer:chat"), 12, true),
+            (Some("t3code:peer:chat"), 45, true),
+            (Some("t3code:peer:chat"), 46, false),
+            (Some("codex:chat"), 12, false),
+            (None, 12, false),
+        ] {
+            let event = state::QuestionExpiry {
+                id: "question".into(),
+                session_id: session_id.map(str::to_owned),
+                occurred_at: (wall - chrono::Duration::seconds(age)).to_rfc3339(),
             };
+            let mut pulse = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
+            pulse.acknowledged((b'Y', None), now);
             assert_eq!(
-                pulse.sample(Some(&second), None, b'G', false, now, wall),
-                (b'N', Some((1, 0)))
+                pulse
+                    .sample(Some(&event), None, b'G', false, now, wall)
+                    .1
+                    .is_some(),
+                scans
             );
-            pulse.acknowledged(Some((1, 0)), now);
+            let mut reconnect =
+                ExpiryPulse::new(Some(&event), None, wall - chrono::Duration::seconds(60));
             assert_eq!(
-                pulse.sample(Some(&second), None, aggregate, masked, now, wall),
-                (aggregate, None)
-            );
-            assert_eq!(
-                pulse.sample(Some(&second), None, b'G', false, now, wall),
+                reconnect.sample(Some(&event), None, b'G', false, now, wall),
                 (b'G', None)
+            );
+        }
+    }
+
+    #[test]
+    fn events_predating_connection_never_animate_even_when_first_seen_later() {
+        let connected = chrono::Utc::now();
+        let now = Instant::now();
+        for offset in [-12, 1] {
+            let occurred = connected + chrono::Duration::seconds(offset);
+            let wall = connected + chrono::Duration::seconds(13);
+            let expiry = state::QuestionExpiry {
+                id: "question".into(),
+                session_id: Some("t3code:peer:chat".into()),
+                occurred_at: occurred.to_rfc3339(),
+            };
+            let mut pulse = ExpiryPulse::new(None, None, connected);
+            assert_eq!(
+                pulse
+                    .sample(Some(&expiry), None, b'G', false, now, wall)
+                    .1
+                    .is_some(),
+                offset > 0
+            );
+            let mut baseline = ExpiryPulse::new(Some(&expiry), None, connected);
+            assert_eq!(
+                baseline.sample(Some(&expiry), None, b'G', false, now, wall),
+                (b'G', None)
+            );
+            // Capacity has its own freshness budget; arrival is six seconds after connect.
+            let capacity = state::CapacityAlert {
+                id: "turn".into(),
+                session_id: "session".into(),
+                occurred_at: occurred.to_rfc3339(),
+            };
+            let mut pulse = ExpiryPulse::new(None, None, connected);
+            assert_eq!(
+                pulse
+                    .sample(
+                        None,
+                        Some(&capacity),
+                        b'R',
+                        false,
+                        now,
+                        connected + chrono::Duration::seconds(6)
+                    )
+                    .1
+                    .is_some(),
+                offset > 0
             );
         }
     }
@@ -684,7 +920,7 @@ mod transport_tests {
             occurred_at: wall.to_rfc3339(),
         };
         for aggregate in *b"RY" {
-            let mut pulse = ExpiryPulse::new(None, None);
+            let mut pulse = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
             let mut now = Instant::now();
             let mut writes = Vec::new();
             for phase in 0..11 {
@@ -700,7 +936,7 @@ mod transport_tests {
                     expected
                 );
                 writes.push(expected.0);
-                pulse.acknowledged(expected.1, now);
+                pulse.acknowledged(expected, now);
                 for poll in [POLL_INTERVAL, Duration::from_millis(250)] {
                     assert_eq!(pulse.poll_interval(poll, now), Duration::from_millis(150));
                 }
@@ -713,7 +949,7 @@ mod transport_tests {
                     pulse.poll_interval(POLL_INTERVAL, now),
                     Duration::from_millis(1)
                 );
-                pulse.acknowledged(expected.1, now);
+                pulse.acknowledged(expected, now);
                 now += Duration::from_millis(1);
                 assert_eq!(pulse.poll_interval(POLL_INTERVAL, now), Duration::ZERO);
             }
@@ -739,7 +975,8 @@ mod transport_tests {
             session_id: "session".into(),
             occurred_at: wall.to_rfc3339(),
         };
-        let mut startup = ExpiryPulse::new(None, Some(&event));
+        let mut startup =
+            ExpiryPulse::new(None, Some(&event), wall - chrono::Duration::seconds(60));
         assert_eq!(
             startup.sample(None, Some(&event), b'R', false, now, wall),
             (b'R', None)
@@ -753,7 +990,7 @@ mod transport_tests {
                 occurred_at: timestamp,
                 ..event.clone()
             };
-            let mut pulse = ExpiryPulse::new(None, None);
+            let mut pulse = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
             assert_eq!(
                 pulse.sample(None, Some(&stale), b'R', false, now, wall),
                 (b'R', None)
@@ -763,12 +1000,12 @@ mod transport_tests {
             occurred_at: (wall - chrono::Duration::seconds(10)).to_rfc3339(),
             ..event.clone()
         };
-        let mut delayed = ExpiryPulse::new(None, None);
+        let mut delayed = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
         assert_eq!(
             delayed.sample(None, Some(&boundary), b'R', false, now, wall),
             (b'N', Some((1, 0)))
         );
-        let mut masked = ExpiryPulse::new(None, None);
+        let mut masked = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
         assert_eq!(
             masked.sample(None, Some(&event), b'R', true, now, wall),
             (b'R', None)
@@ -778,12 +1015,12 @@ mod transport_tests {
             (b'R', None)
         );
         for preview in [false, true] {
-            let mut pulse = ExpiryPulse::new(None, None);
+            let mut pulse = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
             assert_eq!(
                 pulse.sample(None, Some(&event), b'R', false, now, wall),
                 (b'N', Some((1, 0)))
             );
-            pulse.acknowledged(Some((1, 0)), now);
+            pulse.acknowledged((b'N', Some((1, 0))), now);
             let current = preview.then_some(&event);
             assert_eq!(
                 pulse.sample(None, current, b'R', preview, now, wall),
@@ -801,7 +1038,8 @@ mod transport_tests {
                 pulse.sample(None, Some(&next), b'R', false, now, wall),
                 (b'N', Some((2, 0)))
             );
-            let mut reconnect = ExpiryPulse::new(None, Some(&next));
+            let mut reconnect =
+                ExpiryPulse::new(None, Some(&next), wall - chrono::Duration::seconds(60));
             assert_eq!(
                 reconnect.sample(None, Some(&next), b'R', false, now, wall),
                 (b'R', None)
@@ -810,58 +1048,96 @@ mod transport_tests {
     }
 
     #[test]
-    fn capacity_takes_priority_over_expiry_without_replaying_either_effect() {
+    fn capacity_preempts_but_preserves_pending_scans() {
         let wall = chrono::Utc::now();
-        let now = Instant::now();
         let expiry = state::QuestionExpiry {
             id: "expiry".into(),
+            session_id: None,
             occurred_at: wall.to_rfc3339(),
         };
         let capacity = state::CapacityAlert {
-            id: "session:turn".into(),
+            id: "turn".into(),
             session_id: "session".into(),
             occurred_at: wall.to_rfc3339(),
         };
-        let mut pulse = ExpiryPulse::new(None, None);
-        assert_eq!(
-            pulse.sample(Some(&expiry), None, b'G', false, now, wall),
-            (b'N', Some((1, 0)))
-        );
-        pulse.acknowledged(Some((1, 0)), now);
-        assert_eq!(
-            pulse.sample(Some(&expiry), Some(&capacity), b'R', false, now, wall),
-            (b'N', Some((2, 0)))
-        );
-        pulse.acknowledged(Some((2, 0)), now);
-        let second_expiry = state::QuestionExpiry {
-            id: "second".into(),
-            ..expiry
+        for simultaneous in [true, false] {
+            let mut pulse = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
+            let mut now = Instant::now();
+            pulse.acknowledged((b'Y', None), now);
+            if !simultaneous {
+                let output = pulse.sample(Some(&expiry), None, b'R', false, now, wall);
+                assert_eq!(output.0, b'Y');
+                pulse.acknowledged(output, now);
+                now += Duration::from_millis(150);
+            }
+            let mut writes = Vec::new();
+            for _ in 0..20 {
+                let output = pulse.sample(Some(&expiry), Some(&capacity), b'R', false, now, wall);
+                writes.push(output.0);
+                pulse.acknowledged(output, now);
+                now += Duration::from_millis(150);
+                if output.1.is_none() {
+                    break;
+                }
+            }
+            assert_eq!(writes, b"NRNRNRNRNRNRYGRYGRR");
+            assert_eq!(
+                pulse.sample(Some(&expiry), Some(&capacity), b'G', false, now, wall),
+                (b'G', None)
+            );
+        }
+    }
+
+    #[test]
+    fn expiry_arriving_during_capacity_is_queued_per_lamp() {
+        let wall = chrono::Utc::now();
+        let expiry = state::QuestionExpiry {
+            id: "new".into(),
+            session_id: None,
+            occurred_at: wall.to_rfc3339(),
         };
-        assert_eq!(
-            pulse.sample(
-                Some(&second_expiry),
+        let capacity = state::CapacityAlert {
+            id: "turn".into(),
+            session_id: "session".into(),
+            occurred_at: wall.to_rfc3339(),
+        };
+        let mut now = Instant::now();
+        let mut pulse = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
+        for phase in 0..11 {
+            let output = pulse.sample(
+                (phase >= 3).then_some(&expiry),
                 Some(&capacity),
-                b'G',
-                false,
-                now + Duration::from_millis(150),
-                wall
-            ),
-            (b'R', Some((2, 1)))
-        );
-        assert_eq!(
-            pulse.sample(Some(&second_expiry), None, b'G', false, now, wall),
-            (b'G', None)
-        );
-        assert_eq!(
-            pulse.sample(
-                Some(&second_expiry),
-                Some(&capacity),
-                b'G',
+                b'R',
                 false,
                 now,
-                wall
-            ),
+                wall,
+            );
+            assert_eq!(output.0, if phase % 2 == 0 { b'N' } else { b'R' });
+            pulse.acknowledged(output, now);
+            now += Duration::from_millis(150);
+        }
+        assert_eq!(
+            pulse
+                .sample(Some(&expiry), Some(&capacity), b'G', false, now, wall)
+                .0,
+            b'R'
+        );
+        assert!(pulse.phase.is_some_and(|(_, _, capacity)| !capacity));
+        let mut reconnected = ExpiryPulse::new(
+            Some(&expiry),
+            Some(&capacity),
+            wall - chrono::Duration::seconds(60),
+        );
+        assert_eq!(
+            reconnected.sample(Some(&expiry), Some(&capacity), b'G', false, now, wall),
             (b'G', None)
+        );
+        // Another lamp consumes the same event independently, without sharing its ACK state.
+        let mut other = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
+        other.acknowledged((b'Y', None), now);
+        assert_eq!(
+            other.sample(Some(&expiry), None, b'R', false, now, wall).0,
+            b'Y'
         );
     }
 
@@ -879,6 +1155,10 @@ mod transport_tests {
         state.sessions.insert("session".into(), serde_json::from_value(serde_json::json!({
             "status": "needs_help", "last_updated": "", "harness": "codex", "notification_type": "codex_capacity"
         })).unwrap());
+        assert!(current_capacity(&state).is_some());
+        let session = state.sessions.get_mut("session").unwrap();
+        session.harness = Some("t3code".into());
+        session.notification_type = Some("t3code_capacity".into());
         assert!(current_capacity(&state).is_some());
         state.sessions.get_mut("session").unwrap().status = state::Status::Inactive;
         assert!(current_capacity(&state).is_none());

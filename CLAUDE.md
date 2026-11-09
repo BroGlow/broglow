@@ -298,10 +298,18 @@ and existing session/aggregate consumers.
   answers and failed question creation clear without an expiry effect. Unknown
   rollout formats and old rows without tracking metadata retain the conservative
   behavior. Keep this compatibility parser inside the Codex adapter.
-  A fresh expiry produces three 500 ms red lamp pulses separated by dark phases,
-  then restores the current aggregate. Existing USB/BLE workers own the effect;
-  another needs-help session suppresses it. Startup/reconnect never replays old
-  effects, and brightness and Identify controls keep their existing priority.
+  A fresh skipped-question event scans R→Y→G for two loops from the last
+  acknowledged lamp color, at least 150 ms between acknowledged phases, then
+  continues forward to the latest aggregate. Red does not suppress the scan.
+  Capacity flashes preempt and queue it. Existing USB/BLE workers own both effects;
+  startup/reconnect never replays old events, and brightness/Identify keep priority.
+  Keep only the latest per-chat skipped timestamp for the passive third-line note;
+  hook updates preserve it and normal session dismissal/retention still applies.
+  T3 message-capability questions remain red until their request closes, including
+  after a model turn ends. Use explicit unanswered closure evidence, never infer
+  a miss from run completion. T3 root failures with provider_error/serverOverloaded
+  produce capacity alerts tied to that failed run; generic and usage-limit errors
+  do not. The linked MCP view omits structured closure/failure evidence.
   A terminal `task_complete.error.codex_error_info: server_overloaded` instead
   keeps the session in `NeedsHelp` with `codex_capacity` until a new attempt or
   dismissal. Track ordinary foreground turns independently of usage collection;

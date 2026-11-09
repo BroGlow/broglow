@@ -1466,6 +1466,7 @@ mod mac {
             crate::led::ExpiryPulse::new(
                 cached.0.question_expiry.as_ref(),
                 crate::led::current_capacity(&cached.0),
+                chrono::Utc::now(),
             )
         });
         let pulse = &pulse;
@@ -1499,7 +1500,9 @@ mod mac {
                         }
                         p.write(characteristic, &[byte], WriteType::WithResponse)
                             .await?;
-                        pulse.borrow_mut().acknowledged(phase, StdInstant::now());
+                        pulse
+                            .borrow_mut()
+                            .acknowledged((byte, phase), StdInstant::now());
                         if last_name.borrow().as_ref() != Some(&name) {
                             p.write(name_characteristic, &name, WriteType::WithResponse)
                                 .await
@@ -1634,10 +1637,17 @@ mod mac {
                     let wall = chrono::Utc::now();
                     let event = crate::state::QuestionExpiry {
                         id: "expired".into(),
+                        session_id: None,
                         occurred_at: wall.to_rfc3339(),
                     };
-                    let pulse = RefCell::new(crate::led::ExpiryPulse::new(None, None));
+                    let pulse = RefCell::new(crate::led::ExpiryPulse::new(
+                        None,
+                        None,
+                        wall - chrono::Duration::seconds(60),
+                    ));
                     let clock = Cell::new(StdInstant::now());
+                    // The last acknowledged lamp color can differ from the new aggregate.
+                    pulse.borrow_mut().acknowledged((b'G', None), clock.get());
                     let writes = RefCell::new(Vec::new());
                     let result = send_updates(
                         |(output, applied_brightness): ((u8, Option<(u64, u8)>), u8), _| {
@@ -1648,7 +1658,7 @@ mod mac {
                             let result = if fail && writes.borrow().len() == stop_after {
                                 Err(anyhow::anyhow!("injected write failure"))
                             } else {
-                                pulse.borrow_mut().acknowledged(output.1, clock.get());
+                                pulse.borrow_mut().acknowledged(output, clock.get());
                                 Ok(())
                             };
                             std::future::ready(result)
@@ -1672,9 +1682,13 @@ mod mac {
                     )
                     .await;
                     assert_eq!(result.is_err(), fail);
-                    assert_eq!(*writes.borrow(), b"NRNRNRY"[..stop_after]);
+                    assert_eq!(*writes.borrow(), b"GRYGRYG"[..stop_after]);
                     // Disable/failure drops the connection-local animation; reconnect consumes it.
-                    let mut reconnect = crate::led::ExpiryPulse::new(Some(&event), None);
+                    let mut reconnect = crate::led::ExpiryPulse::new(
+                        Some(&event),
+                        None,
+                        wall - chrono::Duration::seconds(60),
+                    );
                     assert_eq!(
                         reconnect.sample(Some(&event), None, b'Y', false, clock.get(), wall),
                         (b'Y', None)
@@ -1692,7 +1706,11 @@ mod mac {
                     session_id: "session".into(),
                     occurred_at: wall.to_rfc3339(),
                 };
-                let pulse = RefCell::new(crate::led::ExpiryPulse::new(None, None));
+                let pulse = RefCell::new(crate::led::ExpiryPulse::new(
+                    None,
+                    None,
+                    wall - chrono::Duration::seconds(60),
+                ));
                 let writes = RefCell::new(Vec::new());
                 let acknowledged = Cell::new(None::<StdInstant>);
                 let intervals = RefCell::new(Vec::new());
@@ -1712,7 +1730,7 @@ mod mac {
                         })
                         .await;
                         let at = StdInstant::now();
-                        pulse.borrow_mut().acknowledged(output.1, at);
+                        pulse.borrow_mut().acknowledged(output, at);
                         acknowledged.set(Some(at));
                         Ok(())
                     },

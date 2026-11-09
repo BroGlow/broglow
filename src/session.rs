@@ -316,7 +316,7 @@ pub fn load_all_sessions(hook_state: &HookState, grouped: bool) -> Vec<DisplaySe
                 session_id: session_id.clone(),
                 name,
                 status: session_status.status.clone(),
-                capacity_blocked: session_status.is_codex_capacity(),
+                capacity_blocked: session_status.is_capacity(),
                 project_name: String::new(),
                 project_path: session_status.project_path.clone().unwrap_or_default(),
                 last_updated: session_status.last_updated.clone(),
@@ -371,6 +371,7 @@ mod tests {
             terminal: None,
             harness: None,
             codex_background: false,
+            question_skipped_at: None,
             t3_hosted: None,
         }
     }

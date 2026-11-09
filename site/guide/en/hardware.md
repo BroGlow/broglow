@@ -975,9 +975,10 @@ while any session is working** (`active_wins`). With no live sessions the lamp g
 fresh `N` and stays dark after the connection flash. Changing this setting needs no
 reconnect.
 
-When a Codex turn fails because its model is at capacity, the lamp gives
-five fast red flashes, then stays red. The menu-bar
-icon stays red throughout; the session row explains how to return to Codex.
+When native Codex or local T3 confirms a model-capacity failure, the lamp gives
+five fast red flashes, then returns to the latest state. A skipped question uses
+two R→Y→G loops from the current light, even over red, then settles on the latest
+state. See [question and capacity signals](sessions.md#question-expiry).
 
 Each lamp receives the current status when it connects, whenever the status changes,
 and every **two seconds**. Reconnecting never replays an old queued color. Disabling

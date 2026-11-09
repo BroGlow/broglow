@@ -649,19 +649,24 @@ function render() {
       const help = s.status === 'needs_help';
       const capacity = help && s.capacityBlocked === true;
       const meta = agentMeta(s.agent, showAgentNames, s.host) + esc(detail);
-      const action = capacity ? 'Open Codex' : 'Focus';
+      const agent = s.agent?.label || 'session';
+      const action = capacity ? 'Open ' + agent : 'Focus';
+      const skippedAge = relTime(s.questionSkippedAt);
+      const skipped = skippedAge ? 'Question skipped · ' +
+        (skippedAge === 'now' ? 'just now' : skippedAge + ' ago') : '';
       const tail = help
         ? `<button class="focusbtn" type="button" data-cmd="focus" data-id="${esc(s.id)}"` +
           ` aria-label="${esc(action + ': ' + s.name)}"` +
           (capacity ? ` aria-describedby="capacity-${esc(s.id)}"` : '') + `>${action}</button>`
         : `<span class="time">${relTime(s.lastUpdated)}</span>`;
       return `<div class="srow${help ? ' helprow' : ''}" data-cmd="focus"` +
-        ` data-id="${esc(s.id)}" title="${capacity ? 'Open Codex' : 'Open session'}">` +
+        ` data-id="${esc(s.id)}" title="${esc(capacity ? action : 'Open session')}">` +
         `<span class="dot ${BY_STATUS[s.status].dot}"></span>` +
         `<div class="sinfo"><span class="sname" title="${esc(s.name)}">${esc(s.name)}</span>` +
         `<span class="smeta">${meta}</span>` +
+        (skipped ? `<span class="smeta skippedquestion">${esc(skipped)}</span>` : '') +
         (capacity ? `<span class="sreason">Model at capacity</span>` +
-          `<span class="smeta capacityhint" id="capacity-${esc(s.id)}">Choose another model or retry in Codex.</span>` : '') +
+          `<span class="smeta capacityhint" id="capacity-${esc(s.id)}">Choose another model or retry in ${esc(agent)}.</span>` : '') +
         `</div>${tail}` +
         `<button class="dismissbtn" type="button" id="dismiss-${esc(s.id)}" data-cmd="clear_session" data-id="${esc(s.id)}"` +
         ` aria-label="Dismiss ${esc(s.name)} from BroGlow" title="Dismiss until new activity">×</button></div>`;

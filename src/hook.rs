@@ -426,6 +426,7 @@ pub fn run() -> anyhow::Result<()> {
                 // Claude Code sessions carry no harness tag (absent = claude).
                 harness: None,
                 codex_background: false,
+                question_skipped_at: existing.and_then(|s| s.question_skipped_at.clone()),
                 t3_hosted,
             },
         );
@@ -606,6 +607,7 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
                         terminal: None,
                         harness: Some("codex".into()),
                         codex_background: true,
+                        question_skipped_at: existing.and_then(|s| s.question_skipped_at.clone()),
                         t3_hosted: None,
                     },
                 );
@@ -918,6 +920,7 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
                 terminal,
                 harness: Some(harness.clone()),
                 codex_background: false,
+                question_skipped_at: existing.and_then(|s| s.question_skipped_at.clone()),
                 t3_hosted,
             },
         );

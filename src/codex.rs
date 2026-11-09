@@ -399,8 +399,10 @@ pub(crate) fn reconcile_questions(state: &mut crate::state::HookState) -> bool {
                         .values()
                         .any(|call| call.accepted && !call.resolved)
                 {
+                    session.question_skipped_at = Some(timestamp.clone());
                     let expiry = QuestionExpiry {
                         id: format!("{id}:{}:{}", pending.turn_id, pending.call_id),
+                        session_id: Some(id.clone()),
                         occurred_at: timestamp,
                     };
                     let previous = state.question_expiry.as_ref().and_then(|old| {
@@ -1188,6 +1190,14 @@ mod tests {
             );
         }
         assert!(reconcile_questions(&mut state));
+        assert_eq!(
+            state.sessions["fresh"].question_skipped_at.as_deref(),
+            Some("2026-10-21T10:00:00Z")
+        );
+        assert_eq!(
+            state.sessions["old"].question_skipped_at.as_deref(),
+            Some("2026-10-21T09:00:00Z")
+        );
         assert_eq!(state.question_expiry.unwrap().id, "fresh:turn:call");
     }
 

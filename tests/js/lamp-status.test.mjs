@@ -167,6 +167,39 @@ test('capacity rows explain recovery while keeping session metadata, focus and d
     'A new attempt removes the warning even if an older producer leaves the flag set');
 });
 
+test('skipped questions add only a third line to their existing chat row', () => {
+  const { element, pushState } = popoverPage();
+  const skipped = session('skipped', { status: 'inactive', project: 'bro-agent-light',
+    agent: { label: 'T3 Code', badge: 't3' },
+    questionSkippedAt: new Date(-120000).toISOString() });
+  for (const groupByProject of [false, true]) {
+    pushState({ aggregate: 'yellow', sessions: [skipped, session('working')], settings: { groupByProject } });
+    const html = element('groups').innerHTML;
+    assert.match(html, /data-id="skipped"[\s\S]*?<span class="dot dyellow"><\/span>/);
+    assert.match(html, /<span class="smeta">[^<]*[\s\S]*?<span class="smeta skippedquestion">Question skipped · 2m ago<\/span>/);
+    assert.equal((html.match(/class="smeta skippedquestion"/g) || []).length, 1);
+    assert.doesNotMatch(html, /Missed questions|dismiss_missed|clear_missed/);
+    assert.match(html, /data-id="working"/);
+  }
+  pushState({ sessions: [session('ordinary'), session('malformed', { questionSkippedAt: '<bad>' })] });
+  assert.doesNotMatch(element('groups').innerHTML, /Question skipped|skippedquestion/);
+  pushState({ sessions: [] });
+  assert.doesNotMatch(element('groups').innerHTML, /Question skipped|Task skipped/);
+});
+
+test('T3 capacity rows open T3 and keep the skipped-question note', () => {
+  const { element, pushState } = popoverPage();
+  pushState({ aggregate: 'red', sessions: [session('t3', {
+    status: 'needs_help', capacityBlocked: true, agent: { label: 'T3 Code', badge: 't3' },
+    questionSkippedAt: new Date(-120000).toISOString(),
+  })] });
+  const html = element('groups').innerHTML;
+  assert.match(html, />Open T3 Code<\/button>/);
+  assert.match(html, /retry in T3 Code/);
+  assert.match(html, /Question skipped · 2m ago/);
+  assert.doesNotMatch(html, /Open Codex|retry in Codex/);
+});
+
 test('only the host reset flag returns Lamps and Settings to current chats', () => {
   for (const [button, view] of [['lampbtn', 'lamp'], ['settingsbtn', 'settings']]) {
     const { element, click, pushState, windowListeners, advance, commands } = popoverPage();

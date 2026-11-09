@@ -14,7 +14,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::state::{HookState, SessionStatus, Status, TerminalInfo};
+use crate::state::{CapacityAlert, HookState, QuestionExpiry, SessionStatus, Status, TerminalInfo};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
 const MAX_THREADS: usize = 2048;
@@ -33,6 +33,8 @@ pub struct Tracking {
     pub offline_at: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub provider_sessions: Vec<ProviderSession>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub question_skipped_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -150,6 +152,8 @@ struct Thread {
     id: String,
     activity: String,
     session: SessionStatus,
+    question_expiry: Option<QuestionExpiry>,
+    capacity_alert: Option<CapacityAlert>,
 }
 
 #[derive(Default)]
@@ -367,11 +371,25 @@ fn read_snapshot(connection: &Connection, source: &Source) -> anyhow::Result<Sna
         snapshot.threads.push(Thread {
             id: format!("{}{thread_id}", source.key),
             activity: facts.activity(),
+            question_expiry: facts.skipped.as_ref().map(|(id, at)| QuestionExpiry {
+                id: format!("{}{thread_id}:{id}", source.key),
+                session_id: Some(format!("{}{thread_id}", source.key)),
+                occurred_at: at.clone(),
+            }),
+            capacity_alert: facts.capacity().map(|run| CapacityAlert {
+                id: format!("{}{thread_id}:{}", source.key, run.id),
+                session_id: format!("{}{thread_id}", source.key),
+                occurred_at: run
+                    .completed
+                    .clone()
+                    .unwrap_or_else(|| last_updated.clone()),
+            }),
             session: SessionStatus {
                 status,
                 last_updated,
                 project_path: worktree.filter(|s| !s.is_empty()).or(project),
                 notification_type,
+                question_skipped_at: facts.skipped.as_ref().map(|(_, at)| at.clone()),
                 name: (!title.trim().is_empty()).then_some(title),
                 terminal,
                 harness: Some("t3code".to_owned()),
@@ -457,6 +475,8 @@ struct Facts {
     message: Option<(String, String)>,
     item: Option<(String, String, String)>,
     background: bool,
+    skipped: Option<(String, String)>,
+    failure: Option<(String, Option<String>)>,
 }
 
 #[derive(Serialize)]
@@ -549,13 +569,40 @@ fn thread_facts(connection: &Connection, thread: &str) -> anyhow::Result<Facts> 
     let idle_prompt = idle_compaction_message("m");
     let latest = read_run(connection, thread, false)?;
     let active = read_run(connection, thread, true)?;
+    // T3 keeps message-response questions pending across terminal turns. Only
+    // explicit request closure, backed by an actual question item, is a skip.
+    let skipped = connection.query_row(
+        &format!("SELECT q.runtime_request_id, q.resolved_at FROM {PREFIX}runtime_requests q
+            WHERE q.thread_id = ?1 AND q.kind = 'user_input' AND q.resolved_at IS NOT NULL
+              AND json_extract(q.payload_json, '$.answers') IS NULL
+              AND COALESCE(json_extract(q.payload_json, '$.responseCapability.type'), '') != 'not_resumable'
+              AND (q.status IN ('expired', 'cancelled') OR (q.status = 'resolved'
+                   AND json_extract(q.payload_json, '$.decision') IN ('cancel', 'decline')))
+              AND EXISTS (SELECT 1 FROM {PREFIX}turn_items i WHERE i.thread_id=q.thread_id
+                   AND i.type='user_input_request' AND json_extract(i.payload_json, '$.requestId')=q.runtime_request_id
+                   AND i.status IN ('waiting', 'completed', 'cancelled')
+                   AND json_array_length(i.payload_json, '$.questions') > 0)
+            ORDER BY julianday(q.resolved_at) DESC, q.runtime_request_id DESC LIMIT 1"),
+        [thread], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+    ).optional()?.filter(|(_, at)| DateTime::parse_from_rfc3339(at).is_ok());
+    let failure = if let Some(run) = &latest {
+        connection.query_row(
+            &format!("SELECT json_extract(i.payload_json, '$.failure.class'), json_extract(i.payload_json, '$.failure.code')
+                FROM {PREFIX}turn_items i JOIN {PREFIX}runs r ON r.run_id=i.run_id
+                WHERE i.thread_id=?1 AND i.run_id=?2 AND i.node_id IS json_extract(r.payload_json, '$.rootNodeId')
+                  AND i.type='error' AND i.status='failed'
+                ORDER BY i.ordinal DESC, julianday(i.updated_at) DESC, i.turn_item_id DESC LIMIT 1"),
+            rusqlite::params![thread, run.id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
+        ).optional()?
+    } else {
+        None
+    };
     let request = connection
         .query_row(
             &format!(
                 "SELECT runtime_request_id, kind, status, created_at, resolved_at,
                         json_extract(payload_json, '$.responseCapability.type')
                  FROM {PREFIX}runtime_requests WHERE thread_id = ?1
-                   AND COALESCE(json_extract(payload_json, '$.responseCapability.type'), '') != 'message'
                  ORDER BY (status = 'pending') DESC, created_at DESC LIMIT 1"
             ),
             [thread],
@@ -648,13 +695,28 @@ fn thread_facts(connection: &Connection, thread: &str) -> anyhow::Result<Facts> 
         message,
         item,
         background,
+        skipped,
+        failure,
     })
 }
 
 impl Facts {
+    fn capacity(&self) -> Option<&Run> {
+        self.latest.as_ref().filter(|run| {
+            run.status == "failed"
+                && self.active.is_none()
+                && self.failure.as_ref().is_some_and(|(class, code)| {
+                    class == "provider_error" && code.as_deref() == Some("serverOverloaded")
+                })
+        })
+    }
+
     fn status(&self) -> (Status, Option<String>) {
+        if self.capacity().is_some() {
+            return (Status::NeedsHelp, Some("t3code_capacity".into()));
+        }
         if let Some(request) = &self.request {
-            if request.status == "pending" && request.capability.as_deref() != Some("message") {
+            if request.status == "pending" {
                 return (Status::NeedsHelp, Some(format!("t3code_{}", request.kind)));
             }
         }
@@ -741,6 +803,17 @@ fn retire_unselected_sources(state: &mut HookState, selected: &[String]) -> bool
 fn apply_snapshots(state: &mut HookState, snapshots: &[Snapshot]) -> bool {
     let mut changed = false;
     for snapshot in snapshots {
+        let hidden_native_ids: HashSet<&str> = snapshot
+            .provider_sessions
+            .iter()
+            .filter(|provider| {
+                state.sessions.get(&provider.id).is_none_or(|session| {
+                    session.t3_hosted != Some(false)
+                        && session.harness.as_deref().unwrap_or("claude") == provider.harness
+                })
+            })
+            .map(|provider| provider.id.as_str())
+            .collect();
         if snapshot.threads.is_empty()
             && snapshot.provider_sessions.is_empty()
             && !state
@@ -781,8 +854,16 @@ fn apply_snapshots(state: &mut HookState, snapshots: &[Snapshot]) -> bool {
             .iter()
             .map(|thread| thread.id.as_str())
             .collect();
+        let offline_at = state
+            .t3_threads
+            .get(&format!("{}@providers", snapshot.source))
+            .and_then(|tracking| tracking.offline_at.clone());
         for (id, tracking) in &mut state.t3_threads {
             if tracking.source == snapshot.source && !ids.contains(id.as_str()) {
+                if !snapshot.online && tracking.offline_at != offline_at {
+                    tracking.offline_at.clone_from(&offline_at);
+                    changed = true;
+                }
                 if let Some(session) = state.sessions.get_mut(id) {
                     if session.harness.as_deref() == Some("t3code")
                         && session.status != Status::Done
@@ -800,37 +881,104 @@ fn apply_snapshots(state: &mut HookState, snapshots: &[Snapshot]) -> bool {
             let dismissed = previous.is_some_and(|tracking| tracking.dismissed) && !new_activity;
             let should_show =
                 !dismissed && (new_activity || state.sessions.contains_key(&thread.id));
+            let already_tracked = previous.is_some();
+            let new_skip = thread.question_expiry.as_ref().is_some_and(|event| {
+                already_tracked
+                    && previous.and_then(|tracking| tracking.question_skipped_id.as_ref())
+                        != Some(&event.id)
+            });
             let tracking = Tracking {
                 source: snapshot.source.clone(),
                 activity: thread.activity.clone(),
                 dismissed,
                 offline_at: None,
                 provider_sessions: Vec::new(),
+                question_skipped_id: thread
+                    .question_expiry
+                    .as_ref()
+                    .map(|event| event.id.clone()),
             };
             if previous != Some(&tracking) {
                 state.t3_threads.insert(thread.id.clone(), tracking);
                 changed = true;
             }
             if should_show {
+                let mut session = thread.session.clone();
+                let old_skipped = state
+                    .sessions
+                    .get(&thread.id)
+                    .and_then(|old| old.question_skipped_at.clone());
+                if session
+                    .question_skipped_at
+                    .as_deref()
+                    .is_none_or(|at| !newer_time(at, old_skipped.as_deref()))
+                {
+                    session.question_skipped_at = old_skipped;
+                }
+                if let Some(event) = thread.question_expiry.as_ref().filter(|event| {
+                    new_skip
+                        && (state
+                            .question_expiry
+                            .as_ref()
+                            .and_then(|old| old.session_id.as_deref())
+                            .is_some_and(|id| hidden_native_ids.contains(id))
+                            || event_at_least(
+                                &event.occurred_at,
+                                state
+                                    .question_expiry
+                                    .as_ref()
+                                    .map(|old| old.occurred_at.as_str()),
+                            ))
+                }) {
+                    state.question_expiry = Some(event.clone());
+                    changed = true;
+                }
+                if let Some(event) = thread.capacity_alert.as_ref().filter(|event| {
+                    already_tracked
+                        && new_activity
+                        && state.capacity_alert.as_ref().is_none_or(|old| {
+                            old.id != event.id
+                                && (hidden_native_ids.contains(old.session_id.as_str())
+                                    || event_at_least(&event.occurred_at, Some(&old.occurred_at)))
+                        })
+                }) {
+                    state.capacity_alert = Some(event.clone());
+                    changed = true;
+                }
                 let equal = state.sessions.get(&thread.id).is_some_and(|old| {
-                    old.status == thread.session.status
-                        && old.last_updated == thread.session.last_updated
-                        && old.project_path == thread.session.project_path
-                        && old.notification_type == thread.session.notification_type
-                        && old.name == thread.session.name
-                        && old.terminal == thread.session.terminal
-                        && old.harness == thread.session.harness
+                    old.status == session.status
+                        && old.last_updated == session.last_updated
+                        && old.project_path == session.project_path
+                        && old.notification_type == session.notification_type
+                        && old.question_skipped_at == session.question_skipped_at
+                        && old.name == session.name
+                        && old.terminal == session.terminal
+                        && old.harness == session.harness
                 });
                 if !equal {
-                    state
-                        .sessions
-                        .insert(thread.id.clone(), thread.session.clone());
+                    state.sessions.insert(thread.id.clone(), session);
                     changed = true;
                 }
             }
         }
     }
     changed
+}
+
+fn event_at_least(at: &str, previous: Option<&str>) -> bool {
+    DateTime::parse_from_rfc3339(at).ok().is_some_and(|at| {
+        previous
+            .and_then(|at| DateTime::parse_from_rfc3339(at).ok())
+            .is_none_or(|old| at >= old)
+    })
+}
+
+fn newer_time(at: &str, previous: Option<&str>) -> bool {
+    DateTime::parse_from_rfc3339(at).ok().is_some_and(|at| {
+        previous
+            .and_then(|at| DateTime::parse_from_rfc3339(at).ok())
+            .is_none_or(|old| at > old)
+    })
 }
 
 fn stable_hash(bytes: &[u8]) -> u64 {
@@ -890,6 +1038,16 @@ pub fn hide_provider_sessions(state: &mut HookState) {
                 .is_ok_and(|at| at > *cutoff),
         }
     });
+    // Native async turns may end while T3 still displays an answerable question.
+    // Its own structured closure emits the T3 event; hidden native expiry cannot.
+    if state
+        .question_expiry
+        .as_ref()
+        .and_then(|event| event.session_id.as_ref())
+        .is_some_and(|id| !state.sessions.contains_key(id))
+    {
+        state.question_expiry = None;
+    }
 }
 
 #[cfg(test)]
@@ -1006,7 +1164,7 @@ mod tests {
         ).unwrap();
         assert_eq!(status(&connection, &source), Status::NeedsHelp);
         connection.execute("UPDATE orchestration_v2_projection_runtime_requests SET payload_json = '{\"responseCapability\":{\"type\":\"message\"}}'", []).unwrap();
-        assert_eq!(status(&connection, &source), Status::Active);
+        assert_eq!(status(&connection, &source), Status::NeedsHelp);
         connection.execute(
             "INSERT INTO orchestration_v2_projection_runtime_requests VALUES ('older-approval', 'thread', 'command', 'pending', '2026-11-06T09:59:00Z', NULL, '{}')",
             [],
@@ -1017,6 +1175,9 @@ mod tests {
             "an async question must not hide a live approval"
         );
         connection.execute("UPDATE orchestration_v2_projection_runtime_requests SET status = 'resolved' WHERE runtime_request_id = 'older-approval'", []).unwrap();
+        assert_eq!(status(&connection, &source), Status::NeedsHelp);
+        connection.execute("UPDATE orchestration_v2_projection_runtime_requests SET status = 'resolved' WHERE runtime_request_id = 'request'", []).unwrap();
+        assert_eq!(status(&connection, &source), Status::Active);
         connection.execute(
             "INSERT INTO orchestration_v2_projection_turn_items VALUES ('card', 'thread', 'run', 'node', 'secret_request', 1, 'waiting', ?1, '{}')",
             [AT],
@@ -1042,6 +1203,44 @@ mod tests {
         ).unwrap();
         assert_eq!(status(&connection, &source), Status::NeedsHelp);
         connection.execute("UPDATE orchestration_v2_projection_messages SET payload_json = '{\"createdBy\":\"user\"}'", []).unwrap();
+        assert_eq!(status(&connection, &source), Status::Inactive);
+    }
+
+    #[test]
+    fn pending_async_question_overrides_terminal_runs_until_request_resolution() {
+        let (_directory, source, connection) = fixture();
+        add_run(&connection, "run", 1, "running", json!({}));
+        connection.execute(
+            "INSERT INTO orchestration_v2_projection_runtime_requests VALUES ('question', 'thread', 'user_input', 'pending', ?1, NULL, ?2)",
+            params![AT, json!({"responseCapability":{"type":"message"}}).to_string()],
+        ).unwrap();
+        for terminal in ["completed", "cancelled", "interrupted", "failed"] {
+            connection
+                .execute(
+                    "UPDATE orchestration_v2_projection_runs SET status=?1",
+                    [terminal],
+                )
+                .unwrap();
+            assert_eq!(
+                status(&connection, &source),
+                Status::NeedsHelp,
+                "{terminal} alone cannot answer a question"
+            );
+        }
+        connection.execute("UPDATE orchestration_v2_projection_runtime_requests SET status='resolved', resolved_at=?1", [LATER]).unwrap();
+        assert_eq!(
+            read_snapshot(&connection, &source).unwrap().threads[0]
+                .session
+                .notification_type
+                .as_deref(),
+            Some("t3code_error")
+        );
+        connection
+            .execute(
+                "UPDATE orchestration_v2_projection_runs SET status='completed'",
+                [],
+            )
+            .unwrap();
         assert_eq!(status(&connection, &source), Status::Inactive);
     }
 
@@ -1185,6 +1384,247 @@ mod tests {
         assert_eq!(state.sessions[&id].harness.as_deref(), Some("t3code"));
         assert_eq!(state.sessions[&id].status, Status::Active);
         assert_eq!(state.sessions[&id].last_updated, updated);
+    }
+
+    #[test]
+    fn structured_capacity_is_exact_root_current_turn_and_deduplicated() {
+        let (_directory, source, connection) = fixture();
+        connection.execute(
+            "INSERT INTO orchestration_v2_projection_provider_threads VALUES ('provider', 'thread', ?1)",
+            [json!({"firstRunOrdinal":1,"nativeThreadRef":{"driver":"codex","nativeId":"native","strength":"strong"}}).to_string()],
+        ).unwrap();
+        add_run(
+            &connection,
+            "failed",
+            1,
+            "failed",
+            json!({"rootNodeId":"root"}),
+        );
+        let mut state = HookState::default();
+        apply_snapshots(&mut state, &[read_snapshot(&connection, &source).unwrap()]);
+        connection.execute(
+            "INSERT INTO orchestration_v2_projection_turn_items VALUES ('failure', 'thread', 'failed', 'root', 'error', 1, 'failed', ?1, ?2)",
+            params![AT, json!({"failure":{"class":"provider_error","code":"serverOverloaded"}}).to_string()],
+        ).unwrap();
+        let snapshot = read_snapshot(&connection, &source).unwrap();
+        let id = snapshot.threads[0].id.clone();
+        let mut native = snapshot.threads[0].session.clone();
+        native.harness = Some("codex".into());
+        native.t3_hosted = Some(true);
+        state.sessions.insert("native".into(), native);
+        state.capacity_alert = Some(CapacityAlert {
+            id: "native:terminal".into(),
+            session_id: "native".into(),
+            occurred_at: LATER.into(),
+        });
+        assert!(apply_snapshots(&mut state, std::slice::from_ref(&snapshot)));
+        assert!(state.sessions[&id].is_capacity());
+        assert_eq!(state.capacity_alert.as_ref().unwrap().session_id, id);
+        assert!(!apply_snapshots(&mut state, &[snapshot]));
+        connection.execute(
+            "INSERT INTO orchestration_v2_projection_turn_items VALUES ('new-error', 'thread', 'failed', 'root', 'error', 2, 'failed', ?1, ?2)",
+            params![AT, json!({"failure":{"class":"provider_error","code":null}}).to_string()],
+        ).unwrap();
+        assert!(
+            !read_snapshot(&connection, &source).unwrap().threads[0]
+                .session
+                .is_capacity(),
+            "latest root error replaces older overload"
+        );
+        connection
+            .execute(
+                "DELETE FROM orchestration_v2_projection_turn_items WHERE turn_item_id='new-error'",
+                [],
+            )
+            .unwrap();
+        for failure in [
+            json!({"class":"provider_error","code":null,"message":"serverOverloaded"}),
+            json!({"class":"usage_limit","code":"serverOverloaded"}),
+            json!({"class":"provider_error","code":"rateLimitExceeded"}),
+        ] {
+            connection
+                .execute(
+                    "UPDATE orchestration_v2_projection_turn_items SET payload_json=?1",
+                    [json!({"failure":failure}).to_string()],
+                )
+                .unwrap();
+            assert!(!read_snapshot(&connection, &source).unwrap().threads[0]
+                .session
+                .is_capacity());
+        }
+        connection.execute("UPDATE orchestration_v2_projection_turn_items SET payload_json=?1, node_id='child'", [json!({"failure":{"class":"provider_error","code":"serverOverloaded"}}).to_string()]).unwrap();
+        assert!(!read_snapshot(&connection, &source).unwrap().threads[0]
+            .session
+            .is_capacity());
+        connection
+            .execute(
+                "UPDATE orchestration_v2_projection_turn_items SET node_id='root'",
+                [],
+            )
+            .unwrap();
+        add_run(&connection, "retry", 2, "running", json!({}));
+        let retry = read_snapshot(&connection, &source).unwrap();
+        apply_snapshots(&mut state, &[retry]);
+        assert_eq!(state.sessions[&id].status, Status::Active);
+    }
+
+    #[test]
+    fn first_snapshot_establishes_history_without_effects_then_live_events_publish() {
+        let (_directory, source, connection) = fixture();
+        let mut state = HookState::default();
+        for (ordinal, at) in [(1, AT), (2, LATER)] {
+            let request = format!("question-{ordinal}");
+            let run = format!("run-{ordinal}");
+            add_run(
+                &connection,
+                &run,
+                ordinal,
+                "failed",
+                json!({"rootNodeId":"root"}),
+            );
+            connection.execute(
+                "INSERT INTO orchestration_v2_projection_runtime_requests VALUES (?1, 'thread', 'user_input', 'resolved', ?2, ?2, ?3)",
+                params![request, at, json!({"decision":"cancel"}).to_string()],
+            ).unwrap();
+            connection.execute(
+                "INSERT INTO orchestration_v2_projection_turn_items VALUES (?1, 'thread', ?2, 'root', 'user_input_request', ?3, 'cancelled', ?4, ?5)",
+                params![format!("item-{ordinal}"), run, ordinal * 2, at, json!({"requestId":request,"questions":[{"id":"q"}]}).to_string()],
+            ).unwrap();
+            connection.execute(
+                "INSERT INTO orchestration_v2_projection_turn_items VALUES (?1, 'thread', ?2, 'root', 'error', ?3, 'failed', ?4, ?5)",
+                params![format!("error-{ordinal}"), run, ordinal * 2 + 1, at, json!({"failure":{"class":"provider_error","code":"serverOverloaded"}}).to_string()],
+            ).unwrap();
+            let snapshot = read_snapshot(&connection, &source).unwrap();
+            let id = snapshot.threads[0].id.clone();
+            assert!(apply_snapshots(&mut state, std::slice::from_ref(&snapshot)));
+            assert!(state.sessions[&id].is_capacity());
+            assert_eq!(state.sessions[&id].question_skipped_at.as_deref(), Some(at));
+            assert_eq!(state.question_expiry.is_some(), ordinal == 2);
+            assert_eq!(state.capacity_alert.is_some(), ordinal == 2);
+            assert!(
+                !apply_snapshots(&mut state, &[snapshot]),
+                "unchanged baseline cannot publish delayed history"
+            );
+        }
+    }
+
+    #[test]
+    fn question_skips_require_structured_closure_and_real_question_and_keep_exact_chat() {
+        let (_directory, source, connection) = fixture();
+        connection.execute(
+            "INSERT INTO orchestration_v2_projection_provider_threads VALUES ('provider', 'thread', ?1)",
+            [json!({"firstRunOrdinal":1,"nativeThreadRef":{"driver":"codex","nativeId":"native","strength":"strong"}}).to_string()],
+        ).unwrap();
+        add_thread(&connection, "other", json!({}));
+        add_run(&connection, "run", 1, "completed", json!({}));
+        connection.execute(
+            "INSERT INTO orchestration_v2_projection_runtime_requests VALUES ('question', 'thread', 'user_input', 'pending', ?1, NULL, ?2)",
+            params![AT, json!({"responseCapability":{"type":"message"}}).to_string()],
+        ).unwrap();
+        connection.execute(
+            "INSERT INTO orchestration_v2_projection_turn_items VALUES ('question-item', 'thread', 'run', 'root', 'user_input_request', 1, 'waiting', ?1, ?2)",
+            params![AT, json!({"requestId":"question","questions":[{"id":"q"}]}).to_string()],
+        ).unwrap();
+        let mut state = HookState::default();
+        let initial = read_snapshot(&connection, &source).unwrap();
+        let id = format!("{}thread", source.key);
+        apply_snapshots(&mut state, &[initial]);
+        assert_eq!(state.sessions[&id].status, Status::NeedsHelp);
+        assert!(
+            state.question_expiry.is_none(),
+            "terminal run does not close message question"
+        );
+        for (status, decision, answers, expected) in [
+            ("resolved", None, Some(json!({"q":"yes"})), false),
+            ("resolved", None, None, false),
+            ("failed", None, None, false),
+            ("resolved", Some("cancel"), None, true),
+            ("expired", None, None, true),
+            ("cancelled", None, None, true),
+        ] {
+            connection.execute("UPDATE orchestration_v2_projection_runtime_requests SET status=?1, resolved_at=?2, payload_json=?3",
+                params![status, LATER, json!({"responseCapability":{"type":"message"},"decision":decision,"answers":answers}).to_string()]).unwrap();
+            let snapshot = read_snapshot(&connection, &source).unwrap();
+            let thread = snapshot.threads.iter().find(|t| t.id == id).unwrap();
+            assert_eq!(
+                thread.question_expiry.is_some(),
+                expected,
+                "{status} {decision:?}"
+            );
+        }
+        for status in ["expired", "cancelled"] {
+            connection.execute("UPDATE orchestration_v2_projection_runtime_requests SET status=?1, payload_json=?2",
+                params![status, json!({"responseCapability":{"type":"not_resumable"}}).to_string()]).unwrap();
+            let snapshot = read_snapshot(&connection, &source).unwrap();
+            let thread = snapshot
+                .threads
+                .iter()
+                .find(|thread| thread.id == id)
+                .unwrap();
+            assert!(
+                thread.question_expiry.is_none(),
+                "recovered request {status} is not a user skip"
+            );
+            assert!(thread.session.question_skipped_at.is_none());
+            let mut recovery = state.clone();
+            apply_snapshots(&mut recovery, &[snapshot]);
+            assert!(recovery.question_expiry.is_none());
+        }
+        connection.execute("UPDATE orchestration_v2_projection_runtime_requests SET status='resolved', payload_json=?1",
+            [json!({"responseCapability":{"type":"message"},"decision":"cancel"}).to_string()]).unwrap();
+        connection.execute("UPDATE orchestration_v2_projection_turn_items SET status='failed' WHERE turn_item_id='question-item'", []).unwrap();
+        assert!(
+            thread_facts(&connection, "thread")
+                .unwrap()
+                .skipped
+                .is_none(),
+            "failed question creation has no displayed-question proof"
+        );
+        connection.execute("UPDATE orchestration_v2_projection_turn_items SET status='cancelled' WHERE turn_item_id='question-item'", []).unwrap();
+        let closed = read_snapshot(&connection, &source).unwrap();
+        let mut native = state.sessions[&id].clone();
+        native.harness = Some("codex".into());
+        native.t3_hosted = Some(true);
+        state.sessions.insert("native".into(), native);
+        state.question_expiry = Some(QuestionExpiry {
+            id: "native:turn:question".into(),
+            session_id: Some("native".into()),
+            occurred_at: "2026-11-06T10:02:00Z".into(),
+        });
+        apply_snapshots(&mut state, std::slice::from_ref(&closed));
+        assert_eq!(
+            state.sessions[&id].question_skipped_at.as_deref(),
+            Some(LATER)
+        );
+        assert_eq!(
+            state.sessions[&format!("{}other", source.key)].question_skipped_at,
+            None
+        );
+        assert_eq!(
+            state
+                .question_expiry
+                .as_ref()
+                .unwrap()
+                .session_id
+                .as_deref(),
+            Some(id.as_str())
+        );
+        assert!(!apply_snapshots(&mut state, std::slice::from_ref(&closed)));
+        let mut restored: HookState =
+            serde_json::from_str(&serde_json::to_string(&state).unwrap()).unwrap();
+        assert!(!apply_snapshots(
+            &mut restored,
+            std::slice::from_ref(&closed)
+        ));
+        dismiss(&mut restored, &id);
+        restored.sessions.remove(&id);
+        apply_snapshots(&mut restored, &[closed]);
+        assert!(!restored.sessions.contains_key(&id));
+        connection.execute("DELETE FROM orchestration_v2_projection_turn_items WHERE type='user_input_request'", []).unwrap();
+        assert!(thread_facts(&connection, "thread")
+            .unwrap()
+            .skipped
+            .is_none());
     }
 
     #[test]
@@ -1344,7 +1784,16 @@ mod tests {
         state
             .sessions
             .insert("unrelated".to_owned(), thread.session.clone());
+        state.question_expiry = Some(QuestionExpiry {
+            id: "codex-native:turn:question".into(),
+            session_id: Some("codex-native".into()),
+            occurred_at: AT.into(),
+        });
         hide_provider_sessions(&mut state);
+        assert!(
+            state.question_expiry.is_none(),
+            "hosted Codex ending does not close T3 question"
+        );
         assert!(!state.sessions.contains_key("codex-native"));
         assert!(!state.sessions.contains_key("claude-native"));
         assert!(!state.sessions.contains_key("opencode-native"));

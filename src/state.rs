@@ -34,6 +34,9 @@ pub struct SessionStatus {
     pub last_updated: String,
     pub project_path: Option<String>,
     pub notification_type: Option<String>,
+    /// Latest accepted question closed unanswered; informational, not live status.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub question_skipped_at: Option<String>,
     pub name: Option<String>,
     /// Where the session is running, captured by the hook backend from its
     /// own environment/process tree. Used for click-to-focus; absent in
@@ -58,6 +61,13 @@ pub struct SessionStatus {
 }
 
 impl SessionStatus {
+    pub fn is_capacity(&self) -> bool {
+        self.is_codex_capacity()
+            || (self.harness.as_deref() == Some("t3code")
+                && self.status == Status::NeedsHelp
+                && self.notification_type.as_deref() == Some("t3code_capacity"))
+    }
+
     pub fn is_codex_capacity(&self) -> bool {
         self.harness.as_deref() == Some("codex")
             && self.status == Status::NeedsHelp
@@ -159,6 +169,8 @@ pub struct CapacityAlert {
 pub struct QuestionExpiry {
     pub id: String,
     pub occurred_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
 }
 
 /// Aggregate health across all live sessions. Any needs-help session always
@@ -444,6 +456,7 @@ mod tests {
                 last_updated: at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
                 project_path: None,
                 notification_type: None,
+                question_skipped_at: None,
                 name: None,
                 terminal: None,
                 harness: None,
@@ -706,6 +719,10 @@ mod tests {
             let completed = read_hook_state();
             assert_eq!(completed.sessions["s0"].status, Status::Inactive);
             assert_eq!(completed.question_expiry.is_none(), answer_all);
+            assert_eq!(
+                completed.sessions["s0"].question_skipped_at.is_none(),
+                answer_all
+            );
             assert!(completed.codex_questions["s0"].terminal_at.is_some());
         }
         std::fs::write(state_file_path(), "broken state").unwrap();
@@ -899,6 +916,7 @@ mod tests {
                     last_updated: Utc::now().to_rfc3339(),
                     project_path: Some("/project".into()),
                     notification_type: None,
+                    question_skipped_at: None,
                     name: name.map(str::to_string),
                     terminal: None,
                     harness: harness.map(str::to_string),
@@ -966,6 +984,7 @@ mod tests {
                     last_updated: String::new(),
                     project_path: None,
                     notification_type: None,
+                    question_skipped_at: None,
                     name: None,
                     terminal: None,
                     harness: None,
@@ -1022,6 +1041,7 @@ mod tests {
                 last_updated: last_updated.to_rfc3339(),
                 project_path: None,
                 notification_type: None,
+                question_skipped_at: None,
                 name: None,
                 terminal: Some(TerminalInfo {
                     owner_pid,
