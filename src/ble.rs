@@ -1717,7 +1717,7 @@ mod mac {
                         session_id: None,
                         occurred_at: wall.to_rfc3339(),
                     };
-                    let step = Duration::from_millis(if capacity { 150 } else { 100 });
+                    let step = Duration::from_millis(if capacity { 150 } else { 50 });
                     pulse
                         .borrow_mut()
                         .acknowledged((b'G', None), StdInstant::now());

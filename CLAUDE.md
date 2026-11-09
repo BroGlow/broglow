@@ -299,7 +299,7 @@ and existing session/aggregate consumers.
   rollout formats and old rows without tracking metadata retain the conservative
   behavior. Keep this compatibility parser inside the Codex adapter.
   A fresh skipped-question event scans R→Y→G for three loops from the last
-  acknowledged lamp color, at least 100 ms between acknowledged phases, then
+  acknowledged lamp color, at least 50 ms between acknowledged phases, then
   continues forward to the latest aggregate. Red does not suppress the scan.
   Capacity flashes preempt and queue it. Existing USB/BLE workers own both effects;
   startup/reconnect never replays old events, and brightness/Identify keep priority.

@@ -45,10 +45,10 @@ For native Codex questions, confirmed turn completion can expire an unanswered q
 
 When a displayed question closes unanswered, a connected lamp scans three loops in
 one direction: **red → yellow → green → red**. It starts from the last successfully
-written color, with at least **100 ms per transition**, then continues through the
+written color, with at least **50 ms per transition**, then continues through the
 intermediate colors to the latest session state. The nine visible transitions take
-900 ms; each acknowledged phase, including the final color, holds for at least
-100 ms. Settling can add two transitions, and write delays can extend the effect.
+450 ms; each acknowledged phase, including the final color, holds for at least
+50 ms. Settling can add two transitions, and write delays can extend the effect.
 When no color is known, the scan starts red. It still plays over a red aggregate.
 
 The affected chat gains a quiet **Question skipped · 2m ago** line below its agent

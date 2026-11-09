@@ -28,7 +28,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(500);
 const HEARTBEAT: Duration = Duration::from_secs(2);
 const RESCAN_INTERVAL: Duration = Duration::from_secs(2);
 const SCAN_STEPS: u8 = 9;
-const SCAN_STEP: Duration = Duration::from_millis(100);
+const SCAN_STEP: Duration = Duration::from_millis(50);
 const CAPACITY_STEP: Duration = Duration::from_millis(150);
 
 /// Connection-local animations; reconnect consumes the current events as its baseline.
@@ -663,7 +663,7 @@ mod transport_tests {
                     output
                 );
                 pulse.acknowledged(output, now);
-                now += Duration::from_millis(99);
+                now += Duration::from_millis(49);
                 assert_eq!(
                     pulse.sample(Some(&event), None, start, false, now, wall),
                     output
@@ -735,7 +735,7 @@ mod transport_tests {
                 let output = pulse.sample(Some(&event), None, target, false, now, wall);
                 writes.push(output.0);
                 pulse.acknowledged(output, now);
-                now += Duration::from_millis(100);
+                now += Duration::from_millis(50);
                 if output.1.is_none() {
                     break;
                 }
@@ -765,14 +765,14 @@ mod transport_tests {
             let output = pulse.sample(Some(&event), None, b'G', false, now, wall);
             assert_eq!(output.0, expected);
             pulse.acknowledged(output, now);
-            now += Duration::from_millis(100);
+            now += Duration::from_millis(50);
         }
         // Target changes to red while the scan is at yellow: finish via green.
         for expected in *b"GRR" {
             let output = pulse.sample(Some(&event), None, b'R', false, now, wall);
             assert_eq!(output.0, expected);
             pulse.acknowledged(output, now);
-            now += Duration::from_millis(100);
+            now += Duration::from_millis(50);
         }
         assert!(pulse.phase.is_none());
     }
