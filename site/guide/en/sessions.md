@@ -43,12 +43,12 @@ model continues working. They stay red until T3 confirms an answer or closes the
 question; a completed model turn alone does not close an answerable T3 question.
 For native Codex questions, confirmed turn completion can expire an unanswered question.
 
-When a displayed question closes unanswered, a connected lamp scans two loops in
+When a displayed question closes unanswered, a connected lamp scans three loops in
 one direction: **red → yellow → green → red**. It starts from the last successfully
-written color, with at least **150 ms per transition**, then continues through the
-intermediate colors to the latest session state. The six visible transitions take
+written color, with at least **100 ms per transition**, then continues through the
+intermediate colors to the latest session state. The nine visible transitions take
 900 ms; each acknowledged phase, including the final color, holds for at least
-150 ms. Settling can add two transitions, and write delays can extend the effect.
+100 ms. Settling can add two transitions, and write delays can extend the effect.
 When no color is known, the scan starts red. It still plays over a red aggregate.
 
 The affected chat gains a quiet **Question skipped · 2m ago** line below its agent

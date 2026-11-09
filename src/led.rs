@@ -27,6 +27,9 @@ const BAUD: u32 = 115_200;
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
 const HEARTBEAT: Duration = Duration::from_secs(2);
 const RESCAN_INTERVAL: Duration = Duration::from_secs(2);
+const SCAN_STEPS: u8 = 9;
+const SCAN_STEP: Duration = Duration::from_millis(100);
+const CAPACITY_STEP: Duration = Duration::from_millis(150);
 
 /// Connection-local animations; reconnect consumes the current events as its baseline.
 pub(crate) struct ExpiryPulse {
@@ -114,15 +117,17 @@ impl ExpiryPulse {
             self.phase = None;
         }
         if let Some((phase, Some(written), capacity)) = self.phase {
-            if now.duration_since(written) >= Duration::from_millis(150) {
+            let duration = if capacity { CAPACITY_STEP } else { SCAN_STEP };
+            if now.duration_since(written) >= duration {
                 if capacity {
                     self.phase = (phase < 10).then_some((phase + 1, None, true));
-                } else if phase >= 6 && (self.scan_color == aggregate || aggregate == b'N') {
+                } else if phase >= SCAN_STEPS && (self.scan_color == aggregate || aggregate == b'N')
+                {
                     self.phase = None;
                 } else {
                     self.scan_color = next_scan_color(self.scan_color);
                     // Settling can follow a changing aggregate indefinitely without overflow.
-                    self.phase = Some(((phase + 1).min(6), None, false));
+                    self.phase = Some(((phase + 1).min(SCAN_STEPS), None, false));
                     self.generation = self.generation.wrapping_add(1);
                 }
             }
@@ -166,8 +171,9 @@ impl ExpiryPulse {
 
     pub(crate) fn poll_interval(&self, normal: Duration, now: Instant) -> Duration {
         match self.phase {
-            Some((_, Some(written), _)) => {
-                normal.min(Duration::from_millis(150).saturating_sub(now.duration_since(written)))
+            Some((_, Some(written), capacity)) => {
+                let duration = if capacity { CAPACITY_STEP } else { SCAN_STEP };
+                normal.min(duration.saturating_sub(now.duration_since(written)))
             }
             _ => normal,
         }
@@ -646,7 +652,7 @@ mod transport_tests {
             pulse.acknowledged((initial, None), now);
             let start = if initial == b'N' { b'R' } else { initial };
             let mut color = start;
-            for phase in 0..=6 {
+            for phase in 0..=9 {
                 // Aggregate intentionally differs from the physical color at event arrival.
                 let output = pulse.sample(Some(&event), None, start, false, now, wall);
                 assert_eq!(output.0, color);
@@ -657,7 +663,7 @@ mod transport_tests {
                     output
                 );
                 pulse.acknowledged(output, now);
-                now += Duration::from_millis(149);
+                now += Duration::from_millis(99);
                 assert_eq!(
                     pulse.sample(Some(&event), None, start, false, now, wall),
                     output
@@ -725,20 +731,20 @@ mod transport_tests {
             let mut pulse = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
             pulse.acknowledged((b'R', None), now);
             let mut writes = Vec::new();
-            for _ in 0..10 {
+            for _ in 0..13 {
                 let output = pulse.sample(Some(&event), None, target, false, now, wall);
                 writes.push(output.0);
                 pulse.acknowledged(output, now);
-                now += Duration::from_millis(150);
+                now += Duration::from_millis(100);
                 if output.1.is_none() {
                     break;
                 }
             }
             let expected: &[u8] = match target {
-                b'R' => b"RYGRYGRR",
-                b'Y' => b"RYGRYGRYY",
-                b'G' => b"RYGRYGRYGG",
-                _ => b"RYGRYGRN",
+                b'R' => b"RYGRYGRYGRR",
+                b'Y' => b"RYGRYGRYGRYY",
+                b'G' => b"RYGRYGRYGRYGG",
+                _ => b"RYGRYGRYGRN",
             };
             assert_eq!(writes, expected);
         }
@@ -755,18 +761,18 @@ mod transport_tests {
         let mut now = Instant::now();
         let mut pulse = ExpiryPulse::new(None, None, wall - chrono::Duration::seconds(60));
         pulse.acknowledged((b'R', None), now);
-        for expected in *b"RYGRYGRY" {
+        for expected in *b"RYGRYGRYGRY" {
             let output = pulse.sample(Some(&event), None, b'G', false, now, wall);
             assert_eq!(output.0, expected);
             pulse.acknowledged(output, now);
-            now += Duration::from_millis(150);
+            now += Duration::from_millis(100);
         }
         // Target changes to red while the scan is at yellow: finish via green.
         for expected in *b"GRR" {
             let output = pulse.sample(Some(&event), None, b'R', false, now, wall);
             assert_eq!(output.0, expected);
             pulse.acknowledged(output, now);
-            now += Duration::from_millis(150);
+            now += Duration::from_millis(100);
         }
         assert!(pulse.phase.is_none());
     }
@@ -1071,7 +1077,7 @@ mod transport_tests {
                 now += Duration::from_millis(150);
             }
             let mut writes = Vec::new();
-            for _ in 0..20 {
+            for _ in 0..24 {
                 let output = pulse.sample(Some(&expiry), Some(&capacity), b'R', false, now, wall);
                 writes.push(output.0);
                 pulse.acknowledged(output, now);
@@ -1080,7 +1086,7 @@ mod transport_tests {
                     break;
                 }
             }
-            assert_eq!(writes, b"NRNRNRNRNRNRYGRYGRR");
+            assert_eq!(writes, b"NRNRNRNRNRNRYGRYGRYGRR");
             assert_eq!(
                 pulse.sample(Some(&expiry), Some(&capacity), b'G', false, now, wall),
                 (b'G', None)

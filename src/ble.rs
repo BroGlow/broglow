@@ -1632,7 +1632,7 @@ mod mac {
         fn expiry_pulse_through_ble_writer_without_radio() {
             test_runtime().block_on(async {
                 for (brightness, stop_after, fail) in
-                    [(0, 7, false), (37, 4, false), (100, 4, true)]
+                    [(0, 10, false), (37, 4, false), (100, 4, true)]
                 {
                     let wall = chrono::Utc::now();
                     let event = crate::state::QuestionExpiry {
@@ -1682,7 +1682,7 @@ mod mac {
                     )
                     .await;
                     assert_eq!(result.is_err(), fail);
-                    assert_eq!(*writes.borrow(), b"GRYGRYG"[..stop_after]);
+                    assert_eq!(*writes.borrow(), b"GRYGRYGRYG"[..stop_after]);
                     // Disable/failure drops the connection-local animation; reconnect consumes it.
                     let mut reconnect = crate::led::ExpiryPulse::new(
                         Some(&event),
@@ -1698,69 +1698,85 @@ mod mac {
         }
 
         #[test]
-        fn capacity_burst_uses_fast_acknowledged_ticks_without_changing_brightness() {
+        fn effects_use_distinct_acknowledged_ticks_without_changing_brightness() {
             test_runtime().block_on(async {
-                let wall = chrono::Utc::now();
-                let event = crate::state::CapacityAlert {
-                    id: "session:turn".into(),
-                    session_id: "session".into(),
-                    occurred_at: wall.to_rfc3339(),
-                };
-                let pulse = RefCell::new(crate::led::ExpiryPulse::new(
-                    None,
-                    None,
-                    wall - chrono::Duration::seconds(60),
-                ));
-                let writes = RefCell::new(Vec::new());
-                let acknowledged = Cell::new(None::<StdInstant>);
-                let intervals = RefCell::new(Vec::new());
-                let (pulse, writes, acknowledged) = (&pulse, &writes, &acknowledged);
-                send_updates(
-                    |(output, brightness): ((u8, Option<(u64, u8)>), u8), _| async move {
-                        assert_eq!(brightness, 37);
-                        if let Some(at) = acknowledged.get() {
-                            assert!(at.elapsed() >= Duration::from_millis(150));
-                        }
-                        writes.borrow_mut().push(output.0);
-                        // A longer write must not skip or shorten the following phase.
-                        sleep(if writes.borrow().len() == 3 {
-                            Duration::from_millis(220)
-                        } else {
-                            Duration::from_millis(5)
-                        })
-                        .await;
-                        let at = StdInstant::now();
-                        pulse.borrow_mut().acknowledged(output, at);
-                        acknowledged.set(Some(at));
-                        Ok(())
-                    },
-                    || {
-                        (
-                            pulse.borrow_mut().sample(
-                                None,
-                                Some(&event),
-                                b'R',
-                                false,
-                                StdInstant::now(),
-                                wall,
-                            ),
-                            37,
-                        )
-                    },
-                    &|| writes.borrow().len() < 12,
-                    || {
-                        let interval = pulse.borrow().poll_interval(POLL, StdInstant::now());
-                        intervals.borrow_mut().push(interval);
-                        interval
-                    },
-                )
-                .await
-                .unwrap();
-                assert_eq!(*writes.borrow(), b"NRNRNRNRNRNR");
-                assert!(intervals.borrow()[..11]
-                    .iter()
-                    .all(|interval| *interval <= Duration::from_millis(150)));
-                assert_eq!(intervals.borrow().last(), Some(&POLL));
+                for capacity in [true, false] {
+                    let wall = chrono::Utc::now();
+                    let event = crate::state::CapacityAlert {
+                        id: "session:turn".into(),
+                        session_id: "session".into(),
+                        occurred_at: wall.to_rfc3339(),
+                    };
+                    let pulse = RefCell::new(crate::led::ExpiryPulse::new(
+                        None,
+                        None,
+                        wall - chrono::Duration::seconds(60),
+                    ));
+                    let expiry = crate::state::QuestionExpiry {
+                        id: "question".into(),
+                        session_id: None,
+                        occurred_at: wall.to_rfc3339(),
+                    };
+                    let step = Duration::from_millis(if capacity { 150 } else { 100 });
+                    pulse
+                        .borrow_mut()
+                        .acknowledged((b'G', None), StdInstant::now());
+                    let writes = RefCell::new(Vec::new());
+                    let acknowledged = Cell::new(None::<StdInstant>);
+                    let intervals = RefCell::new(Vec::new());
+                    let (pulse, writes, acknowledged) = (&pulse, &writes, &acknowledged);
+                    send_updates(
+                        |(output, brightness): ((u8, Option<(u64, u8)>), u8), _| async move {
+                            assert_eq!(brightness, 37);
+                            if let Some(at) = acknowledged.get() {
+                                assert!(at.elapsed() >= step);
+                            }
+                            writes.borrow_mut().push(output.0);
+                            // A longer write must not skip or shorten the following phase.
+                            sleep(if writes.borrow().len() == 3 {
+                                Duration::from_millis(220)
+                            } else {
+                                Duration::from_millis(5)
+                            })
+                            .await;
+                            let at = StdInstant::now();
+                            pulse.borrow_mut().acknowledged(output, at);
+                            acknowledged.set(Some(at));
+                            Ok(())
+                        },
+                        || {
+                            (
+                                pulse.borrow_mut().sample(
+                                    (!capacity).then_some(&expiry),
+                                    capacity.then_some(&event),
+                                    if capacity { b'R' } else { b'G' },
+                                    false,
+                                    StdInstant::now(),
+                                    wall,
+                                ),
+                                37,
+                            )
+                        },
+                        &|| writes.borrow().len() < if capacity { 12 } else { 11 },
+                        || {
+                            let interval = pulse.borrow().poll_interval(POLL, StdInstant::now());
+                            intervals.borrow_mut().push(interval);
+                            interval
+                        },
+                    )
+                    .await
+                    .unwrap();
+                    let expected: &[u8] = if capacity {
+                        b"NRNRNRNRNRNR"
+                    } else {
+                        b"GRYGRYGRYGG"
+                    };
+                    assert_eq!(*writes.borrow(), expected);
+                    assert!(intervals.borrow()[..expected.len() - 1]
+                        .iter()
+                        .all(|interval| *interval <= step));
+                    assert_eq!(intervals.borrow().last(), Some(&POLL));
+                }
             });
         }
 

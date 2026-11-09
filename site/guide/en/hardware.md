@@ -977,7 +977,7 @@ reconnect.
 
 When native Codex or local T3 confirms a model-capacity failure, the lamp gives
 five fast red flashes, then returns to the latest state. A skipped question uses
-two R→Y→G loops from the current light, even over red, then settles on the latest
+three R→Y→G loops from the current light, even over red, then settles on the latest
 state. See [question and capacity signals](sessions.md#question-expiry).
 
 Each lamp receives the current status when it connects, whenever the status changes,

@@ -298,8 +298,8 @@ and existing session/aggregate consumers.
   answers and failed question creation clear without an expiry effect. Unknown
   rollout formats and old rows without tracking metadata retain the conservative
   behavior. Keep this compatibility parser inside the Codex adapter.
-  A fresh skipped-question event scans R→Y→G for two loops from the last
-  acknowledged lamp color, at least 150 ms between acknowledged phases, then
+  A fresh skipped-question event scans R→Y→G for three loops from the last
+  acknowledged lamp color, at least 100 ms between acknowledged phases, then
   continues forward to the latest aggregate. Red does not suppress the scan.
   Capacity flashes preempt and queue it. Existing USB/BLE workers own both effects;
   startup/reconnect never replays old events, and brightness/Identify keep priority.
