@@ -154,6 +154,7 @@ struct Thread {
     session: SessionStatus,
     question_expiry: Option<QuestionExpiry>,
     capacity_alert: Option<CapacityAlert>,
+    latest_user_at: Option<String>,
 }
 
 #[derive(Default)]
@@ -371,6 +372,7 @@ fn read_snapshot(connection: &Connection, source: &Source) -> anyhow::Result<Sna
         snapshot.threads.push(Thread {
             id: format!("{}{thread_id}", source.key),
             activity: facts.activity(),
+            latest_user_at: facts.latest_user_at.clone(),
             question_expiry: facts.skipped.as_ref().map(|(id, at)| QuestionExpiry {
                 id: format!("{}{thread_id}:{id}", source.key),
                 session_id: Some(format!("{}{thread_id}", source.key)),
@@ -389,7 +391,16 @@ fn read_snapshot(connection: &Connection, source: &Source) -> anyhow::Result<Sna
                 last_updated,
                 project_path: worktree.filter(|s| !s.is_empty()).or(project),
                 notification_type,
-                question_skipped_at: facts.skipped.as_ref().map(|(_, at)| at.clone()),
+                question_skipped_at: facts
+                    .skipped
+                    .as_ref()
+                    .filter(|(_, at)| {
+                        !facts
+                            .latest_user_at
+                            .as_deref()
+                            .is_some_and(|user| newer_time(user, Some(at)))
+                    })
+                    .map(|(_, at)| at.clone()),
                 name: (!title.trim().is_empty()).then_some(title),
                 terminal,
                 harness: Some("t3code".to_owned()),
@@ -477,6 +488,7 @@ struct Facts {
     background: bool,
     skipped: Option<(String, String)>,
     failure: Option<(String, Option<String>)>,
+    latest_user_at: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -569,6 +581,13 @@ fn thread_facts(connection: &Connection, thread: &str) -> anyhow::Result<Facts> 
     let idle_prompt = idle_compaction_message("m");
     let latest = read_run(connection, thread, false)?;
     let active = read_run(connection, thread, true)?;
+    let latest_user_at = connection.query_row(
+        &format!("SELECT COALESCE(json_extract(payload_json, '$.createdAt'), updated_at)
+            FROM {PREFIX}messages WHERE thread_id=?1 AND role='user'
+              AND json_extract(payload_json, '$.createdBy')='user'
+            ORDER BY julianday(COALESCE(json_extract(payload_json, '$.createdAt'), updated_at)) DESC LIMIT 1"),
+        [thread], |row| row.get::<_, String>(0),
+    ).optional()?.filter(|at| DateTime::parse_from_rfc3339(at).is_ok());
     // T3 keeps message-response questions pending across terminal turns. Only
     // explicit request closure, backed by an actual question item, is a skip.
     let skipped = connection.query_row(
@@ -697,6 +716,7 @@ fn thread_facts(connection: &Connection, thread: &str) -> anyhow::Result<Facts> 
         background,
         skipped,
         failure,
+        latest_user_at,
     })
 }
 
@@ -907,7 +927,13 @@ fn apply_snapshots(state: &mut HookState, snapshots: &[Snapshot]) -> bool {
                 let old_skipped = state
                     .sessions
                     .get(&thread.id)
-                    .and_then(|old| old.question_skipped_at.clone());
+                    .and_then(|old| old.question_skipped_at.clone())
+                    .filter(|at| {
+                        !thread
+                            .latest_user_at
+                            .as_deref()
+                            .is_some_and(|user| newer_time(user, Some(at)))
+                    });
                 if session
                     .question_skipped_at
                     .as_deref()
@@ -917,6 +943,10 @@ fn apply_snapshots(state: &mut HookState, snapshots: &[Snapshot]) -> bool {
                 }
                 if let Some(event) = thread.question_expiry.as_ref().filter(|event| {
                     new_skip
+                        && !thread
+                            .latest_user_at
+                            .as_deref()
+                            .is_some_and(|user| newer_time(user, Some(&event.occurred_at)))
                         && (state
                             .question_expiry
                             .as_ref()
@@ -1506,6 +1536,85 @@ mod tests {
                 "unchanged baseline cannot publish delayed history"
             );
         }
+    }
+
+    #[test]
+    fn newer_user_message_clears_skip_note_without_model_activity_or_scan_replay() {
+        let (_directory, source, connection) = fixture();
+        add_run(&connection, "run", 1, "running", json!({}));
+        connection.execute(
+            "INSERT INTO orchestration_v2_projection_runtime_requests VALUES ('question', 'thread', 'user_input', 'resolved', ?1, ?1, ?2)",
+            params![AT, json!({"decision":"cancel","responseCapability":{"type":"message"}}).to_string()],
+        ).unwrap();
+        connection.execute(
+            "INSERT INTO orchestration_v2_projection_turn_items VALUES ('question-item', 'thread', 'run', 'root', 'user_input_request', 1, 'cancelled', ?1, ?2)",
+            params![AT, json!({"requestId":"question","questions":[{"id":"q"}]}).to_string()],
+        ).unwrap();
+        let mut state = HookState::default();
+        let initial = read_snapshot(&connection, &source).unwrap();
+        let id = initial.threads[0].id.clone();
+        apply_snapshots(&mut state, &[initial]);
+        assert_eq!(state.sessions[&id].question_skipped_at.as_deref(), Some(AT));
+        connection.execute("INSERT INTO orchestration_v2_projection_messages VALUES ('automatic', 'thread', 'user', ?1, ?2, 'run')",
+            params![LATER, json!({"createdBy":"agent","text":"automatic followup"}).to_string()]).unwrap();
+        connection.execute("INSERT INTO orchestration_v2_projection_messages VALUES ('model', 'thread', 'assistant', ?1, '{}', 'run')", [LATER]).unwrap();
+        connection.execute("INSERT INTO orchestration_v2_projection_messages VALUES ('older-user', 'thread', 'user', ?1, ?2, 'run')",
+            params![LATER, json!({"createdBy":"user","createdAt":"2026-11-06T09:59:00Z"}).to_string()]).unwrap();
+        connection
+            .execute(
+                "UPDATE orchestration_v2_projection_threads SET title='Renamed'",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE orchestration_v2_projection_runs SET status='completed'",
+                [],
+            )
+            .unwrap();
+        apply_snapshots(&mut state, &[read_snapshot(&connection, &source).unwrap()]);
+        assert_eq!(state.sessions[&id].question_skipped_at.as_deref(), Some(AT));
+        // A steering message can be sent in the same run; no new run is required.
+        connection.execute("INSERT INTO orchestration_v2_projection_messages VALUES ('steer', 'thread', 'user', ?1, ?2, 'run')",
+            params![LATER, json!({"createdBy":"user","createdAt":LATER}).to_string()]).unwrap();
+        let current = read_snapshot(&connection, &source).unwrap();
+        apply_snapshots(&mut state, std::slice::from_ref(&current));
+        assert!(state.sessions[&id].question_skipped_at.is_none());
+        assert!(state.question_expiry.is_none());
+        assert!(
+            current.threads[0].question_expiry.is_some(),
+            "dedup evidence survives note clearing"
+        );
+        let mut restored: HookState =
+            serde_json::from_str(&serde_json::to_string(&state).unwrap()).unwrap();
+        assert!(!apply_snapshots(
+            &mut restored,
+            std::slice::from_ref(&current)
+        ));
+        assert!(restored.sessions[&id].question_skipped_at.is_none());
+        assert!(restored.question_expiry.is_none());
+        restored.sessions.get_mut(&id).unwrap().question_skipped_at = Some(AT.into());
+        apply_snapshots(&mut restored, &[current]);
+        assert!(
+            restored.sessions[&id].question_skipped_at.is_none(),
+            "merge cannot restore obsolete note"
+        );
+        connection.execute("INSERT INTO orchestration_v2_projection_runtime_requests VALUES ('question-z', 'thread', 'user_input', 'resolved', ?1, ?1, ?2)",
+            params![AT, json!({"decision":"cancel"}).to_string()]).unwrap();
+        connection.execute("INSERT INTO orchestration_v2_projection_turn_items VALUES ('late-item', 'thread', 'run', 'root', 'user_input_request', 2, 'cancelled', ?1, ?2)",
+            params![AT, json!({"requestId":"question-z","questions":[{"id":"q"}]}).to_string()]).unwrap();
+        let late = read_snapshot(&connection, &source).unwrap();
+        apply_snapshots(&mut restored, std::slice::from_ref(&late));
+        assert!(
+            restored.question_expiry.is_none(),
+            "late history predating user message cannot replay scan"
+        );
+        assert!(restored.t3_threads[&id]
+            .question_skipped_id
+            .as_deref()
+            .unwrap()
+            .ends_with(":question-z"));
+        assert!(!apply_snapshots(&mut restored, &[late]));
     }
 
     #[test]

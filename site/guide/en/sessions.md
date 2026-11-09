@@ -53,8 +53,9 @@ When no color is known, the scan starts red. It still plays over a red aggregate
 
 The affected chat gains a quiet **Question skipped · 2m ago** line below its agent
 and project. Its actual status and activity time remain unchanged. The note follows
-the session's normal visibility; it does not create a history section or keep a
-finished chat in the list. Answered questions and failed question creation do not
+the session's normal visibility and clears when you send a newer message in that
+chat; it does not create a history section or keep a finished chat in the list.
+Answered questions and failed question creation do not
 produce a skipped-question effect.
 
 Old effects do not replay after reconnecting or restarting. Brightness, including

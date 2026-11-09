@@ -198,6 +198,14 @@ pub(crate) fn reconcile_turns(state: &mut crate::state::HookState) -> bool {
                 continue;
             };
             let payload = &record["payload"];
+            if user_message_at(&record).is_some_and(|timestamp| {
+                session
+                    .question_skipped_at
+                    .as_deref()
+                    .is_some_and(|skipped| timestamp_after(timestamp, skipped))
+            }) {
+                session.question_skipped_at = None;
+            }
             let starts_turn = record["type"] == "turn_context"
                 || (record["type"] == "event_msg" && payload["type"] == "task_started");
             if starts_turn {
@@ -296,6 +304,8 @@ pub struct PendingQuestion {
     pub superseded: bool,
     #[serde(default)]
     pub next_turn_id: Option<String>,
+    #[serde(default)]
+    pub latest_user_at: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -379,9 +389,6 @@ pub(crate) fn reconcile_questions(state: &mut crate::state::HookState) -> bool {
         if session.is_codex_capacity() {
             continue;
         }
-        if pending.terminal_at.is_some() || pending.superseded {
-            continue;
-        }
         let offset = pending.offset;
         if let Some(resolution) = question_resolution(pending) {
             if let QuestionResolution::Terminal(timestamp) = resolution {
@@ -393,11 +400,15 @@ pub(crate) fn reconcile_questions(state: &mut crate::state::HookState) -> bool {
                 };
                 session.notification_type = None;
                 session.last_updated.clone_from(&timestamp);
-                if (pending.accepted && !pending.resolved)
+                if ((pending.accepted && !pending.resolved)
                     || pending
                         .other_calls
                         .values()
-                        .any(|call| call.accepted && !call.resolved)
+                        .any(|call| call.accepted && !call.resolved))
+                    && !pending
+                        .latest_user_at
+                        .as_deref()
+                        .is_some_and(|user| timestamp_after(user, &timestamp))
                 {
                     session.question_skipped_at = Some(timestamp.clone());
                     let expiry = QuestionExpiry {
@@ -424,6 +435,15 @@ pub(crate) fn reconcile_questions(state: &mut crate::state::HookState) -> bool {
                 session.status = Status::Active;
                 session.notification_type = None;
             }
+            changed = true;
+        }
+        if pending.latest_user_at.as_deref().is_some_and(|user| {
+            session
+                .question_skipped_at
+                .as_deref()
+                .is_some_and(|skipped| timestamp_after(user, skipped))
+        }) {
+            session.question_skipped_at = None;
             changed = true;
         }
         changed |= pending.offset != offset;
@@ -460,6 +480,7 @@ fn question_resolution(pending: &mut PendingQuestion) -> Option<QuestionResoluti
         return None;
     };
     pending.offset += complete as u64;
+    let mut terminal = None;
     for line in bytes[..complete].split(|b| *b == b'\n') {
         if pending.discard_line {
             pending.discard_line = false;
@@ -469,6 +490,15 @@ fn question_resolution(pending: &mut PendingQuestion) -> Option<QuestionResoluti
             continue;
         };
         let payload = &record["payload"];
+        if let Some(timestamp) = user_message_at(&record) {
+            if pending
+                .latest_user_at
+                .as_deref()
+                .is_none_or(|old| timestamp_after(timestamp, old))
+            {
+                pending.latest_user_at = Some(timestamp.to_string());
+            }
+        }
         if record["type"] == "event_msg"
             && payload["type"] == "item_completed"
             && payload["turn_id"].as_str() == Some(&pending.turn_id)
@@ -520,6 +550,8 @@ fn question_resolution(pending: &mut PendingQuestion) -> Option<QuestionResoluti
             }
         }
         if record["type"] == "event_msg"
+            && pending.terminal_at.is_none()
+            && !pending.superseded
             && matches!(
                 payload["type"].as_str(),
                 Some("task_complete" | "turn_aborted")
@@ -530,11 +562,25 @@ fn question_resolution(pending: &mut PendingQuestion) -> Option<QuestionResoluti
                 .as_str()
                 .filter(|s| chrono::DateTime::parse_from_rfc3339(s).is_ok())
             {
-                return Some(QuestionResolution::Terminal(timestamp.to_string()));
+                terminal.get_or_insert_with(|| QuestionResolution::Terminal(timestamp.to_string()));
             }
         }
     }
-    (!pending.outstanding()).then_some(QuestionResolution::Answered)
+    terminal.or_else(|| (!pending.outstanding()).then_some(QuestionResolution::Answered))
+}
+
+fn user_message_at(record: &Value) -> Option<&str> {
+    (record["type"] == "event_msg" && record["payload"]["type"] == "user_message")
+        .then(|| record["timestamp"].as_str())
+        .flatten()
+        .filter(|timestamp| chrono::DateTime::parse_from_rfc3339(timestamp).is_ok())
+}
+
+fn timestamp_after(newer: &str, older: &str) -> bool {
+    chrono::DateTime::parse_from_rfc3339(newer)
+        .ok()
+        .zip(chrono::DateTime::parse_from_rfc3339(older).ok())
+        .is_some_and(|(newer, older)| newer > older)
 }
 
 fn record_question_answers(pending: &mut PendingQuestion, text: &str) {
@@ -1186,6 +1232,7 @@ mod tests {
                     terminal_at: None,
                     superseded: false,
                     next_turn_id: None,
+                    latest_user_at: None,
                 },
             );
         }
@@ -1198,7 +1245,60 @@ mod tests {
             state.sessions["old"].question_skipped_at.as_deref(),
             Some("2026-10-21T09:00:00Z")
         );
-        assert_eq!(state.question_expiry.unwrap().id, "fresh:turn:call");
+        assert_eq!(
+            state.question_expiry.as_ref().unwrap().id,
+            "fresh:turn:call"
+        );
+        let path = dir.path().join("fresh");
+        let append = |record: Value| {
+            use std::io::Write;
+            writeln!(
+                std::fs::OpenOptions::new()
+                    .append(true)
+                    .open(&path)
+                    .unwrap(),
+                "{record}"
+            )
+            .unwrap();
+        };
+        for record in [
+            serde_json::json!({"type":"event_msg", "timestamp":"2026-10-21T10:01:00Z", "payload":{"type":"agent_message", "message":"working"}}),
+            serde_json::json!({"type":"response_item", "timestamp":"2026-10-21T10:01:00Z", "payload":{"type":"message", "role":"user", "content":[{"type":"input_text", "text":"<environment>injected</environment>"}]}}),
+            serde_json::json!({"type":"event_msg", "timestamp":"2026-10-21T09:59:00Z", "payload":{"type":"user_message", "message":"older user prompt"}}),
+        ] {
+            append(record);
+            reconcile_questions(&mut state);
+            assert!(state.sessions["fresh"].question_skipped_at.is_some());
+        }
+        append(
+            serde_json::json!({"type":"event_msg", "timestamp":"2026-10-21T10:02:00Z", "payload":{"type":"user_message", "message":"same-turn follow-up"}}),
+        );
+        assert!(reconcile_questions(&mut state));
+        assert!(state.sessions["fresh"].question_skipped_at.is_none());
+        assert!(state.sessions["old"].question_skipped_at.is_some());
+        state.sessions.get_mut("fresh").unwrap().question_skipped_at =
+            Some("2026-10-21T10:03:00Z".into());
+        let status = state.sessions["fresh"].status.clone();
+        append(
+            serde_json::json!({"type":"event_msg", "timestamp":"2026-10-21T10:04:00Z", "payload":{"type":"user_message", "message":"", "images":["image.png"]}}),
+        );
+        assert!(reconcile_questions(&mut state));
+        assert!(state.sessions["fresh"].question_skipped_at.is_none());
+        assert_eq!(state.sessions["fresh"].status, status);
+        let mut restarted = serde_json::from_value(serde_json::to_value(&state).unwrap()).unwrap();
+        reconcile_rollouts(&mut restarted);
+        assert!(restarted.sessions["fresh"].question_skipped_at.is_none());
+        assert_eq!(
+            restarted.question_expiry.as_ref().unwrap().id,
+            "fresh:turn:call"
+        );
+        // A terminal and a later prompt can arrive in the same polling batch.
+        let pending = restarted.codex_questions.get_mut("fresh").unwrap();
+        pending.offset = 0;
+        pending.terminal_at = None;
+        pending.latest_user_at = None;
+        reconcile_questions(&mut restarted);
+        assert!(restarted.sessions["fresh"].question_skipped_at.is_none());
     }
 
     #[test]
@@ -1220,6 +1320,7 @@ mod tests {
             terminal_at: None,
             superseded: false,
             next_turn_id: None,
+            latest_user_at: None,
         };
         let mut contents = "x".repeat(300 * 1024) + "\n";
         for (turn, timestamp) in [

@@ -651,6 +651,7 @@ mod tests {
                 terminal_at: None,
                 superseded: false,
                 next_turn_id: None,
+                latest_user_at: None,
             },
         );
         write_state_atomic(&state).unwrap();

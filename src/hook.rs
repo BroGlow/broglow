@@ -426,7 +426,11 @@ pub fn run() -> anyhow::Result<()> {
                 // Claude Code sessions carry no harness tag (absent = claude).
                 harness: None,
                 codex_background: false,
-                question_skipped_at: existing.and_then(|s| s.question_skipped_at.clone()),
+                question_skipped_at: if hook_event == "UserPromptSubmit" {
+                    None
+                } else {
+                    existing.and_then(|s| s.question_skipped_at.clone())
+                },
                 t3_hosted,
             },
         );
@@ -920,12 +924,74 @@ fn ingest_event(v: &Value, terminal: Option<crate::state::TerminalInfo>) -> anyh
                 terminal,
                 harness: Some(harness.clone()),
                 codex_background: false,
-                question_skipped_at: existing.and_then(|s| s.question_skipped_at.clone()),
+                question_skipped_at: if v["hook_event_name"] == "UserPromptSubmit" {
+                    None
+                } else {
+                    existing.and_then(|s| s.question_skipped_at.clone())
+                },
                 t3_hosted,
             },
         );
         true
     })
+}
+
+#[cfg(all(test, unix))]
+#[test]
+fn skipped_note_clears_only_for_explicit_prompt_in_its_chat() {
+    if std::env::var_os("BROGLOW_TEST_SKIPPED_NOTE").is_none() {
+        let home = tempfile::tempdir().unwrap();
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "hook::skipped_note_clears_only_for_explicit_prompt_in_its_chat",
+                "--nocapture",
+            ])
+            .env("BROGLOW_HOME", home.path())
+            .env("T3CODE_HOME", home.path().join("t3"))
+            .env("BROGLOW_TEST_SKIPPED_NOTE", "1")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+    update_state(|state| {
+        for id in ["chat", "other"] {
+            state.sessions.insert(
+                id.into(),
+                serde_json::from_value(serde_json::json!({
+                    "status":"active", "last_updated":"2026-11-09T10:00:00Z", "harness":"codex",
+                    "question_skipped_at":"2026-11-09T09:59:00Z", "name":"Existing"
+                }))
+                .unwrap(),
+            );
+        }
+        true
+    })
+    .unwrap();
+    for event in [
+        serde_json::json!({"event":"resumed", "hook_event_name":"PostToolUse"}),
+        serde_json::json!({"event":"title", "title":"Renamed"}),
+        serde_json::json!({"event":"working", "hook_event_name":"SessionStart"}),
+        serde_json::json!({"event":"resumed", "hook_event_name":"UserPromptSubmit"}),
+    ] {
+        let mut event = event;
+        event["harness"] = "codex".into();
+        event["session_id"] = "chat".into();
+        ingest_event(&event, Some(crate::state::TerminalInfo::default())).unwrap();
+        let state: HookState =
+            serde_json::from_slice(&std::fs::read(state_file_path()).unwrap()).unwrap();
+        assert_eq!(
+            state.sessions["chat"].question_skipped_at.is_none(),
+            event["hook_event_name"] == "UserPromptSubmit"
+        );
+        assert!(state.sessions["other"].question_skipped_at.is_some());
+    }
 }
 
 /// `broglow codex-hook`: the Codex shim. Codex (>= 0.144) fires hooks in
@@ -1054,6 +1120,7 @@ pub fn run_codex_hook() -> anyhow::Result<()> {
                     terminal_at: None,
                     superseded: false,
                     next_turn_id: None,
+                    latest_user_at: None,
                 })?;
             }
         }

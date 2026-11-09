@@ -948,15 +948,32 @@ fn project_thread(
             session_id: Some(format!("{}{id}", source.key)),
             occurred_at: at.with_timezone(&Utc).to_rfc3339(),
         });
+    let latest_user_at = items
+        .iter()
+        .filter(|item| {
+            item["type"] == "user_message"
+                && item["createdBy"] == "user"
+                && item["sourceThreadId"] == id
+        })
+        .filter_map(|item| DateTime::parse_from_rfc3339(item["updatedAt"].as_str()?).ok())
+        .max()
+        .map(|at| at.with_timezone(&Utc).to_rfc3339());
     Ok(Thread {
         id: format!("{}{id}", source.key),
         activity,
         question_expiry: question_expiry.clone(),
         capacity_alert: None,
+        latest_user_at: latest_user_at.clone(),
         session: SessionStatus {
             status,
             notification_type,
-            question_skipped_at: question_expiry.map(|event| event.occurred_at),
+            question_skipped_at: question_expiry
+                .filter(|event| {
+                    !latest_user_at
+                        .as_deref()
+                        .is_some_and(|user| super::newer_time(user, Some(&event.occurred_at)))
+                })
+                .map(|event| event.occurred_at),
             last_updated,
             name: detail["title"]
                 .as_str()
@@ -1470,6 +1487,38 @@ mod tests {
             if let Some(event) = thread.question_expiry {
                 assert_eq!(event.session_id.as_deref(), Some(thread.id.as_str()));
             }
+        }
+    }
+
+    #[test]
+    fn newer_exact_chat_user_message_hides_note_but_preserves_cancellation_evidence() {
+        let (_directory, source) = fixture();
+        let skipped = json!({"itemId":"question","sourceThreadId":"thread","runId":"run","type":"user_input_request","status":"cancelled","updatedAt":AT});
+        for (kind, actor, chat, expected_note) in [
+            ("assistant_message", "agent", "thread", true),
+            ("user_message", "agent", "thread", true),
+            ("user_message", "user", "ancestor", true),
+            ("user_message", "user", "thread", false),
+        ] {
+            let message = json!({"itemId":"message","sourceThreadId":chat,"runId":"run","type":kind,"createdBy":actor,"status":"completed","updatedAt":LATER});
+            let thread = project_thread(
+                &source,
+                "remote",
+                "thread",
+                &detail(),
+                &[],
+                &[skipped.clone(), message],
+            )
+            .unwrap();
+            assert_eq!(
+                thread.session.question_skipped_at.is_some(),
+                expected_note,
+                "{kind}/{actor}/{chat}"
+            );
+            assert!(
+                thread.question_expiry.is_some(),
+                "display lifetime cannot erase event dedup evidence"
+            );
         }
     }
 

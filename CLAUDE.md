@@ -304,7 +304,9 @@ and existing session/aggregate consumers.
   Capacity flashes preempt and queue it. Existing USB/BLE workers own both effects;
   startup/reconnect never replays old events, and brightness/Identify keep priority.
   Keep only the latest per-chat skipped timestamp for the passive third-line note;
-  hook updates preserve it and normal session dismissal/retention still applies.
+  clear it on a newer user message in that chat, keeping event deduplication so old
+  skips cannot reappear or replay. Other updates preserve it; normal session
+  dismissal/retention still applies.
   T3 message-capability questions remain red until their request closes, including
   after a model turn ends. Use explicit unanswered closure evidence, never infer
   a miss from run completion. T3 root failures with provider_error/serverOverloaded
