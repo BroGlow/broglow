@@ -978,7 +978,7 @@ reconnect.
 When native Codex or local T3 confirms a model-capacity failure, the lamp gives
 five fast red flashes, then returns to the latest state. A skipped question uses
 three R→Y→G loops from the current light, even over red, then settles on the latest
-state. See [question and capacity signals](sessions.md#question-expiry).
+state. See [question and capacity signals]({{ repo_url }}/blob/HEAD/site/guide/en/sessions.md#question-expiry).
 
 Each lamp receives the current status when it connects, whenever the status changes,
 and every **two seconds**. Reconnecting never replays an old queued color. Disabling
